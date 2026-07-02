@@ -19,6 +19,108 @@ None.
 
 None.
 
+## v0.7.0 - 2026-07-02
+
+Feature release for generated-project lifecycle hooks, Redis-backed queue
+runtime support, and release-grade migration safety for existing schema
+adoption.
+
+### Release Metadata
+
+- Previous release: `v0.6.0`.
+- New release: `v0.7.0`.
+- Module path: `github.com/cybersaksham/gogo`.
+- CLI install path: `github.com/cybersaksham/gogo/cmd/gogo`.
+
+### Added
+
+- Added generated-project lifecycle and management hooks so projects can
+  register app setup, custom commands, checks, URLs, runserver behavior, queue
+  runtimes, and migration metadata through the generated `manage.go` entrypoint.
+- Added raw HTTP router support for mounting exact `net/http.Handler` behavior
+  alongside framework routes, including route metadata for generated OpenAPI
+  output and access logs.
+- Added real Redis queue runtime support for broker, result backend, and beat
+  schedule store URLs, including queue inspection, worker checks, visibility
+  timeout behavior, delayed delivery, result storage, and schedule-store locks.
+- Added generated app migration templates and a compiled migration registry so
+  generated projects load operation-backed migrations instead of placeholder
+  filenames.
+- Added `inspectdb` and `diffschema` commands for existing database adoption,
+  plus compatibility coverage for unmanaged existing-product schema fixtures.
+- Added model and migration metadata for database defaults, indexes,
+  constraints, field DB columns, table names, and schema comparison.
+
+### Changed
+
+- Changed `makemigrations`, `sqlmigrate`, and `migrate` to load generated Go
+  migration operations as the source of truth for state and SQL rendering.
+- Changed migration execution to use dialect-aware history recording and a
+  database-backed migration lock before mutating schema or applied history.
+- Changed `migrate --fake-initial` to validate live initial table shape before
+  recording an existing schema baseline.
+- Changed migration autodetection and SQL rendering to generate model-state
+  migrations, table-scoped operations, rich PostgreSQL objects, typed database
+  defaults, index operations, constraint operations, and minimal field object
+  changes.
+- Changed generated project templates and generated-project agent guidance to
+  include lifecycle files, app checks, app commands, initial migrations, queue
+  runtime configuration, and existing-schema adoption guidance.
+- Changed deployment checks to include explicit migration-applied confirmation
+  for release/deploy readiness.
+
+### Fixed
+
+- Fixed existing-schema baseline gaps where initial migrations could be faked
+  without comparing required columns, primary keys, nullability, types,
+  database defaults, or collations.
+- Fixed migration SQL generation for full field alterations, database default
+  changes, model indexes, constraints, PostgreSQL object details, and per-table
+  operation ordering.
+- Fixed generated-project migration smoke coverage so scaffolded projects can
+  run `makemigrations`, `sqlmigrate`, and `migrate` against operation-backed
+  initial migrations.
+- Fixed route, auth, admin, API, and access-log metadata gaps needed by raw
+  handler mounting and generated project parity checks.
+
+### Breaking
+
+- None.
+
+### Migration Notes
+
+- Existing generated projects should update their `go.mod` requirement to
+  `github.com/cybersaksham/gogo v0.7.0` and run `go mod tidy`.
+- Existing generated projects should regenerate or manually adopt the updated
+  project lifecycle, app command/check, migration, queue, and `manage.go`
+  templates if they want the new generated-project hooks and Redis queue
+  runtime wiring.
+- Projects adopting existing databases should run `go run manage.go inspectdb`,
+  `go run manage.go diffschema --app <app>`, review `sqlmigrate` output, and
+  use `go run manage.go migrate --fake-initial` only after the live schema
+  matches the initial migration state.
+- Queue deployments that use Redis should set `GOGO_BROKER_URL`,
+  `GOGO_RESULT_BACKEND`, and `GOGO_SCHEDULE_STORE` explicitly and keep separate
+  Redis databases, prefixes, or clusters where operational isolation matters.
+
+### Verification
+
+- Passed `make ci` before tagging.
+- Passed `go test -tags=integration ./...` before tagging.
+- Passed `go test -race ./queue/... ./orm/... ./http/...` before tagging.
+- Passed `make bench` before tagging.
+- Passed release dry run for `v0.7.0` before tagging.
+- Passed live Postgres and Redis smoke coverage for migration, generated
+  project compatibility, Redis queue runtime packages, and Redis race checks
+  before tagging.
+
+### Artifacts
+
+- The GitHub release workflow publishes CLI binaries for Linux, macOS, and
+  Windows on `amd64` and `arm64`.
+- The GitHub release workflow publishes `checksums.txt` with SHA256 checksums
+  for release artifacts.
+
 ## v0.6.0 - 2026-06-30
 
 Feature release for Django admin UI parity, built-in auth admin registration,
