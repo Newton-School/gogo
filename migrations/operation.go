@@ -41,6 +41,13 @@ type TableShapeChecker interface {
 	TableColumns(context.Context, string) ([]ColumnSchema, error)
 }
 
+// TableObjectShapeChecker is implemented by schema editors that can inspect
+// table indexes and constraints in addition to columns.
+type TableObjectShapeChecker interface {
+	TableIndexes(context.Context, string) ([]IndexSchema, error)
+	TableConstraints(context.Context, string) ([]ConstraintSchema, error)
+}
+
 // InitialTableProvider lets fake-initial compare an initial migration with existing schema.
 type InitialTableProvider interface {
 	InitialTables() []string
@@ -53,8 +60,10 @@ type InitialSchemaProvider interface {
 
 // TableSchema describes the minimum table shape required by an initial migration.
 type TableSchema struct {
-	Name    string
-	Columns []ColumnSchema
+	Name        string
+	Columns     []ColumnSchema
+	Indexes     []IndexSchema
+	Constraints []ConstraintSchema
 }
 
 // ColumnSchema describes one column required by an initial migration.
@@ -74,6 +83,74 @@ type ColumnSchema struct {
 	PrimaryKey         bool
 	Nullable           bool
 	OrdinalPosition    int
+}
+
+// IndexSchema describes one inspected or expected index.
+type IndexSchema struct {
+	Schema        string
+	Table         string
+	Name          string
+	Fields        []string
+	Expressions   []string
+	Method        string
+	OpClasses     []string
+	Include       []string
+	ConditionSQL  string
+	Unique        bool
+	Primary       bool
+	DefinitionSQL string
+}
+
+// ConstraintSchema describes one inspected or expected table constraint.
+type ConstraintSchema struct {
+	Schema            string
+	Table             string
+	Name              string
+	Type              string
+	Fields            []string
+	Expressions       []string
+	Check             string
+	ConditionSQL      string
+	Include           []string
+	OpClasses         []string
+	ReferencesTable   string
+	ReferencesColumns []string
+	OnDelete          string
+	Deferrable        bool
+	InitiallyDeferred bool
+	DefinitionSQL     string
+}
+
+// IndexSchemaFromState converts migration index state into comparable schema.
+func IndexSchemaFromState(index IndexState) IndexSchema {
+	return IndexSchema{
+		Name:         index.Name,
+		Fields:       append([]string(nil), index.Fields...),
+		Expressions:  append([]string(nil), index.Expressions...),
+		Method:       index.Method,
+		OpClasses:    append([]string(nil), index.OpClasses...),
+		Include:      append([]string(nil), index.Include...),
+		ConditionSQL: index.ConditionSQL,
+	}
+}
+
+// ConstraintSchemaFromState converts migration constraint state into comparable schema.
+func ConstraintSchemaFromState(constraint ConstraintState) ConstraintSchema {
+	return ConstraintSchema{
+		Name:              constraint.Name,
+		Type:              constraint.Type,
+		Fields:            append([]string(nil), constraint.Fields...),
+		Expressions:       append([]string(nil), constraint.Expressions...),
+		Check:             constraint.Check,
+		ConditionSQL:      constraint.ConditionSQL,
+		Include:           append([]string(nil), constraint.Include...),
+		OpClasses:         append([]string(nil), constraint.OpClasses...),
+		ReferencesTable:   constraint.ReferencesTable,
+		ReferencesColumns: append([]string(nil), constraint.ReferencesColumns...),
+		OnDelete:          constraint.OnDelete,
+		Deferrable:        constraint.Deferrable,
+		InitiallyDeferred: constraint.InitiallyDeferred,
+	}
 }
 
 // Operation is the complete migration operation contract.

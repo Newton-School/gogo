@@ -75,7 +75,15 @@ func (o CreateModel) InitialSchema() []migrations.TableSchema {
 			Nullable:       field.Null,
 		})
 	}
-	return []migrations.TableSchema{{Name: table, Columns: columns}}
+	indexes := make([]migrations.IndexSchema, 0, len(o.Model.Indexes))
+	for _, index := range o.Model.Indexes {
+		indexes = append(indexes, migrations.IndexSchemaFromState(index))
+	}
+	constraints := make([]migrations.ConstraintSchema, 0, len(o.Model.Constraints))
+	for _, constraint := range o.Model.Constraints {
+		constraints = append(constraints, migrations.ConstraintSchemaFromState(constraint))
+	}
+	return []migrations.TableSchema{{Name: table, Columns: columns, Indexes: indexes, Constraints: constraints}}
 }
 
 func (o DeleteModel) Name() string { return "DeleteModel" }

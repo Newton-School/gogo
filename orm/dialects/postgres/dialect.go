@@ -119,9 +119,123 @@ func (d Dialect) ReleaseSavepointSQL(name string) string {
 
 func (Dialect) SchemaIntrospection() dialects.SchemaIntrospection {
 	return dialects.SchemaIntrospection{
-		TablesSQL:      "SELECT tablename FROM pg_catalog.pg_tables WHERE schemaname NOT IN ('pg_catalog', 'information_schema')",
-		ColumnsSQL:     "SELECT c.table_schema, c.table_name, c.column_name, c.data_type, c.udt_name, c.character_maximum_length, c.numeric_precision, c.numeric_scale, c.column_default, c.collation_name, c.is_identity = 'YES' AS identity, c.is_nullable = 'YES' AS nullable, COALESCE(pk.primary_key, false) AS primary_key, c.ordinal_position FROM information_schema.columns c LEFT JOIN (SELECT kcu.table_schema, kcu.table_name, kcu.column_name, true AS primary_key FROM information_schema.table_constraints tc JOIN information_schema.key_column_usage kcu ON tc.constraint_schema = kcu.constraint_schema AND tc.constraint_name = kcu.constraint_name AND tc.table_schema = kcu.table_schema AND tc.table_name = kcu.table_name WHERE tc.constraint_type = 'PRIMARY KEY') pk ON c.table_schema = pk.table_schema AND c.table_name = pk.table_name AND c.column_name = pk.column_name WHERE c.table_schema NOT IN ('pg_catalog', 'information_schema') ORDER BY c.table_name, c.ordinal_position",
-		ConstraintsSQL: "SELECT conname FROM pg_constraint",
-		IndexesSQL:     "SELECT indexname FROM pg_indexes",
+		TablesSQL: "SELECT tablename FROM pg_catalog.pg_tables WHERE schemaname NOT IN ('pg_catalog', 'information_schema')",
+		ColumnsSQL: `SELECT
+	n.nspname AS table_schema,
+	cls.relname AS table_name,
+	a.attname AS column_name,
+	format_type(a.atttypid, a.atttypmod) AS formatted_type,
+	t.typname AS udt_name,
+	pg_get_expr(ad.adbin, ad.adrelid) AS column_default,
+	coll.collname AS collation_name,
+	a.attidentity <> '' AS identity,
+	NOT a.attnotnull AS nullable,
+	COALESCE(pk.primary_key, false) AS primary_key,
+	a.attnum AS ordinal_position
+FROM pg_catalog.pg_attribute a
+JOIN pg_catalog.pg_class cls ON cls.oid = a.attrelid
+JOIN pg_catalog.pg_namespace n ON n.oid = cls.relnamespace
+JOIN pg_catalog.pg_type t ON t.oid = a.atttypid
+LEFT JOIN pg_catalog.pg_attrdef ad ON ad.adrelid = a.attrelid AND ad.adnum = a.attnum
+LEFT JOIN pg_catalog.pg_collation coll ON coll.oid = a.attcollation AND a.attcollation <> t.typcollation
+LEFT JOIN (
+	SELECT conrelid, unnest(conkey) AS attnum, true AS primary_key
+	FROM pg_catalog.pg_constraint
+	WHERE contype = 'p'
+) pk ON pk.conrelid = a.attrelid AND pk.attnum = a.attnum
+WHERE a.attnum > 0
+	AND NOT a.attisdropped
+	AND cls.relkind IN ('r', 'p')
+	AND n.nspname NOT IN ('pg_catalog', 'information_schema')
+ORDER BY cls.relname, a.attnum`,
+		ConstraintsSQL: `SELECT
+	n.nspname AS table_schema,
+	tbl.relname AS table_name,
+	con.conname AS constraint_name,
+	CASE con.contype
+		WHEN 'u' THEN 'unique'
+		WHEN 'c' THEN 'check'
+		WHEN 'f' THEN 'foreign_key'
+		WHEN 'x' THEN 'exclusion'
+		WHEN 'p' THEN 'primary_key'
+		ELSE con.contype::text
+	END AS constraint_type,
+	COALESCE(array_to_string(ARRAY(
+		SELECT att.attname
+		FROM unnest(con.conkey) WITH ORDINALITY AS key(attnum, ord)
+		JOIN pg_catalog.pg_attribute att ON att.attrelid = con.conrelid AND att.attnum = key.attnum
+		ORDER BY key.ord
+	), E'\x1f'), '') AS column_names,
+	pg_get_constraintdef(con.oid, true) AS definition_sql,
+	CASE WHEN con.contype = 'c' THEN pg_get_constraintdef(con.oid, true) END AS check_sql,
+	NULL::text AS condition_sql,
+	ref.relname AS referenced_table,
+	COALESCE(array_to_string(ARRAY(
+		SELECT att.attname
+		FROM unnest(con.confkey) WITH ORDINALITY AS key(attnum, ord)
+		JOIN pg_catalog.pg_attribute att ON att.attrelid = con.confrelid AND att.attnum = key.attnum
+		ORDER BY key.ord
+	), E'\x1f'), '') AS referenced_columns,
+	CASE con.confdeltype
+		WHEN 'a' THEN 'NO ACTION'
+		WHEN 'r' THEN 'RESTRICT'
+		WHEN 'c' THEN 'CASCADE'
+		WHEN 'n' THEN 'SET NULL'
+		WHEN 'd' THEN 'SET DEFAULT'
+		ELSE NULL
+	END AS on_delete,
+	con.condeferrable AS deferrable,
+	con.condeferred AS initially_deferred
+FROM pg_catalog.pg_constraint con
+JOIN pg_catalog.pg_class tbl ON tbl.oid = con.conrelid
+JOIN pg_catalog.pg_namespace n ON n.oid = tbl.relnamespace
+LEFT JOIN pg_catalog.pg_class ref ON ref.oid = con.confrelid
+WHERE con.contype IN ('u', 'c', 'f', 'x', 'p')
+	AND n.nspname NOT IN ('pg_catalog', 'information_schema')
+ORDER BY tbl.relname, con.conname`,
+		IndexesSQL: `SELECT
+	n.nspname AS table_schema,
+	tbl.relname AS table_name,
+	idx.relname AS index_name,
+	am.amname AS method,
+	ix.indisunique AS is_unique,
+	ix.indisprimary AS is_primary,
+	pg_get_expr(ix.indpred, ix.indrelid) AS condition_sql,
+	pg_get_indexdef(ix.indexrelid) AS definition_sql,
+	COALESCE(array_to_string(ARRAY(
+		SELECT att.attname
+		FROM unnest(ix.indkey) WITH ORDINALITY AS key(attnum, ord)
+		JOIN pg_catalog.pg_attribute att ON att.attrelid = tbl.oid AND att.attnum = key.attnum
+		WHERE key.attnum > 0 AND key.ord <= ix.indnkeyatts
+		ORDER BY key.ord
+	), E'\x1f'), '') AS column_names,
+	COALESCE(array_to_string(ARRAY(
+		SELECT pg_get_indexdef(ix.indexrelid, key.ord::int, true)
+		FROM unnest(ix.indkey) WITH ORDINALITY AS key(attnum, ord)
+		WHERE key.attnum = 0 AND key.ord <= ix.indnkeyatts
+		ORDER BY key.ord
+	), E'\x1f'), '') AS expression_sql,
+	COALESCE(array_to_string(ARRAY(
+		SELECT opc.opcname
+		FROM unnest(ix.indclass) WITH ORDINALITY AS cls(opcoid, ord)
+		JOIN pg_catalog.pg_opclass opc ON opc.oid = cls.opcoid
+		WHERE cls.ord <= ix.indnkeyatts
+		ORDER BY cls.ord
+	), E'\x1f'), '') AS opclass_names,
+	COALESCE(array_to_string(ARRAY(
+		SELECT att.attname
+		FROM unnest(ix.indkey) WITH ORDINALITY AS key(attnum, ord)
+		JOIN pg_catalog.pg_attribute att ON att.attrelid = tbl.oid AND att.attnum = key.attnum
+		WHERE key.attnum > 0 AND key.ord > ix.indnkeyatts
+		ORDER BY key.ord
+	), E'\x1f'), '') AS include_columns
+FROM pg_catalog.pg_index ix
+JOIN pg_catalog.pg_class idx ON idx.oid = ix.indexrelid
+JOIN pg_catalog.pg_class tbl ON tbl.oid = ix.indrelid
+JOIN pg_catalog.pg_namespace n ON n.oid = tbl.relnamespace
+JOIN pg_catalog.pg_am am ON am.oid = idx.relam
+WHERE tbl.relkind IN ('r', 'p')
+	AND n.nspname NOT IN ('pg_catalog', 'information_schema')
+ORDER BY tbl.relname, idx.relname`,
 	}
 }

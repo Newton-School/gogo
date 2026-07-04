@@ -1387,35 +1387,29 @@ func (e sqlSchemaEditor) TableColumns(ctx context.Context, table string) ([]migr
 			var tableName string
 			var tableSchema string
 			var name string
-			var kind string
+			var formattedType string
 			var udtName string
-			var characterMaxLength sql.NullInt64
-			var numericPrecision sql.NullInt64
-			var numericScale sql.NullInt64
 			var defaultValue sql.NullString
 			var collation sql.NullString
 			var identity bool
 			var nullable bool
 			var primaryKey bool
 			var ordinalPosition int
-			if err := rows.Scan(&tableSchema, &tableName, &name, &kind, &udtName, &characterMaxLength, &numericPrecision, &numericScale, &defaultValue, &collation, &identity, &nullable, &primaryKey, &ordinalPosition); err != nil {
+			if err := rows.Scan(&tableSchema, &tableName, &name, &formattedType, &udtName, &defaultValue, &collation, &identity, &nullable, &primaryKey, &ordinalPosition); err != nil {
 				return nil, err
 			}
 			if tableName == table {
 				column := migrations.ColumnSchema{
 					Schema:          tableSchema,
 					Name:            name,
-					Kind:            kind,
-					NormalizedKind:  normalizePostgresColumnKind(kind, intFromNull(characterMaxLength), intFromNull(numericPrecision), intFromNull(numericScale)),
+					Kind:            formattedType,
+					NormalizedKind:  normalizePostgresColumnKind(formattedType, 0, 0, 0),
 					UDTName:         udtName,
 					PrimaryKey:      primaryKey,
 					Nullable:        nullable,
 					Identity:        identity,
 					OrdinalPosition: ordinalPosition,
 				}
-				column.CharacterMaxLength = intFromNull(characterMaxLength)
-				column.NumericPrecision = intFromNull(numericPrecision)
-				column.NumericScale = intFromNull(numericScale)
 				if defaultValue.Valid {
 					column.DefaultSQL = defaultValue.String
 				}
@@ -1428,6 +1422,183 @@ func (e sqlSchemaEditor) TableColumns(ctx context.Context, table string) ([]migr
 		return columns, rows.Err()
 	default:
 		return nil, errors.New("database dialect does not support column introspection")
+	}
+}
+
+func (e sqlSchemaEditor) TableIndexes(ctx context.Context, table string) ([]migrations.IndexSchema, error) {
+	if e.dialect == nil {
+		return nil, errors.New("database dialect does not support index introspection")
+	}
+	switch e.dialect.Name() {
+	case "sqlite":
+		rows, err := e.db.QueryContext(ctx, "PRAGMA index_list("+e.dialect.QuoteIdent(table)+")")
+		if err != nil {
+			return nil, err
+		}
+		defer rows.Close()
+		var indexes []migrations.IndexSchema
+		for rows.Next() {
+			var seq int
+			var name string
+			var unique int
+			var origin string
+			var partial int
+			if err := rows.Scan(&seq, &name, &unique, &origin, &partial); err != nil {
+				return nil, err
+			}
+			if origin == "pk" {
+				continue
+			}
+			fields, err := e.sqliteIndexColumns(ctx, name)
+			if err != nil {
+				return nil, err
+			}
+			indexes = append(indexes, migrations.IndexSchema{Table: table, Name: name, Fields: fields, Unique: unique > 0})
+		}
+		return indexes, rows.Err()
+	case "postgres":
+		if e.dialect.SchemaIntrospection().IndexesSQL == "" {
+			return nil, errors.New("database dialect does not support index introspection")
+		}
+		rows, err := e.db.QueryContext(ctx, e.dialect.SchemaIntrospection().IndexesSQL)
+		if err != nil {
+			return nil, err
+		}
+		defer rows.Close()
+		var indexes []migrations.IndexSchema
+		for rows.Next() {
+			var tableSchema string
+			var tableName string
+			var name string
+			var method string
+			var unique bool
+			var primary bool
+			var condition sql.NullString
+			var definition sql.NullString
+			var columnNames sql.NullString
+			var expressionSQL sql.NullString
+			var opClasses sql.NullString
+			var includeColumns sql.NullString
+			if err := rows.Scan(&tableSchema, &tableName, &name, &method, &unique, &primary, &condition, &definition, &columnNames, &expressionSQL, &opClasses, &includeColumns); err != nil {
+				return nil, err
+			}
+			if tableName != table {
+				continue
+			}
+			index := migrations.IndexSchema{
+				Schema:      tableSchema,
+				Table:       tableName,
+				Name:        name,
+				Method:      method,
+				Fields:      splitCatalogList(columnNames),
+				Expressions: splitCatalogList(expressionSQL),
+				OpClasses:   splitCatalogList(opClasses),
+				Include:     splitCatalogList(includeColumns),
+				Unique:      unique,
+				Primary:     primary,
+			}
+			if condition.Valid {
+				index.ConditionSQL = condition.String
+			}
+			if definition.Valid {
+				index.DefinitionSQL = definition.String
+			}
+			indexes = append(indexes, index)
+		}
+		return indexes, rows.Err()
+	default:
+		return nil, errors.New("database dialect does not support index introspection")
+	}
+}
+
+func (e sqlSchemaEditor) sqliteIndexColumns(ctx context.Context, indexName string) ([]string, error) {
+	rows, err := e.db.QueryContext(ctx, "PRAGMA index_info("+e.dialect.QuoteIdent(indexName)+")")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var columns []string
+	for rows.Next() {
+		var seqno int
+		var cid int
+		var name string
+		if err := rows.Scan(&seqno, &cid, &name); err != nil {
+			return nil, err
+		}
+		if name != "" {
+			columns = append(columns, name)
+		}
+	}
+	return columns, rows.Err()
+}
+
+func (e sqlSchemaEditor) TableConstraints(ctx context.Context, table string) ([]migrations.ConstraintSchema, error) {
+	if e.dialect == nil {
+		return nil, errors.New("database dialect does not support constraint introspection")
+	}
+	switch e.dialect.Name() {
+	case "sqlite":
+		return nil, nil
+	case "postgres":
+		if e.dialect.SchemaIntrospection().ConstraintsSQL == "" {
+			return nil, errors.New("database dialect does not support constraint introspection")
+		}
+		rows, err := e.db.QueryContext(ctx, e.dialect.SchemaIntrospection().ConstraintsSQL)
+		if err != nil {
+			return nil, err
+		}
+		defer rows.Close()
+		var constraints []migrations.ConstraintSchema
+		for rows.Next() {
+			var tableSchema string
+			var tableName string
+			var name string
+			var constraintType string
+			var columnNames sql.NullString
+			var definition sql.NullString
+			var checkSQL sql.NullString
+			var condition sql.NullString
+			var referencedTable sql.NullString
+			var referencedColumns sql.NullString
+			var onDelete sql.NullString
+			var deferrable bool
+			var initiallyDeferred bool
+			if err := rows.Scan(&tableSchema, &tableName, &name, &constraintType, &columnNames, &definition, &checkSQL, &condition, &referencedTable, &referencedColumns, &onDelete, &deferrable, &initiallyDeferred); err != nil {
+				return nil, err
+			}
+			if tableName != table {
+				continue
+			}
+			constraint := migrations.ConstraintSchema{
+				Schema:            tableSchema,
+				Table:             tableName,
+				Name:              name,
+				Type:              constraintType,
+				Fields:            splitCatalogList(columnNames),
+				ReferencesColumns: splitCatalogList(referencedColumns),
+				Deferrable:        deferrable,
+				InitiallyDeferred: initiallyDeferred,
+			}
+			if definition.Valid {
+				constraint.DefinitionSQL = definition.String
+			}
+			if checkSQL.Valid {
+				constraint.Check = trimPostgresCheckExpression(checkSQL.String)
+			}
+			if condition.Valid {
+				constraint.ConditionSQL = condition.String
+			}
+			if referencedTable.Valid {
+				constraint.ReferencesTable = referencedTable.String
+			}
+			if onDelete.Valid {
+				constraint.OnDelete = onDelete.String
+			}
+			constraints = append(constraints, constraint)
+		}
+		return constraints, rows.Err()
+	default:
+		return nil, errors.New("database dialect does not support constraint introspection")
 	}
 }
 
@@ -1457,12 +1628,15 @@ func normalizeSQLiteColumnKind(kind string) string {
 
 func normalizePostgresColumnKind(kind string, characterMaxLength, numericPrecision, numericScale int) string {
 	normalized := migrations.NormalizeColumnKind(kind)
+	normalized = strings.ReplaceAll(normalized, ", ", ",")
 	switch normalized {
 	case "character varying", "varchar":
 		if characterMaxLength > 0 {
 			return fmt.Sprintf("varchar(%d)", characterMaxLength)
 		}
 		return "varchar"
+	case "timestamp with time zone":
+		return "timestamptz"
 	case "numeric":
 		if numericPrecision > 0 && numericScale > 0 {
 			return fmt.Sprintf("numeric(%d,%d)", numericPrecision, numericScale)
@@ -1474,8 +1648,41 @@ func normalizePostgresColumnKind(kind string, characterMaxLength, numericPrecisi
 	case "timestamp without time zone":
 		return "timestamp"
 	default:
+		if strings.HasPrefix(normalized, "character varying(") {
+			return "varchar" + strings.TrimPrefix(normalized, "character varying")
+		}
+		if strings.HasPrefix(normalized, "timestamp(") && strings.HasSuffix(normalized, " with time zone") {
+			return "timestamptz" + strings.TrimSuffix(strings.TrimPrefix(normalized, "timestamp"), " with time zone")
+		}
+		if strings.HasPrefix(normalized, "timestamp(") && strings.HasSuffix(normalized, " without time zone") {
+			return "timestamp" + strings.TrimSuffix(strings.TrimPrefix(normalized, "timestamp"), " without time zone")
+		}
 		return normalized
 	}
+}
+
+func splitCatalogList(value sql.NullString) []string {
+	if !value.Valid || strings.TrimSpace(value.String) == "" {
+		return nil
+	}
+	parts := strings.Split(value.String, "\x1f")
+	out := make([]string, 0, len(parts))
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part != "" {
+			out = append(out, part)
+		}
+	}
+	return out
+}
+
+func trimPostgresCheckExpression(value string) string {
+	trimmed := strings.TrimSpace(value)
+	lower := strings.ToLower(trimmed)
+	if strings.HasPrefix(lower, "check (") && strings.HasSuffix(trimmed, ")") {
+		return strings.TrimSpace(trimmed[len("CHECK (") : len(trimmed)-1])
+	}
+	return trimmed
 }
 
 type sqlMigrationOperation struct {

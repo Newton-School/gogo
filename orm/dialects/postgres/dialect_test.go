@@ -65,9 +65,31 @@ func TestPostgresDialectColumnShapeIntrospectionSQL(t *testing.T) {
 	if sql == "" {
 		t.Fatal("ColumnsSQL is empty")
 	}
-	for _, want := range []string{"table_schema", "table_name", "column_name", "data_type", "udt_name", "character_maximum_length", "numeric_precision", "numeric_scale", "column_default", "collation_name", "is_identity", "primary_key", "ordinal_position"} {
+	for _, want := range []string{"pg_attribute", "pg_class", "pg_namespace", "pg_type", "format_type", "pg_get_expr", "table_schema", "table_name", "column_name", "formatted_type", "udt_name", "column_default", "collation_name", "identity", "primary_key", "ordinal_position"} {
 		if !strings.Contains(sql, want) {
 			t.Fatalf("ColumnsSQL missing %q: %s", want, sql)
+		}
+	}
+}
+
+func TestPostgresDialectIndexAndConstraintIntrospectionSQL(t *testing.T) {
+	introspection := New().SchemaIntrospection()
+	for name, sql := range map[string]string{
+		"IndexesSQL":     introspection.IndexesSQL,
+		"ConstraintsSQL": introspection.ConstraintsSQL,
+	} {
+		if sql == "" {
+			t.Fatalf("%s is empty", name)
+		}
+	}
+	for _, want := range []string{"pg_index", "pg_class", "pg_get_indexdef", "index_name", "method", "is_unique", "is_primary", "condition_sql"} {
+		if !strings.Contains(introspection.IndexesSQL, want) {
+			t.Fatalf("IndexesSQL missing %q: %s", want, introspection.IndexesSQL)
+		}
+	}
+	for _, want := range []string{"pg_constraint", "pg_get_constraintdef", "constraint_name", "constraint_type", "referenced_table", "referenced_columns", "check_sql", "condition_sql"} {
+		if !strings.Contains(introspection.ConstraintsSQL, want) {
+			t.Fatalf("ConstraintsSQL missing %q: %s", want, introspection.ConstraintsSQL)
 		}
 	}
 }

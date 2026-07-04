@@ -205,7 +205,20 @@ func tableShapeMatches(ctx context.Context, checker TableShapeChecker, expected 
 	if len(actualColumns) == 0 {
 		return false, nil
 	}
-	return len(CompareTableSchema(expected, actualColumns)) == 0, nil
+	actual := TableSchema{Name: expected.Name, Columns: actualColumns}
+	if objectChecker, ok := checker.(TableObjectShapeChecker); ok {
+		indexes, err := objectChecker.TableIndexes(ctx, expected.Name)
+		if err != nil {
+			return false, err
+		}
+		constraints, err := objectChecker.TableConstraints(ctx, expected.Name)
+		if err != nil {
+			return false, err
+		}
+		actual.Indexes = indexes
+		actual.Constraints = constraints
+	}
+	return len(CompareTableShape(expected, actual)) == 0, nil
 }
 
 func migrationChecksum(migration Migration) string {

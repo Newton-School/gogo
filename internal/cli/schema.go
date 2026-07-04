@@ -47,11 +47,11 @@ func (c inspectDBCommand) runWithIO(ctx context.Context, args []string, stdout, 
 		if options.table != "" && table != options.table {
 			continue
 		}
-		columns, err := editor.TableColumns(ctx, table)
+		schema, err := inspectTableSchema(ctx, editor, table)
 		if err != nil {
-			return fmt.Errorf("%w: inspect columns for %s: %v", ErrCommandFailed, table, err)
+			return fmt.Errorf("%w: inspect schema for %s: %v", ErrCommandFailed, table, err)
 		}
-		if err := writeInspectedTable(stdout, table, columns); err != nil {
+		if err := writeInspectedTable(stdout, table, schema.Columns); err != nil {
 			return err
 		}
 	}
@@ -172,20 +172,36 @@ func compareModelToSchema(ctx context.Context, editor sqlSchemaEditor, meta mode
 	if table == "" {
 		table = strings.ToLower(meta.AppLabel + "_" + meta.ModelName)
 	}
-	columns, err := editor.TableColumns(ctx, table)
+	actual, err := inspectTableSchema(ctx, editor, table)
 	if err != nil {
 		return []string{fmt.Sprintf("ERROR %s.%s inspect table %s: %v", meta.AppLabel, meta.ModelName, table, err)}
 	}
-	if len(columns) == 0 {
+	if len(actual.Columns) == 0 {
 		return []string{fmt.Sprintf("MISSING table %s for %s.%s", table, meta.AppLabel, meta.ModelName)}
 	}
 	expected := tableSchemaFromMetadata(meta, table)
-	differences := migrations.CompareTableSchema(expected, columns)
+	differences := migrations.CompareTableShape(expected, actual)
 	diffs := make([]string, 0, len(differences))
 	for _, difference := range differences {
 		diffs = append(diffs, difference.String()+fmt.Sprintf(" for %s.%s", meta.AppLabel, meta.ModelName))
 	}
 	return diffs
+}
+
+func inspectTableSchema(ctx context.Context, editor sqlSchemaEditor, table string) (migrations.TableSchema, error) {
+	columns, err := editor.TableColumns(ctx, table)
+	if err != nil {
+		return migrations.TableSchema{}, err
+	}
+	indexes, err := editor.TableIndexes(ctx, table)
+	if err != nil {
+		return migrations.TableSchema{}, err
+	}
+	constraints, err := editor.TableConstraints(ctx, table)
+	if err != nil {
+		return migrations.TableSchema{}, err
+	}
+	return migrations.TableSchema{Name: table, Columns: columns, Indexes: indexes, Constraints: constraints}, nil
 }
 
 func tableSchemaFromMetadata(meta models.Metadata, table string) migrations.TableSchema {
@@ -209,7 +225,32 @@ func tableSchemaFromMetadata(meta models.Metadata, table string) migrations.Tabl
 		}
 		columns = append(columns, columnSchema)
 	}
-	return migrations.TableSchema{Name: table, Columns: columns}
+	indexes := make([]migrations.IndexSchema, 0, len(meta.Indexes))
+	for _, index := range meta.Indexes {
+		indexes = append(indexes, migrations.IndexSchema{
+			Name:         index.NameFor(table),
+			Fields:       index.FieldNames(),
+			Expressions:  append([]string(nil), index.Expressions...),
+			Method:       index.Method,
+			OpClasses:    append([]string(nil), index.OpClasses...),
+			Include:      append([]string(nil), index.Include...),
+			ConditionSQL: index.Condition,
+		})
+	}
+	constraints := make([]migrations.ConstraintSchema, 0, len(meta.Constraints))
+	for _, constraint := range meta.Constraints {
+		constraints = append(constraints, migrations.ConstraintSchema{
+			Name:         constraint.NameFor(table),
+			Type:         string(constraint.Type),
+			Fields:       constraint.FieldNames(),
+			Expressions:  append([]string(nil), constraint.Expressions...),
+			Check:        constraint.Check,
+			ConditionSQL: constraint.Condition,
+			Include:      append([]string(nil), constraint.Include...),
+			OpClasses:    append([]string(nil), constraint.OpClasses...),
+		})
+	}
+	return migrations.TableSchema{Name: table, Columns: columns, Indexes: indexes, Constraints: constraints}
 }
 
 func modelNameFromTable(table string) string {

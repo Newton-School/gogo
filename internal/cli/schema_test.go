@@ -120,6 +120,66 @@ func TestDiffSchemaReportsTypeAndDefaultMismatches(t *testing.T) {
 	}
 }
 
+func TestNormalizePostgresColumnKindPreservesCatalogFormattedTypes(t *testing.T) {
+	tests := map[string]string{
+		"timestamp with time zone":    "timestamptz",
+		"timestamp without time zone": "timestamp",
+		"character varying(255)":      "varchar(255)",
+		"numeric(20, 6)":              "numeric(20,6)",
+		"vector(384)":                 "vector(384)",
+		"jsonb":                       "jsonb",
+		"uuid":                        "uuid",
+		"double precision":            "double precision",
+	}
+	for input, want := range tests {
+		if got := normalizePostgresColumnKind(input, 0, 0, 0); got != want {
+			t.Fatalf("normalizePostgresColumnKind(%q) = %q, want %q", input, got, want)
+		}
+	}
+}
+
+func TestDiffSchemaReportsMissingIndexes(t *testing.T) {
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "db.sqlite3")
+	writeSchemaTestEnv(t, dir, dbPath)
+	db := openSchemaTestDB(t, dbPath)
+	if _, err := db.Exec(`CREATE TABLE blog_item (id integer PRIMARY KEY, slug text NOT NULL)`); err != nil {
+		t.Fatalf("create blog table: %v", err)
+	}
+	db.Close()
+	t.Chdir(dir)
+
+	meta := models.Metadata{
+		AppLabel:  "blog",
+		ModelName: "Item",
+		TableName: "blog_item",
+		Fields: []models.FieldMeta{
+			{Name: "id", Column: "id", Kind: "bigint", PrimaryKey: true},
+			{Name: "slug", Column: "slug", Kind: "text"},
+		},
+		Indexes: []models.Index{{Name: "idx_blog_item_slug", Fields: []models.IndexField{models.Asc("slug")}}},
+	}
+	root := NewRootWithOptions(RootOptions{ProjectModels: []models.Metadata{meta}})
+	var stdout bytes.Buffer
+	err := root.Execute(context.Background(), []string{"diffschema", "--app", "blog"}, &stdout, &bytes.Buffer{})
+	if !errors.Is(err, ErrCommandFailed) {
+		t.Fatalf("diffschema error = %v, want ErrCommandFailed", err)
+	}
+	if !strings.Contains(stdout.String(), "MISSING index blog_item.idx_blog_item_slug") {
+		t.Fatalf("diffschema output = %q", stdout.String())
+	}
+
+	db = openSchemaTestDB(t, dbPath)
+	if _, err := db.Exec(`CREATE INDEX idx_blog_item_slug ON blog_item (slug)`); err != nil {
+		t.Fatalf("create index: %v", err)
+	}
+	db.Close()
+	stdout.Reset()
+	if err := root.Execute(context.Background(), []string{"diffschema", "--app", "blog"}, &stdout, &bytes.Buffer{}); err != nil {
+		t.Fatalf("diffschema match error = %v\n%s", err, stdout.String())
+	}
+}
+
 func writeSchemaTestEnv(t *testing.T, dir, dbPath string) {
 	t.Helper()
 	writeTextFile(t, filepath.Join(dir, ".env"), "GOGO_SECRET_KEY=schema-secret\nDATABASE_URL=sqlite://"+filepath.ToSlash(dbPath)+"\n")
