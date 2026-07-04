@@ -36,6 +36,8 @@ type RelationConfig struct {
 	RelatedQueryName string
 	OnDelete         DeleteBehavior
 	SetValue         any
+	ColumnTypes      map[string]string
+	TargetFieldName  string
 }
 
 // ReverseRelation describes generated reverse relation metadata.
@@ -56,18 +58,30 @@ type RelationField struct {
 
 // NewForeignKey creates a foreign key field.
 func NewForeignKey(options Options, config RelationConfig) *RelationField {
-	return newRelationField(RelationForeignKey, options, config, map[string]string{"postgres": "bigint", "sqlite": "integer"})
+	columnTypes := config.ColumnTypes
+	if len(columnTypes) == 0 {
+		columnTypes = map[string]string{"postgres": "bigint", "sqlite": "integer"}
+	}
+	return newRelationField(RelationForeignKey, options, config, columnTypes)
 }
 
 // NewOneToOneField creates a one-to-one field.
 func NewOneToOneField(options Options, config RelationConfig) *RelationField {
 	options.Unique = true
-	return newRelationField(RelationOneToOne, options, config, map[string]string{"postgres": "bigint", "sqlite": "integer"})
+	columnTypes := config.ColumnTypes
+	if len(columnTypes) == 0 {
+		columnTypes = map[string]string{"postgres": "bigint", "sqlite": "integer"}
+	}
+	return newRelationField(RelationOneToOne, options, config, columnTypes)
 }
 
 // NewManyToManyField creates a many-to-many field.
 func NewManyToManyField(options Options, config RelationConfig) *RelationField {
-	return newRelationField(RelationManyToMany, options, config, map[string]string{"postgres": "many_to_many", "sqlite": "many_to_many"})
+	columnTypes := config.ColumnTypes
+	if len(columnTypes) == 0 {
+		columnTypes = map[string]string{"postgres": "many_to_many", "sqlite": "many_to_many"}
+	}
+	return newRelationField(RelationManyToMany, options, config, columnTypes)
 }
 
 func newRelationField(relationType RelationType, options Options, config RelationConfig, columnTypes map[string]string) *RelationField {
@@ -77,7 +91,7 @@ func newRelationField(relationType RelationType, options Options, config Relatio
 	return &RelationField{
 		BaseField:    NewBaseField(string(relationType), options, columnTypes),
 		relationType: relationType,
-		config:       config,
+		config:       cloneRelationConfig(config),
 	}
 }
 
@@ -123,8 +137,14 @@ func (f *RelationField) Clone() Field {
 	return &RelationField{
 		BaseField:    f.BaseField.Clone().(*BaseField),
 		relationType: f.relationType,
-		config:       f.config,
+		config:       cloneRelationConfig(f.config),
 	}
+}
+
+func cloneRelationConfig(config RelationConfig) RelationConfig {
+	copied := config
+	copied.ColumnTypes = cloneStringMap(config.ColumnTypes)
+	return copied
 }
 
 // ModelLookup resolves model metadata by app_label.ModelName.

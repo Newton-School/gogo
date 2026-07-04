@@ -369,9 +369,6 @@ func migrationFileBaseName(options migrationOptions, existingCount int) string {
 func projectStateFromModels(projectModels []models.Metadata, appLabel string) (migrations.ProjectState, error) {
 	registry := models.NewRegistry()
 	for _, meta := range projectModels {
-		if appLabel != "" && meta.AppLabel != appLabel {
-			continue
-		}
 		if meta.AppLabel == "auth" || !meta.IsManaged() {
 			continue
 		}
@@ -380,7 +377,20 @@ func projectStateFromModels(projectModels []models.Metadata, appLabel string) (m
 			return migrations.ProjectState{}, err
 		}
 	}
-	return migrations.StateFromRegistry(registry), nil
+	return filterProjectStateByApp(migrations.StateFromRegistry(registry), appLabel), nil
+}
+
+func filterProjectStateByApp(state migrations.ProjectState, appLabel string) migrations.ProjectState {
+	if appLabel == "" {
+		return state
+	}
+	filtered := migrations.NewProjectState()
+	for key, model := range state.Models {
+		if model.AppLabel == appLabel {
+			filtered.Models[key] = model
+		}
+	}
+	return filtered
 }
 
 func normalizeMigrationMetadata(meta models.Metadata) models.Metadata {

@@ -32,6 +32,24 @@ func TestRelationshipFieldTypesAndMetadata(t *testing.T) {
 	}
 }
 
+func TestForeignKeySupportsExplicitUUIDColumnType(t *testing.T) {
+	fk := NewForeignKey(Options{Name: "owner", Column: "owner_id"}, RelationConfig{
+		Target:      "accounts.User",
+		OnDelete:    Cascade,
+		ColumnTypes: map[string]string{"postgres": "uuid", "sqlite": "text"},
+	})
+	if got := fk.ColumnType("postgres"); got != "uuid" {
+		t.Fatalf("foreign key postgres column type = %q, want uuid", got)
+	}
+	if got := fk.ColumnType("sqlite"); got != "text" {
+		t.Fatalf("foreign key sqlite column type = %q, want text", got)
+	}
+	meta := Metadata(fk, "postgres")
+	if meta.Kind != "uuid" || meta.RelationTarget != "accounts.User" || meta.DeleteBehavior != string(Cascade) {
+		t.Fatalf("relation metadata = %#v", meta)
+	}
+}
+
 func TestRelationshipFieldsSupportSelfAndLazyReferences(t *testing.T) {
 	self := NewForeignKey(Options{Name: "parent", Null: true}, RelationConfig{Target: Self, OnDelete: SetNull})
 	if !self.IsSelfReference() {

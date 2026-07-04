@@ -69,6 +69,38 @@ func TestMakeMigrationsWritesFile(t *testing.T) {
 	}
 }
 
+func TestProjectStateFromModelsInfersRelationKindFromTargetPrimaryKeyWhenAppScoped(t *testing.T) {
+	state, err := projectStateFromModels([]models.Metadata{
+		{
+			AppLabel:  "accounts",
+			ModelName: "User",
+			TableName: "accounts_user",
+			Fields: []models.FieldMeta{
+				{Name: "id", Column: "id", Kind: "uuid", PrimaryKey: true},
+			},
+		},
+		{
+			AppLabel:  "docs",
+			ModelName: "Document",
+			TableName: "docs_document",
+			Fields: []models.FieldMeta{
+				{Name: "id", Column: "id", Kind: "bigint", PrimaryKey: true},
+				{Name: "owner", Column: "owner_id", RelationTarget: "accounts.User", DeleteBehavior: "cascade"},
+			},
+		},
+	}, "docs")
+	if err != nil {
+		t.Fatalf("projectStateFromModels() error = %v", err)
+	}
+	if _, exists := state.Models["accounts.User"]; exists {
+		t.Fatalf("app-scoped state included target model: %#v", state.Models)
+	}
+	field := state.Models["docs.Document"].Fields[1]
+	if field.Kind != "uuid" {
+		t.Fatalf("relation field kind = %q, want uuid", field.Kind)
+	}
+}
+
 func TestMakeMigrationsDiscoversGeneratedAppsFromProjectRoot(t *testing.T) {
 	dir := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(dir, "apps", "blog", "migrations"), 0o755); err != nil {

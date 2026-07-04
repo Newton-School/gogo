@@ -1,6 +1,10 @@
 package migrations
 
-import "github.com/cybersaksham/gogo/models"
+import (
+	"strings"
+
+	"github.com/cybersaksham/gogo/models"
+)
 
 // ProjectState stores historical migration state.
 type ProjectState struct {
@@ -125,7 +129,7 @@ func StateFromRegistry(registry *models.Registry) ProjectState {
 			model.Fields[i] = FieldState{
 				Name:        field.Name,
 				Column:      field.Column,
-				Kind:        field.Kind,
+				Kind:        fieldKindFromMetadata(meta, field, registry),
 				ColumnTypes: cloneStringMap(field.ColumnTypes),
 				PrimaryKey:  field.PrimaryKey,
 				Null:        field.Null,
@@ -173,6 +177,37 @@ func StateFromRegistry(registry *models.Registry) ProjectState {
 		state.AddModel(model)
 	}
 	return state
+}
+
+func fieldKindFromMetadata(meta models.Metadata, field models.FieldMeta, registry *models.Registry) string {
+	if field.Kind != "" || field.RelationTarget == "" {
+		return field.Kind
+	}
+	target, ok := relationTargetMetadata(meta, field.RelationTarget, registry)
+	if !ok {
+		return "bigint"
+	}
+	for _, targetField := range target.Fields {
+		if targetField.PrimaryKey {
+			if targetField.Kind != "" {
+				return targetField.Kind
+			}
+			break
+		}
+	}
+	return "bigint"
+}
+
+func relationTargetMetadata(meta models.Metadata, target string, registry *models.Registry) (models.Metadata, bool) {
+	if registry == nil {
+		return models.Metadata{}, false
+	}
+	if target == "self" {
+		target = meta.Label()
+	} else if !strings.Contains(target, ".") {
+		target = meta.AppLabel + "." + target
+	}
+	return registry.Lookup(target)
 }
 
 func (m ModelState) clone() ModelState {
