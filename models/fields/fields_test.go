@@ -83,3 +83,54 @@ func TestBaseFieldCloneIsIndependent(t *testing.T) {
 		t.Fatalf("IsEditable() = true, want explicit false")
 	}
 }
+
+func TestCustomFieldColumnTypesMetadataAndConversion(t *testing.T) {
+	field := NewCustomField(Options{Name: "embedding", Column: "embedding_col", Null: true, DBIndex: true}, CustomConfig{
+		Kind:        "vector",
+		ColumnTypes: map[string]string{"postgres": "vector(384)", "sqlite": "text"},
+		ValidateFunc: func(value any) error {
+			if value == "bad" {
+				return errors.New("bad vector")
+			}
+			return nil
+		},
+		ToDBFunc: func(value any) (any, error) {
+			return "db:" + value.(string), nil
+		},
+		FromDBFunc: func(value any) (any, error) {
+			return "model:" + value.(string), nil
+		},
+	})
+
+	if got := field.ColumnType("postgres"); got != "vector(384)" {
+		t.Fatalf("postgres column type = %q, want vector(384)", got)
+	}
+	if got := field.ColumnType("sqlite"); got != "text" {
+		t.Fatalf("sqlite column type = %q, want text", got)
+	}
+	if err := field.Validate("ok"); err != nil {
+		t.Fatalf("Validate(ok) error = %v", err)
+	}
+	if err := field.Validate("bad"); !errors.Is(err, ErrValidation) {
+		t.Fatalf("Validate(bad) error = %v, want ErrValidation", err)
+	}
+	dbValue, err := field.ToDB("value")
+	if err != nil || dbValue != "db:value" {
+		t.Fatalf("ToDB() = %#v, %v", dbValue, err)
+	}
+	modelValue, err := field.FromDB("value")
+	if err != nil || modelValue != "model:value" {
+		t.Fatalf("FromDB() = %#v, %v", modelValue, err)
+	}
+
+	meta := Metadata(field, "postgres")
+	if meta.Name != "embedding" || meta.Column != "embedding_col" || meta.Kind != "vector(384)" || !meta.Null || !meta.DBIndex {
+		t.Fatalf("metadata = %#v", meta)
+	}
+
+	clone := field.Clone().(*CustomField)
+	clone.config.ColumnTypes["postgres"] = "vector(768)"
+	if got := field.ColumnType("postgres"); got != "vector(384)" {
+		t.Fatalf("original column type changed to %q", got)
+	}
+}
