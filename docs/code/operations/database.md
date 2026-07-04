@@ -26,7 +26,7 @@ database dumps, local SQLite databases, or connection URLs containing passwords.
 | SQLite through `modernc.org/sqlite v1.53.0` | Limited | Use for local, test, and single-process deployments only. |
 
 PostgreSQL-specific contrib packages can require extensions such as `pg_trgm`,
-`btree_gin`, `btree_gist`, `hstore`, `unaccent`, and `postgis`.
+`btree_gin`, `btree_gist`, `hstore`, `unaccent`, `postgis`, and `vector`.
 
 ## Migrations
 
@@ -59,8 +59,9 @@ Operational rules:
 - Use `--fake` or `--fake-initial` only after manual inspection confirms the
   database already matches the migration state. `--fake-initial` records an
   initial migration only when declared initial tables, columns, primary keys,
-  nullability, types, defaults, and collations match the live database;
-  dialects that cannot inspect table shape fail closed.
+  nullability, types, defaults, collations, indexes, and constraints match the
+  live database where introspection is available; dialects that cannot inspect
+  table shape fail closed.
 - Use `--prune` only when stale migration records are understood and backed up.
 
 ## Existing Schema Adoption
@@ -80,6 +81,16 @@ Adoption rules:
 - Define exact app labels, table names, column names, primary keys, column
   types, database defaults, indexes, constraints, and relationship targets in
   project model metadata.
+- Use `inspectdb` output as a reviewed starting point. It emits unmanaged
+  metadata with explicit fields, dialect column types, defaults, indexes, and
+  representable constraints; relationship targets and product naming still need
+  human review.
+- For custom database types, use `models.FieldMeta.ColumnTypes`,
+  `models/fields.NewCustomField`, or contrib helpers such as
+  `contrib/postgres/vector`.
+- For UUID, text, or other non-bigint relation columns, set relation field
+  kinds or column types explicitly. Registered relation targets let migration
+  state infer the target primary-key kind when the relation kind is omitted.
 - Keep existing tables unmanaged until the team has reviewed the generated SQL
   and is ready for Gogo migrations to own future changes.
 - Run `diffschema` against the live database and resolve any blocking drift

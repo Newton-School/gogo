@@ -17,10 +17,21 @@ Framework module: `github.com/cybersaksham/gogo`.
   big integers, small integers, positive integers, decimals, floats, booleans,
   char/text/email/URL/slug/UUID fields, date/datetime/time/duration fields,
   binary fields, JSON fields, file/image/file-path fields, generic IP fields,
-  generated fields, foreign keys, one-to-one relations, many-to-many relations,
-  arrays, hstore, integer ranges, decimal ranges, date ranges, datetime ranges,
-  geometry, point, line string, polygon, multipoint, multilinestring,
-  multipolygon, geometry collection, raster, and grouped choices.
+  generated fields, custom fields, foreign keys, one-to-one relations,
+  many-to-many relations, arrays, hstore, integer ranges, decimal ranges, date
+  ranges, datetime ranges, PostgreSQL vector metadata helpers, geometry, point,
+  line string, polygon, multipoint, multilinestring, multipolygon, geometry
+  collection, raster, and grouped choices.
+- Use `fields.NewCustomField` or explicit `models.FieldMeta.ColumnTypes` for
+  database-specific types. Keep these definitions generic and reusable; do not
+  bake product-specific names or assumptions into framework code.
+- For database-generated primary keys, set the primary-key field kind and
+  `DBDefault` explicitly. Gogo create paths omit database-generated primary keys
+  and read them back with `RETURNING` on supported dialects.
+- For non-bigint relation columns, set `RelationConfig.ColumnTypes` or explicit
+  relation `FieldMeta.Kind`. If a relation kind is omitted, migration state
+  infers it from the target model primary-key kind when the target is
+  registered.
 - Keep permissions and content-type expectations close to the app model
   metadata when admin/API/auth behavior depends on them.
 
@@ -67,8 +78,12 @@ Framework module: `github.com/cybersaksham/gogo`.
 - Use `inspectdb` and `diffschema` before adopting existing tables. Baseline
   with `--fake-initial` only when the live table shape matches the initial
   migration state; missing or mismatched columns, primary keys, nullability,
-  types, defaults, or collations must stop the baseline, and unverifiable
-  dialects fail closed.
+  types, defaults, collations, declared indexes, or declared constraints must
+  stop the baseline, and unverifiable dialects fail closed.
+- `inspectdb` emits unmanaged `models.Metadata` snippets with explicit
+  `FieldMeta`, dialect `ColumnTypes`, defaults, indexes, and representable
+  constraints. Treat the snippet as a starting point and review relationship
+  targets before enabling writes or migrations.
 - Use migration commands for normal workflow:
 
 ```bash

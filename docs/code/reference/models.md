@@ -9,6 +9,7 @@ Model metadata is the source of truth for fields, validation, migrations, conten
 | `models` | Model metadata, registry, lifecycle state, field metadata, indexes, constraints, inheritance metadata, permissions, and validation hooks. |
 | `models/fields` | Django-style model fields and field-level conversion/validation. |
 | `models/constraints` | Index and constraint metadata helpers. |
+| `contrib/postgres/vector` | PostgreSQL pgvector field metadata and HNSW/IVFFlat index helpers. |
 | `models/hooks` | Model lifecycle hooks. |
 | `models/validation` | Structured model validation errors. |
 
@@ -37,7 +38,7 @@ Model metadata is the source of truth for fields, validation, migrations, conten
 | Binary and JSON | `NewBinaryField`, `NewJSONField` |
 | Files | `NewFileField`, `NewImageField`, `NewFilePathField` |
 | Network | `NewGenericIPAddressField` |
-| Generated | `NewGeneratedField` |
+| Generated and custom | `NewGeneratedField`, `NewCustomField` |
 | Relations | `NewForeignKey`, `NewOneToOneField`, `NewManyToManyField` |
 | PostgreSQL | `NewArrayField`, `NewHStoreField`, `NewIntegerRangeField`, `NewBigIntegerRangeField`, `NewDecimalRangeField`, `NewDateRangeField`, `NewDateTimeRangeField` |
 | GIS | `NewGeometryField`, `NewPointField`, `NewLineStringField`, `NewPolygonField`, `NewMultiPointField`, `NewMultiLineStringField`, `NewMultiPolygonField`, `NewGeometryCollectionField`, `NewRasterField` |
@@ -48,11 +49,22 @@ Model metadata is the source of truth for fields, validation, migrations, conten
 
 `fields.Choices` and `fields.NewChoices` define fixed value sets.
 
+`fields.NewCustomField` is the public escape hatch for database-specific field
+types. Provide a stable framework kind, dialect `ColumnTypes`, and optional
+conversion/validation hooks. `fields.Metadata(field, dialect)` converts a field
+object into `models.FieldMeta` for generated projects and migration metadata.
+
 ## Relations
 
 `fields.RelationConfig` stores target model, through model, related name, related query name, `OnDelete`, reverse relation metadata, and self-reference behavior.
 
 Supported delete behaviors include cascade, protect, restrict, set null, set default, set value, do nothing, and no constraint where implemented by the relation metadata.
+
+Relation columns default to bigint-compatible storage. Use
+`RelationConfig.ColumnTypes` or explicit relation `FieldMeta.Kind` for UUID,
+text, or other target primary-key types. When a relation `FieldMeta.Kind` is
+omitted, migration state infers the kind from the registered target model's
+primary key.
 
 ## Database Defaults, Indexes, And Constraints
 
@@ -60,6 +72,11 @@ Use `models.DefaultValue(value)` for a quoted literal database default and
 `models.DefaultSQL("trusted_expression()")` for a static SQL default
 expression. Defaults are preserved in migration state and rendered by generated
 schema SQL.
+
+Database-generated primary keys should declare `PrimaryKey: true` and a
+database default. ORM, API, and admin create paths omit those primary keys from
+INSERT statements and read the generated value back with `RETURNING` on
+supported dialects.
 
 `models.Index`, `models.IndexField`, `models.Constraint`, and `models.Permission` appear on `models.Metadata`.
 
@@ -70,6 +87,11 @@ constraint and index state during migration generation.
 
 - Index fields, ordering, opclasses, conditions, include columns, tablespaces, and expressions.
 - Unique, check, exclusion, deferrable, null distinct, and covering constraint metadata.
+
+`contrib/postgres/vector` provides `FieldMeta`, `NewField`,
+`HNSWIndex`, and `IVFFlatIndex` helpers for pgvector-backed models. It only
+describes metadata and SQL shape; projects still own installing and migrating
+the PostgreSQL extension in their environment.
 
 ## Validation
 
@@ -105,8 +127,9 @@ meta := models.Metadata{
 	ModelName: "Post",
 	TableName: "blog_post",
 	Fields: []models.FieldMeta{
-		{Name: "id", Column: "id", PrimaryKey: true},
-		{Name: "title", Column: "title"},
+		{Name: "id", Column: "id", Kind: "uuid", PrimaryKey: true, DBDefault: models.DefaultSQL("gen_random_uuid()")},
+		{Name: "author", Column: "author_id", Kind: "uuid", RelationTarget: "auth.User"},
+		{Name: "title", Column: "title", Kind: "text"},
 	},
 }
 label := meta.Label()

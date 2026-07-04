@@ -8,7 +8,7 @@ Migrations are Go values that describe schema and data changes. They update proj
 | --- | --- |
 | Migration identity | `migrations.Dependency`, `migrations.Migration` |
 | Operations | `migrations.Operation`, `migrations.SchemaEditor`, `migrations.ManifestOperation` |
-| State | `migrations.ProjectState`, `ModelState`, `FieldState`, `IndexState`, `ConstraintState` |
+| State | `migrations.ProjectState`, `ModelState`, `FieldState`, `IndexState`, `ConstraintState`, `TableSchema`, `ColumnSchema`, `IndexSchema`, `ConstraintSchema` |
 | Graph | `migrations.Graph` |
 | Autodetection | `migrations.Autodetector`, `DetectedChange`, `ChangeType`, `RenameQuestioner` |
 | Loading and writing | `migrations.Loader`, `migrations.Writer` |
@@ -81,8 +81,10 @@ execution does not take the lock.
 database operations only when every table declared by its initial table
 operations exists and the live columns match the expected initial schema,
 including primary keys, nullability, type, database defaults, and collation
-where the dialect can inspect them. If any declared table or column is missing
-or mismatched, the migration runs normally or fails through the schema check
+where the dialect can inspect them. When the initial migration declares indexes
+or constraints and the editor can inspect them, those objects must also exist
+and match. If any declared table, column, index, or constraint is missing or
+mismatched, the migration runs normally or fails through the schema check
 instead of silently baselining drift.
 
 ## Safety Checks
@@ -122,3 +124,14 @@ and index state. Explicit `models.Index` and `models.Constraint` metadata can
 represent expressions, PostgreSQL methods, operator classes, include columns,
 partial predicates, and foreign-key details where supported. `sqlmigrate`
 renders this metadata from operation specs rather than guessing from filenames.
+
+`CompareTableSchema` remains available for column-only compatibility.
+`CompareTableShape` compares the richer `TableSchema`, including expected
+indexes and constraints. `diffschema` uses the richer comparison and PostgreSQL
+introspection reads catalog-formatted types, indexes, constraints, check
+definitions, and foreign-key references.
+
+`inspectdb` emits unmanaged `models.Metadata` snippets for adopting existing
+tables. The output includes explicit `FieldMeta` entries, dialect `ColumnTypes`,
+database defaults, indexes, and representable unique/check constraints. Review
+the snippet before enabling writes or generating migrations.

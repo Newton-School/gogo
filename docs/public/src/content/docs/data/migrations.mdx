@@ -51,6 +51,19 @@ read-only and does not take the lock.
 
 `migrate --fake-initial` is for baselining an existing schema. It records an
 initial migration without running SQL only when the tables, columns, primary
-keys, and nullability declared by that initial migration match the live
-database. If the database dialect cannot inspect table shape, fake-initial
-fails closed instead of recording an unverifiable baseline.
+keys, nullability, types, defaults, collations, declared indexes, and declared
+constraints match the live database where the dialect can inspect them. If the
+database dialect cannot inspect table shape, fake-initial fails closed instead
+of recording an unverifiable baseline.
+
+Use `inspectdb` and `diffschema` before adopting existing tables:
+
+```bash
+go run manage.go inspectdb --table legacy_order
+go run manage.go diffschema --app legacy
+```
+
+`inspectdb` emits unmanaged `models.Metadata` snippets with explicit fields,
+dialect column types, defaults, indexes, and representable constraints.
+`diffschema` uses the same rich table-shape comparison as fake-initial and
+reports missing or mismatched declared columns, indexes, and constraints.

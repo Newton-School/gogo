@@ -20,6 +20,7 @@
 | `github.com/cybersaksham/gogo/contrib/gis` | `gis` | - |
 | `github.com/cybersaksham/gogo/contrib/humanize` | `humanize` | - |
 | `github.com/cybersaksham/gogo/contrib/postgres` | `postgres` | - |
+| `github.com/cybersaksham/gogo/contrib/postgres/vector` | `vector` | - |
 | `github.com/cybersaksham/gogo/contrib/redirects` | `redirects` | - |
 | `github.com/cybersaksham/gogo/contrib/redirects/migrations` | `migrations` | - |
 | `github.com/cybersaksham/gogo/contrib/sitemaps` | `sitemaps` | - |

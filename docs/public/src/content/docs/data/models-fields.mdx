@@ -13,6 +13,7 @@ serializers, permissions, and ORM query compilation.
 | `models` | model metadata, registry, lifecycle state, indexes, constraints, inheritance, permissions, and validation hooks |
 | `models/fields` | Django-style field constructors and field-level conversion and validation |
 | `models/constraints` | index and constraint metadata helpers |
+| `contrib/postgres/vector` | PostgreSQL pgvector field metadata and HNSW/IVFFlat index helpers |
 | `models/hooks` | model lifecycle hooks |
 | `models/validation` | structured validation errors |
 
@@ -27,7 +28,7 @@ serializers, permissions, and ORM query compilation.
 | Binary and JSON | binary, JSON |
 | Files | file, image, file path |
 | Network | generic IP address |
-| Generated | generated field |
+| Generated and custom | generated field, custom field |
 | Relations | foreign key, one-to-one, many-to-many |
 | PostgreSQL | array, hstore, integer ranges, decimal ranges, date ranges, datetime ranges |
 | GIS | geometry, point, line string, polygon, multipoint, multilinestring, multipolygon, geometry collection, raster |
@@ -45,8 +46,9 @@ func PostMetadata() models.Metadata {
 		ModelName: "Post",
 		TableName: "blog_post",
 		Fields: []models.FieldMeta{
-			{Name: "id", Column: "id", PrimaryKey: true},
-			{Name: "title", Column: "title"},
+			{Name: "id", Column: "id", Kind: "uuid", PrimaryKey: true, DBDefault: models.DefaultSQL("gen_random_uuid()")},
+			{Name: "author", Column: "author_id", Kind: "uuid", RelationTarget: "auth.User"},
+			{Name: "title", Column: "title", Kind: "text"},
 		},
 	}
 }
@@ -63,3 +65,13 @@ permission codenames. After registering all models, use
 
 Set `Managed` to false for existing tables that Gogo should expose through
 ORM/admin/API metadata without including them in migration state.
+
+Use `fields.NewCustomField` or explicit `models.FieldMeta.ColumnTypes` for
+database-specific column types. Database-generated primary keys should declare
+`PrimaryKey: true` and a `DBDefault`; Gogo create paths omit those primary keys
+and read the generated value back on dialects that support `RETURNING`.
+
+For non-bigint relation columns, set `RelationConfig.ColumnTypes` or explicit
+relation field kinds. When a relation kind is omitted, migration state infers it
+from the registered target model primary key. The `contrib/postgres/vector`
+package provides metadata helpers for pgvector fields and HNSW/IVFFlat indexes.

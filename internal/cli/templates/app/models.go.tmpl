@@ -36,16 +36,26 @@ func (Item) ModelMeta() models.Metadata {
 }
 
 /*
+var legacyItemManaged = false
+
 func LegacyItemMetadata() models.Metadata {
 	return models.Metadata{
 		AppLabel:   AppLabel,
 		ModelName:  "LegacyItem",
 		TableName:  "legacy_item",
 		DBTable:    "legacy_item",
-		Managed:    false,
+		Managed:    &legacyItemManaged,
 		Fields: []models.FieldMeta{
-			{Name: "id", Column: "id", PrimaryKey: true},
-			{Name: "name", Column: "name"},
+			{Name: "id", Column: "id", Kind: "uuid", PrimaryKey: true, DBDefault: models.DefaultSQL("gen_random_uuid()")},
+			{Name: "owner", Column: "owner_id", Kind: "uuid", RelationTarget: "auth.User"},
+			{Name: "embedding", Column: "embedding", Kind: "vector(384)", ColumnTypes: map[string]string{"postgres": "vector(384)"}},
+			{Name: "name", Column: "name", Kind: "text"},
+		},
+		Indexes: []models.Index{
+			{Name: AppLabel + "_legacy_item_embedding_hnsw", Fields: []models.IndexField{models.Asc("embedding")}, Method: "hnsw", OpClasses: []string{"vector_cosine_ops"}},
+		},
+		Constraints: []models.Constraint{
+			{Name: AppLabel + "_legacy_item_owner_uniq", Type: models.ConstraintUnique, Fields: []models.IndexField{models.Asc("owner_id")}},
 		},
 	}
 }
