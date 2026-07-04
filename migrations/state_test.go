@@ -123,6 +123,30 @@ func TestStateFromRegistryConvertsPartialUniqueConstraintToUniqueIndex(t *testin
 	}
 }
 
+func TestStateFromRegistryPreservesSimpleUniqueDeferrableConstraint(t *testing.T) {
+	registry := models.NewRegistry()
+	if err := registry.RegisterMetadata(models.Metadata{
+		AppLabel:  "blog",
+		ModelName: "Post",
+		TableName: "blog_post",
+		Fields: []models.FieldMeta{
+			{Name: "id", Column: "id", Kind: "bigint", PrimaryKey: true},
+			{Name: "slug", Column: "slug", Kind: "text"},
+		},
+		Constraints: []models.Constraint{
+			models.Unique("uniq_blog_post_slug", "slug").WithDeferrable(models.DeferrableDeferred),
+		},
+	}); err != nil {
+		t.Fatalf("RegisterMetadata() error = %v", err)
+	}
+
+	state := StateFromRegistry(registry)
+	constraint := state.Models["blog.Post"].Constraints[0]
+	if !constraint.Deferrable || !constraint.InitiallyDeferred {
+		t.Fatalf("constraint deferrability = %#v", constraint)
+	}
+}
+
 func TestIndexStateCloneAndSchemaPreserveUnique(t *testing.T) {
 	state := NewProjectState()
 	state.AddModel(ModelState{

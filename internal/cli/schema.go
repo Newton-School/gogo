@@ -277,12 +277,37 @@ func isModelConstraint(constraint migrations.ConstraintSchema) bool {
 		return len(constraint.Fields) > 0 || len(constraint.Expressions) > 0
 	case "check":
 		return constraint.Check != ""
+	case "foreign_key":
+		return len(constraint.Fields) > 0 && constraint.ReferencesTable != "" && len(constraint.ReferencesColumns) > 0
 	default:
 		return false
 	}
 }
 
 func inspectedIndexMeta(index migrations.IndexSchema) string {
+	if index.Unique {
+		call := fmt.Sprintf("models.NewUniqueIndex(%q", index.Name)
+		for _, field := range index.Fields {
+			call += fmt.Sprintf(", models.Asc(%q)", field)
+		}
+		call += ")"
+		if len(index.Expressions) > 0 {
+			call += ".WithExpressions(" + stringArgs(index.Expressions) + ")"
+		}
+		if index.ConditionSQL != "" {
+			call += fmt.Sprintf(".WithCondition(%q)", index.ConditionSQL)
+		}
+		if len(index.Include) > 0 {
+			call += ".WithInclude(" + stringArgs(index.Include) + ")"
+		}
+		if len(index.OpClasses) > 0 {
+			call += ".WithOperatorClasses(" + stringArgs(index.OpClasses) + ")"
+		}
+		if index.Method != "" {
+			call += fmt.Sprintf(".WithMethod(%q)", index.Method)
+		}
+		return call
+	}
 	parts := []string{fmt.Sprintf("Name: %q", index.Name)}
 	if len(index.Fields) > 0 {
 		parts = append(parts, "Fields: "+indexFieldList(index.Fields))
@@ -310,6 +335,25 @@ func inspectedConstraintMeta(constraint migrations.ConstraintSchema) string {
 	switch strings.ToLower(constraint.Type) {
 	case "check":
 		parts = append(parts, "Type: models.ConstraintCheck", fmt.Sprintf("Check: %q", constraint.Check))
+	case "foreign_key":
+		parts = append(parts, "Type: models.ConstraintForeignKey")
+		if len(constraint.Fields) > 0 {
+			parts = append(parts, "Fields: "+indexFieldList(constraint.Fields))
+		}
+		parts = append(parts, fmt.Sprintf("ReferencesTable: %q", constraint.ReferencesTable))
+		if len(constraint.ReferencesColumns) > 0 {
+			parts = append(parts, "ReferencesColumns: "+stringList(constraint.ReferencesColumns))
+		}
+		if constraint.OnDelete != "" {
+			parts = append(parts, fmt.Sprintf("OnDelete: %q", constraint.OnDelete))
+		}
+		if constraint.Deferrable {
+			deferrable := "models.DeferrableImmediate"
+			if constraint.InitiallyDeferred {
+				deferrable = "models.DeferrableDeferred"
+			}
+			parts = append(parts, "Deferrable: "+deferrable)
+		}
 	default:
 		parts = append(parts, "Type: models.ConstraintUnique")
 		if len(constraint.Fields) > 0 {
@@ -345,6 +389,14 @@ func stringList(values []string) string {
 		parts = append(parts, fmt.Sprintf("%q", value))
 	}
 	return "[]string{" + strings.Join(parts, ", ") + "}"
+}
+
+func stringArgs(values []string) string {
+	parts := make([]string, 0, len(values))
+	for _, value := range values {
+		parts = append(parts, fmt.Sprintf("%q", value))
+	}
+	return strings.Join(parts, ", ")
 }
 
 func constraintSchemaComment(constraint migrations.ConstraintSchema) string {
@@ -450,14 +502,19 @@ func tableSchemaFromMetadata(meta models.Metadata, table string, registries ...*
 			continue
 		}
 		constraints = append(constraints, migrations.ConstraintSchema{
-			Name:         constraint.NameFor(table),
-			Type:         string(constraint.Type),
-			Fields:       constraint.FieldNames(),
-			Expressions:  append([]string(nil), constraint.Expressions...),
-			Check:        constraint.Check,
-			ConditionSQL: constraint.Condition,
-			Include:      append([]string(nil), constraint.Include...),
-			OpClasses:    append([]string(nil), constraint.OpClasses...),
+			Name:              constraint.NameFor(table),
+			Type:              string(constraint.Type),
+			Fields:            constraint.FieldNames(),
+			Expressions:       append([]string(nil), constraint.Expressions...),
+			Check:             constraint.Check,
+			ConditionSQL:      constraint.Condition,
+			Include:           append([]string(nil), constraint.Include...),
+			OpClasses:         append([]string(nil), constraint.OpClasses...),
+			ReferencesTable:   constraint.ReferencesTable,
+			ReferencesColumns: append([]string(nil), constraint.ReferencesColumns...),
+			OnDelete:          constraint.OnDelete,
+			Deferrable:        constraint.Deferrable != "",
+			InitiallyDeferred: constraint.Deferrable == models.DeferrableDeferred,
 		})
 	}
 	if registry != nil {

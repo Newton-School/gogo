@@ -12,9 +12,10 @@ var ErrInvalidConstraint = errors.New("invalid constraint metadata")
 type Type string
 
 const (
-	TypeUnique    Type = "unique"
-	TypeCheck     Type = "check"
-	TypeExclusion Type = "exclusion"
+	TypeUnique     Type = "unique"
+	TypeCheck      Type = "check"
+	TypeExclusion  Type = "exclusion"
+	TypeForeignKey Type = "foreign_key"
 )
 
 // Deferrable stores deferrable constraint timing.
@@ -34,19 +35,22 @@ type Exclusion struct {
 
 // Constraint stores migration-ready SQL constraint metadata.
 type Constraint struct {
-	Name             string
-	Type             Type
-	Fields           []IndexField
-	Expressions      []string
-	Check            string
-	Exclusions       []Exclusion
-	Condition        string
-	Deferrable       Deferrable
-	NullsDistinct    *bool
-	ViolationCode    string
-	ViolationMessage string
-	Include          []string
-	OpClasses        []string
+	Name              string
+	Type              Type
+	Fields            []IndexField
+	Expressions       []string
+	Check             string
+	Exclusions        []Exclusion
+	Condition         string
+	Deferrable        Deferrable
+	NullsDistinct     *bool
+	ViolationCode     string
+	ViolationMessage  string
+	Include           []string
+	OpClasses         []string
+	ReferencesTable   string
+	ReferencesColumns []string
+	OnDelete          string
 }
 
 // Unique creates unique constraint metadata over fields.
@@ -148,6 +152,7 @@ func (c Constraint) Clone() Constraint {
 	copied.Exclusions = append([]Exclusion(nil), c.Exclusions...)
 	copied.Include = append([]string(nil), c.Include...)
 	copied.OpClasses = append([]string(nil), c.OpClasses...)
+	copied.ReferencesColumns = append([]string(nil), c.ReferencesColumns...)
 	if c.NullsDistinct != nil {
 		value := *c.NullsDistinct
 		copied.NullsDistinct = &value
@@ -210,10 +215,29 @@ func (c Constraint) Validate() error {
 				return fmt.Errorf("%w: exclusion expression and operator are required", ErrInvalidConstraint)
 			}
 		}
+	case TypeForeignKey:
+		if len(c.Fields) == 0 || strings.TrimSpace(c.ReferencesTable) == "" || len(c.ReferencesColumns) == 0 {
+			return fmt.Errorf("%w: foreign keys require fields, references table, and references columns", ErrInvalidConstraint)
+		}
+		if err := validateNonEmpty("references column", c.ReferencesColumns, ErrInvalidConstraint); err != nil {
+			return err
+		}
+		if err := validateForeignKeyAction(c.OnDelete); err != nil {
+			return err
+		}
 	default:
 		return fmt.Errorf("%w: unsupported constraint type %q", ErrInvalidConstraint, c.Type)
 	}
 	return nil
+}
+
+func validateForeignKeyAction(value string) error {
+	switch strings.ToUpper(strings.TrimSpace(value)) {
+	case "", "NO ACTION", "RESTRICT", "CASCADE", "SET NULL", "SET DEFAULT":
+		return nil
+	default:
+		return fmt.Errorf("%w: unsupported foreign key on delete action %q", ErrInvalidConstraint, value)
+	}
 }
 
 func validateDeferrable(value Deferrable) error {
@@ -236,6 +260,13 @@ func (c Constraint) nameParts() []string {
 	}
 	for _, exclusion := range c.Exclusions {
 		parts = append(parts, exclusion.Expression, exclusion.Operator)
+	}
+	if c.ReferencesTable != "" {
+		parts = append(parts, c.ReferencesTable)
+	}
+	parts = append(parts, c.ReferencesColumns...)
+	if c.OnDelete != "" {
+		parts = append(parts, c.OnDelete)
 	}
 	if c.Condition != "" {
 		parts = append(parts, c.Condition)

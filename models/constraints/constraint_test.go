@@ -77,6 +77,26 @@ func TestCheckAndExclusionConstraintMetadata(t *testing.T) {
 	}
 }
 
+func TestForeignKeyConstraintMetadata(t *testing.T) {
+	constraint := Constraint{
+		Name:              "fk_blog_post_author_id",
+		Type:              TypeForeignKey,
+		Fields:            []IndexField{Asc("author_id")},
+		ReferencesTable:   "accounts_user",
+		ReferencesColumns: []string{"id"},
+		OnDelete:          "CASCADE",
+	}
+	if err := constraint.Validate(); err != nil {
+		t.Fatalf("Validate() error = %v", err)
+	}
+
+	cloned := constraint.Clone()
+	cloned.ReferencesColumns[0] = "uid"
+	if constraint.ReferencesColumns[0] != "id" {
+		t.Fatalf("Clone() shared references with original: %#v", constraint)
+	}
+}
+
 func TestFunctionalConstraintAndClone(t *testing.T) {
 	constraint := UniqueExpression("", "LOWER(email)").
 		WithFields(Desc("created_at")).
@@ -100,6 +120,7 @@ func TestConstraintValidationFailures(t *testing.T) {
 		Unique(""),
 		Check("", ""),
 		Exclude("", Exclusion{Expression: "period"}),
+		Constraint{Name: "fk_missing_reference", Type: TypeForeignKey, Fields: []IndexField{Asc("author_id")}},
 		Check("", "enabled").WithNullsDistinct(true),
 		Unique("", "name").WithDeferrable("bad"),
 	}

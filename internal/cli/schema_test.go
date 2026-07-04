@@ -80,6 +80,40 @@ func TestInspectDBPrintsIndexesAndDefaults(t *testing.T) {
 	}
 }
 
+func TestInspectDBPrintsForeignKeysAsConstraints(t *testing.T) {
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "db.sqlite3")
+	writeSchemaTestEnv(t, dir, dbPath)
+	db := openSchemaTestDB(t, dbPath)
+	if _, err := db.Exec(`CREATE TABLE legacy_author (id integer PRIMARY KEY)`); err != nil {
+		t.Fatalf("create author table: %v", err)
+	}
+	if _, err := db.Exec(`CREATE TABLE legacy_post (id integer PRIMARY KEY, author_id integer NOT NULL, FOREIGN KEY (author_id) REFERENCES legacy_author(id) ON DELETE CASCADE)`); err != nil {
+		t.Fatalf("create post table: %v", err)
+	}
+	db.Close()
+	t.Chdir(dir)
+
+	var stdout bytes.Buffer
+	if err := NewRoot().Execute(context.Background(), []string{"inspectdb", "--table", "legacy_post"}, &stdout, &bytes.Buffer{}); err != nil {
+		t.Fatalf("inspectdb error = %v", err)
+	}
+	output := stdout.String()
+	for _, want := range []string{
+		`Constraints: []models.Constraint{`,
+		`Name: "fk_legacy_post_author_id"`,
+		`Type: models.ConstraintForeignKey`,
+		`Fields: []models.IndexField{models.Asc("author_id")}`,
+		`ReferencesTable: "legacy_author"`,
+		`ReferencesColumns: []string{"id"}`,
+		`OnDelete: "CASCADE"`,
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("inspectdb output missing %q:\n%s", want, output)
+		}
+	}
+}
+
 func TestDiffSchemaReportsMissingColumnsAndPassesMatch(t *testing.T) {
 	dir := t.TempDir()
 	dbPath := filepath.Join(dir, "db.sqlite3")
@@ -250,6 +284,46 @@ func TestTableSchemaFromMetadataConvertsAdvancedUniqueConstraintsToIndexes(t *te
 	}
 	if len(schema.Constraints) != 1 || schema.Constraints[0].Name != "uniq_blog_item_slug" || schema.Constraints[0].Type != "unique" {
 		t.Fatalf("constraints = %#v, want simple unique table constraint", schema.Constraints)
+	}
+}
+
+func TestTableSchemaFromMetadataPreservesDeferrableConstraints(t *testing.T) {
+	meta := models.Metadata{
+		AppLabel:  "blog",
+		ModelName: "Item",
+		TableName: "blog_item",
+		Fields: []models.FieldMeta{
+			{Name: "id", Column: "id", Kind: "bigint", PrimaryKey: true},
+			{Name: "slug", Column: "slug", Kind: "text"},
+		},
+		Constraints: []models.Constraint{
+			models.Unique("uniq_blog_item_slug", "slug").WithDeferrable(models.DeferrableDeferred),
+		},
+	}
+
+	schema := tableSchemaFromMetadata(meta, "blog_item")
+	if len(schema.Constraints) != 1 || !schema.Constraints[0].Deferrable || !schema.Constraints[0].InitiallyDeferred {
+		t.Fatalf("constraints = %#v, want deferrable deferred unique", schema.Constraints)
+	}
+}
+
+func TestInspectedIndexMetaUsesUniqueIndexHelper(t *testing.T) {
+	got := inspectedIndexMeta(migrations.IndexSchema{
+		Name:         "uniq_legacy_item_lower_name",
+		Unique:       true,
+		Expressions:  []string{"LOWER(name)"},
+		Include:      []string{"id"},
+		ConditionSQL: "deleted_at IS NULL",
+	})
+	for _, want := range []string{
+		`models.NewUniqueIndex("uniq_legacy_item_lower_name")`,
+		`.WithExpressions("LOWER(name)")`,
+		`.WithInclude("id")`,
+		`.WithCondition("deleted_at IS NULL")`,
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("inspectedIndexMeta() = %s, missing %s", got, want)
+		}
 	}
 }
 

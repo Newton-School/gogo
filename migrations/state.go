@@ -203,15 +203,20 @@ func uniqueIndexStateFromConstraint(table string, constraint models.Constraint) 
 
 func constraintStateFromMetadata(table string, constraint models.Constraint) ConstraintState {
 	return ConstraintState{
-		Name:         constraint.NameFor(table),
-		Type:         string(constraint.Type),
-		Fields:       constraint.FieldNames(),
-		Expressions:  append([]string(nil), constraint.Expressions...),
-		Check:        constraint.Check,
-		ConditionSQL: constraint.Condition,
-		Include:      append([]string(nil), constraint.Include...),
-		OpClasses:    append([]string(nil), constraint.OpClasses...),
-		Source:       "model",
+		Name:              constraint.NameFor(table),
+		Type:              string(constraint.Type),
+		Fields:            constraint.FieldNames(),
+		Expressions:       append([]string(nil), constraint.Expressions...),
+		Check:             constraint.Check,
+		ConditionSQL:      constraint.Condition,
+		Include:           append([]string(nil), constraint.Include...),
+		OpClasses:         append([]string(nil), constraint.OpClasses...),
+		ReferencesTable:   constraint.ReferencesTable,
+		ReferencesColumns: append([]string(nil), constraint.ReferencesColumns...),
+		OnDelete:          constraint.OnDelete,
+		Deferrable:        constraint.Deferrable != "",
+		InitiallyDeferred: constraint.Deferrable == models.DeferrableDeferred,
+		Source:            "model",
 	}
 }
 
@@ -468,6 +473,12 @@ func fieldMetaColumnName(field models.FieldMeta) string {
 }
 
 func foreignKeyConstraintName(table, column string) string {
+	return ForeignKeyConstraintName(table, column)
+}
+
+// ForeignKeyConstraintName returns the deterministic name used for relation
+// owned foreign-key constraints.
+func ForeignKeyConstraintName(table, column string) string {
 	base := sanitizeSchemaName("fk_" + table + "_" + column)
 	if base == "" {
 		base = "fk"

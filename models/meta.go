@@ -10,6 +10,8 @@ import (
 const (
 	ConstraintUnique = modelconstraints.TypeUnique
 	ConstraintCheck  = modelconstraints.TypeCheck
+	// ConstraintForeignKey describes a database foreign-key constraint.
+	ConstraintForeignKey = modelconstraints.TypeForeignKey
 )
 
 // Index describes model index metadata.

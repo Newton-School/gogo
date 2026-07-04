@@ -1540,7 +1540,62 @@ func (e sqlSchemaEditor) TableConstraints(ctx context.Context, table string) ([]
 	}
 	switch e.dialect.Name() {
 	case "sqlite":
-		return nil, nil
+		rows, err := e.db.QueryContext(ctx, "PRAGMA foreign_key_list("+e.dialect.QuoteIdent(table)+")")
+		if err != nil {
+			return nil, err
+		}
+		defer rows.Close()
+		type sqliteForeignKey struct {
+			table    string
+			fields   []string
+			columns  []string
+			onDelete string
+		}
+		byID := map[int]*sqliteForeignKey{}
+		var order []int
+		for rows.Next() {
+			var id int
+			var seq int
+			var referencedTable string
+			var fromColumn string
+			var toColumn string
+			var onUpdate string
+			var onDelete string
+			var match string
+			if err := rows.Scan(&id, &seq, &referencedTable, &fromColumn, &toColumn, &onUpdate, &onDelete, &match); err != nil {
+				return nil, err
+			}
+			entry := byID[id]
+			if entry == nil {
+				entry = &sqliteForeignKey{table: referencedTable, onDelete: strings.ToUpper(onDelete)}
+				byID[id] = entry
+				order = append(order, id)
+			}
+			entry.fields = append(entry.fields, fromColumn)
+			entry.columns = append(entry.columns, toColumn)
+		}
+		if err := rows.Err(); err != nil {
+			return nil, err
+		}
+		sort.Ints(order)
+		constraints := make([]migrations.ConstraintSchema, 0, len(order))
+		for _, id := range order {
+			entry := byID[id]
+			if len(entry.fields) == 0 || entry.table == "" {
+				continue
+			}
+			name := migrations.ForeignKeyConstraintName(table, strings.Join(entry.fields, "_"))
+			constraints = append(constraints, migrations.ConstraintSchema{
+				Table:             table,
+				Name:              name,
+				Type:              "foreign_key",
+				Fields:            append([]string(nil), entry.fields...),
+				ReferencesTable:   entry.table,
+				ReferencesColumns: append([]string(nil), entry.columns...),
+				OnDelete:          entry.onDelete,
+			})
+		}
+		return constraints, nil
 	case "postgres":
 		if e.dialect.SchemaIntrospection().ConstraintsSQL == "" {
 			return nil, errors.New("database dialect does not support constraint introspection")
