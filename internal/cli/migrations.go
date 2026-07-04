@@ -565,8 +565,10 @@ func fieldHasDatabaseDefault(field migrations.FieldState) bool {
 func fieldStateEqualForAlter(oldField, newField migrations.FieldState) bool {
 	oldField.Unique = false
 	oldField.DBIndex = false
+	oldField.TargetFieldName = ""
 	newField.Unique = false
 	newField.DBIndex = false
+	newField.TargetFieldName = ""
 	return reflect.DeepEqual(oldField, newField)
 }
 

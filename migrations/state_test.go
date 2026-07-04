@@ -219,6 +219,100 @@ func TestProjectStateFromRegistryPreservesRelationTargetFieldName(t *testing.T) 
 	}
 }
 
+func TestStateFromRegistryGeneratesForeignKeyConstraintFromRelation(t *testing.T) {
+	registry := models.NewRegistry()
+	user := models.Metadata{
+		AppLabel:  "accounts",
+		ModelName: "User",
+		TableName: "accounts_user",
+		Fields: []models.FieldMeta{
+			{Name: "id", Column: "id", Kind: "uuid", PrimaryKey: true},
+		},
+	}
+	post := models.Metadata{
+		AppLabel:  "blog",
+		ModelName: "Post",
+		TableName: "blog_post",
+		Fields: []models.FieldMeta{
+			{Name: "id", Column: "id", Kind: "uuid", PrimaryKey: true},
+			{Name: "author", Column: "author_id", Kind: "uuid", RelationTarget: "accounts.User", DeleteBehavior: "cascade"},
+		},
+	}
+	for _, meta := range []models.Metadata{user, post} {
+		if err := registry.RegisterMetadata(meta); err != nil {
+			t.Fatalf("RegisterMetadata(%s) error = %v", meta.Label(), err)
+		}
+	}
+
+	state := StateFromRegistry(registry)
+	constraints := state.Models["blog.Post"].Constraints
+	if len(constraints) != 1 {
+		t.Fatalf("constraints = %#v, want one relation FK", constraints)
+	}
+	fk := constraints[0]
+	if fk.Type != "foreign_key" || fk.Fields[0] != "author_id" || fk.ReferencesTable != "accounts_user" || fk.ReferencesColumns[0] != "id" || fk.OnDelete != "CASCADE" || fk.Source != "relation" {
+		t.Fatalf("foreign key constraint = %#v", fk)
+	}
+}
+
+func TestStateFromRegistryGeneratesForeignKeyToExplicitTargetField(t *testing.T) {
+	registry := models.NewRegistry()
+	for _, meta := range []models.Metadata{
+		{
+			AppLabel:  "accounts",
+			ModelName: "User",
+			TableName: "accounts_user",
+			Fields: []models.FieldMeta{
+				{Name: "id", Column: "id", Kind: "bigint", PrimaryKey: true},
+				{Name: "uid", Column: "external_uid", Kind: "uuid", Unique: true},
+			},
+		},
+		{
+			AppLabel:  "blog",
+			ModelName: "Post",
+			TableName: "blog_post",
+			Fields: []models.FieldMeta{
+				{Name: "id", Column: "id", Kind: "bigint", PrimaryKey: true},
+				{Name: "owner", Column: "owner_uid", Kind: "uuid", RelationTarget: "accounts.User", TargetFieldName: "uid", DeleteBehavior: "protect"},
+			},
+		},
+	} {
+		if err := registry.RegisterMetadata(meta); err != nil {
+			t.Fatalf("RegisterMetadata(%s) error = %v", meta.Label(), err)
+		}
+	}
+
+	state := StateFromRegistry(registry)
+	fk := state.Models["blog.Post"].Constraints[0]
+	if fk.ReferencesColumns[0] != "external_uid" || fk.OnDelete != "RESTRICT" {
+		t.Fatalf("target-field foreign key = %#v", fk)
+	}
+}
+
+func TestRelationDeleteBehaviorActions(t *testing.T) {
+	defaultValue := models.DefaultSQL("0")
+	cases := map[string]struct {
+		field models.FieldMeta
+		want  string
+		ok    bool
+	}{
+		"cascade":     {field: models.FieldMeta{DeleteBehavior: "cascade"}, want: "CASCADE", ok: true},
+		"restrict":    {field: models.FieldMeta{DeleteBehavior: "restrict"}, want: "RESTRICT", ok: true},
+		"protect":     {field: models.FieldMeta{DeleteBehavior: "protect"}, want: "RESTRICT", ok: true},
+		"set_null":    {field: models.FieldMeta{DeleteBehavior: "set_null", Null: true}, want: "SET NULL", ok: true},
+		"set_default": {field: models.FieldMeta{DeleteBehavior: "set_default", DBDefault: defaultValue}, want: "SET DEFAULT", ok: true},
+		"do_nothing":  {field: models.FieldMeta{DeleteBehavior: "do_nothing"}, want: "NO ACTION", ok: true},
+		"set_value":   {field: models.FieldMeta{DeleteBehavior: "set_value"}, want: "NO ACTION", ok: true},
+		"invalid":     {field: models.FieldMeta{DeleteBehavior: "delete_everything"}, ok: false},
+	}
+	for name, tc := range cases {
+		got, ok := relationDeleteAction(tc.field)
+		if got != tc.want || ok != tc.ok {
+			t.Fatalf("%s relationDeleteAction() = (%q, %v), want (%q, %v)", name, got, ok, tc.want, tc.ok)
+		}
+	}
+}
+
 func TestFieldStateDatabaseDefaultManifestCompatibility(t *testing.T) {
 	var legacy FieldState
 	if err := json.Unmarshal([]byte(`{"name":"status","db_default":"draft"}`), &legacy); err != nil {

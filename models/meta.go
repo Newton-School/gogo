@@ -140,6 +140,9 @@ func validateFields(meta Metadata) error {
 		if _, err := NormalizeDatabaseDefault(field.DBDefault); err != nil {
 			return fmt.Errorf("%w: field %s has invalid database default: %v", ErrInvalidMetadata, field.Name, err)
 		}
+		if err := validateRelationField(meta, field); err != nil {
+			return err
+		}
 	}
 	if meta.CompositePrimaryKey != nil {
 		if len(meta.CompositePrimaryKey.Columns) == 0 {
@@ -156,6 +159,28 @@ func validateFields(meta Metadata) error {
 	}
 	if !hasPrimaryKey {
 		return fmt.Errorf("%w: model %s requires a primary key", ErrInvalidMetadata, meta.Label())
+	}
+	return nil
+}
+
+func validateRelationField(meta Metadata, field FieldMeta) error {
+	if strings.TrimSpace(field.RelationTarget) == "" || strings.TrimSpace(field.DeleteBehavior) == "" {
+		return nil
+	}
+	switch strings.ToLower(field.DeleteBehavior) {
+	case "cascade", "restrict", "protect", "do_nothing", "set_value":
+		return nil
+	case "set_null":
+		if !field.Null {
+			return fmt.Errorf("%w: relation %s.%s SET_NULL requires nullable field", ErrInvalidMetadata, meta.Label(), field.Name)
+		}
+	case "set_default":
+		defaultValue, err := NormalizeDatabaseDefault(field.DBDefault)
+		if err != nil || defaultValue.Kind == DefaultNone {
+			return fmt.Errorf("%w: relation %s.%s SET_DEFAULT requires database default", ErrInvalidMetadata, meta.Label(), field.Name)
+		}
+	default:
+		return fmt.Errorf("%w: relation %s.%s has unsupported delete behavior %q", ErrInvalidMetadata, meta.Label(), field.Name, field.DeleteBehavior)
 	}
 	return nil
 }

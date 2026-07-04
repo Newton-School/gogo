@@ -127,6 +127,40 @@ func TestValidateMetadataRejectsDuplicateColumnsAndMissingPrimaryKey(t *testing.
 	}
 }
 
+func TestValidateMetadataRejectsInvalidManagedRelationDeleteBehavior(t *testing.T) {
+	cases := []Metadata{
+		{
+			AppLabel:  "bad",
+			ModelName: "SetNullNotNullable",
+			Fields: []FieldMeta{
+				{Name: "id", Column: "id", PrimaryKey: true},
+				{Name: "owner", Column: "owner_id", RelationTarget: "auth.User", DeleteBehavior: "set_null"},
+			},
+		},
+		{
+			AppLabel:  "bad",
+			ModelName: "SetDefaultNoDefault",
+			Fields: []FieldMeta{
+				{Name: "id", Column: "id", PrimaryKey: true},
+				{Name: "owner", Column: "owner_id", RelationTarget: "auth.User", DeleteBehavior: "set_default"},
+			},
+		},
+		{
+			AppLabel:  "bad",
+			ModelName: "UnknownDeleteAction",
+			Fields: []FieldMeta{
+				{Name: "id", Column: "id", PrimaryKey: true},
+				{Name: "owner", Column: "owner_id", RelationTarget: "auth.User", DeleteBehavior: "delete_everything"},
+			},
+		},
+	}
+	for _, meta := range cases {
+		if err := ValidateMetadata(meta); !errors.Is(err, ErrInvalidMetadata) {
+			t.Fatalf("ValidateMetadata(%s) error = %v, want ErrInvalidMetadata", meta.ModelName, err)
+		}
+	}
+}
+
 func TestValidateMetadataRejectsDuplicateIndexesConstraintsAndPermissions(t *testing.T) {
 	err := ValidateMetadata(Metadata{
 		AppLabel:  "bad",

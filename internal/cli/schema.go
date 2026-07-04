@@ -81,12 +81,13 @@ func (c diffSchemaCommand) runWithIO(ctx context.Context, args []string, stdout,
 	}
 	defer database.Close()
 	editor := sqlSchemaEditor{db: database.SQLDB(), dialect: database.Dialect}
+	registry := registryFromProjectModels(c.projectModels)
 	var diffs []string
 	for _, meta := range c.projectModels {
 		if options.app != "" && meta.AppLabel != options.app {
 			continue
 		}
-		diffs = append(diffs, compareModelToSchema(ctx, editor, meta)...)
+		diffs = append(diffs, compareModelToSchema(ctx, editor, meta, registry)...)
 	}
 	if len(diffs) == 0 {
 		_, err := fmt.Fprintln(stdout, "schema matches model metadata")
@@ -356,7 +357,7 @@ func constraintSchemaComment(constraint migrations.ConstraintSchema) string {
 	return ""
 }
 
-func compareModelToSchema(ctx context.Context, editor sqlSchemaEditor, meta models.Metadata) []string {
+func compareModelToSchema(ctx context.Context, editor sqlSchemaEditor, meta models.Metadata, registry *models.Registry) []string {
 	table := meta.TableName
 	if table == "" {
 		table = meta.DBTable
@@ -371,7 +372,7 @@ func compareModelToSchema(ctx context.Context, editor sqlSchemaEditor, meta mode
 	if len(actual.Columns) == 0 {
 		return []string{fmt.Sprintf("MISSING table %s for %s.%s", table, meta.AppLabel, meta.ModelName)}
 	}
-	expected := tableSchemaFromMetadata(meta, table)
+	expected := tableSchemaFromMetadata(meta, table, registry)
 	differences := migrations.CompareTableShape(expected, actual)
 	diffs := make([]string, 0, len(differences))
 	for _, difference := range differences {
@@ -396,7 +397,11 @@ func inspectTableSchema(ctx context.Context, editor sqlSchemaEditor, table strin
 	return migrations.TableSchema{Name: table, Columns: columns, Indexes: indexes, Constraints: constraints}, nil
 }
 
-func tableSchemaFromMetadata(meta models.Metadata, table string) migrations.TableSchema {
+func tableSchemaFromMetadata(meta models.Metadata, table string, registries ...*models.Registry) migrations.TableSchema {
+	var registry *models.Registry
+	if len(registries) > 0 {
+		registry = registries[0]
+	}
 	columns := make([]migrations.ColumnSchema, 0, len(meta.Fields))
 	for _, field := range meta.Fields {
 		column := field.Column
@@ -455,7 +460,24 @@ func tableSchemaFromMetadata(meta models.Metadata, table string) migrations.Tabl
 			OpClasses:    append([]string(nil), constraint.OpClasses...),
 		})
 	}
+	if registry != nil {
+		for _, field := range meta.Fields {
+			foreignKey, ok := migrations.ForeignKeyConstraintFromRelation(meta, field, registry)
+			if !ok {
+				continue
+			}
+			constraints = append(constraints, migrations.ConstraintSchemaFromState(foreignKey))
+		}
+	}
 	return migrations.TableSchema{Name: table, Columns: columns, Indexes: indexes, Constraints: constraints}
+}
+
+func registryFromProjectModels(projectModels []models.Metadata) *models.Registry {
+	registry := models.NewRegistry()
+	for _, meta := range projectModels {
+		_ = registry.RegisterMetadata(meta)
+	}
+	return registry
 }
 
 func modelNameFromTable(table string) string {

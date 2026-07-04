@@ -1,9 +1,13 @@
 package migrations
 
 import (
+	"crypto/sha1"
+	"encoding/hex"
 	"strings"
+	"unicode"
 
 	"github.com/cybersaksham/gogo/models"
+	modelconstraints "github.com/cybersaksham/gogo/models/constraints"
 )
 
 // ProjectState stores historical migration state.
@@ -172,6 +176,13 @@ func StateFromRegistry(registry *models.Registry) ProjectState {
 				model.Constraints = appendConstraintState(model.Constraints, fieldUniqueConstraintState(meta.TableName, field))
 			}
 		}
+		for _, field := range meta.Fields {
+			foreignKey, ok := ForeignKeyConstraintFromRelation(meta, field, registry)
+			if !ok || hasEquivalentForeignKeyConstraint(model.Constraints, foreignKey) {
+				continue
+			}
+			model.Constraints = appendConstraintState(model.Constraints, foreignKey)
+		}
 		state.AddModel(model)
 	}
 	return state
@@ -202,6 +213,114 @@ func constraintStateFromMetadata(table string, constraint models.Constraint) Con
 		OpClasses:    append([]string(nil), constraint.OpClasses...),
 		Source:       "model",
 	}
+}
+
+// ForeignKeyConstraintFromRelation returns the database constraint implied by a
+// concrete column-backed relation field.
+func ForeignKeyConstraintFromRelation(meta models.Metadata, field models.FieldMeta, registry *models.Registry) (ConstraintState, bool) {
+	if !isColumnBackedRelation(field) {
+		return ConstraintState{}, false
+	}
+	target, ok := relationTargetMetadata(meta, field.RelationTarget, registry)
+	if !ok {
+		return ConstraintState{}, false
+	}
+	targetColumn, ok := relationTargetColumn(target, field.TargetFieldName)
+	if !ok {
+		return ConstraintState{}, false
+	}
+	onDelete, ok := relationDeleteAction(field)
+	if !ok {
+		return ConstraintState{}, false
+	}
+	sourceColumn := fieldMetaColumnName(field)
+	return ConstraintState{
+		Name:              foreignKeyConstraintName(meta.TableName, sourceColumn),
+		Type:              "foreign_key",
+		Fields:            []string{sourceColumn},
+		ReferencesTable:   target.TableName,
+		ReferencesColumns: []string{targetColumn},
+		OnDelete:          onDelete,
+		Source:            "relation",
+	}, true
+}
+
+func isColumnBackedRelation(field models.FieldMeta) bool {
+	if strings.TrimSpace(field.RelationTarget) == "" || strings.EqualFold(field.Kind, "many_to_many") {
+		return false
+	}
+	if strings.TrimSpace(field.Column) == "" && strings.TrimSpace(field.DeleteBehavior) == "" {
+		return false
+	}
+	return true
+}
+
+func relationTargetColumn(target models.Metadata, targetFieldName string) (string, bool) {
+	if targetFieldName != "" {
+		for _, field := range target.Fields {
+			if field.Name == targetFieldName || field.Column == targetFieldName {
+				return fieldMetaColumnName(field), true
+			}
+		}
+		return "", false
+	}
+	for _, field := range target.Fields {
+		if field.PrimaryKey {
+			return fieldMetaColumnName(field), true
+		}
+	}
+	return "", false
+}
+
+func relationDeleteAction(field models.FieldMeta) (string, bool) {
+	switch strings.ToLower(strings.TrimSpace(field.DeleteBehavior)) {
+	case "cascade":
+		return "CASCADE", true
+	case "restrict", "protect":
+		return "RESTRICT", true
+	case "set_null":
+		if !field.Null {
+			return "", false
+		}
+		return "SET NULL", true
+	case "set_default":
+		defaultValue, err := models.NormalizeDatabaseDefault(field.DBDefault)
+		if err != nil || defaultValue.Kind == models.DefaultNone {
+			return "", false
+		}
+		return "SET DEFAULT", true
+	case "", "do_nothing", "set_value":
+		return "NO ACTION", true
+	default:
+		return "", false
+	}
+}
+
+func hasEquivalentForeignKeyConstraint(constraints []ConstraintState, foreignKey ConstraintState) bool {
+	for _, existing := range constraints {
+		if existing.Type != "foreign_key" {
+			continue
+		}
+		if sameStringSlice(existing.Fields, foreignKey.Fields) &&
+			strings.EqualFold(existing.ReferencesTable, foreignKey.ReferencesTable) &&
+			sameStringSlice(existing.ReferencesColumns, foreignKey.ReferencesColumns) &&
+			strings.EqualFold(existing.OnDelete, foreignKey.OnDelete) {
+			return true
+		}
+	}
+	return false
+}
+
+func sameStringSlice(first, second []string) bool {
+	if len(first) != len(second) {
+		return false
+	}
+	for i := range first {
+		if !strings.EqualFold(first[i], second[i]) {
+			return false
+		}
+	}
+	return true
 }
 
 func fieldKindFromMetadata(meta models.Metadata, field models.FieldMeta, registry *models.Registry) string {
@@ -339,6 +458,48 @@ func fieldColumnName(field FieldState) string {
 		return field.Column
 	}
 	return field.Name
+}
+
+func fieldMetaColumnName(field models.FieldMeta) string {
+	if field.Column != "" {
+		return field.Column
+	}
+	return field.Name
+}
+
+func foreignKeyConstraintName(table, column string) string {
+	base := sanitizeSchemaName("fk_" + table + "_" + column)
+	if base == "" {
+		base = "fk"
+	}
+	if len(base) <= modelconstraints.MaxNameLength {
+		return base
+	}
+	sum := sha1.Sum([]byte(table + "|foreign_key|" + column))
+	hash := hex.EncodeToString(sum[:])[:8]
+	suffix := "_" + hash
+	limit := modelconstraints.MaxNameLength - len(suffix)
+	if limit < 1 {
+		limit = 1
+	}
+	return strings.Trim(base[:limit], "_") + suffix
+}
+
+func sanitizeSchemaName(value string) string {
+	var builder strings.Builder
+	lastUnderscore := false
+	for _, char := range strings.ToLower(value) {
+		if unicode.IsLetter(char) || unicode.IsDigit(char) {
+			builder.WriteRune(char)
+			lastUnderscore = false
+			continue
+		}
+		if !lastUnderscore {
+			builder.WriteByte('_')
+			lastUnderscore = true
+		}
+	}
+	return strings.Trim(builder.String(), "_")
 }
 
 func cloneStringMap(values map[string]string) map[string]string {

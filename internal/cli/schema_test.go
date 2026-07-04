@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/cybersaksham/gogo/migrations"
 	"github.com/cybersaksham/gogo/models"
 
 	_ "modernc.org/sqlite"
@@ -250,6 +251,63 @@ func TestTableSchemaFromMetadataConvertsAdvancedUniqueConstraintsToIndexes(t *te
 	if len(schema.Constraints) != 1 || schema.Constraints[0].Name != "uniq_blog_item_slug" || schema.Constraints[0].Type != "unique" {
 		t.Fatalf("constraints = %#v, want simple unique table constraint", schema.Constraints)
 	}
+}
+
+func TestTableSchemaFromMetadataIncludesRelationForeignKeys(t *testing.T) {
+	registry := models.NewRegistry()
+	for _, meta := range []models.Metadata{
+		{
+			AppLabel:  "accounts",
+			ModelName: "User",
+			TableName: "accounts_user",
+			Fields: []models.FieldMeta{
+				{Name: "id", Column: "id", Kind: "uuid", PrimaryKey: true},
+			},
+		},
+		{
+			AppLabel:  "blog",
+			ModelName: "Post",
+			TableName: "blog_post",
+			Fields: []models.FieldMeta{
+				{Name: "id", Column: "id", Kind: "uuid", PrimaryKey: true},
+				{Name: "author", Column: "author_id", Kind: "uuid", RelationTarget: "accounts.User", DeleteBehavior: "cascade"},
+			},
+		},
+	} {
+		if err := registry.RegisterMetadata(meta); err != nil {
+			t.Fatalf("RegisterMetadata(%s) error = %v", meta.Label(), err)
+		}
+	}
+	post, _ := registry.Lookup("blog.Post")
+
+	schema := tableSchemaFromMetadata(post, "blog_post", registry)
+	if len(schema.Constraints) != 1 {
+		t.Fatalf("constraints = %#v, want relation FK", schema.Constraints)
+	}
+	fk := schema.Constraints[0]
+	if fk.Name != "fk_blog_post_author_id" || fk.Type != "foreign_key" || fk.Fields[0] != "author_id" || fk.ReferencesTable != "accounts_user" || fk.ReferencesColumns[0] != "id" || fk.OnDelete != "CASCADE" {
+		t.Fatalf("relation foreign key = %#v", fk)
+	}
+
+	actual := migrations.TableSchema{
+		Name: "blog_post",
+		Columns: []migrations.ColumnSchema{
+			{Name: "id", NormalizedKind: "uuid", PrimaryKey: true},
+			{Name: "author_id", NormalizedKind: "uuid"},
+		},
+	}
+	output := cliSchemaDiffOutput(migrations.CompareTableShape(schema, actual))
+	if !strings.Contains(output, "MISSING constraint blog_post.fk_blog_post_author_id") {
+		t.Fatalf("diff output = %s", output)
+	}
+}
+
+func cliSchemaDiffOutput(diffs []migrations.SchemaDifference) string {
+	lines := make([]string, len(diffs))
+	for i, diff := range diffs {
+		lines[i] = diff.String()
+	}
+	return strings.Join(lines, "\n")
 }
 
 func writeSchemaTestEnv(t *testing.T, dir, dbPath string) {
