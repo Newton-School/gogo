@@ -833,6 +833,68 @@ func TestMakeMigrationsDetectsTableIndexAndConstraintChanges(t *testing.T) {
 	}
 }
 
+func TestMakeMigrationsEmitsUniqueIndexesAndRelationForeignKeys(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	initial := migrations.Migration{
+		AppLabel: "blog",
+		Name:     migrations.InitialMigrationName(),
+		Atomic:   true,
+		Operations: []migrations.Operation{
+			operations.CreateModel{Model: migrations.ModelState{
+				AppLabel:  "blog",
+				Name:      "Post",
+				TableName: "blog_post",
+				Fields: []migrations.FieldState{
+					{Name: "id", Column: "id", Kind: "bigint", PrimaryKey: true},
+					{Name: "author", Column: "author_id", Kind: "bigint"},
+					{Name: "title", Column: "title", Kind: "text"},
+					{Name: "deleted_at", Column: "deleted_at", Kind: "timestamp", Null: true},
+				},
+			}},
+		},
+	}
+	projectModels := []models.Metadata{
+		{
+			AppLabel:  "accounts",
+			ModelName: "User",
+			TableName: "accounts_user",
+			Fields: []models.FieldMeta{
+				{Name: "id", Column: "id", Kind: "bigint", PrimaryKey: true},
+			},
+		},
+		{
+			AppLabel:  "blog",
+			ModelName: "Post",
+			TableName: "blog_post",
+			Fields: []models.FieldMeta{
+				{Name: "id", Column: "id", Kind: "bigint", PrimaryKey: true},
+				{Name: "author", Column: "author_id", Kind: "bigint", RelationTarget: "accounts.User", DeleteBehavior: "cascade"},
+				{Name: "title", Column: "title", Kind: "text"},
+				{Name: "deleted_at", Column: "deleted_at", Kind: "timestamp", Null: true},
+			},
+			Constraints: []models.Constraint{
+				models.UniqueExpression("uniq_blog_post_lower_title", "LOWER(title)").WithCondition("deleted_at IS NULL"),
+			},
+		},
+	}
+	root := NewRootWithOptions(RootOptions{ProjectModels: projectModels, ProjectMigrations: []migrations.Migration{initial}})
+
+	var stdout bytes.Buffer
+	if err := root.Execute(context.Background(), []string{"makemigrations", "--app", "blog", "--name", "schema_ownership"}, &stdout, &bytes.Buffer{}); err != nil {
+		t.Fatalf("makemigrations error = %v", err)
+	}
+	contents, err := os.ReadFile(filepath.Join(dir, "blog", "migrations", "0002_schema_ownership.go"))
+	if err != nil {
+		t.Fatalf("read migration: %v", err)
+	}
+	for _, want := range []string{`\"type\":\"AddIndex\"`, `\"unique\":true`, `\"expressions\":[\"LOWER(title)\"]`, `\"condition_sql\":\"deleted_at IS NULL\"`, `\"type\":\"AddConstraint\"`, `\"type\":\"foreign_key\"`, `\"references_table\":\"accounts_user\"`, `\"on_delete\":\"CASCADE\"`} {
+		if !strings.Contains(string(contents), want) {
+			t.Fatalf("migration missing %q:\n%s", want, contents)
+		}
+	}
+}
+
 func TestSquashMigrationsWritesReplacementMigrationFile(t *testing.T) {
 	dir := t.TempDir()
 	migrationsDir := filepath.Join(dir, "apps", "blog", "migrations")

@@ -209,6 +209,12 @@ func TestExistingProductModelAdoptionFrameworkFixes(t *testing.T) {
 	if len(product.Fields) < 2 || product.Fields[1].Name != "owner" || product.Fields[1].Kind != "uuid" {
 		t.Fatalf("relation field state = %#v", product.Fields)
 	}
+	if len(product.Constraints) != 2 {
+		t.Fatalf("product constraints = %#v, want simple unique plus relation FK", product.Constraints)
+	}
+	if product.Constraints[1].Type != "foreign_key" || product.Constraints[1].Fields[0] != "owner_id" || product.Constraints[1].ReferencesTable != "accounts_user" || product.Constraints[1].OnDelete != "CASCADE" {
+		t.Fatalf("relation foreign key state = %#v", product.Constraints[1])
+	}
 
 	vectorIndex := vector.HNSWIndex("idx_legacy_product_embedding_hnsw", "embedding", vector.CosineOps)
 	indexSQL := schema.NewEditor(postgresdialect.New()).AddIndex("legacy_product", migrations.IndexState{
@@ -220,6 +226,14 @@ func TestExistingProductModelAdoptionFrameworkFixes(t *testing.T) {
 	if !strings.Contains(indexSQL, "USING hnsw") || !strings.Contains(indexSQL, "vector_cosine_ops") {
 		t.Fatalf("vector index SQL = %q", indexSQL)
 	}
+	uniqueSQL := schema.NewEditor(postgresdialect.New()).AddIndex("legacy_product", product.Indexes[1])
+	if !strings.Contains(uniqueSQL, "CREATE UNIQUE INDEX") || !strings.Contains(uniqueSQL, "LOWER(name)") || !strings.Contains(uniqueSQL, "WHERE name <> ''") {
+		t.Fatalf("unique expression index SQL = %q", uniqueSQL)
+	}
+	foreignKeySQL := schema.NewEditor(postgresdialect.New()).AddConstraint("legacy_product", product.Constraints[1])
+	if !strings.Contains(foreignKeySQL, `FOREIGN KEY ("owner_id") REFERENCES "accounts_user" ("id") ON DELETE CASCADE`) {
+		t.Fatalf("foreign key SQL = %q", foreignKeySQL)
+	}
 
 	expected := migrations.TableSchema{
 		Name: "legacy_product",
@@ -228,8 +242,14 @@ func TestExistingProductModelAdoptionFrameworkFixes(t *testing.T) {
 			{Name: "owner_id", NormalizedKind: "uuid"},
 			{Name: "embedding", NormalizedKind: "vector(384)", Nullable: true},
 		},
-		Indexes:     []migrations.IndexSchema{{Name: "idx_legacy_product_embedding_hnsw", Fields: []string{"embedding"}, Method: "hnsw", OpClasses: []string{"vector_cosine_ops"}}},
-		Constraints: []migrations.ConstraintSchema{{Name: "uniq_legacy_product_owner", Type: "unique", Fields: []string{"owner_id"}}},
+		Indexes: []migrations.IndexSchema{
+			{Name: "idx_legacy_product_embedding_hnsw", Fields: []string{"embedding"}, Method: "hnsw", OpClasses: []string{"vector_cosine_ops"}},
+			{Name: "uniq_legacy_product_lower_name", Unique: true, Expressions: []string{"LOWER(name)"}, ConditionSQL: "name <> ''"},
+		},
+		Constraints: []migrations.ConstraintSchema{
+			{Name: "uniq_legacy_product_owner", Type: "unique", Fields: []string{"owner_id"}},
+			{Name: "fk_legacy_product_owner_id", Type: "foreign_key", Fields: []string{"owner_id"}, ReferencesTable: "accounts_user", ReferencesColumns: []string{"id"}, OnDelete: "CASCADE"},
+		},
 	}
 	actual := migrations.TableSchema{
 		Name: "legacy_product",
@@ -241,7 +261,7 @@ func TestExistingProductModelAdoptionFrameworkFixes(t *testing.T) {
 	}
 	diffs := migrations.CompareTableShape(expected, actual)
 	output := schemaDiffOutput(diffs)
-	for _, want := range []string{"MISSING index legacy_product.idx_legacy_product_embedding_hnsw", "MISSING constraint legacy_product.uniq_legacy_product_owner"} {
+	for _, want := range []string{"MISSING index legacy_product.idx_legacy_product_embedding_hnsw", "MISSING index legacy_product.uniq_legacy_product_lower_name", "MISSING constraint legacy_product.uniq_legacy_product_owner", "MISSING constraint legacy_product.fk_legacy_product_owner_id"} {
 		if !strings.Contains(output, want) {
 			t.Fatalf("schema diff missing %q:\n%s", want, output)
 		}
@@ -487,12 +507,13 @@ func legacyProductMetadata() models.Metadata {
 		DBTable:   "legacy_product",
 		Fields: []models.FieldMeta{
 			{Name: "id", Column: "id", Kind: "text", PrimaryKey: true, DBDefault: models.DefaultValue("legacy-product-id")},
-			{Name: "owner", Column: "owner_id", RelationTarget: "accounts.User"},
+			{Name: "owner", Column: "owner_id", RelationTarget: "accounts.User", DeleteBehavior: "cascade"},
 			vector.FieldMeta("embedding", "embedding", 384),
 			{Name: "name", Column: "name", Kind: "text"},
 		},
 		Indexes: []models.Index{
 			vector.HNSWIndex("idx_legacy_product_embedding_hnsw", "embedding", vector.CosineOps),
+			models.NewUniqueIndex("uniq_legacy_product_lower_name").WithExpressions("LOWER(name)").WithCondition("name <> ''"),
 		},
 		Constraints: []models.Constraint{
 			{Name: "uniq_legacy_product_owner", Type: models.ConstraintUnique, Fields: []models.IndexField{models.Asc("owner_id")}},

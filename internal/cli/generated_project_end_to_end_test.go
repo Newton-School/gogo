@@ -244,6 +244,7 @@ import (
 	"github.com/cybersaksham/gogo/api"
 	"github.com/cybersaksham/gogo/app"
 	"github.com/cybersaksham/gogo/models"
+	"github.com/cybersaksham/gogo/migrations"
 	"github.com/cybersaksham/gogo/queue"
 	"github.com/cybersaksham/gogo/queue/backends"
 	"github.com/cybersaksham/gogo/queue/brokers"
@@ -293,6 +294,17 @@ func verifyModelMetadata(t *testing.T) {
 	}
 	if len(post.Constraints) != 1 || post.Constraints[0].Name != "blog_post_author_slug_uniq" {
 		t.Fatalf("post constraints = %#v", post.Constraints)
+	}
+	state := migrations.StateFromRegistry(registry)
+	postState := state.Models["blog.Post"]
+	foundFK := false
+	for _, constraint := range postState.Constraints {
+		if constraint.Type == "foreign_key" && constraint.Fields[0] == "author_id" && constraint.ReferencesTable == "accounts_author" {
+			foundFK = true
+		}
+	}
+	if !foundFK {
+		t.Fatalf("post migration constraints = %#v", postState.Constraints)
 	}
 }
 
