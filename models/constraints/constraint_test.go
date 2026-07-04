@@ -11,7 +11,6 @@ func TestUniqueConstraintMetadata(t *testing.T) {
 	nullsDistinct := false
 	constraint := Unique("", "tenant_id", "slug").
 		WithCondition("deleted_at IS NULL").
-		WithDeferrable(DeferrableDeferred).
 		WithNullsDistinct(nullsDistinct).
 		WithInclude("id").
 		WithViolation("unique_slug", "Slug must be unique per tenant.")
@@ -22,8 +21,8 @@ func TestUniqueConstraintMetadata(t *testing.T) {
 	if !reflect.DeepEqual(constraint.FieldNames(), []string{"tenant_id", "slug"}) {
 		t.Fatalf("FieldNames() = %#v", constraint.FieldNames())
 	}
-	if constraint.Condition != "deleted_at IS NULL" || constraint.Deferrable != DeferrableDeferred {
-		t.Fatalf("conditional/deferrable metadata not preserved: %#v", constraint)
+	if constraint.Condition != "deleted_at IS NULL" {
+		t.Fatalf("conditional metadata not preserved: %#v", constraint)
 	}
 	if constraint.NullsDistinct == nil || *constraint.NullsDistinct {
 		t.Fatalf("NullsDistinct = %#v, want explicit false", constraint.NullsDistinct)
@@ -41,6 +40,16 @@ func TestUniqueConstraintMetadata(t *testing.T) {
 	}
 	if again := constraint.NameFor("blog_post"); again != name {
 		t.Fatalf("NameFor() = %q then %q, want deterministic", name, again)
+	}
+}
+
+func TestUniqueConstraintRejectsDeferrablePartialCombination(t *testing.T) {
+	constraint := Unique("uniq_tenant_slug", "tenant_id", "slug").
+		WithCondition("deleted_at IS NULL").
+		WithDeferrable(DeferrableDeferred)
+
+	if err := constraint.Validate(); !errors.Is(err, ErrInvalidConstraint) {
+		t.Fatalf("Validate() error = %v, want ErrInvalidConstraint", err)
 	}
 }
 

@@ -222,6 +222,36 @@ func TestDiffSchemaReportsMissingIndexes(t *testing.T) {
 	}
 }
 
+func TestTableSchemaFromMetadataConvertsAdvancedUniqueConstraintsToIndexes(t *testing.T) {
+	meta := models.Metadata{
+		AppLabel:  "blog",
+		ModelName: "Item",
+		TableName: "blog_item",
+		Fields: []models.FieldMeta{
+			{Name: "id", Column: "id", Kind: "bigint", PrimaryKey: true},
+			{Name: "slug", Column: "slug", Kind: "text"},
+			{Name: "deleted_at", Column: "deleted_at", Kind: "timestamptz", Null: true},
+		},
+		Constraints: []models.Constraint{
+			models.Unique("uniq_blog_item_slug", "slug"),
+			models.UniqueExpression("uniq_blog_item_lower_slug", "LOWER(slug)").
+				WithCondition("deleted_at IS NULL"),
+		},
+	}
+
+	schema := tableSchemaFromMetadata(meta, "blog_item")
+	if len(schema.Indexes) != 1 {
+		t.Fatalf("indexes = %#v, want one advanced unique index", schema.Indexes)
+	}
+	index := schema.Indexes[0]
+	if index.Name != "uniq_blog_item_lower_slug" || !index.Unique || index.Expressions[0] != "LOWER(slug)" || index.ConditionSQL != "deleted_at IS NULL" {
+		t.Fatalf("advanced unique index = %#v", index)
+	}
+	if len(schema.Constraints) != 1 || schema.Constraints[0].Name != "uniq_blog_item_slug" || schema.Constraints[0].Type != "unique" {
+		t.Fatalf("constraints = %#v, want simple unique table constraint", schema.Constraints)
+	}
+}
+
 func writeSchemaTestEnv(t *testing.T, dir, dbPath string) {
 	t.Helper()
 	writeTextFile(t, filepath.Join(dir, ".env"), "GOGO_SECRET_KEY=schema-secret\nDATABASE_URL=sqlite://"+filepath.ToSlash(dbPath)+"\n")

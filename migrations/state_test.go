@@ -65,7 +65,7 @@ func TestProjectStateFromRegistry(t *testing.T) {
 
 	state := StateFromRegistry(registry)
 	model := state.Models["blog.Post"]
-	if model.TableName != "blog_post" || len(model.Fields) != 2 || len(model.Indexes) != 2 || len(model.Constraints) != 2 {
+	if model.TableName != "blog_post" || len(model.Fields) != 2 || len(model.Indexes) != 3 || len(model.Constraints) != 1 {
 		t.Fatalf("registry state model = %#v", model)
 	}
 	if model.Fields[0].Name != "id" || !model.Fields[0].PrimaryKey {
@@ -83,14 +83,43 @@ func TestProjectStateFromRegistry(t *testing.T) {
 	if model.Indexes[0].Name != "idx_title" || model.Indexes[0].Source != "model" || !model.Indexes[0].Unique || model.Indexes[0].Method != "gin" || model.Indexes[0].ConditionSQL != "deleted_at IS NULL" || model.Indexes[0].Expressions[0] != "LOWER(title)" || model.Indexes[0].Include[0] != "id" || model.Indexes[0].OpClasses[0] != "gin_trgm_ops" {
 		t.Fatalf("explicit index state = %#v", model.Indexes[0])
 	}
-	if model.Indexes[1].Fields[0] != "title" || model.Indexes[1].Name == "" || model.Indexes[1].Source != "field" {
-		t.Fatalf("field-derived index state = %#v", model.Indexes[1])
+	if model.Indexes[1].Name != "uniq_title" || model.Indexes[1].Source != "constraint" || !model.Indexes[1].Unique || model.Indexes[1].ConditionSQL != "deleted_at IS NULL" || model.Indexes[1].Expressions[0] != "LOWER(title)" || model.Indexes[1].Include[0] != "id" || model.Indexes[1].OpClasses[0] != "text_pattern_ops" {
+		t.Fatalf("constraint-derived unique index state = %#v", model.Indexes[1])
 	}
-	if model.Constraints[0].Name != "uniq_title" || model.Constraints[0].Source != "model" || model.Constraints[0].ConditionSQL != "deleted_at IS NULL" || model.Constraints[0].Expressions[0] != "LOWER(title)" || model.Constraints[0].Include[0] != "id" || model.Constraints[0].OpClasses[0] != "text_pattern_ops" {
-		t.Fatalf("explicit constraint state = %#v", model.Constraints[0])
+	if model.Indexes[2].Fields[0] != "title" || model.Indexes[2].Name == "" || model.Indexes[2].Source != "field" {
+		t.Fatalf("field-derived index state = %#v", model.Indexes[2])
 	}
-	if model.Constraints[1].Type != "unique" || model.Constraints[1].Fields[0] != "title" || model.Constraints[1].Name == "" || model.Constraints[1].Source != "field" {
-		t.Fatalf("field-derived unique constraint state = %#v", model.Constraints[1])
+	if model.Constraints[0].Type != "unique" || model.Constraints[0].Fields[0] != "title" || model.Constraints[0].Name == "" || model.Constraints[0].Source != "field" {
+		t.Fatalf("field-derived unique constraint state = %#v", model.Constraints[0])
+	}
+}
+
+func TestStateFromRegistryConvertsPartialUniqueConstraintToUniqueIndex(t *testing.T) {
+	registry := models.NewRegistry()
+	if err := registry.RegisterMetadata(models.Metadata{
+		AppLabel:  "blog",
+		ModelName: "Post",
+		TableName: "blog_post",
+		Fields: []models.FieldMeta{
+			{Name: "id", Column: "id", Kind: "bigint", PrimaryKey: true},
+			{Name: "title", Column: "title", Kind: "text"},
+			{Name: "deleted_at", Column: "deleted_at", Kind: "timestamptz", Null: true},
+		},
+		Constraints: []models.Constraint{
+			models.UniqueExpression("uniq_blog_post_lower_title", "LOWER(title)").
+				WithCondition("deleted_at IS NULL"),
+		},
+	}); err != nil {
+		t.Fatalf("RegisterMetadata() error = %v", err)
+	}
+
+	state := StateFromRegistry(registry)
+	post := state.Models["blog.Post"]
+	if len(post.Indexes) != 1 || !post.Indexes[0].Unique || post.Indexes[0].Source != "constraint" {
+		t.Fatalf("indexes = %#v, want one constraint-backed unique index", post.Indexes)
+	}
+	if len(post.Constraints) != 0 {
+		t.Fatalf("constraints = %#v, want no table constraint", post.Constraints)
 	}
 }
 

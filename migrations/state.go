@@ -156,17 +156,11 @@ func StateFromRegistry(registry *models.Registry) ProjectState {
 			})
 		}
 		for _, constraint := range meta.Constraints {
-			model.Constraints = appendConstraintState(model.Constraints, ConstraintState{
-				Name:         constraint.NameFor(meta.TableName),
-				Type:         string(constraint.Type),
-				Fields:       constraint.FieldNames(),
-				Expressions:  append([]string(nil), constraint.Expressions...),
-				Check:        constraint.Check,
-				ConditionSQL: constraint.Condition,
-				Include:      append([]string(nil), constraint.Include...),
-				OpClasses:    append([]string(nil), constraint.OpClasses...),
-				Source:       "model",
-			})
+			if constraint.RequiresIndex() {
+				model.Indexes = appendIndexState(model.Indexes, uniqueIndexStateFromConstraint(meta.TableName, constraint))
+				continue
+			}
+			model.Constraints = appendConstraintState(model.Constraints, constraintStateFromMetadata(meta.TableName, constraint))
 		}
 		for _, field := range model.Fields {
 			if field.DBIndex {
@@ -179,6 +173,33 @@ func StateFromRegistry(registry *models.Registry) ProjectState {
 		state.AddModel(model)
 	}
 	return state
+}
+
+func uniqueIndexStateFromConstraint(table string, constraint models.Constraint) IndexState {
+	return IndexState{
+		Name:         constraint.NameFor(table),
+		Fields:       constraint.FieldNames(),
+		Unique:       true,
+		Expressions:  append([]string(nil), constraint.Expressions...),
+		OpClasses:    append([]string(nil), constraint.OpClasses...),
+		Include:      append([]string(nil), constraint.Include...),
+		ConditionSQL: constraint.Condition,
+		Source:       "constraint",
+	}
+}
+
+func constraintStateFromMetadata(table string, constraint models.Constraint) ConstraintState {
+	return ConstraintState{
+		Name:         constraint.NameFor(table),
+		Type:         string(constraint.Type),
+		Fields:       constraint.FieldNames(),
+		Expressions:  append([]string(nil), constraint.Expressions...),
+		Check:        constraint.Check,
+		ConditionSQL: constraint.Condition,
+		Include:      append([]string(nil), constraint.Include...),
+		OpClasses:    append([]string(nil), constraint.OpClasses...),
+		Source:       "model",
+	}
 }
 
 func fieldKindFromMetadata(meta models.Metadata, field models.FieldMeta, registry *models.Registry) string {

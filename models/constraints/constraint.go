@@ -131,6 +131,15 @@ func (c Constraint) FieldNames() []string {
 	return names
 }
 
+// RequiresIndex reports whether a unique constraint needs physical index DDL.
+func (c Constraint) RequiresIndex() bool {
+	return c.Type == TypeUnique &&
+		(len(c.Expressions) > 0 ||
+			strings.TrimSpace(c.Condition) != "" ||
+			len(c.Include) > 0 ||
+			len(c.OpClasses) > 0)
+}
+
 // Clone returns a deep copy of constraint metadata.
 func (c Constraint) Clone() Constraint {
 	copied := c
@@ -158,6 +167,9 @@ func (c Constraint) NameFor(table string) string {
 func (c Constraint) Validate() error {
 	if err := validateDeferrable(c.Deferrable); err != nil {
 		return err
+	}
+	if c.Deferrable != "" && c.RequiresIndex() {
+		return fmt.Errorf("%w: deferrable unique constraints cannot use expressions, conditions, include columns, or operator classes", ErrInvalidConstraint)
 	}
 	if c.NullsDistinct != nil && c.Type != TypeUnique {
 		return fmt.Errorf("%w: nulls distinct is only valid for unique constraints", ErrInvalidConstraint)

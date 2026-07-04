@@ -422,6 +422,7 @@ func tableSchemaFromMetadata(meta models.Metadata, table string) migrations.Tabl
 		indexes = append(indexes, migrations.IndexSchema{
 			Name:         index.NameFor(table),
 			Fields:       index.FieldNames(),
+			Unique:       index.Unique,
 			Expressions:  append([]string(nil), index.Expressions...),
 			Method:       index.Method,
 			OpClasses:    append([]string(nil), index.OpClasses...),
@@ -431,6 +432,18 @@ func tableSchemaFromMetadata(meta models.Metadata, table string) migrations.Tabl
 	}
 	constraints := make([]migrations.ConstraintSchema, 0, len(meta.Constraints))
 	for _, constraint := range meta.Constraints {
+		if constraint.RequiresIndex() {
+			indexes = append(indexes, migrations.IndexSchema{
+				Name:         constraint.NameFor(table),
+				Fields:       constraint.FieldNames(),
+				Unique:       true,
+				Expressions:  append([]string(nil), constraint.Expressions...),
+				OpClasses:    append([]string(nil), constraint.OpClasses...),
+				Include:      append([]string(nil), constraint.Include...),
+				ConditionSQL: constraint.Condition,
+			})
+			continue
+		}
 		constraints = append(constraints, migrations.ConstraintSchema{
 			Name:         constraint.NameFor(table),
 			Type:         string(constraint.Type),
