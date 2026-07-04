@@ -66,6 +66,7 @@ func (f IndexField) namePart() string {
 type Index struct {
 	Name        string
 	Fields      []IndexField
+	Unique      bool
 	Expressions []string
 	Condition   string
 	Include     []string
@@ -77,6 +78,17 @@ type Index struct {
 // NewIndex creates index metadata.
 func NewIndex(name string, fields ...IndexField) Index {
 	return Index{Name: name, Fields: append([]IndexField(nil), fields...)}
+}
+
+// NewUniqueIndex creates unique index metadata.
+func NewUniqueIndex(name string, fields ...IndexField) Index {
+	return NewIndex(name, fields...).WithUnique()
+}
+
+// WithUnique marks the index as unique.
+func (i Index) WithUnique() Index {
+	i.Unique = true
+	return i
 }
 
 // WithExpressions adds functional index expressions.
@@ -139,7 +151,11 @@ func (i Index) NameFor(table string) string {
 	if i.Name != "" {
 		return i.Name
 	}
-	return deterministicName(table, "idx", i.nameParts()...)
+	prefix := "idx"
+	if i.Unique {
+		prefix = "uniq"
+	}
+	return deterministicName(table, prefix, i.nameParts()...)
 }
 
 // Validate verifies index metadata is usable by migration generation.

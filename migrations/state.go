@@ -40,6 +40,7 @@ type FieldState struct {
 type IndexState struct {
 	Name         string   `json:"name"`
 	Fields       []string `json:"fields,omitempty"`
+	Unique       bool     `json:"unique,omitempty"`
 	Expressions  []string `json:"expressions,omitempty"`
 	Method       string   `json:"method,omitempty"`
 	OpClasses    []string `json:"op_classes,omitempty"`
@@ -145,6 +146,7 @@ func StateFromRegistry(registry *models.Registry) ProjectState {
 			model.Indexes = appendIndexState(model.Indexes, IndexState{
 				Name:         index.NameFor(meta.TableName),
 				Fields:       index.FieldNames(),
+				Unique:       index.Unique,
 				Expressions:  append([]string(nil), index.Expressions...),
 				Method:       index.Method,
 				OpClasses:    append([]string(nil), index.OpClasses...),
@@ -243,6 +245,7 @@ func cloneIndexStates(indexes []IndexState) []IndexState {
 		copied[i] = IndexState{
 			Name:         index.Name,
 			Fields:       append([]string(nil), index.Fields...),
+			Unique:       index.Unique,
 			Expressions:  append([]string(nil), index.Expressions...),
 			Method:       index.Method,
 			OpClasses:    append([]string(nil), index.OpClasses...),

@@ -43,6 +43,7 @@ func TestOperationSpecRoundTripsRichIndexAndConstraintMetadata(t *testing.T) {
 		Index: migrations.IndexState{
 			Name:         "idx_blog_post_title",
 			Fields:       []string{"title"},
+			Unique:       true,
 			Expressions:  []string{"LOWER(title)"},
 			Method:       "gin",
 			OpClasses:    []string{"gin_trgm_ops"},
@@ -60,7 +61,7 @@ func TestOperationSpecRoundTripsRichIndexAndConstraintMetadata(t *testing.T) {
 	if err != nil {
 		t.Fatalf("OperationSpecFromJSON(index) error = %v", err)
 	}
-	if decoded.Index == nil || decoded.Index.Method != "gin" || decoded.Index.ConditionSQL == "" || !decoded.Index.Concurrently || decoded.Index.Expressions[0] != "LOWER(title)" {
+	if decoded.Index == nil || decoded.Index.Method != "gin" || decoded.Index.ConditionSQL == "" || !decoded.Index.Concurrently || !decoded.Index.Unique || decoded.Index.Expressions[0] != "LOWER(title)" {
 		t.Fatalf("decoded rich index = %#v", decoded.Index)
 	}
 

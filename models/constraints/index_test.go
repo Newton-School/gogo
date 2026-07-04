@@ -58,6 +58,36 @@ func TestIndexCloneCopiesSlices(t *testing.T) {
 	}
 }
 
+func TestUniqueIndexMetadata(t *testing.T) {
+	index := NewUniqueIndex("uniq_lower_email").
+		WithExpressions("LOWER(email)").
+		WithCondition("deleted_at IS NULL").
+		WithInclude("id").
+		WithOperatorClasses("text_pattern_ops")
+
+	if !index.Unique {
+		t.Fatalf("Unique = false, want true")
+	}
+	if index.Name != "uniq_lower_email" || index.Expressions[0] != "LOWER(email)" {
+		t.Fatalf("index metadata = %#v", index)
+	}
+
+	cloned := index.Clone()
+	cloned.Unique = false
+	cloned.Expressions[0] = "UPPER(email)"
+	if !index.Unique || index.Expressions[0] != "LOWER(email)" {
+		t.Fatalf("Clone() mutated original index = %#v", index)
+	}
+}
+
+func TestIndexWithUnique(t *testing.T) {
+	index := NewIndex("idx_slug", Asc("slug")).WithUnique()
+
+	if !index.Unique {
+		t.Fatalf("WithUnique() did not mark index unique: %#v", index)
+	}
+}
+
 func TestIndexValidationFailures(t *testing.T) {
 	cases := []Index{
 		NewIndex(""),

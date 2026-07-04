@@ -126,6 +126,7 @@ func IndexSchemaFromState(index IndexState) IndexSchema {
 	return IndexSchema{
 		Name:         index.Name,
 		Fields:       append([]string(nil), index.Fields...),
+		Unique:       index.Unique,
 		Expressions:  append([]string(nil), index.Expressions...),
 		Method:       index.Method,
 		OpClasses:    append([]string(nil), index.OpClasses...),

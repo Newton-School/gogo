@@ -21,6 +21,19 @@ type IndexField = modelconstraints.IndexField
 // Constraint describes model constraint metadata.
 type Constraint = modelconstraints.Constraint
 
+// Exclusion describes one exclusion constraint expression/operator pair.
+type Exclusion = modelconstraints.Exclusion
+
+// Deferrable stores deferrable constraint timing.
+type Deferrable = modelconstraints.Deferrable
+
+const (
+	// DeferrableImmediate stores an immediate deferrable constraint.
+	DeferrableImmediate = modelconstraints.DeferrableImmediate
+	// DeferrableDeferred stores an initially deferred constraint.
+	DeferrableDeferred = modelconstraints.DeferrableDeferred
+)
+
 // Asc creates ascending index field metadata.
 func Asc(name string) IndexField {
 	return modelconstraints.Asc(name)
@@ -29,6 +42,36 @@ func Asc(name string) IndexField {
 // Desc creates descending index field metadata.
 func Desc(name string) IndexField {
 	return modelconstraints.Desc(name)
+}
+
+// NewIndex creates index metadata.
+func NewIndex(name string, fields ...IndexField) Index {
+	return modelconstraints.NewIndex(name, fields...)
+}
+
+// NewUniqueIndex creates unique index metadata.
+func NewUniqueIndex(name string, fields ...IndexField) Index {
+	return modelconstraints.NewUniqueIndex(name, fields...)
+}
+
+// Unique creates unique constraint metadata over fields.
+func Unique(name string, fields ...string) Constraint {
+	return modelconstraints.Unique(name, fields...)
+}
+
+// UniqueExpression creates a functional unique constraint.
+func UniqueExpression(name string, expressions ...string) Constraint {
+	return modelconstraints.UniqueExpression(name, expressions...)
+}
+
+// Check creates check constraint metadata.
+func Check(name, expression string) Constraint {
+	return modelconstraints.Check(name, expression)
+}
+
+// Exclude creates exclusion constraint metadata.
+func Exclude(name string, exclusions ...Exclusion) Constraint {
+	return modelconstraints.Exclude(name, exclusions...)
 }
 
 // Permission describes one model-level permission.
