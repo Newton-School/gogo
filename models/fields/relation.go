@@ -119,6 +119,10 @@ func (f *RelationField) OnDelete() DeleteBehavior {
 	return f.config.OnDelete
 }
 
+func (f *RelationField) TargetFieldName() string {
+	return f.config.TargetFieldName
+}
+
 func (f *RelationField) IsSelfReference() bool {
 	return f.config.Target == Self
 }

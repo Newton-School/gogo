@@ -50,6 +50,20 @@ func TestForeignKeySupportsExplicitUUIDColumnType(t *testing.T) {
 	}
 }
 
+func TestForeignKeyPreservesTargetFieldNameInMetadata(t *testing.T) {
+	fk := NewForeignKey(Options{Name: "owner", Column: "owner_uid"}, RelationConfig{
+		Target:          "accounts.User",
+		TargetFieldName: "uid",
+		OnDelete:        Cascade,
+		ColumnTypes:     map[string]string{"postgres": "uuid"},
+	})
+
+	meta := Metadata(fk, "postgres")
+	if meta.TargetFieldName != "uid" {
+		t.Fatalf("TargetFieldName = %q, want uid", meta.TargetFieldName)
+	}
+}
+
 func TestRelationshipFieldsSupportSelfAndLazyReferences(t *testing.T) {
 	self := NewForeignKey(Options{Name: "parent", Null: true}, RelationConfig{Target: Self, OnDelete: SetNull})
 	if !self.IsSelfReference() {

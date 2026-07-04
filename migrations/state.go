@@ -24,16 +24,17 @@ type ModelState struct {
 
 // FieldState stores historical field state.
 type FieldState struct {
-	Name        string                  `json:"name"`
-	Column      string                  `json:"column,omitempty"`
-	Kind        string                  `json:"kind,omitempty"`
-	ColumnTypes map[string]string       `json:"column_types,omitempty"`
-	PrimaryKey  bool                    `json:"primary_key,omitempty"`
-	Null        bool                    `json:"null,omitempty"`
-	Unique      bool                    `json:"unique,omitempty"`
-	DBIndex     bool                    `json:"db_index,omitempty"`
-	DBDefault   *models.DatabaseDefault `json:"db_default,omitempty"`
-	DBCollation string                  `json:"db_collation,omitempty"`
+	Name            string                  `json:"name"`
+	Column          string                  `json:"column,omitempty"`
+	Kind            string                  `json:"kind,omitempty"`
+	ColumnTypes     map[string]string       `json:"column_types,omitempty"`
+	PrimaryKey      bool                    `json:"primary_key,omitempty"`
+	Null            bool                    `json:"null,omitempty"`
+	Unique          bool                    `json:"unique,omitempty"`
+	DBIndex         bool                    `json:"db_index,omitempty"`
+	DBDefault       *models.DatabaseDefault `json:"db_default,omitempty"`
+	DBCollation     string                  `json:"db_collation,omitempty"`
+	TargetFieldName string                  `json:"target_field_name,omitempty"`
 }
 
 // IndexState stores historical index state.
@@ -128,15 +129,16 @@ func StateFromRegistry(registry *models.Registry) ProjectState {
 				defaultValue = models.DatabaseDefault{}
 			}
 			model.Fields[i] = FieldState{
-				Name:        field.Name,
-				Column:      field.Column,
-				Kind:        fieldKindFromMetadata(meta, field, registry),
-				ColumnTypes: cloneStringMap(field.ColumnTypes),
-				PrimaryKey:  field.PrimaryKey,
-				Null:        field.Null,
-				Unique:      field.Unique,
-				DBIndex:     field.DBIndex,
-				DBCollation: field.DBCollation,
+				Name:            field.Name,
+				Column:          field.Column,
+				Kind:            fieldKindFromMetadata(meta, field, registry),
+				ColumnTypes:     cloneStringMap(field.ColumnTypes),
+				PrimaryKey:      field.PrimaryKey,
+				Null:            field.Null,
+				Unique:          field.Unique,
+				DBIndex:         field.DBIndex,
+				DBCollation:     field.DBCollation,
+				TargetFieldName: field.TargetFieldName,
 			}
 			if defaultValue.Kind != models.DefaultNone {
 				model.Fields[i].DBDefault = &defaultValue

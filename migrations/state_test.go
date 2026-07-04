@@ -186,6 +186,39 @@ func TestProjectStateFromRegistryInfersRelationKindFromTargetPrimaryKey(t *testi
 	}
 }
 
+func TestProjectStateFromRegistryPreservesRelationTargetFieldName(t *testing.T) {
+	registry := models.NewRegistry()
+	for _, meta := range []models.Metadata{
+		{
+			AppLabel:  "accounts",
+			ModelName: "User",
+			TableName: "accounts_user",
+			Fields: []models.FieldMeta{
+				{Name: "uid", Column: "uid", Kind: "uuid", PrimaryKey: true},
+			},
+		},
+		{
+			AppLabel:  "docs",
+			ModelName: "Document",
+			TableName: "docs_document",
+			Fields: []models.FieldMeta{
+				{Name: "id", Column: "id", Kind: "bigint", PrimaryKey: true},
+				{Name: "owner", Column: "owner_uid", Kind: "uuid", RelationTarget: "accounts.User", TargetFieldName: "uid", DeleteBehavior: "cascade"},
+			},
+		},
+	} {
+		if err := registry.RegisterMetadata(meta); err != nil {
+			t.Fatalf("RegisterMetadata(%s.%s) error = %v", meta.AppLabel, meta.ModelName, err)
+		}
+	}
+
+	state := StateFromRegistry(registry)
+	field := state.Models["docs.Document"].Fields[1]
+	if field.TargetFieldName != "uid" {
+		t.Fatalf("TargetFieldName = %q, want uid", field.TargetFieldName)
+	}
+}
+
 func TestFieldStateDatabaseDefaultManifestCompatibility(t *testing.T) {
 	var legacy FieldState
 	if err := json.Unmarshal([]byte(`{"name":"status","db_default":"draft"}`), &legacy); err != nil {

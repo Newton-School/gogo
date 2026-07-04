@@ -28,6 +28,7 @@ func Metadata(field Field, dialect string) models.FieldMeta {
 	}
 	if relation, ok := field.(*RelationField); ok {
 		meta.RelationTarget = relation.Target()
+		meta.TargetFieldName = relation.TargetFieldName()
 		meta.DeleteBehavior = string(relation.OnDelete())
 		meta.ColumnTypes = cloneStringMap(relation.BaseField.columnTypes)
 	}

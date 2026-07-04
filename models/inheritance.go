@@ -6,20 +6,21 @@ const parentLinkDeleteBehavior = "cascade"
 
 // FieldMeta describes model field metadata without importing the fields package.
 type FieldMeta struct {
-	Name           string
-	Column         string
-	Kind           string
-	ColumnTypes    map[string]string
-	SourceModel    string
-	PrimaryKey     bool
-	Null           bool
-	Unique         bool
-	DBIndex        bool
-	DBDefault      any
-	DBCollation    string
-	ParentLink     bool
-	RelationTarget string
-	DeleteBehavior string
+	Name            string
+	Column          string
+	Kind            string
+	ColumnTypes     map[string]string
+	SourceModel     string
+	PrimaryKey      bool
+	Null            bool
+	Unique          bool
+	DBIndex         bool
+	DBDefault       any
+	DBCollation     string
+	ParentLink      bool
+	RelationTarget  string
+	TargetFieldName string
+	DeleteBehavior  string
 }
 
 // ModelRef stores a compact model reference for inheritance metadata.
