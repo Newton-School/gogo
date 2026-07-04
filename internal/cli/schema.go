@@ -51,7 +51,7 @@ func (c inspectDBCommand) runWithIO(ctx context.Context, args []string, stdout, 
 		if err != nil {
 			return fmt.Errorf("%w: inspect schema for %s: %v", ErrCommandFailed, table, err)
 		}
-		if err := writeInspectedTable(stdout, table, schema.Columns); err != nil {
+		if err := writeInspectedTable(stdout, table, schema, database.Dialect.Name()); err != nil {
 			return err
 		}
 	}
@@ -143,25 +143,217 @@ func schemaTables(ctx context.Context, database *orm.Database) ([]string, error)
 	return tables, rows.Err()
 }
 
-func writeInspectedTable(stdout io.Writer, table string, columns []migrations.ColumnSchema) error {
+func writeInspectedTable(stdout io.Writer, table string, tableSchema migrations.TableSchema, dialect string) error {
 	modelName := modelNameFromTable(table)
 	managedVar := strings.ToLower(modelName[:1]) + modelName[1:] + "Managed"
-	if _, err := fmt.Fprintf(stdout, "%s := false\nmodels.Metadata{AppLabel: \"legacy\", ModelName: %q, TableName: %q, DBTable: %q, Managed: &%s}\n", managedVar, modelName, table, table, managedVar); err != nil {
+	if _, err := fmt.Fprintf(stdout, "var %s = false\n\nvar %sMetadata = models.Metadata{\n", managedVar, modelName); err != nil {
 		return err
 	}
-	for _, column := range columns {
-		parts := []string{column.Name, column.Kind}
-		if column.PrimaryKey {
-			parts = append(parts, "primary_key")
-		}
-		if column.Nullable {
-			parts = append(parts, "null")
-		}
-		if _, err := fmt.Fprintf(stdout, "  field %s\n", strings.Join(parts, " ")); err != nil {
+	if _, err := fmt.Fprintf(stdout, "\tAppLabel: \"legacy\",\n\tModelName: %q,\n\tTableName: %q,\n\tDBTable: %q,\n\tManaged: &%s,\n", modelName, table, table, managedVar); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintln(stdout, "\tFields: []models.FieldMeta{"); err != nil {
+		return err
+	}
+	for _, column := range tableSchema.Columns {
+		if _, err := fmt.Fprintf(stdout, "\t\t%s,\n", inspectedFieldMeta(column, dialect)); err != nil {
 			return err
 		}
 	}
+	if _, err := fmt.Fprintln(stdout, "\t},"); err != nil {
+		return err
+	}
+	if indexes := inspectedModelIndexes(tableSchema); len(indexes) > 0 {
+		if _, err := fmt.Fprintln(stdout, "\tIndexes: []models.Index{"); err != nil {
+			return err
+		}
+		for _, index := range indexes {
+			if _, err := fmt.Fprintf(stdout, "\t\t%s,\n", inspectedIndexMeta(index)); err != nil {
+				return err
+			}
+		}
+		if _, err := fmt.Fprintln(stdout, "\t},"); err != nil {
+			return err
+		}
+	}
+	if constraints := inspectedModelConstraints(tableSchema); len(constraints) > 0 {
+		if _, err := fmt.Fprintln(stdout, "\tConstraints: []models.Constraint{"); err != nil {
+			return err
+		}
+		for _, constraint := range constraints {
+			if _, err := fmt.Fprintf(stdout, "\t\t%s,\n", inspectedConstraintMeta(constraint)); err != nil {
+				return err
+			}
+		}
+		if _, err := fmt.Fprintln(stdout, "\t},"); err != nil {
+			return err
+		}
+	}
+	if _, err := fmt.Fprintln(stdout, "}"); err != nil {
+		return err
+	}
+	for _, constraint := range tableSchema.Constraints {
+		if isModelConstraint(constraint) {
+			continue
+		}
+		definition := constraint.DefinitionSQL
+		if definition == "" {
+			definition = constraintSchemaComment(constraint)
+		}
+		if definition != "" {
+			if _, err := fmt.Fprintf(stdout, "// %s %s: %s\n", constraint.Type, constraint.Name, definition); err != nil {
+				return err
+			}
+		}
+	}
 	return nil
+}
+
+func inspectedFieldMeta(column migrations.ColumnSchema, dialect string) string {
+	kind := column.NormalizedKind
+	if kind == "" {
+		kind = migrations.NormalizeColumnKind(column.Kind)
+	}
+	parts := []string{
+		fmt.Sprintf("Name: %q", column.Name),
+		fmt.Sprintf("Column: %q", column.Name),
+		fmt.Sprintf("Kind: %q", kind),
+	}
+	if dialect != "" && column.Kind != "" {
+		parts = append(parts, fmt.Sprintf("ColumnTypes: map[string]string{%q: %q}", dialect, column.Kind))
+	}
+	if column.PrimaryKey {
+		parts = append(parts, "PrimaryKey: true")
+	}
+	if column.Nullable {
+		parts = append(parts, "Null: true")
+	}
+	if column.DefaultSQL != "" {
+		parts = append(parts, fmt.Sprintf("DBDefault: models.DefaultSQL(%q)", column.DefaultSQL))
+	} else if column.Identity {
+		parts = append(parts, `DBDefault: models.DefaultSQL("GENERATED AS IDENTITY")`)
+	}
+	if column.Collation != "" {
+		parts = append(parts, fmt.Sprintf("DBCollation: %q", column.Collation))
+	}
+	return "{" + strings.Join(parts, ", ") + "}"
+}
+
+func inspectedModelIndexes(tableSchema migrations.TableSchema) []migrations.IndexSchema {
+	constraintNames := make(map[string]struct{}, len(tableSchema.Constraints))
+	for _, constraint := range tableSchema.Constraints {
+		constraintNames[strings.ToLower(constraint.Name)] = struct{}{}
+	}
+	indexes := make([]migrations.IndexSchema, 0, len(tableSchema.Indexes))
+	for _, index := range tableSchema.Indexes {
+		if index.Primary {
+			continue
+		}
+		if _, exists := constraintNames[strings.ToLower(index.Name)]; exists {
+			continue
+		}
+		if len(index.Fields) == 0 && len(index.Expressions) == 0 {
+			continue
+		}
+		indexes = append(indexes, index)
+	}
+	return indexes
+}
+
+func inspectedModelConstraints(tableSchema migrations.TableSchema) []migrations.ConstraintSchema {
+	constraints := make([]migrations.ConstraintSchema, 0, len(tableSchema.Constraints))
+	for _, constraint := range tableSchema.Constraints {
+		if isModelConstraint(constraint) {
+			constraints = append(constraints, constraint)
+		}
+	}
+	return constraints
+}
+
+func isModelConstraint(constraint migrations.ConstraintSchema) bool {
+	switch strings.ToLower(constraint.Type) {
+	case "unique":
+		return len(constraint.Fields) > 0 || len(constraint.Expressions) > 0
+	case "check":
+		return constraint.Check != ""
+	default:
+		return false
+	}
+}
+
+func inspectedIndexMeta(index migrations.IndexSchema) string {
+	parts := []string{fmt.Sprintf("Name: %q", index.Name)}
+	if len(index.Fields) > 0 {
+		parts = append(parts, "Fields: "+indexFieldList(index.Fields))
+	}
+	if len(index.Expressions) > 0 {
+		parts = append(parts, "Expressions: "+stringList(index.Expressions))
+	}
+	if index.Method != "" {
+		parts = append(parts, fmt.Sprintf("Method: %q", index.Method))
+	}
+	if len(index.OpClasses) > 0 {
+		parts = append(parts, "OpClasses: "+stringList(index.OpClasses))
+	}
+	if len(index.Include) > 0 {
+		parts = append(parts, "Include: "+stringList(index.Include))
+	}
+	if index.ConditionSQL != "" {
+		parts = append(parts, fmt.Sprintf("Condition: %q", index.ConditionSQL))
+	}
+	return "{" + strings.Join(parts, ", ") + "}"
+}
+
+func inspectedConstraintMeta(constraint migrations.ConstraintSchema) string {
+	parts := []string{fmt.Sprintf("Name: %q", constraint.Name)}
+	switch strings.ToLower(constraint.Type) {
+	case "check":
+		parts = append(parts, "Type: models.ConstraintCheck", fmt.Sprintf("Check: %q", constraint.Check))
+	default:
+		parts = append(parts, "Type: models.ConstraintUnique")
+		if len(constraint.Fields) > 0 {
+			parts = append(parts, "Fields: "+indexFieldList(constraint.Fields))
+		}
+		if len(constraint.Expressions) > 0 {
+			parts = append(parts, "Expressions: "+stringList(constraint.Expressions))
+		}
+	}
+	if constraint.ConditionSQL != "" {
+		parts = append(parts, fmt.Sprintf("Condition: %q", constraint.ConditionSQL))
+	}
+	if len(constraint.Include) > 0 {
+		parts = append(parts, "Include: "+stringList(constraint.Include))
+	}
+	if len(constraint.OpClasses) > 0 {
+		parts = append(parts, "OpClasses: "+stringList(constraint.OpClasses))
+	}
+	return "{" + strings.Join(parts, ", ") + "}"
+}
+
+func indexFieldList(fields []string) string {
+	parts := make([]string, 0, len(fields))
+	for _, field := range fields {
+		parts = append(parts, fmt.Sprintf("models.Asc(%q)", field))
+	}
+	return "[]models.IndexField{" + strings.Join(parts, ", ") + "}"
+}
+
+func stringList(values []string) string {
+	parts := make([]string, 0, len(values))
+	for _, value := range values {
+		parts = append(parts, fmt.Sprintf("%q", value))
+	}
+	return "[]string{" + strings.Join(parts, ", ") + "}"
+}
+
+func constraintSchemaComment(constraint migrations.ConstraintSchema) string {
+	if constraint.DefinitionSQL != "" {
+		return constraint.DefinitionSQL
+	}
+	if constraint.ReferencesTable != "" {
+		return fmt.Sprintf("FOREIGN KEY (%s) REFERENCES %s (%s)", strings.Join(constraint.Fields, ", "), constraint.ReferencesTable, strings.Join(constraint.ReferencesColumns, ", "))
+	}
+	return ""
 }
 
 func compareModelToSchema(ctx context.Context, editor sqlSchemaEditor, meta models.Metadata) []string {

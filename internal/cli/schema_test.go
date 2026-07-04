@@ -30,7 +30,49 @@ func TestInspectDBPrintsExistingSchemaMetadata(t *testing.T) {
 		t.Fatalf("inspectdb error = %v", err)
 	}
 	output := stdout.String()
-	for _, want := range []string{`ModelName: "LegacyItem"`, `DBTable: "legacy_item"`, `Managed: &legacyItemManaged`, `field id INTEGER primary_key`, `field name TEXT`} {
+	for _, want := range []string{
+		`var legacyItemManaged = false`,
+		`var LegacyItemMetadata = models.Metadata{`,
+		`ModelName: "LegacyItem"`,
+		`DBTable: "legacy_item"`,
+		`Managed: &legacyItemManaged`,
+		`Fields: []models.FieldMeta{`,
+		`{Name: "id", Column: "id", Kind: "bigint", ColumnTypes: map[string]string{"sqlite": "INTEGER"}, PrimaryKey: true}`,
+		`{Name: "name", Column: "name", Kind: "text", ColumnTypes: map[string]string{"sqlite": "TEXT"}}`,
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("inspectdb output missing %q:\n%s", want, output)
+		}
+	}
+	if strings.Contains(output, "field id INTEGER") {
+		t.Fatalf("inspectdb still emitted thin field output:\n%s", output)
+	}
+}
+
+func TestInspectDBPrintsIndexesAndDefaults(t *testing.T) {
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "db.sqlite3")
+	writeSchemaTestEnv(t, dir, dbPath)
+	db := openSchemaTestDB(t, dbPath)
+	if _, err := db.Exec(`CREATE TABLE legacy_item (id integer PRIMARY KEY, name text NOT NULL DEFAULT 'draft')`); err != nil {
+		t.Fatalf("create legacy table: %v", err)
+	}
+	if _, err := db.Exec(`CREATE INDEX idx_legacy_item_name ON legacy_item (name)`); err != nil {
+		t.Fatalf("create index: %v", err)
+	}
+	db.Close()
+	t.Chdir(dir)
+
+	var stdout bytes.Buffer
+	if err := NewRoot().Execute(context.Background(), []string{"inspectdb", "--table", "legacy_item"}, &stdout, &bytes.Buffer{}); err != nil {
+		t.Fatalf("inspectdb error = %v", err)
+	}
+	output := stdout.String()
+	for _, want := range []string{
+		`DBDefault: models.DefaultSQL("'draft'")`,
+		`Indexes: []models.Index{`,
+		`{Name: "idx_legacy_item_name", Fields: []models.IndexField{models.Asc("name")}}`,
+	} {
 		if !strings.Contains(output, want) {
 			t.Fatalf("inspectdb output missing %q:\n%s", want, output)
 		}
