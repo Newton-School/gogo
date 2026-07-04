@@ -101,6 +101,7 @@ and richer schema introspection.
 - Passed `make ci`; local `govulncheck` was not installed, so the Makefile
   skipped the local vulnerability scan.
 - Passed `go test -tags=integration ./...`.
+- Passed release dry run for `v0.8.0`.
 
 ### Artifacts
 
