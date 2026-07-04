@@ -19,6 +19,96 @@ None.
 
 None.
 
+## v0.8.0 - 2026-07-04
+
+Feature release for generic existing-model adoption, database-generated primary
+keys, custom field metadata, typed relation columns, PostgreSQL vector helpers,
+and richer schema introspection.
+
+### Release Metadata
+
+- Previous release: `v0.7.0`.
+- New release: `v0.8.0`.
+- Module path: `github.com/cybersaksham/gogo`.
+- CLI install path: `github.com/cybersaksham/gogo/cmd/gogo`.
+
+### Added
+
+- Added create-path support for database-generated primary keys across ORM
+  metadata stores, API metadata viewset stores, and admin add views.
+- Added public custom model field support through `models/fields.NewCustomField`
+  and `fields.Metadata` for conversion into reusable `models.FieldMeta`.
+- Added typed relation column metadata and target primary-key kind inference so
+  UUID, text, and other non-bigint relationships can be represented without
+  product-specific framework code.
+- Added `contrib/postgres/vector` metadata helpers for pgvector columns and
+  HNSW/IVFFlat index definitions.
+- Added rich `migrations.TableSchema`, `IndexSchema`, and `ConstraintSchema`
+  comparison for declared indexes, constraints, and foreign keys.
+- Added PostgreSQL catalog introspection for formatted column types, indexes,
+  constraints, check definitions, and foreign-key references.
+- Added existing-product compatibility coverage for database-generated primary
+  keys, typed relation metadata, vector index SQL, and rich schema diffs.
+
+### Changed
+
+- Changed `inspectdb` to emit unmanaged, adoption-ready `models.Metadata`
+  snippets with explicit fields, dialect column types, database defaults,
+  indexes, and representable constraints.
+- Changed `diffschema` and `migrate --fake-initial` to use the richer table
+  shape comparison when index and constraint introspection is available.
+- Changed generated app examples, generated project agent guidance, and public
+  docs to describe generic model-adoption patterns for custom types,
+  database-generated primary keys, and non-bigint relations.
+
+### Fixed
+
+- Fixed existing-schema adoption blockers where database-generated primary keys
+  were inserted as zero values instead of being omitted and read back.
+- Fixed relation migration state so registered target primary-key kinds are
+  preserved for relation columns when no explicit relation kind is provided.
+- Fixed PostgreSQL type normalization for catalog-formatted types such as
+  `timestamptz`, `varchar(n)`, `numeric(p,s)`, `jsonb`, `uuid`, and
+  `vector(n)`.
+- Fixed schema-diff blind spots where missing model-declared indexes,
+  constraints, or foreign keys were not reported.
+
+### Breaking
+
+- None.
+
+### Migration Notes
+
+- Existing generated projects should update their `go.mod` requirement to
+  `github.com/cybersaksham/gogo v0.8.0` and run `go mod tidy`.
+- Projects adopting existing databases should rerun `inspectdb` and
+  `diffschema` before baselining; declared indexes and constraints are now part
+  of the blocking schema comparison where introspection supports them.
+- Projects using database-generated primary keys should declare the primary-key
+  field kind and `DBDefault` explicitly so create paths can omit the value and
+  return the generated identifier.
+- Projects using PostgreSQL vector metadata still need to install and migrate
+  the `vector` extension in their own database environment.
+
+### Verification
+
+- Passed `go test ./models/... ./orm/... ./migrations/... ./internal/schema`.
+- Passed `go test ./api ./admin ./internal/cli ./internal/compatibility/existingproduct`.
+- Passed `go test ./...`.
+- Passed `go test -race ./orm/... ./migrations/... ./internal/schema`.
+- Passed `go test -tags=integration ./internal/cli`.
+- Passed `make docs-verify`.
+- Passed `make ci`; local `govulncheck` was not installed, so the Makefile
+  skipped the local vulnerability scan.
+- Passed `go test -tags=integration ./...`.
+
+### Artifacts
+
+- The GitHub release workflow publishes CLI binaries for Linux, macOS, and
+  Windows on `amd64` and `arm64`.
+- The GitHub release workflow publishes `checksums.txt` with SHA256 checksums
+  for release artifacts.
+
 ## v0.7.0 - 2026-07-02
 
 Feature release for generated-project lifecycle hooks, Redis-backed queue
