@@ -82,6 +82,9 @@ func (e Editor) RenameColumn(table, oldName, newName string) string {
 func (e Editor) AddIndex(table string, index migrations.IndexState) string {
 	terms := e.indexTerms(index)
 	parts := []string{"CREATE INDEX"}
+	if index.Unique {
+		parts = []string{"CREATE UNIQUE INDEX"}
+	}
 	if index.Concurrently {
 		parts = append(parts, "CONCURRENTLY")
 	}

@@ -100,6 +100,24 @@ func TestSchemaEditorPostgresRendersRichIndexesAndForeignKeys(t *testing.T) {
 	}
 }
 
+func TestSchemaEditorPostgresRendersUniqueExpressionPartialIndex(t *testing.T) {
+	editor := NewEditor(postgres.New())
+	got := editor.AddIndex("accounts_user", migrations.IndexState{
+		Name:         "uniq_accounts_user_lower_email",
+		Unique:       true,
+		Expressions:  []string{"LOWER(email)"},
+		OpClasses:    []string{"text_pattern_ops"},
+		Include:      []string{"id"},
+		ConditionSQL: "deleted_at IS NULL",
+		Concurrently: true,
+	})
+
+	want := `CREATE UNIQUE INDEX CONCURRENTLY "uniq_accounts_user_lower_email" ON "accounts_user" (LOWER(email) text_pattern_ops) INCLUDE ("id") WHERE deleted_at IS NULL`
+	if got != want {
+		t.Fatalf("AddIndex() = %q, want %q", got, want)
+	}
+}
+
 func TestSchemaEditorSQLiteGoldenSQL(t *testing.T) {
 	editor := NewEditor(sqlite.New())
 	if got := editor.DropColumn("blog_post", "slug"); got != `ALTER TABLE "blog_post" DROP COLUMN "slug"` {
