@@ -16,11 +16,16 @@ import (
 
 	"github.com/cybersaksham/gogo/admin"
 	"github.com/cybersaksham/gogo/auth"
+	"github.com/cybersaksham/gogo/contrib/postgres/vector"
 	gogohttp "github.com/cybersaksham/gogo/http"
+	"github.com/cybersaksham/gogo/internal/schema"
 	"github.com/cybersaksham/gogo/management"
 	"github.com/cybersaksham/gogo/migrations"
 	"github.com/cybersaksham/gogo/migrations/operations"
 	"github.com/cybersaksham/gogo/models"
+	"github.com/cybersaksham/gogo/orm"
+	postgresdialect "github.com/cybersaksham/gogo/orm/dialects/postgres"
+	sqlitedialect "github.com/cybersaksham/gogo/orm/dialects/sqlite"
 	"github.com/cybersaksham/gogo/queue"
 	"github.com/cybersaksham/gogo/queue/backends"
 	_ "github.com/cybersaksham/gogo/queue/backends/redis"
@@ -157,6 +162,94 @@ func TestExistingProductHTTPAdminAndQueueCompatibility(t *testing.T) {
 		if result, err := redisBackend.GetResult(context.Background(), redisMessage.Envelope.ID); err != nil || result.Result != "synced" {
 			t.Fatalf("redis queue result = %#v, err=%v", result, err)
 		}
+	}
+}
+
+func TestExistingProductModelAdoptionFrameworkFixes(t *testing.T) {
+	ctx := context.Background()
+	database, err := orm.OpenDatabase(ctx, orm.DatabaseConfig{
+		Name:    orm.DefaultDatabase,
+		Driver:  "sqlite",
+		DSN:     filepath.Join(t.TempDir(), "adoption.sqlite3"),
+		Dialect: sqlitedialect.New(),
+	})
+	if err != nil {
+		t.Fatalf("OpenDatabase() error = %v", err)
+	}
+	defer database.Close()
+	if _, err := database.SQLDB().ExecContext(ctx, `
+		CREATE TABLE legacy_product (
+			id text PRIMARY KEY DEFAULT 'legacy-product-id',
+			owner_id text NOT NULL,
+			embedding text,
+			name text NOT NULL
+		)
+	`); err != nil {
+		t.Fatalf("create legacy product: %v", err)
+	}
+
+	productMeta := legacyProductMetadata()
+	store := orm.NewMetadataStore(database, productMeta)
+	created, err := store.Create(ctx, productMeta, map[string]any{"owner": "user-1", "embedding": "[0.1,0.2]", "name": "Imported"})
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	if created["id"] != "legacy-product-id" || created["owner"] != "user-1" {
+		t.Fatalf("created row = %#v", created)
+	}
+
+	registry := models.NewRegistry()
+	for _, meta := range []models.Metadata{legacyUserMetadata(), productMeta} {
+		if err := registry.RegisterMetadata(meta); err != nil {
+			t.Fatalf("register %s: %v", meta.Label(), err)
+		}
+	}
+	state := migrations.StateFromRegistry(registry)
+	product := state.Models["legacy.Product"]
+	if len(product.Fields) < 2 || product.Fields[1].Name != "owner" || product.Fields[1].Kind != "uuid" {
+		t.Fatalf("relation field state = %#v", product.Fields)
+	}
+
+	vectorIndex := vector.HNSWIndex("idx_legacy_product_embedding_hnsw", "embedding", vector.CosineOps)
+	indexSQL := schema.NewEditor(postgresdialect.New()).AddIndex("legacy_product", migrations.IndexState{
+		Name:      vectorIndex.NameFor("legacy_product"),
+		Fields:    vectorIndex.FieldNames(),
+		Method:    vectorIndex.Method,
+		OpClasses: append([]string(nil), vectorIndex.OpClasses...),
+	})
+	if !strings.Contains(indexSQL, "USING hnsw") || !strings.Contains(indexSQL, "vector_cosine_ops") {
+		t.Fatalf("vector index SQL = %q", indexSQL)
+	}
+
+	expected := migrations.TableSchema{
+		Name: "legacy_product",
+		Columns: []migrations.ColumnSchema{
+			{Name: "id", NormalizedKind: "text", PrimaryKey: true},
+			{Name: "owner_id", NormalizedKind: "uuid"},
+			{Name: "embedding", NormalizedKind: "vector(384)", Nullable: true},
+		},
+		Indexes:     []migrations.IndexSchema{{Name: "idx_legacy_product_embedding_hnsw", Fields: []string{"embedding"}, Method: "hnsw", OpClasses: []string{"vector_cosine_ops"}}},
+		Constraints: []migrations.ConstraintSchema{{Name: "uniq_legacy_product_owner", Type: "unique", Fields: []string{"owner_id"}}},
+	}
+	actual := migrations.TableSchema{
+		Name: "legacy_product",
+		Columns: []migrations.ColumnSchema{
+			{Name: "id", NormalizedKind: "text", PrimaryKey: true},
+			{Name: "owner_id", NormalizedKind: "uuid"},
+			{Name: "embedding", NormalizedKind: "vector(384)", Nullable: true},
+		},
+	}
+	diffs := migrations.CompareTableShape(expected, actual)
+	output := schemaDiffOutput(diffs)
+	for _, want := range []string{"MISSING index legacy_product.idx_legacy_product_embedding_hnsw", "MISSING constraint legacy_product.uniq_legacy_product_owner"} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("schema diff missing %q:\n%s", want, output)
+		}
+	}
+	actual.Indexes = expected.Indexes
+	actual.Constraints = expected.Constraints
+	if diffs := migrations.CompareTableShape(expected, actual); len(diffs) != 0 {
+		t.Fatalf("matching schema diffs = %#v", diffs)
 	}
 }
 
@@ -372,6 +465,47 @@ func salesInitialMigration() migrations.Migration {
 			}},
 		},
 	}
+}
+
+func legacyUserMetadata() models.Metadata {
+	return models.Metadata{
+		AppLabel:  "accounts",
+		ModelName: "User",
+		TableName: "accounts_user",
+		DBTable:   "accounts_user",
+		Fields: []models.FieldMeta{
+			{Name: "id", Column: "id", Kind: "uuid", PrimaryKey: true, DBDefault: models.DefaultSQL("gen_random_uuid()")},
+		},
+	}
+}
+
+func legacyProductMetadata() models.Metadata {
+	return models.Metadata{
+		AppLabel:  "legacy",
+		ModelName: "Product",
+		TableName: "legacy_product",
+		DBTable:   "legacy_product",
+		Fields: []models.FieldMeta{
+			{Name: "id", Column: "id", Kind: "text", PrimaryKey: true, DBDefault: models.DefaultValue("legacy-product-id")},
+			{Name: "owner", Column: "owner_id", RelationTarget: "accounts.User"},
+			vector.FieldMeta("embedding", "embedding", 384),
+			{Name: "name", Column: "name", Kind: "text"},
+		},
+		Indexes: []models.Index{
+			vector.HNSWIndex("idx_legacy_product_embedding_hnsw", "embedding", vector.CosineOps),
+		},
+		Constraints: []models.Constraint{
+			{Name: "uniq_legacy_product_owner", Type: models.ConstraintUnique, Fields: []models.IndexField{models.Asc("owner_id")}},
+		},
+	}
+}
+
+func schemaDiffOutput(diffs []migrations.SchemaDifference) string {
+	lines := make([]string, len(diffs))
+	for i, diff := range diffs {
+		lines[i] = diff.String()
+	}
+	return strings.Join(lines, "\n")
 }
 
 func redisTestURL() string {
