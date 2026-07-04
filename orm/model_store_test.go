@@ -94,6 +94,42 @@ func TestMetadataStoreCRUDDumpAndLoad(t *testing.T) {
 	}
 }
 
+func TestMetadataStoreCreateUsesDatabaseGeneratedPrimaryKey(t *testing.T) {
+	ctx := context.Background()
+	database, err := OpenDatabase(ctx, DatabaseConfig{
+		Name:    DefaultDatabase,
+		Driver:  "sqlite",
+		DSN:     filepath.Join(t.TempDir(), "generated.sqlite3"),
+		Dialect: sqlitedialect.New(),
+	})
+	if err != nil {
+		t.Fatalf("OpenDatabase() error = %v", err)
+	}
+	defer database.Close()
+
+	_, err = database.SQLDB().ExecContext(ctx, `
+		CREATE TABLE generated_item (
+			id text PRIMARY KEY DEFAULT 'generated-id',
+			name text NOT NULL,
+			created_at timestamp,
+			updated_at timestamp
+		)
+	`)
+	if err != nil {
+		t.Fatalf("create table: %v", err)
+	}
+
+	meta := generatedItemMeta()
+	store := NewMetadataStore(database, meta)
+	created, err := store.Create(ctx, meta, map[string]any{"name": "First"})
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	if created["id"] != "generated-id" || created["name"] != "First" {
+		t.Fatalf("created row = %#v", created)
+	}
+}
+
 func notesItemMeta() models.Metadata {
 	return models.Metadata{
 		AppLabel:    "notes",
@@ -107,6 +143,21 @@ func notesItemMeta() models.Metadata {
 			{Name: "slug", Column: "slug"},
 			{Name: "created_at", Column: "created_at"},
 			{Name: "updated_at", Column: "updated_at"},
+		},
+	}
+}
+
+func generatedItemMeta() models.Metadata {
+	return models.Metadata{
+		AppLabel:  "generated",
+		ModelName: "Item",
+		TableName: "generated_item",
+		DBTable:   "generated_item",
+		Fields: []models.FieldMeta{
+			{Name: "id", Column: "id", Kind: "text", PrimaryKey: true, DBDefault: models.DefaultValue("generated-id")},
+			{Name: "name", Column: "name", Kind: "text"},
+			{Name: "created_at", Column: "created_at", Kind: "timestamp", Null: true},
+			{Name: "updated_at", Column: "updated_at", Kind: "timestamp", Null: true},
 		},
 	}
 }

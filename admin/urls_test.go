@@ -282,6 +282,53 @@ func TestAdminModelRoutesPersistCRUDThroughModelStore(t *testing.T) {
 	}
 }
 
+func TestAdminModelAddUsesDatabaseGeneratedPrimaryKey(t *testing.T) {
+	meta := models.Metadata{
+		AppLabel:    "blog",
+		ModelName:   "Post",
+		TableName:   "blog_post",
+		Fields:      []models.FieldMeta{{Name: "id", Column: "id", Kind: "text", PrimaryKey: true, DBDefault: models.DefaultValue("post-generated")}, {Name: "title", Column: "title", Kind: "text"}, {Name: "created_at", Column: "created_at", Kind: "timestamp", Null: true}, {Name: "updated_at", Column: "updated_at", Kind: "timestamp", Null: true}},
+		VerboseName: "post",
+	}
+	database, err := orm.OpenDatabase(t.Context(), orm.DatabaseConfig{Name: orm.DefaultDatabase, Driver: "sqlite", DSN: t.TempDir() + "/admin-generated.sqlite3", Dialect: sqlitedialect.New()})
+	if err != nil {
+		t.Fatalf("OpenDatabase() error = %v", err)
+	}
+	defer database.Close()
+	if _, err := database.SQLDB().ExecContext(t.Context(), `
+		CREATE TABLE blog_post (
+			id text PRIMARY KEY DEFAULT 'post-generated',
+			title text NOT NULL,
+			created_at timestamp,
+			updated_at timestamp
+		)
+	`); err != nil {
+		t.Fatalf("create table: %v", err)
+	}
+
+	site := DefaultSite()
+	site.ModelStore = orm.NewMetadataStore(database, meta)
+	if err := site.ModelRegistry.RegisterMetadata(meta, ModelAdmin{Fields: []string{"title"}}); err != nil {
+		t.Fatalf("RegisterMetadata() error = %v", err)
+	}
+	router, err := site.URLs()
+	if err != nil {
+		t.Fatalf("URLs() error = %v", err)
+	}
+
+	add := httptest.NewRecorder()
+	router.ServeHTTP(add, staffAdminFormRequest("/admin/blog/post/add/", "title=Generated&_continue=Save+and+continue+editing"))
+	if add.Code != http.StatusFound || add.Header().Get("Location") != "/admin/blog/post/post-generated/change/" {
+		t.Fatalf("add response = %d location=%q body=%s", add.Code, add.Header().Get("Location"), add.Body.String())
+	}
+
+	change := httptest.NewRecorder()
+	router.ServeHTTP(change, staffAdminRequest(http.MethodGet, "/admin/blog/post/post-generated/change/"))
+	if change.Code != http.StatusOK || !strings.Contains(change.Body.String(), `value="Generated"`) {
+		t.Fatalf("change response = %d body=%s", change.Code, change.Body.String())
+	}
+}
+
 func TestAdminModelPostRejectsMissingCSRF(t *testing.T) {
 	meta := models.Metadata{
 		AppLabel:  "blog",

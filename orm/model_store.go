@@ -25,6 +25,14 @@ type MetadataStore struct {
 	models   map[string]models.Metadata
 }
 
+type primaryKeyCreateStrategy int
+
+const (
+	primaryKeyProvided primaryKeyCreateStrategy = iota
+	primaryKeyManualInteger
+	primaryKeyDatabaseGenerated
+)
+
 // NewMetadataStore creates a metadata-backed SQL row store.
 func NewMetadataStore(database *Database, metas ...models.Metadata) *MetadataStore {
 	store := &MetadataStore{Database: database, models: map[string]models.Metadata{}}
@@ -86,17 +94,21 @@ func (s *MetadataStore) Create(ctx context.Context, meta models.Metadata, data m
 	meta = s.resolve(meta)
 	values := cloneMap(data)
 	pkField := primaryField(meta)
-	if pkField.Name != "" && emptyValue(values[pkField.Name]) {
+	pkStrategy := primaryKeyStrategy(values, pkField)
+	switch pkStrategy {
+	case primaryKeyManualInteger:
 		next, err := s.nextPrimaryKey(ctx, meta, pkField)
 		if err != nil {
 			return nil, err
 		}
 		values[pkField.Name] = next
+	case primaryKeyDatabaseGenerated:
+		delete(values, pkField.Name)
 	}
 	now := time.Now().UTC()
 	applyTimestampDefaults(meta, values, now, true)
 	fields := writableFields(meta, values, true)
-	if len(fields) == 0 {
+	if len(fields) == 0 && pkStrategy != primaryKeyDatabaseGenerated {
 		return nil, fmt.Errorf("%w: no writable fields", ErrInvalidQuery)
 	}
 	args := make([]any, len(fields))
@@ -105,7 +117,18 @@ func (s *MetadataStore) Create(ctx context.Context, meta models.Metadata, data m
 		args[i] = values[field.Name]
 		placeholders[i] = s.placeholder(i + 1)
 	}
-	statement := "INSERT INTO " + s.q(tableName(meta)) + " (" + columnNameList(s.Database, fields) + ") VALUES (" + strings.Join(placeholders, ", ") + ")"
+	statement := "INSERT INTO " + s.q(tableName(meta))
+	if len(fields) == 0 {
+		statement += " DEFAULT VALUES"
+	} else {
+		statement += " (" + columnNameList(s.Database, fields) + ") VALUES (" + strings.Join(placeholders, ", ") + ")"
+	}
+	if pkStrategy == primaryKeyDatabaseGenerated {
+		if !supportsInsertReturning(s.Database) {
+			return nil, fmt.Errorf("%w: database-generated primary key requires INSERT RETURNING support", ErrInvalidQuery)
+		}
+		return scanRow(s.Database.SQLDB().QueryRowContext(ctx, statement+" RETURNING "+columnSelectList(s.Database, concreteFields(meta)), args...), concreteFields(meta))
+	}
 	if _, err := s.Database.SQLDB().ExecContext(ctx, statement, args...); err != nil {
 		return nil, err
 	}
@@ -239,6 +262,41 @@ func (s *MetadataStore) Load(ctx context.Context, records []MetadataFixtureRecor
 		}
 	}
 	return nil
+}
+
+func primaryKeyStrategy(values map[string]any, field models.FieldMeta) primaryKeyCreateStrategy {
+	if field.Name == "" {
+		return primaryKeyProvided
+	}
+	if !emptyValue(values[field.Name]) {
+		return primaryKeyProvided
+	}
+	if hasDatabaseDefault(field) || isAutoPrimaryKey(field) || isIdentityPrimaryKey(field) {
+		return primaryKeyDatabaseGenerated
+	}
+	return primaryKeyManualInteger
+}
+
+func hasDatabaseDefault(field models.FieldMeta) bool {
+	defaultValue, err := models.NormalizeDatabaseDefault(field.DBDefault)
+	return err == nil && defaultValue.Kind != models.DefaultNone
+}
+
+func isAutoPrimaryKey(field models.FieldMeta) bool {
+	switch strings.ToLower(strings.TrimSpace(field.Kind)) {
+	case "auto", "big_auto", "small_auto", "serial", "bigserial", "smallserial":
+		return true
+	default:
+		return false
+	}
+}
+
+func isIdentityPrimaryKey(field models.FieldMeta) bool {
+	return strings.Contains(strings.ToLower(field.Kind), "identity")
+}
+
+func supportsInsertReturning(database *Database) bool {
+	return database != nil && database.Dialect != nil && database.Dialect.SupportsReturning()
 }
 
 func (s *MetadataStore) ready() error {
