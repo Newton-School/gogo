@@ -367,8 +367,12 @@ func TestAppTemplatesRenderParseablePublicGoFiles(t *testing.T) {
 
 	modelsGo := files["models.go"]
 	for _, want := range []string{
+		"var legacyItemManaged = false",
 		"func LegacyItemMetadata() models.Metadata",
-		"Managed:    false",
+		"Managed:    &legacyItemManaged",
+		`DBDefault: models.DefaultSQL("gen_random_uuid()")`,
+		`RelationTarget: "auth.User"`,
+		`Method: "hnsw"`,
 	} {
 		if !strings.Contains(modelsGo, want) {
 			t.Fatalf("models.go missing unmanaged metadata example %q:\n%s", want, modelsGo)
