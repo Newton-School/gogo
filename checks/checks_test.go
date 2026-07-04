@@ -34,29 +34,40 @@ func TestResultOrdering(t *testing.T) {
 
 func TestContribChecksCatchDependenciesSettingsUnsafeRedirectsAndDialect(t *testing.T) {
 	results := ContribChecks(ContribConfig{
-		InstalledApps:        []string{"gogo.contrib.redirects", "gogo.contrib.flatpages", "gogo.contrib.postgres", "gogo.contrib.gis"},
+		InstalledApps:        []string{"gogo.contrib.redirects", "gogo.contrib.flatpages", "gogo.contrib.postgres", "gogo.contrib.postgres.vector", "gogo.contrib.gis"},
 		Middleware:           []string{"gogo.contrib.redirects.Middleware", "gogo.contrib.sites.Middleware"},
 		SiteID:               0,
 		AllowUnsafeRedirects: true,
 		DatabaseDialect:      "sqlite",
 	})
 	ids := resultIDs(results)
-	for _, want := range []string{"contrib.E001", "contrib.E002", "contrib.E003", "contrib.E004", "contrib.E005", "contrib.E006", "contrib.E007", "contrib.W001"} {
+	for _, want := range []string{"contrib.E001", "contrib.E002", "contrib.E003", "contrib.E004", "contrib.E005", "contrib.E006", "contrib.E007", "contrib.E008", "contrib.W001"} {
 		if !contains(ids, want) {
 			t.Fatalf("contrib check IDs = %#v, missing %s", ids, want)
 		}
 	}
 
 	valid := ContribChecks(ContribConfig{
-		InstalledApps:        []string{"gogo.contrib.sites", "gogo.contrib.redirects", "gogo.contrib.flatpages", "gogo.contrib.postgres", "gogo.contrib.gis"},
+		InstalledApps:        []string{"gogo.contrib.sites", "gogo.contrib.redirects", "gogo.contrib.flatpages", "gogo.contrib.postgres", "gogo.contrib.postgres.vector", "gogo.contrib.gis"},
 		Middleware:           []string{"gogo.contrib.sites.Middleware", "gogo.messages.Middleware", "gogo.contrib.flatpages.Middleware", "gogo.contrib.redirects.Middleware"},
 		SiteID:               1,
 		DatabaseDialect:      "postgres",
-		DatabaseExtensions:   []string{"postgis", "pg_trgm"},
+		DatabaseExtensions:   []string{"postgis", "pg_trgm", "vector"},
 		AllowUnsafeRedirects: false,
 	})
 	if len(valid) != 0 {
 		t.Fatalf("valid contrib checks = %#v", valid)
+	}
+}
+
+func TestContribChecksWarnWhenVectorExtensionMissing(t *testing.T) {
+	results := ContribChecks(ContribConfig{
+		InstalledApps:      []string{"gogo.contrib.postgres.vector"},
+		DatabaseDialect:    "postgres",
+		DatabaseExtensions: []string{"pg_trgm"},
+	})
+	if got := resultIDs(results); !contains(got, "contrib.W003") {
+		t.Fatalf("vector contrib check IDs = %#v", got)
 	}
 }
 

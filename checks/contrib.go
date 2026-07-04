@@ -7,15 +7,16 @@ import (
 )
 
 const (
-	ContribSites       = "gogo.contrib.sites"
-	ContribRedirects   = "gogo.contrib.redirects"
-	ContribFlatpages   = "gogo.contrib.flatpages"
-	ContribSitemaps    = "gogo.contrib.sitemaps"
-	ContribSyndication = "gogo.contrib.syndication"
-	ContribHumanize    = "gogo.contrib.humanize"
-	ContribAdminDocs   = "gogo.contrib.admindocs"
-	ContribPostgres    = "gogo.contrib.postgres"
-	ContribGIS         = "gogo.contrib.gis"
+	ContribSites          = "gogo.contrib.sites"
+	ContribRedirects      = "gogo.contrib.redirects"
+	ContribFlatpages      = "gogo.contrib.flatpages"
+	ContribSitemaps       = "gogo.contrib.sitemaps"
+	ContribSyndication    = "gogo.contrib.syndication"
+	ContribHumanize       = "gogo.contrib.humanize"
+	ContribAdminDocs      = "gogo.contrib.admindocs"
+	ContribPostgres       = "gogo.contrib.postgres"
+	ContribPostgresVector = "gogo.contrib.postgres.vector"
+	ContribGIS            = "gogo.contrib.gis"
 )
 
 type ContribConfig struct {
@@ -73,11 +74,17 @@ func ContribChecks(config ContribConfig) []Result {
 	if installed[ContribGIS] && !extensions["postgis"] {
 		results = append(results, contribResult("contrib.E007", SeverityError, "GIS contrib requires the postgis extension", "Enable CREATE EXTENSION postgis in the application database.", "postgis"))
 	}
+	if installed[ContribPostgresVector] && !postgresDialect(config.DatabaseDialect) {
+		results = append(results, contribResult("contrib.E008", SeverityError, "vector contrib requires PostgreSQL with pgvector", "Use the postgres/postgresql dialect before enabling gogo.contrib.postgres.vector helpers.", ContribPostgresVector))
+	}
 	if config.AllowUnsafeRedirects {
 		results = append(results, contribResult("contrib.W001", SeverityWarning, "unsafe absolute redirect targets are enabled", "Keep AllowUnsafeTargets disabled unless every redirect row is trusted and reviewed.", "AllowUnsafeTargets"))
 	}
 	if installed[ContribPostgres] && postgresDialect(config.DatabaseDialect) && !extensions["pg_trgm"] {
 		results = append(results, contribResult("contrib.W002", SeverityWarning, "pg_trgm extension is not reported", "Enable pg_trgm before using trigram similarity and distance helpers.", "pg_trgm"))
+	}
+	if installed[ContribPostgresVector] && postgresDialect(config.DatabaseDialect) && !extensions["vector"] {
+		results = append(results, contribResult("contrib.W003", SeverityWarning, "vector extension is not reported", "Enable CREATE EXTENSION vector before using pgvector fields and indexes.", "vector"))
 	}
 
 	sort.Slice(results, func(i, j int) bool { return results[i].ID < results[j].ID })
