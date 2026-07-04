@@ -83,14 +83,19 @@ Adoption rules:
   project model metadata.
 - Use `inspectdb` output as a reviewed starting point. It emits unmanaged
   metadata with explicit fields, dialect column types, defaults, indexes, and
-  representable constraints; relationship targets and product naming still need
-  human review.
+  representable constraints, including unique physical indexes and foreign keys;
+  relationship targets and product naming still need human review.
+- Use `models.Unique` for simple table-level uniqueness. Use
+  `models.NewUniqueIndex` for expression, partial, include, opclass, or
+  method-specific uniqueness.
 - For custom database types, use `models.FieldMeta.ColumnTypes`,
   `models/fields.NewCustomField`, or contrib helpers such as
   `contrib/postgres/vector`.
 - For UUID, text, or other non-bigint relation columns, set relation field
   kinds or column types explicitly. Registered relation targets let migration
   state infer the target primary-key kind when the relation kind is omitted.
+  Managed relation fields generate expected foreign-key constraints; unmanaged
+  models keep metadata available without claiming migration ownership.
 - Keep existing tables unmanaged until the team has reviewed the generated SQL
   and is ready for Gogo migrations to own future changes.
 - Run `diffschema` against the live database and resolve any blocking drift

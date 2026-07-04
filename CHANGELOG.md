@@ -9,15 +9,26 @@ versioning after the first stable release.
 
 ### Added
 
-None.
+- Added unique physical index metadata through `models.NewUniqueIndex`,
+  `Index.WithUnique`, and serialized `migrations.IndexState.Unique`.
+- Added relation-owned foreign-key constraint generation for managed models,
+  including deterministic FK names, target-field resolution, and explicit
+  delete-action mapping.
+- Added public foreign-key constraint metadata for inspected existing schemas
+  that cannot be safely mapped to relation fields.
 
 ### Changed
 
-None.
+- Changed advanced unique constraints with expressions, predicates, include
+  columns, or opclasses to generate unique index state instead of invalid
+  table-level unique constraints.
+- Changed `inspectdb` and `diffschema` to round-trip unique indexes and
+  foreign-key constraints as schema-owned metadata.
 
 ### Fixed
 
-None.
+- Fixed migration/schema state conversion so simple deferrable unique
+  constraints keep their table-level deferrable semantics.
 
 ## v0.8.0 - 2026-07-04
 

@@ -75,3 +75,22 @@ For non-bigint relation columns, set `RelationConfig.ColumnTypes` or explicit
 relation field kinds. When a relation kind is omitted, migration state infers it
 from the registered target model primary key. The `contrib/postgres/vector`
 package provides metadata helpers for pgvector fields and HNSW/IVFFlat indexes.
+
+Managed relation fields also generate expected foreign-key constraint metadata.
+Use `TargetFieldName` when a relation references a non-primary-key target field.
+`protect` maps to SQL `RESTRICT`; `set_value` maps to `NO ACTION` because
+arbitrary value assignment is handled by runtime delete behavior, not a database
+foreign-key action.
+
+Use `models.Unique` for simple table-level uniqueness. Use
+`models.NewUniqueIndex` for expression, partial, include, opclass, or
+method-specific unique indexes:
+
+```go
+models.NewUniqueIndex("uniq_blog_post_lower_title").
+	WithExpressions("LOWER(title)").
+	WithCondition("deleted_at IS NULL")
+```
+
+Advanced unique constraints with expressions, predicates, include columns, or
+opclasses are converted to unique index state during migration generation.

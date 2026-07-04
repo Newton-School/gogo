@@ -67,3 +67,13 @@ go run manage.go diffschema --app legacy
 dialect column types, defaults, indexes, and representable constraints.
 `diffschema` uses the same rich table-shape comparison as fake-initial and
 reports missing or mismatched declared columns, indexes, and constraints.
+
+Unique physical indexes are represented with `IndexState.Unique` and render as
+`CREATE UNIQUE INDEX` in PostgreSQL. Simple `models.Unique` constraints remain
+table constraints and keep deferrable behavior; expression, partial, include, or
+opclass uniqueness becomes unique index state.
+
+Managed relation fields generate expected foreign-key constraints when their
+target model metadata is registered. `diffschema` and `migrate --fake-initial`
+compare those foreign keys by source column, target table, target column, and
+delete action.

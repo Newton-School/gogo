@@ -66,6 +66,16 @@ text, or other target primary-key types. When a relation `FieldMeta.Kind` is
 omitted, migration state infers the kind from the registered target model's
 primary key.
 
+Managed relation fields with concrete columns generate expected foreign-key
+constraint state. `RelationConfig.TargetFieldName` or
+`FieldMeta.TargetFieldName` targets a non-primary-key column; when omitted, Gogo
+references the target primary key. `cascade`, `restrict`, `protect`,
+`set_null`, `set_default`, `do_nothing`, and `set_value` map to explicit SQL
+actions for migration comparison. `protect` maps to `RESTRICT`; `set_value`
+uses `NO ACTION` because arbitrary value assignment is application-level
+runtime behavior. `set_null` requires a nullable relation column and
+`set_default` requires a database default.
+
 ## Database Defaults, Indexes, And Constraints
 
 Use `models.DefaultValue(value)` for a quoted literal database default and
@@ -83,10 +93,20 @@ supported dialects.
 Field metadata with `Unique` or `DBIndex` expands into deterministic database
 constraint and index state during migration generation.
 
+Use `models.Unique("name", "field")` for simple table-level unique constraints,
+especially when deferrable behavior matters. Use
+`models.NewUniqueIndex("name", models.Asc("field"))` or
+`models.NewUniqueIndex("name").WithExpressions("LOWER(field)")` for physical
+unique indexes, including expression uniqueness, partial uniqueness, covering
+indexes, operator classes, and method-specific PostgreSQL indexes. Advanced
+`models.Constraint` uniqueness with expressions, conditions, include columns,
+or opclasses is converted to unique index state because PostgreSQL cannot
+represent those shapes as table-level unique constraints.
+
 `models/constraints` adds validated metadata for:
 
 - Index fields, ordering, opclasses, conditions, include columns, tablespaces, and expressions.
-- Unique, check, exclusion, deferrable, null distinct, and covering constraint metadata.
+- Unique, check, exclusion, foreign key, deferrable, null distinct, and covering constraint metadata.
 
 `contrib/postgres/vector` provides `FieldMeta`, `NewField`,
 `HNSWIndex`, and `IVFFlatIndex` helpers for pgvector-backed models. It only
@@ -128,8 +148,13 @@ meta := models.Metadata{
 	TableName: "blog_post",
 	Fields: []models.FieldMeta{
 		{Name: "id", Column: "id", Kind: "uuid", PrimaryKey: true, DBDefault: models.DefaultSQL("gen_random_uuid()")},
-		{Name: "author", Column: "author_id", Kind: "uuid", RelationTarget: "auth.User"},
+		{Name: "author", Column: "author_id", Kind: "uuid", RelationTarget: "auth.User", DeleteBehavior: "cascade"},
 		{Name: "title", Column: "title", Kind: "text"},
+	},
+	Indexes: []models.Index{
+		models.NewUniqueIndex("uniq_blog_post_lower_title").
+			WithExpressions("LOWER(title)").
+			WithCondition("deleted_at IS NULL"),
 	},
 }
 label := meta.Label()

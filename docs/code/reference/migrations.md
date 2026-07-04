@@ -125,6 +125,19 @@ represent expressions, PostgreSQL methods, operator classes, include columns,
 partial predicates, and foreign-key details where supported. `sqlmigrate`
 renders this metadata from operation specs rather than guessing from filenames.
 
+Simple field-only `models.Unique` constraints remain table constraints and keep
+deferrable semantics. Unique declarations with expressions, predicates, include
+columns, or opclasses become `AddIndex` operations with
+`IndexState.Unique=true`, so PostgreSQL renders valid `CREATE UNIQUE INDEX`
+SQL. Use `models.NewUniqueIndex` when the physical index shape is intentional.
+
+Managed relation fields generate `foreign_key` constraint state when their
+target model is registered. The generated constraint resolves `self`, app-local
+model names, fully qualified `app.Model` labels, target primary keys, and
+explicit `TargetFieldName` values. `protect` maps to SQL `RESTRICT`; `set_value`
+maps to `NO ACTION` because setting arbitrary values is runtime behavior, not a
+database FK action.
+
 `CompareTableSchema` remains available for column-only compatibility.
 `CompareTableShape` compares the richer `TableSchema`, including expected
 indexes and constraints. `diffschema` uses the richer comparison and PostgreSQL
@@ -133,5 +146,8 @@ definitions, and foreign-key references.
 
 `inspectdb` emits unmanaged `models.Metadata` snippets for adopting existing
 tables. The output includes explicit `FieldMeta` entries, dialect `ColumnTypes`,
-database defaults, indexes, and representable unique/check constraints. Review
-the snippet before enabling writes or generating migrations.
+database defaults, indexes, unique physical indexes, and representable
+unique/check/foreign-key constraints. Review the snippet before enabling writes
+or generating migrations. When a foreign key can be mapped to a project relation
+field, prefer the relation field as the owner; otherwise keep the inspected
+foreign-key constraint metadata explicit.
