@@ -7,15 +7,34 @@ versioning after the first stable release.
 
 ## Unreleased
 
+No user-facing changes yet.
+
+## v0.9.0 - 2026-07-04
+
+Feature release for schema-owned unique indexes, relation-owned foreign keys,
+and existing-schema round-trip parity.
+
+### Release Metadata
+
+- Previous release: `v0.8.0`.
+- New release: `v0.9.0`.
+- Module path: `github.com/cybersaksham/gogo`.
+- CLI install path: `github.com/cybersaksham/gogo/cmd/gogo`.
+
 ### Added
 
 - Added unique physical index metadata through `models.NewUniqueIndex`,
   `Index.WithUnique`, and serialized `migrations.IndexState.Unique`.
+- Added public model metadata aliases for advanced uniqueness, checks,
+  exclusions, deferrable constraints, and physical indexes.
+- Added relation target-field preservation through `models.FieldMeta` and
+  reusable migration field state.
 - Added relation-owned foreign-key constraint generation for managed models,
   including deterministic FK names, target-field resolution, and explicit
   delete-action mapping.
 - Added public foreign-key constraint metadata for inspected existing schemas
   that cannot be safely mapped to relation fields.
+- Added SQLite foreign-key introspection for schema adoption checks.
 
 ### Changed
 
@@ -24,11 +43,52 @@ versioning after the first stable release.
   table-level unique constraints.
 - Changed `inspectdb` and `diffschema` to round-trip unique indexes and
   foreign-key constraints as schema-owned metadata.
+- Changed generated migration specs and schema comparison to preserve
+  relation-derived foreign keys without product-specific framework code.
 
 ### Fixed
 
 - Fixed migration/schema state conversion so simple deferrable unique
   constraints keep their table-level deferrable semantics.
+
+### Breaking
+
+- None.
+
+### Migration Notes
+
+- Existing generated projects should update their `go.mod` requirement to
+  `github.com/cybersaksham/gogo v0.9.0` and run `go mod tidy`.
+- Projects using advanced unique constraints should expect expressions,
+  predicates, included columns, and opclasses to migrate as unique indexes.
+  Simple deferrable unique constraints remain table-level constraints.
+- Projects with managed relation fields should review generated migrations
+  before applying them; concrete relations now own database foreign-key
+  constraints when enough metadata is available.
+- Relation delete behavior maps to database actions where possible:
+  `cascade` uses `CASCADE`, `restrict` and `protect` use `RESTRICT`,
+  `set_null` uses `SET NULL`, `set_default` uses `SET DEFAULT`, and runtime-only
+  behaviors such as `set_value` remain `NO ACTION` at the database layer.
+- Projects adopting existing databases should rerun `inspectdb` and
+  `diffschema` before baselining; unique indexes and foreign keys now
+  round-trip through schema-owned metadata where introspection supports them.
+
+### Verification
+
+- Passed `go test ./...`.
+- Passed `go test -tags=integration ./...`.
+- Passed `go test -race ./models/... ./migrations/... ./internal/schema`.
+- Passed `make docs-verify`.
+- Passed `make ci`; local `govulncheck` was not installed, so the Makefile
+  skipped the local vulnerability scan.
+- Passed release dry run for `v0.9.0` before tagging.
+
+### Artifacts
+
+- The GitHub release workflow publishes CLI binaries for Linux, macOS, and
+  Windows on `amd64` and `arm64`.
+- The GitHub release workflow publishes `checksums.txt` with SHA256 checksums
+  for release artifacts.
 
 ## v0.8.0 - 2026-07-04
 
