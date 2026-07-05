@@ -9,6 +9,115 @@ versioning after the first stable release.
 
 No user-facing changes yet.
 
+## v0.10.0 - 2026-07-05
+
+Feature release for Django-style admin parity, metadata-backed admin forms,
+query-backed admin workflows, durable admin history, and generated-project
+admin readiness.
+
+### Release Metadata
+
+- Previous release: `v0.9.0`.
+- New release: `v0.10.0`.
+- Module path: `github.com/cybersaksham/gogo`.
+- CLI install path: `github.com/cybersaksham/gogo/cmd/gogo`.
+
+### Added
+
+- Added an admin parity harness with normalized DOM assertions, golden fixtures,
+  and optional Django reference execution.
+- Added richer field metadata for admin and forms, including blank/editable
+  semantics, labels, help text, choices, validators, upload metadata, relation
+  shape, and clone-safe descriptors.
+- Added metadata-driven model-form and admin widget behavior for metadata-only
+  registrations.
+- Added query-backed admin autocomplete, changelist, and selected-across-pages
+  action support through bounded object query APIs.
+- Added a central admin form processor for add/change validation, save hooks,
+  transactions, messages, logging, file uploads, many-to-many saves, and
+  response hooks.
+- Added route-integrated stacked and tabular inline formsets with management
+  forms, validation, delete handling, and parent-transaction persistence.
+- Added SQL-backed admin history through `admin.NewSQLLogStore` and the
+  framework-owned `admin/migrations` package.
+- Added generic related-object popup responses and permission-aware related
+  widget URLs for registered models.
+- Added site-level admin template override directories, including
+  `admin/base_site.html`, app-level overrides, and app/model-specific overrides.
+- Added DOM regression coverage for index, app index, changelist, add, change,
+  delete, delete selected, history, autocomplete JSON, login, logout, password
+  change, popup response, stacked inline, tabular inline, and referenced admin
+  static assets.
+
+### Changed
+
+- Changed generated projects to wire configured template directories into the
+  admin site and to use `admin.NewSQLLogStore(store.Database)` when the
+  generated metadata store opens successfully.
+- Changed generated app admin templates to include complete examples for list
+  display, search, filters, fieldsets, readonly fields, actions, relation
+  widgets, inlines, autocomplete, and read-only unmanaged registrations.
+- Changed auth admin rendering so labels, help text, field kinds, relation
+  metadata, and password widgets are driven from auth metadata instead of
+  hardcoded generic admin branches.
+- Changed tabular inline rendering to include Django-style original rows and
+  safer table structure for hidden primary-key inputs.
+- Changed admin checks and docs to make unsupported runtime capabilities
+  explicit instead of silently ignoring file or many-to-many admin fields.
+
+### Fixed
+
+- Fixed admin add/change POST handling so one lifecycle path owns validation,
+  hooks, persistence, inline saves, relation saves, messages, logs, and default
+  redirects.
+- Fixed admin autocomplete and selected-across-pages actions so production
+  stores can avoid full-table materialization.
+- Fixed admin actions so custom responses, selected IDs, filtered querysets,
+  confirmation forms, messages, and logs are preserved.
+- Fixed generic admin relation widgets so any registered related model can
+  expose add, change, delete, and view popup URLs subject to permissions.
+- Fixed template override behavior so normal application templates such as
+  `templates/base.html` cannot accidentally replace embedded admin partials.
+
+### Breaking
+
+- None.
+
+### Migration Notes
+
+- Existing generated projects should update their `go.mod` requirement to
+  `github.com/cybersaksham/gogo v0.10.0` and run `go mod tidy`.
+- Projects that want durable admin history should configure
+  `admin.NewSQLLogStore(database)` or adopt the updated generated project
+  `admin.go`; the SQL log store creates the `gogo_admin_log` table and indexes
+  on demand.
+- Projects with file or image fields in admin should configure
+  `Site.FileStorage`.
+- Projects with many-to-many fields in admin should use a model store that
+  implements `admin.ManyToManyStore`.
+- Admin template customizations should live under `templates/admin/...`; use
+  `templates/admin/base_site.html` for site-wide admin wrappers and
+  `templates/admin/<app>/<model>/<template>.html` for model-specific pages.
+- Run `go run manage.go check --tag admin` after updating admin registrations;
+  new admin checks report missing file storage, missing many-to-many store
+  support, invalid field references, and incompatible widget options.
+
+### Verification
+
+- Passed `make ci`; local `govulncheck` was not installed, so the Makefile
+  skipped the local vulnerability scan.
+- Passed `go test -tags=integration ./...`.
+- Passed `go test -race ./queue/... ./orm/... ./http/...`.
+- Passed `make bench`.
+- Passed release dry run for `v0.10.0` before tagging.
+
+### Artifacts
+
+- The GitHub release workflow publishes CLI binaries for Linux, macOS, and
+  Windows on `amd64` and `arm64`.
+- The GitHub release workflow publishes `checksums.txt` with SHA256 checksums
+  for release artifacts.
+
 ## v0.9.0 - 2026-07-04
 
 Feature release for schema-owned unique indexes, relation-owned foreign keys,
