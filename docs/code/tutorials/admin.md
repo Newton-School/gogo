@@ -94,8 +94,21 @@ _ = admin.ModelAdmin{
 Use admin checks during startup or CI:
 
 ```go
-registry := checks.NewRegistry()
-admin.RegisterChecks(registry, site)
+package main
+
+import (
+	"context"
+
+	"github.com/cybersaksham/gogo/admin"
+	"github.com/cybersaksham/gogo/checks"
+)
+
+func main() {
+	registry := checks.NewRegistry()
+	site := admin.DefaultSite()
+	admin.RegisterChecks(registry, site)
+	_ = registry.Run(context.Background(), checks.Options{Tags: []string{"admin"}})
+}
 ```
 
 Set `Site.ModelStore` to an `orm.MetadataStore` or another store implementing
