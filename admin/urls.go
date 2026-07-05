@@ -406,42 +406,72 @@ func adminAutocompleteView(site *Site, modelAdmin ModelAdmin) gogohttp.View {
 		if !ok || !(modelAdmin.HasViewPermission(request.Raw(), user) || modelAdmin.HasChangePermission(request.Raw(), user)) {
 			return gogohttp.Forbidden("Forbidden", nil)
 		}
-		rows, err := rowsForAdminChangeList(ctx, site, modelAdmin, request.Raw())
+		page, err := adminAutocompletePage(request.Raw())
 		if err != nil {
-			return gogohttp.InternalServerError(err)
-		}
-		page, err := strconv.Atoi(valueOrDefault(request.Raw().URL.Query().Get("page"), "1"))
-		if err != nil || page < 1 {
 			return gogohttp.BadRequest("Bad Request", ErrInvalidChangeListQuery)
 		}
 		pageSize := modelAdmin.Normalize().ListPerPage
 		if pageSize <= 0 || pageSize > 100 {
 			pageSize = 20
 		}
+		searchFields := autocompleteSearchFields(modelAdmin)
+		if err := validateAdminSearchFields(modelAdmin.Model, searchFields); err != nil {
+			return gogohttp.BadRequest("Bad Request", err)
+		}
+		filters, err := adminAutocompleteForwardedFilters(modelAdmin.Model, request.Raw().URL.Query())
+		if err != nil {
+			return gogohttp.BadRequest("Bad Request", err)
+		}
+		toField, err := adminAutocompleteToField(modelAdmin.Model, request.Raw().URL.Query())
+		if err != nil {
+			return gogohttp.BadRequest("Bad Request", err)
+		}
+		if queryStore, ok := adminSiteOrDefault(site).ModelStore.(models.ObjectQueryStore); ok {
+			query := models.ObjectQuery{
+				Search:       autocompleteTerm(request.Raw()),
+				SearchFields: searchFields,
+				Filters:      filters,
+				Limit:        pageSize + 1,
+				Offset:       (page - 1) * pageSize,
+				IncludeTotal: true,
+			}
+			result, err := queryStore.Query(ctx, modelAdmin.Model, query)
+			if err != nil {
+				return gogohttp.BadRequest("Bad Request", err)
+			}
+			rows := cloneRows(result.Rows)
+			more := false
+			if len(rows) > pageSize {
+				more = true
+				rows = rows[:pageSize]
+			} else if result.Total > query.Offset+len(rows) {
+				more = true
+			}
+			return gogohttp.JSON(http.StatusOK, autocompleteResponse(rows, toField, more))
+		}
+		rows, err := rowsForAdminChangeList(ctx, site, modelAdmin, request.Raw())
+		if err != nil {
+			return gogohttp.InternalServerError(err)
+		}
 		config := AutocompleteConfig{
-			SearchFields: autocompleteSearchFields(modelAdmin),
-			PageSize:     pageSize,
-			Rows:         rows,
+			SearchFields:         searchFields,
+			PageSize:             pageSize,
+			Rows:                 rows,
+			ForwardedConstraints: autocompleteForwardedConstraints(filters),
 		}
 		matched := autocompleteRows(config, request.Raw())
 		start := (page - 1) * pageSize
 		end := start + pageSize
-		results := []AutocompleteResult{}
+		more := end < len(matched)
 		if start < len(matched) {
 			if end > len(matched) {
 				end = len(matched)
 			}
-			for _, row := range matched[start:end] {
-				objectID := objectIDFromRow(row)
-				results = append(results, AutocompleteResult{ID: objectID, Text: rowDisplay(row, objectID)})
-			}
+			matched = matched[start:end]
+		} else {
+			matched = nil
 		}
-		return gogohttp.JSON(http.StatusOK, map[string]any{
-			"results": results,
-			"pagination": map[string]bool{
-				"more": end < len(matched),
-			},
-		})
+		return gogohttp.JSON(http.StatusOK, autocompleteResponse(matched, toField, more))
 	}
 }
 
@@ -677,6 +707,106 @@ func adminObjectFilters(values url.Values) map[string][]string {
 		filters[key] = append([]string(nil), raw...)
 	}
 	return filters
+}
+
+func adminAutocompletePage(request *http.Request) (int, error) {
+	values := request.URL.Query()
+	pageValue := values.Get("page")
+	if pageValue == "" {
+		pageValue = values.Get("p")
+	}
+	page, err := strconv.Atoi(valueOrDefault(pageValue, "1"))
+	if err != nil || page < 1 {
+		return 0, fmt.Errorf("%w: invalid page %q", ErrInvalidChangeListQuery, pageValue)
+	}
+	return page, nil
+}
+
+func adminAutocompleteForwardedFilters(meta models.Metadata, values url.Values) (map[string][]string, error) {
+	filters := map[string][]string{}
+	fields := adminFieldMetaMap(meta)
+	for key, raw := range values {
+		if !strings.HasPrefix(key, "forward_") {
+			continue
+		}
+		lookup := strings.TrimSpace(strings.TrimPrefix(key, "forward_"))
+		if lookup == "" {
+			return nil, fmt.Errorf("%w: empty forwarded lookup", ErrInvalidChangeListQuery)
+		}
+		if _, ok := fields[adminLookupRoot(lookup)]; !ok {
+			return nil, fmt.Errorf("%w: unknown forwarded lookup %s", ErrInvalidChangeListQuery, lookup)
+		}
+		filters[lookup] = append([]string(nil), raw...)
+	}
+	return filters, nil
+}
+
+func adminAutocompleteToField(meta models.Metadata, values url.Values) (string, error) {
+	toField := strings.TrimSpace(values.Get("to_field"))
+	if toField == "" {
+		toField = strings.TrimSpace(values.Get("_to_field"))
+	}
+	if toField == "" {
+		return "", nil
+	}
+	if _, ok := adminFieldMetaMap(meta)[toField]; ok {
+		return toField, nil
+	}
+	return "", fmt.Errorf("%w: unknown to_field %s", ErrInvalidChangeListQuery, toField)
+}
+
+func validateAdminSearchFields(meta models.Metadata, searchFields []string) error {
+	fields := adminFieldMetaMap(meta)
+	for _, raw := range searchFields {
+		field := adminLookupRoot(raw)
+		if field == "" || field == "__str__" {
+			continue
+		}
+		if _, ok := fields[field]; !ok {
+			return fmt.Errorf("%w: unknown search field %s", ErrInvalidChangeListQuery, field)
+		}
+	}
+	return nil
+}
+
+func autocompleteTerm(request *http.Request) string {
+	term := strings.TrimSpace(request.URL.Query().Get("q"))
+	if term == "" {
+		term = strings.TrimSpace(request.URL.Query().Get("term"))
+	}
+	return term
+}
+
+func autocompleteForwardedConstraints(filters map[string][]string) map[string]string {
+	if len(filters) == 0 {
+		return nil
+	}
+	constraints := map[string]string{}
+	for lookup, values := range filters {
+		if len(values) == 0 {
+			continue
+		}
+		field := strings.TrimSuffix(lookup, "__exact")
+		constraints[field] = values[0]
+	}
+	return constraints
+}
+
+func autocompleteResponse(rows []map[string]any, toField string, more bool) map[string]any {
+	results := make([]AutocompleteResult, 0, len(rows))
+	for _, row := range rows {
+		objectID := objectIDFromRow(row)
+		if toField != "" {
+			objectID = fmt.Sprint(row[toField])
+		}
+		results = append(results, AutocompleteResult{ID: objectID, Text: rowDisplay(row, objectID)})
+	}
+	return map[string]any{
+		"results": results,
+		"pagination": map[string]bool{
+			"more": more,
+		},
+	}
 }
 
 func adminActionsForRequest(modelAdmin ModelAdmin, request *http.Request, user auth.User) []Action {

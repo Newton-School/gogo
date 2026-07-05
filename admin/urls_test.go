@@ -2,6 +2,7 @@ package admin
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -438,6 +439,86 @@ func TestAdminChangeListUsesQueryCapableModelStore(t *testing.T) {
 	}
 	if body := response.Body.String(); !strings.Contains(body, "Bounded") || !strings.Contains(body, "42 posts") {
 		t.Fatalf("changelist body missing query result/total:\n%s", body)
+	}
+}
+
+func TestAdminAutocompleteUsesQueryStoreAndValidatesLookups(t *testing.T) {
+	meta := models.Metadata{
+		AppLabel:    "blog",
+		ModelName:   "Post",
+		TableName:   "blog_post",
+		Fields:      []models.FieldMeta{{Name: "id", Column: "id", PrimaryKey: true}, {Name: "slug", Column: "slug"}, {Name: "title", Column: "title"}, {Name: "status", Column: "status"}},
+		VerboseName: "post",
+	}
+	store := &queryAdminStore{
+		rows: []map[string]any{
+			{"id": 2, "slug": "bounded", "title": "Bounded", "status": "published"},
+			{"id": 3, "slug": "more", "title": "More", "status": "published"},
+			{"id": 4, "slug": "extra", "title": "Extra", "status": "published"},
+		},
+		total: 5,
+	}
+	site := DefaultSite()
+	site.ModelStore = store
+	if err := site.ModelRegistry.RegisterMetadata(meta, ModelAdmin{
+		ListDisplay:  []string{"title", "status"},
+		SearchFields: []string{"title"},
+		ListPerPage:  2,
+	}); err != nil {
+		t.Fatalf("RegisterMetadata() error = %v", err)
+	}
+	router, err := site.URLs()
+	if err != nil {
+		t.Fatalf("URLs() error = %v", err)
+	}
+
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, staffAdminRequest(http.MethodGet, "/admin/blog/post/autocomplete/?q=bound&page=2&forward_status__exact=published&to_field=slug"))
+	if response.Code != http.StatusOK {
+		t.Fatalf("autocomplete response = %d body=%s", response.Code, response.Body.String())
+	}
+	if !store.queried || store.listed {
+		t.Fatalf("store queried=%v listed=%v, want query path only", store.queried, store.listed)
+	}
+	if store.query.Search != "bound" || store.query.Limit != 3 || store.query.Offset != 2 || !store.query.IncludeTotal {
+		t.Fatalf("query = %#v", store.query)
+	}
+	if got := store.query.Filters["status__exact"]; !reflect.DeepEqual(got, []string{"published"}) {
+		t.Fatalf("filters = %#v", store.query.Filters)
+	}
+	var payload AutocompleteResponse
+	if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decode autocomplete: %v", err)
+	}
+	if !payload.Pagination.More || !reflect.DeepEqual(payload.Results, []AutocompleteResult{{ID: "bounded", Text: "Bounded"}, {ID: "more", Text: "More"}}) {
+		t.Fatalf("payload = %#v", payload)
+	}
+
+	for _, path := range []string{
+		"/admin/blog/post/autocomplete/?page=bad",
+		"/admin/blog/post/autocomplete/?to_field=missing",
+		"/admin/blog/post/autocomplete/?forward_missing=1",
+	} {
+		invalid := httptest.NewRecorder()
+		router.ServeHTTP(invalid, staffAdminRequest(http.MethodGet, path))
+		if invalid.Code != http.StatusBadRequest {
+			t.Fatalf("%s status = %d body=%s, want 400", path, invalid.Code, invalid.Body.String())
+		}
+	}
+
+	invalidSearchSite := DefaultSite()
+	invalidSearchSite.ModelStore = &queryAdminStore{}
+	if err := invalidSearchSite.ModelRegistry.RegisterMetadata(meta, ModelAdmin{SearchFields: []string{"missing"}}); err != nil {
+		t.Fatalf("RegisterMetadata(invalid search) error = %v", err)
+	}
+	invalidSearchRouter, err := invalidSearchSite.URLs()
+	if err != nil {
+		t.Fatalf("URLs(invalid search) error = %v", err)
+	}
+	invalidSearch := httptest.NewRecorder()
+	invalidSearchRouter.ServeHTTP(invalidSearch, staffAdminRequest(http.MethodGet, "/admin/blog/post/autocomplete/?q=x"))
+	if invalidSearch.Code != http.StatusBadRequest {
+		t.Fatalf("invalid search status = %d body=%s, want 400", invalidSearch.Code, invalidSearch.Body.String())
 	}
 }
 
