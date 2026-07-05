@@ -31,6 +31,7 @@ func NewAdminSite() *admin.Site {
 	site.PasswordChangeView = admin.PasswordChangeView(authConfig)
 	if store, err := NewModelStore(context.Background()); err == nil {
 		site.ModelStore = store
+		site.LogStore = admin.NewSQLLogStore(store.Database)
 	}
 	site.PermissionPolicy = admin.SessionPermissionPolicy{
 		UserStore:    authConfig.UserStore,
