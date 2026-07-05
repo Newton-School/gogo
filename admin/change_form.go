@@ -222,7 +222,7 @@ func widgetForField(modelLabel string, metaField models.FieldMeta, field string,
 	switch {
 	case hasKey(readonly, field):
 		return WidgetReadonly
-	case modelLabel == "auth.User" && field == "password":
+	case metadataKind(metaField) == "password_hash":
 		return WidgetPasswordHash
 	case hasKey(rawID, field):
 		return WidgetRawID

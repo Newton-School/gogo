@@ -654,41 +654,10 @@ func adminFieldLabel(modelAdmin ModelAdmin, field ChangeFormField) string {
 	if field.Label != "" {
 		return field.Label
 	}
-	if modelAdmin.Model.Label() == "auth.User" {
-		switch field.Name {
-		case "username":
-			return "Username"
-		case "password":
-			return "Password"
-		case "first_name":
-			return "First name"
-		case "last_name":
-			return "Last name"
-		case "email":
-			return "Email address"
-		case "is_active":
-			return "Active"
-		case "is_staff":
-			return "Staff status"
-		case "is_superuser":
-			return "Superuser status"
-		case "groups":
-			return "Groups"
-		case "user_permissions":
-			return "User permissions"
-		case "last_login":
-			return "Last login"
-		case "date_joined":
-			return "Date joined"
-		}
-	}
 	return adminLabel(field.Name)
 }
 
 func adminFieldRequired(modelAdmin ModelAdmin, field ChangeFormField) bool {
-	if modelAdmin.Model.Label() == "auth.User" {
-		return field.Name == "username"
-	}
 	if field.Readonly || field.Widget == WidgetPasswordHash {
 		return false
 	}
@@ -701,24 +670,6 @@ func adminFieldRequired(modelAdmin ModelAdmin, field ChangeFormField) bool {
 func adminFieldHelpText(modelAdmin ModelAdmin, field ChangeFormField) string {
 	if field.HelpText != "" {
 		return field.HelpText
-	}
-	if modelAdmin.Model.Label() == "auth.User" {
-		switch field.Name {
-		case "username":
-			return "Required. 150 characters or fewer. Letters, digits and @/./+/-/_ only."
-		case "password":
-			return "Raw passwords are not stored, so there is no way to see the user's password."
-		case "is_active":
-			return "Designates whether this user should be treated as active. Unselect this instead of deleting accounts."
-		case "is_staff":
-			return "Designates whether the user can log into this admin site."
-		case "is_superuser":
-			return "Designates that this user has all permissions without explicitly assigning them."
-		case "groups":
-			return "The groups this user belongs to. A user will get all permissions granted to each of their groups. Hold down \"Control\", or \"Command\" on a Mac, to select more than one."
-		case "user_permissions":
-			return "Specific permissions for this user. Hold down \"Control\", or \"Command\" on a Mac, to select more than one."
-		}
 	}
 	return ""
 }

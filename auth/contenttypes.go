@@ -39,8 +39,8 @@ func (ContentType) ModelMeta() models.Metadata {
 		VerboseNamePlural: "content types",
 		Fields: []models.FieldMeta{
 			{Name: "id", Column: "id", PrimaryKey: true},
-			{Name: "app_label", Column: "app_label"},
-			{Name: "model", Column: "model"},
+			{Name: "app_label", Column: "app_label", VerboseName: "App label"},
+			{Name: "model", Column: "model", VerboseName: "Model"},
 		},
 		Constraints: []models.Constraint{
 			{Name: "gogo_content_type_app_model_uniq", Type: models.ConstraintUnique, Fields: []models.IndexField{models.Asc("app_label"), models.Asc("model")}},
