@@ -197,7 +197,7 @@ func (p AdminFormProcessor) Process(ctx context.Context, input AdminFormProcessI
 			action = "add"
 		}
 		objectID := popupObjectID(p.ModelAdmin.Model, saved, request)
-		return renderAdminPopupResponse(action, objectID, rowDisplay(saved, objectID)), nil
+		return renderAdminPopupResponse(site, action, objectID, rowDisplay(saved, objectID)), nil
 	}
 	if mode == ChangeFormAdd && p.ModelAdmin.Hooks.ResponseAdd != nil {
 		if handler := p.ModelAdmin.Hooks.ResponseAdd(request, cloneRow(saved)); handler != nil {

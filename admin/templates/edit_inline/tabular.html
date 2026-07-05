@@ -5,12 +5,15 @@
     {{range .Management}}<input type="hidden" name="{{.Name}}" value="{{.Value}}">{{end}}
     {{range .Errors}}<ul class="errorlist nonfield"><li>{{.}}</li></ul>{{end}}
     <table>
-      <thead><tr>{{range .Headers}}<th class="{{.Class}}">{{.Label}}</th>{{end}}</tr></thead>
+      <thead><tr><th class="original"></th>{{range .Headers}}<th class="{{.Class}}">{{.Label}}</th>{{end}}</tr></thead>
       <tbody>
       {{range .Rows}}
       {{if .NonFieldError}}<tr class="form-row"><td colspan="99"><ul class="errorlist nonfield"><li>{{.NonFieldError}}</li></ul></td></tr>{{end}}
       <tr class="form-row" id="{{.ID}}">
-        {{range .HiddenInputs}}<input type="hidden" name="{{.Name}}" value="{{.Value}}">{{end}}
+        <th class="original">
+          {{if .Original}}<p>{{.OriginalLabel}}</p>{{end}}
+          {{range .HiddenInputs}}<input type="hidden" name="{{.Name}}" value="{{.Value}}">{{end}}
+        </th>
         {{range .Cells}}
         <td class="{{.Field.FieldCSS}}">
           {{.Field.WidgetHTML}}

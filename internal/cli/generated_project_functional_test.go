@@ -22,6 +22,11 @@ func TestGeneratedProjectFunctionalSurface(t *testing.T) {
 	if err := NewStartappCommand().Run(context.Background(), []string{"blog", appTarget}); err != nil {
 		t.Fatalf("startapp error = %v", err)
 	}
+	if err := os.MkdirAll(filepath.Join(target, "templates", "admin", "blog", "item"), 0o755); err != nil {
+		t.Fatalf("create admin override templates dir: %v", err)
+	}
+	writeTextFile(t, filepath.Join(target, "templates", "admin", "base_site.html"), `{{define "base-site"}}<!doctype html><html><body data-generated-admin-base="1">{{template "content" .}}</body></html>{{end}}`)
+	writeTextFile(t, filepath.Join(target, "templates", "admin", "blog", "item", "change_form.html"), `{{define "content"}}<main id="generated-item-admin-override">{{.AppLabel}}.{{.ModelName}}</main>{{end}}`)
 
 	writeTextFile(t, filepath.Join(target, ".env"), `
 GOGO_SECRET_KEY=functional-secret
@@ -97,6 +102,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 
 	blog "sampleproject/apps/blog"
@@ -105,6 +111,7 @@ import (
 	"github.com/cybersaksham/gogo/admin"
 	"github.com/cybersaksham/gogo/api"
 	"github.com/cybersaksham/gogo/app"
+	"github.com/cybersaksham/gogo/auth"
 	"github.com/cybersaksham/gogo/queue"
 )
 
@@ -128,6 +135,29 @@ func TestGeneratedFunctionalSurface(t *testing.T) {
 	site := project.NewAdminSite()
 	if site.URLPrefix != "/admin" || site.ModelRegistry == nil {
 		t.Fatalf("admin site = %#v", site)
+	}
+	if len(site.TemplateDirs) == 0 {
+		t.Fatalf("admin site missing template dirs")
+	}
+	adminRouter, err := site.URLs()
+	if err != nil {
+		t.Fatalf("admin URLs() error = %v", err)
+	}
+	adminRequest := httptest.NewRequest(http.MethodGet, "/admin/blog/item/add/", nil)
+	adminRequest = adminRequest.WithContext(auth.ContextWithUser(adminRequest.Context(), auth.User{AbstractUser: auth.AbstractUser{
+		AbstractBaseUser: auth.AbstractBaseUser{ID: 1, IsActive: true, Authenticated: true, IsSuperuser: true},
+		Username:         "staff",
+		IsStaff:          true,
+	}}))
+	adminResponse := httptest.NewRecorder()
+	adminRouter.ServeHTTP(adminResponse, adminRequest)
+	if adminResponse.Code != http.StatusOK {
+		t.Fatalf("admin add status = %d body=%s", adminResponse.Code, adminResponse.Body.String())
+	}
+	for _, want := range []string{"data-generated-admin-base=\"1\"", "id=\"generated-item-admin-override\"", "blog.Item"} {
+		if !strings.Contains(adminResponse.Body.String(), want) {
+			t.Fatalf("admin override response missing %q:\n%s", want, adminResponse.Body.String())
+		}
 	}
 
 	apiRouter := api.NewRouter(api.WithAPIPrefix("api"))

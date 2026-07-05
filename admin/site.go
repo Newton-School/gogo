@@ -68,6 +68,7 @@ type Site struct {
 	ModelStore         ModelObjectStore
 	LogStore           AdminLogStore
 	FileStorage        files.Storage
+	TemplateDirs       []string
 }
 
 // SiteOptions configures an admin site.
@@ -85,6 +86,7 @@ type SiteOptions struct {
 	ModelStore         ModelObjectStore
 	LogStore           AdminLogStore
 	FileStorage        files.Storage
+	TemplateDirs       []string
 }
 
 // DefaultSite returns the built-in admin site.
@@ -122,6 +124,7 @@ func NewSite(options SiteOptions) (*Site, error) {
 		ModelStore:         options.ModelStore,
 		LogStore:           options.LogStore,
 		FileStorage:        options.FileStorage,
+		TemplateDirs:       append([]string(nil), options.TemplateDirs...),
 	}
 	if site.PermissionPolicy == nil {
 		site.PermissionPolicy = StaffPermissionPolicy{}

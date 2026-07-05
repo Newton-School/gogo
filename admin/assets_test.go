@@ -23,6 +23,7 @@ func TestAdminEmbeddedAssetsExist(t *testing.T) {
 		"templates/change_form_object_tools.html",
 		"templates/index.html",
 		"templates/login.html",
+		"templates/logout.html",
 		"templates/change_list_object_tools.html",
 		"templates/change_list_results.html",
 		"templates/change_list.html",
@@ -265,6 +266,97 @@ func TestAdminTemplatesAllowOverrides(t *testing.T) {
 	}
 	if override != "override Custom" {
 		t.Fatalf("override = %q", override)
+	}
+}
+
+func TestAdminTemplatesAllowBaseSiteOverride(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, "admin"), 0o755); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
+	override := `{{define "base-site"}}<!doctype html><main id="custom-base-site">{{template "content" .}}</main>{{end}}`
+	if err := os.WriteFile(filepath.Join(dir, "admin", "base_site.html"), []byte(override), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	rendered, err := RenderTemplate("index.html", adminPageData{
+		Header:         "Gogo administration",
+		SiteURL:        "/admin/",
+		ShowNavSidebar: true,
+		ContentClass:   "colM",
+		Apps:           []IndexApp{{AppLabel: "blog"}},
+	}, []string{dir})
+	if err != nil {
+		t.Fatalf("RenderTemplate(index with base_site override) error = %v", err)
+	}
+	for _, want := range []string{
+		`id="custom-base-site"`,
+		`id="content-main" class="app-list"`,
+		`id="recent-actions-module"`,
+	} {
+		if !strings.Contains(rendered, want) {
+			t.Fatalf("base_site override rendered output missing %q:\n%s", want, rendered)
+		}
+	}
+}
+
+func TestAdminTemplatesIgnoreNonAdminPartialOverride(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, "templates"), 0o755); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "templates", "base.html"), []byte(`{{define "project-base"}}project layout{{end}}`), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	rendered, err := RenderTemplate("login.html", adminPageData{
+		Header:           "Gogo administration",
+		SiteURL:          "/admin/",
+		ContentClass:     "colM",
+		StaticCSSURLs:    []string{"/admin/static/admin/css/base.css"},
+		StaticHeadJSURLs: []string{"/admin/static/admin/js/theme.js"},
+	}, []string{dir})
+	if err != nil {
+		t.Fatalf("RenderTemplate(login with project base template) error = %v", err)
+	}
+	if !strings.Contains(rendered, `id="login-form"`) || strings.Contains(rendered, "project layout") {
+		t.Fatalf("admin template used non-admin project base override:\n%s", rendered)
+	}
+}
+
+func TestAdminTemplatesPreferModelSpecificOverride(t *testing.T) {
+	dir := t.TempDir()
+	modelDir := filepath.Join(dir, "admin", "blog", "post")
+	if err := os.MkdirAll(modelDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
+	override := `{{define "content"}}<div id="model-specific-change-form">{{.AppLabel}}.{{.ModelName}}</div>{{end}}`
+	if err := os.WriteFile(filepath.Join(modelDir, "change_form.html"), []byte(override), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	rendered, err := RenderTemplate("change_form.html", adminPageData{
+		AppLabel:  "blog",
+		ModelName: "Post",
+		Title:     "Change post",
+		Header:    "Gogo administration",
+		SiteURL:   "/admin/",
+		Form:      adminFormData{ID: "post_form"},
+	}, []string{dir})
+	if err != nil {
+		t.Fatalf("RenderTemplate(change_form with model override) error = %v", err)
+	}
+	for _, want := range []string{
+		`<div id="site-name"><a href="/admin/">Gogo administration</a></div>`,
+		`id="model-specific-change-form"`,
+		`blog.Post`,
+	} {
+		if !strings.Contains(rendered, want) {
+			t.Fatalf("model-specific override rendered output missing %q:\n%s", want, rendered)
+		}
+	}
+	if strings.Contains(rendered, `id="post_form"`) {
+		t.Fatalf("model-specific override did not replace embedded change form:\n%s", rendered)
 	}
 }
 

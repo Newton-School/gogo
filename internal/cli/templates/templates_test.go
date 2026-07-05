@@ -257,6 +257,9 @@ func TestProjectTemplatesWireBuiltInAuthByDefault(t *testing.T) {
 	for _, want := range []string{
 		"admin.RegisterAuthModels(registry)",
 		"site.LogStore = admin.NewMemoryLogStore()",
+		"site.TemplateDirs = adminTemplateDirs()",
+		"func adminTemplateDirs() []string",
+		"filepath.IsAbs(dir)",
 		"func NewAuthUserStore(ctx context.Context) auth.UserStore",
 		"auth.NewSQLUserStore(database)",
 	} {

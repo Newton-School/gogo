@@ -149,6 +149,8 @@ type adminInlineHeaderData struct {
 
 type adminInlineRowData struct {
 	ID            string
+	Original      bool
+	OriginalLabel string
 	Cells         []adminInlineCellData
 	HiddenInputs  []adminHiddenInput
 	DeleteName    string
@@ -162,7 +164,9 @@ type adminInlineCellData struct {
 }
 
 func renderAdminTemplate(name string, data adminPageData) gogohttp.Response {
-	rendered, err := RenderTemplate(name, data, nil)
+	site := adminSiteOrDefault(data.Site)
+	data.Site = site
+	rendered, err := RenderTemplate(name, data, site.TemplateDirs)
 	if err != nil {
 		return gogohttp.InternalServerError(err)
 	}
@@ -414,6 +418,8 @@ func inlineFormsetViewData(site *Site, modelAdmin ModelAdmin, formset InlineForm
 		data.Forms = append(data.Forms, formData)
 		row := adminInlineRowData{
 			ID:            formData.ID,
+			Original:      inlineFormIsOriginal(formset, form),
+			OriginalLabel: inlineFormOriginalLabel(formset, form),
 			HiddenInputs:  formData.HiddenInputs,
 			DeleteName:    formData.DeleteName,
 			DeleteID:      formData.DeleteID,
@@ -426,6 +432,23 @@ func inlineFormsetViewData(site *Site, modelAdmin ModelAdmin, formset InlineForm
 		data.Rows = append(data.Rows, row)
 	}
 	return data
+}
+
+func inlineFormIsOriginal(formset InlineFormset, form InlineForm) bool {
+	if form.Index >= formset.InitialForms {
+		return false
+	}
+	pkName := primaryKeyName(formset.Meta)
+	return pkName != "" && firstFormValue(form.Values[pkName]) != ""
+}
+
+func inlineFormOriginalLabel(formset InlineFormset, form InlineForm) string {
+	pkName := primaryKeyName(formset.Meta)
+	objectID := ""
+	if pkName != "" {
+		objectID = firstFormValue(form.Values[pkName])
+	}
+	return rowDisplay(form.Values, objectID)
 }
 
 func inlineFormViewData(site *Site, modelAdmin ModelAdmin, formset InlineFormset, form InlineForm) adminInlineFormData {

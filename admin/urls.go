@@ -422,7 +422,7 @@ func adminDeleteView(site *Site, modelAdmin ModelAdmin) gogohttp.View {
 				return gogohttp.InternalServerError(err)
 			}
 			if request.Raw().URL.Query().Get("_popup") == "1" {
-				return renderAdminPopupResponse("delete", objectID, objectRepr)
+				return renderAdminPopupResponse(site, "delete", objectID, objectRepr)
 			}
 			return gogohttp.TemporaryRedirect(data.ChangeListURL)
 		}
@@ -430,7 +430,7 @@ func adminDeleteView(site *Site, modelAdmin ModelAdmin) gogohttp.View {
 	}
 }
 
-func renderAdminPopupResponse(action, objectID, objectRepr string) gogohttp.Response {
+func renderAdminPopupResponse(site *Site, action, objectID, objectRepr string) gogohttp.Response {
 	payload, err := json.Marshal(map[string]string{
 		"action": action,
 		"value":  objectID,
@@ -439,7 +439,8 @@ func renderAdminPopupResponse(action, objectID, objectRepr string) gogohttp.Resp
 	if err != nil {
 		return gogohttp.InternalServerError(err)
 	}
-	rendered, err := RenderTemplate("popup_response.html", map[string]any{"PopupResponseData": string(payload)}, nil)
+	site = adminSiteOrDefault(site)
+	rendered, err := RenderTemplate("popup_response.html", map[string]any{"PopupResponseData": string(payload)}, site.TemplateDirs)
 	if err != nil {
 		return gogohttp.InternalServerError(err)
 	}

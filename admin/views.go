@@ -59,6 +59,10 @@ func LoginView(config AuthViewConfig) http.Handler {
 // LogoutView clears the admin session and redirects to login.
 func LogoutView(config AuthViewConfig) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			renderAdminHTTPTemplate(w, "logout.html", baseLogoutPageData(config, r))
+			return
+		}
 		options := normalizeAdminCookie(config.Cookie)
 		if config.SessionStore != nil {
 			if cookie, err := r.Cookie(options.Name); err == nil && cookie.Value != "" {
@@ -129,7 +133,9 @@ func renderAdminHTTPTemplate(w http.ResponseWriter, name string, data adminPageD
 }
 
 func renderAdminHTTPTemplateStatus(w http.ResponseWriter, name string, data adminPageData, status int) {
-	rendered, err := RenderTemplate(name, data, nil)
+	site := adminSiteOrDefault(data.Site)
+	data.Site = site
+	rendered, err := RenderTemplate(name, data, site.TemplateDirs)
 	if err != nil {
 		http.Error(w, "admin template failed", http.StatusInternalServerError)
 		return
@@ -151,6 +157,15 @@ func baseLoginPageData(config AuthViewConfig, request *http.Request, errorMessag
 		data.Next = request.FormValue("next")
 	}
 	data.Error = errorMessage
+	data.Breadcrumbs = nil
+	data.ShowNavSidebar = false
+	return data
+}
+
+func baseLogoutPageData(config AuthViewConfig, request *http.Request) adminPageData {
+	site := config.site()
+	data := baseAdminPageData(site, request, "Logged out", "Logged out", "logout")
+	data.UserName = ""
 	data.Breadcrumbs = nil
 	data.ShowNavSidebar = false
 	return data

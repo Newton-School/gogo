@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/cybersaksham/gogo/admin"
 	"github.com/cybersaksham/gogo/auth"
@@ -25,6 +26,7 @@ func NewAdminSite() *admin.Site {
 	site := admin.DefaultSite()
 	site.ModelRegistry = NewAdminRegistry()
 	site.LogStore = admin.NewMemoryLogStore()
+	site.TemplateDirs = adminTemplateDirs()
 	authConfig := newAdminAuthConfig(site)
 	site.LoginView = admin.LoginView(authConfig)
 	site.LogoutView = admin.LogoutView(authConfig)
@@ -71,6 +73,28 @@ func NewAuthUserStore(ctx context.Context) auth.UserStore {
 		}
 	}
 	return auth.NewFileUserStore(filepath.Join(projectRoot(), ".gogo", "auth_users.json"))
+}
+
+func adminTemplateDirs() []string {
+	settings, err := conf.LoadFromEnv()
+	dirs := []string{"templates"}
+	if err == nil && len(settings.TemplateDirs) > 0 {
+		dirs = settings.TemplateDirs
+	}
+	root := projectRoot()
+	resolved := make([]string, 0, len(dirs))
+	for _, dir := range dirs {
+		dir = strings.TrimSpace(dir)
+		if dir == "" {
+			continue
+		}
+		if filepath.IsAbs(dir) {
+			resolved = append(resolved, dir)
+			continue
+		}
+		resolved = append(resolved, filepath.Join(root, dir))
+	}
+	return resolved
 }
 
 func projectRoot() string {
