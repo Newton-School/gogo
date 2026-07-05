@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"path"
+	"strconv"
 	"strings"
 
 	"github.com/cybersaksham/gogo/auth"
@@ -68,7 +69,7 @@ func registerModelURLs(router *gogohttp.Router, site *Site, admin ModelAdmin) er
 		{namePrefix + "_change", prefix + "/<path:object_id>/change/", adminChangeFormView(site, admin, ChangeFormEdit)},
 		{namePrefix + "_delete", prefix + "/<path:object_id>/delete/", adminDeleteView(site, admin)},
 		{namePrefix + "_history", prefix + "/<path:object_id>/history/", adminHistoryView(site, admin)},
-		{namePrefix + "_autocomplete", prefix + "/autocomplete/", adminAutocompleteView()},
+		{namePrefix + "_autocomplete", prefix + "/autocomplete/", adminAutocompleteView(site, admin)},
 		{namePrefix + "_jsi18n", prefix + "/jsi18n/", adminJSI18NView()},
 	}
 	for _, route := range routes {
@@ -190,8 +191,17 @@ func hasTraversalSegment(assetPath string) bool {
 
 func adminIndexView(site *Site) gogohttp.View {
 	return func(_ context.Context, request *gogohttp.Request) gogohttp.Response {
-		data := baseAdminPageData(site, request.Raw(), adminSiteOrDefault(site).IndexTitle, adminSiteOrDefault(site).IndexTitle, "dashboard")
-		data.Apps = groupedAdminModels(adminSiteOrDefault(site), "")
+		site = adminSiteOrDefault(site)
+		user, ok := adminRequestUser(site, request.Raw())
+		if !ok {
+			return gogohttp.Forbidden("Forbidden", nil)
+		}
+		index, err := buildIndex(site, nil, request.Raw(), user, "")
+		if err != nil {
+			return gogohttp.InternalServerError(err)
+		}
+		data := baseAdminPageData(site, request.Raw(), site.IndexTitle, site.IndexTitle, "dashboard")
+		data.Apps = index.Apps
 		data.Breadcrumbs = nil
 		data.ContentClass = "colMS"
 		data.ShowNavSidebar = false
@@ -202,9 +212,17 @@ func adminIndexView(site *Site) gogohttp.View {
 func adminAppListView(site *Site) gogohttp.View {
 	return func(_ context.Context, request *gogohttp.Request) gogohttp.Response {
 		site = adminSiteOrDefault(site)
+		user, ok := adminRequestUser(site, request.Raw())
+		if !ok {
+			return gogohttp.Forbidden("Forbidden", nil)
+		}
 		appLabel := strings.ToLower(request.PathParam("app_label"))
+		index, err := buildIndex(site, nil, request.Raw(), user, appLabel)
+		if err != nil {
+			return gogohttp.InternalServerError(err)
+		}
 		data := baseAdminPageData(site, request.Raw(), appLabel, appLabel, "dashboard app-"+adminClassName(appLabel))
-		data.Apps = groupedAdminModels(site, appLabel)
+		data.Apps = index.Apps
 		data.ContentClass = "colMS"
 		data.ShowNavSidebar = false
 		data.Breadcrumbs = append(data.Breadcrumbs, adminBreadcrumb{URL: site.URLPrefix + "/" + appLabel + "/", Label: appLabel})
@@ -229,6 +247,8 @@ func adminChangeListView(site *Site, modelAdmin ModelAdmin) gogohttp.View {
 		verboseName := modelVerboseName(modelAdmin)
 		data := modelAdminPageData(site, request.Raw(), modelAdmin, "Select "+verboseName+" to change", "Select "+verboseName+" to change", "change-list")
 		data.OmitContentClass = true
+		data.Actions = adminActionsForRequest(modelAdmin, request.Raw(), user)
+		changeList.BulkSelection = len(data.Actions) > 0
 		data.ChangeList = changeList
 		return renderAdminTemplate("change_list.html", data)
 	}
@@ -245,9 +265,15 @@ func adminChangeFormView(site *Site, modelAdmin ModelAdmin, mode ChangeFormMode)
 		if site = adminSiteOrDefault(site); site.ModelStore != nil {
 			switch {
 			case mode == ChangeFormAdd && request.Method() == http.MethodPost:
+				if !modelAdmin.HasAddPermission(request.Raw(), user) {
+					return gogohttp.Forbidden("Forbidden", nil)
+				}
 				created, err := site.ModelStore.Create(ctx, modelAdmin.Model, values)
 				if err != nil {
 					return gogohttp.BadRequest("Bad Request", err)
+				}
+				if err := logAdminObject(site, user, modelAdmin.Model, created, ActionFlagAddition, "Added"); err != nil {
+					return gogohttp.InternalServerError(err)
 				}
 				return adminSaveRedirect(site, modelAdmin, created, request.Raw())
 			case mode == ChangeFormEdit:
@@ -259,9 +285,15 @@ func adminChangeFormView(site *Site, modelAdmin ModelAdmin, mode ChangeFormMode)
 					return gogohttp.NotFound("Not Found", nil)
 				}
 				if request.Method() == http.MethodPost {
+					if !modelAdmin.HasChangePermission(request.Raw(), user) {
+						return gogohttp.Forbidden("Forbidden", nil)
+					}
 					updated, err := site.ModelStore.Update(ctx, modelAdmin.Model, objectID, values, true)
 					if err != nil {
 						return gogohttp.BadRequest("Bad Request", err)
+					}
+					if err := logAdminObject(site, user, modelAdmin.Model, updated, ActionFlagChange, "Changed"); err != nil {
+						return gogohttp.InternalServerError(err)
 					}
 					return adminSaveRedirect(site, modelAdmin, updated, request.Raw())
 				}
@@ -328,6 +360,9 @@ func adminDeleteView(site *Site, modelAdmin ModelAdmin) gogohttp.View {
 					return gogohttp.InternalServerError(err)
 				}
 			}
+			if err := logAdminRow(site, user, modelAdmin.Model, objectID, objectRepr, ActionFlagDeletion, "Deleted"); err != nil {
+				return gogohttp.InternalServerError(err)
+			}
 			return gogohttp.TemporaryRedirect(data.ChangeListURL)
 		}
 		return renderAdminTemplate("delete_confirmation.html", data)
@@ -350,17 +385,51 @@ func adminHistoryView(site *Site, modelAdmin ModelAdmin) gogohttp.View {
 			}
 		}
 		data := modelAdminPageData(site, request.Raw(), modelAdmin, "History "+modelVerboseName(modelAdmin), "Object history", "history")
-		data.History = BuildHistoryPage(nil, modelAdmin.Model.Label(), request.PathParam("object_id"))
+		data.History = BuildHistoryPage(site.LogStore, modelAdmin.Model.Label(), request.PathParam("object_id"))
 		return renderAdminTemplate("history.html", data)
 	}
 }
 
-func adminAutocompleteView() gogohttp.View {
-	return func(context.Context, *gogohttp.Request) gogohttp.Response {
+func adminAutocompleteView(site *Site, modelAdmin ModelAdmin) gogohttp.View {
+	return func(ctx context.Context, request *gogohttp.Request) gogohttp.Response {
+		user, ok := adminRequestUser(site, request.Raw())
+		if !ok || !(modelAdmin.HasViewPermission(request.Raw(), user) || modelAdmin.HasChangePermission(request.Raw(), user)) {
+			return gogohttp.Forbidden("Forbidden", nil)
+		}
+		rows, err := rowsForAdminChangeList(ctx, site, modelAdmin, request.Raw())
+		if err != nil {
+			return gogohttp.InternalServerError(err)
+		}
+		page, err := strconv.Atoi(valueOrDefault(request.Raw().URL.Query().Get("page"), "1"))
+		if err != nil || page < 1 {
+			return gogohttp.BadRequest("Bad Request", ErrInvalidChangeListQuery)
+		}
+		pageSize := modelAdmin.Normalize().ListPerPage
+		if pageSize <= 0 || pageSize > 100 {
+			pageSize = 20
+		}
+		config := AutocompleteConfig{
+			SearchFields: autocompleteSearchFields(modelAdmin),
+			PageSize:     pageSize,
+			Rows:         rows,
+		}
+		matched := autocompleteRows(config, request.Raw())
+		start := (page - 1) * pageSize
+		end := start + pageSize
+		results := []AutocompleteResult{}
+		if start < len(matched) {
+			if end > len(matched) {
+				end = len(matched)
+			}
+			for _, row := range matched[start:end] {
+				objectID := objectIDFromRow(row)
+				results = append(results, AutocompleteResult{ID: objectID, Text: rowDisplay(row, objectID)})
+			}
+		}
 		return gogohttp.JSON(http.StatusOK, map[string]any{
-			"results": []map[string]any{},
+			"results": results,
 			"pagination": map[string]bool{
-				"more": false,
+				"more": end < len(matched),
 			},
 		})
 	}
@@ -401,6 +470,55 @@ func rowsForAdminChangeList(ctx context.Context, site *Site, modelAdmin ModelAdm
 		return site.ModelStore.List(ctx, modelAdmin.Model)
 	}
 	return rowsFromModelAdmin(modelAdmin, request), nil
+}
+
+func adminActionsForRequest(modelAdmin ModelAdmin, request *http.Request, user auth.User) []Action {
+	actions := make([]Action, 0, 1+len(modelAdmin.ActionDefinitions))
+	if modelAdmin.HasDeletePermission(request, user) {
+		actions = append(actions, DeleteSelectedAction())
+	}
+	for _, action := range modelAdmin.ActionDefinitions {
+		if actionAllowed(action, user) {
+			actions = append(actions, action)
+		}
+	}
+	return actions
+}
+
+func autocompleteSearchFields(modelAdmin ModelAdmin) []string {
+	if len(modelAdmin.SearchFields) > 0 {
+		return append([]string(nil), modelAdmin.SearchFields...)
+	}
+	for _, field := range modelAdmin.ListDisplay {
+		if field != "__str__" {
+			return []string{field}
+		}
+	}
+	for _, field := range modelAdmin.Model.Fields {
+		if field.Name == "title" || field.Name == "name" || field.Name == "slug" {
+			return []string{field.Name}
+		}
+	}
+	return []string{"id"}
+}
+
+func logAdminObject(site *Site, user auth.User, meta models.Metadata, object map[string]any, action ActionFlag, message string) error {
+	objectID := fmt.Sprint(objectPrimaryKey(meta, object))
+	return logAdminRow(site, user, meta, objectID, rowDisplay(object, objectID), action, message)
+}
+
+func logAdminRow(site *Site, user auth.User, meta models.Metadata, objectID, objectRepr string, action ActionFlag, message string) error {
+	if site == nil || site.LogStore == nil {
+		return nil
+	}
+	return site.LogStore.Log(AdminLogEntry{
+		UserID:        user.ID,
+		ContentType:   meta.Label(),
+		ObjectID:      objectID,
+		ObjectRepr:    objectRepr,
+		ActionFlag:    action,
+		ChangeMessage: message,
+	})
 }
 
 func adminSaveRedirect(site *Site, modelAdmin ModelAdmin, object map[string]any, request *http.Request) gogohttp.Response {

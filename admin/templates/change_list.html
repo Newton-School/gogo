@@ -39,10 +39,12 @@
           <table id="result_list">
             <thead>
               <tr>
+                {{if .ChangeList.BulkSelection}}
                 <th class="action-checkbox-column" scope="col">
                   <div class="text"><span><input type="checkbox" id="action-toggle" aria-label="Select all objects on this page for an action"></span></div>
                   <div class="clear"></div>
                 </th>
+                {{end}}
                 {{range $index, $column := .ChangeList.Columns}}
                 <th class="sortable column-{{$column.Name}}{{if eq $index 0}} sorted ascending{{end}}" scope="col">
                   {{if eq $index 0}}<div class="sortoptions"><a class="sortremove" href="?o=" title="Remove from sorting"></a><a class="toggle ascending" href="?o=-1" title="Toggle sorting"></a></div>{{end}}
@@ -55,7 +57,9 @@
             <tbody>
               {{range $row := .ChangeList.Rows}}
               <tr>
+                {{if $.ChangeList.BulkSelection}}
                 <td class="action-checkbox"><input type="checkbox" class="action-select" name="_selected_action" value="{{$row.ObjectID}}" aria-label="Select this object for an action"></td>
+                {{end}}
                 {{range $row.Cells}}{{if .LinkURL}}<th class="{{.Class}}"><a href="{{.LinkURL}}">{{.Value}}</a></th>{{else}}<td class="{{.Class}}">{{.Value}}</td>{{end}}{{end}}
               </tr>
               {{else}}

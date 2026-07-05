@@ -46,6 +46,25 @@ func (s *MemoryLogStore) Log(entry AdminLogEntry) error {
 	return nil
 }
 
+// EntriesForObject returns entries for one content type and object id.
+func (s *MemoryLogStore) EntriesForObject(contentType, objectID string) ([]AdminLogEntry, error) {
+	if s == nil {
+		return nil, nil
+	}
+	entries := make([]AdminLogEntry, 0)
+	for _, entry := range s.Entries {
+		if entry.ContentType == contentType && entry.ObjectID == objectID {
+			entries = append(entries, entry)
+		}
+	}
+	return entries, nil
+}
+
+// LogAddition records an added object.
+func (s *MemoryLogStore) LogAddition(userID int64, contentType, objectID, objectRepr string) error {
+	return s.Log(AdminLogEntry{UserID: userID, ContentType: contentType, ObjectID: objectID, ObjectRepr: objectRepr, ActionFlag: ActionFlagAddition, ChangeMessage: "added"})
+}
+
 // LogChange records a changed object.
 func (s *MemoryLogStore) LogChange(userID int64, contentType, objectID, objectRepr, message string) error {
 	return s.Log(AdminLogEntry{UserID: userID, ContentType: contentType, ObjectID: objectID, ObjectRepr: objectRepr, ActionFlag: ActionFlagChange, ChangeMessage: message})

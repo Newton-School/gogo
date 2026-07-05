@@ -30,6 +30,12 @@ type ModelObjectStore interface {
 	Delete(context.Context, models.Metadata, string) error
 }
 
+// AdminLogStore persists model admin history entries.
+type AdminLogStore interface {
+	Log(AdminLogEntry) error
+	EntriesForObject(contentType, objectID string) ([]AdminLogEntry, error)
+}
+
 // StaffPermissionPolicy allows active staff users only.
 type StaffPermissionPolicy struct{}
 
@@ -59,6 +65,7 @@ type Site struct {
 	PermissionPolicy   PermissionPolicy
 	ModelRegistry      *Registry
 	ModelStore         ModelObjectStore
+	LogStore           AdminLogStore
 }
 
 // SiteOptions configures an admin site.
@@ -74,6 +81,7 @@ type SiteOptions struct {
 	PermissionPolicy   PermissionPolicy
 	ModelRegistry      *Registry
 	ModelStore         ModelObjectStore
+	LogStore           AdminLogStore
 }
 
 // DefaultSite returns the built-in admin site.
@@ -109,6 +117,7 @@ func NewSite(options SiteOptions) (*Site, error) {
 		PermissionPolicy:   options.PermissionPolicy,
 		ModelRegistry:      options.ModelRegistry,
 		ModelStore:         options.ModelStore,
+		LogStore:           options.LogStore,
 	}
 	if site.PermissionPolicy == nil {
 		site.PermissionPolicy = StaffPermissionPolicy{}

@@ -8,15 +8,15 @@ type HistoryPage struct {
 }
 
 // BuildHistoryPage filters log entries for one object.
-func BuildHistoryPage(store *MemoryLogStore, contentType, objectID string) HistoryPage {
+func BuildHistoryPage(store AdminLogStore, contentType, objectID string) HistoryPage {
 	page := HistoryPage{ContentType: contentType, ObjectID: objectID}
 	if store == nil {
 		return page
 	}
-	for _, entry := range store.Entries {
-		if entry.ContentType == contentType && entry.ObjectID == objectID {
-			page.Entries = append(page.Entries, entry)
-		}
+	entries, err := store.EntriesForObject(contentType, objectID)
+	if err != nil {
+		return page
 	}
+	page.Entries = append(page.Entries, entries...)
 	return page
 }

@@ -143,6 +143,54 @@ func TestAdminIndexRouteRendersRegisteredModels(t *testing.T) {
 	}
 }
 
+func TestAdminIndexRoutesHonorModelAdminPermissions(t *testing.T) {
+	site := DefaultSite()
+	if err := site.ModelRegistry.RegisterMetadata(models.Metadata{AppLabel: "blog", ModelName: "Post", TableName: "blog_post"}, ModelAdmin{
+		Hooks: ModelAdminHooks{
+			HasModulePermission: func(*http.Request, auth.User) bool { return true },
+			HasViewPermission:   func(*http.Request, auth.User) bool { return true },
+			HasAddPermission:    func(*http.Request, auth.User) bool { return false },
+		},
+	}); err != nil {
+		t.Fatalf("RegisterMetadata(blog.Post) error = %v", err)
+	}
+	if err := site.ModelRegistry.RegisterMetadata(models.Metadata{AppLabel: "secret", ModelName: "Token", TableName: "secret_token"}, ModelAdmin{
+		Hooks: ModelAdminHooks{
+			HasModulePermission: func(*http.Request, auth.User) bool { return false },
+			HasViewPermission:   func(*http.Request, auth.User) bool { return true },
+		},
+	}); err != nil {
+		t.Fatalf("RegisterMetadata(secret.Token) error = %v", err)
+	}
+	router, err := site.URLs()
+	if err != nil {
+		t.Fatalf("URLs() error = %v", err)
+	}
+
+	index := httptest.NewRecorder()
+	router.ServeHTTP(index, staffAdminRequest(http.MethodGet, "/admin/"))
+	if index.Code != http.StatusOK {
+		t.Fatalf("index status = %d body=%s", index.Code, index.Body.String())
+	}
+	body := index.Body.String()
+	for _, want := range []string{"blog", "Post", "/admin/blog/post/"} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("index body missing %q:\n%s", want, body)
+		}
+	}
+	for _, unwanted := range []string{"secret", "Token", "/admin/blog/post/add/"} {
+		if strings.Contains(body, unwanted) {
+			t.Fatalf("index body should not contain %q:\n%s", unwanted, body)
+		}
+	}
+
+	appList := httptest.NewRecorder()
+	router.ServeHTTP(appList, staffAdminRequest(http.MethodGet, "/admin/blog/"))
+	if appList.Code != http.StatusOK || !strings.Contains(appList.Body.String(), "Post") || strings.Contains(appList.Body.String(), "/admin/blog/post/add/") {
+		t.Fatalf("app list = %d body=%s", appList.Code, appList.Body.String())
+	}
+}
+
 func TestAdminModelRoutesRenderDjangoStylePages(t *testing.T) {
 	site := DefaultSite()
 	if err := site.ModelRegistry.RegisterMetadata(models.Metadata{
@@ -237,6 +285,7 @@ func TestAdminModelRoutesPersistCRUDThroughModelStore(t *testing.T) {
 
 	site := DefaultSite()
 	site.ModelStore = orm.NewMetadataStore(database, meta)
+	site.LogStore = NewMemoryLogStore()
 	if err := site.ModelRegistry.RegisterMetadata(meta, ModelAdmin{ListDisplay: []string{"title", "slug"}, Fields: []string{"title", "slug"}}); err != nil {
 		t.Fatalf("RegisterMetadata() error = %v", err)
 	}
@@ -267,6 +316,18 @@ func TestAdminModelRoutesPersistCRUDThroughModelStore(t *testing.T) {
 	router.ServeHTTP(update, staffAdminFormRequest("/admin/blog/post/1/change/", "title=Updated&slug=first&_continue=Save+and+continue+editing"))
 	if update.Code != http.StatusFound || update.Header().Get("Location") != "/admin/blog/post/1/change/" {
 		t.Fatalf("update response = %d location=%q body=%s", update.Code, update.Header().Get("Location"), update.Body.String())
+	}
+
+	history := httptest.NewRecorder()
+	router.ServeHTTP(history, staffAdminRequest(http.MethodGet, "/admin/blog/post/1/history/"))
+	if history.Code != http.StatusOK || !strings.Contains(history.Body.String(), "Changed") || strings.Contains(history.Body.String(), "doesn&rsquo;t have a change history") {
+		t.Fatalf("history response = %d body=%s", history.Code, history.Body.String())
+	}
+
+	autocomplete := httptest.NewRecorder()
+	router.ServeHTTP(autocomplete, staffAdminRequest(http.MethodGet, "/admin/blog/post/autocomplete/?q=Upd"))
+	if autocomplete.Code != http.StatusOK || autocomplete.Header().Get("Content-Type") != "application/json" || !strings.Contains(autocomplete.Body.String(), `"id":"1"`) || !strings.Contains(autocomplete.Body.String(), `"text":"Updated"`) {
+		t.Fatalf("autocomplete response = %d %q %s", autocomplete.Code, autocomplete.Header().Get("Content-Type"), autocomplete.Body.String())
 	}
 
 	deleteResponse := httptest.NewRecorder()

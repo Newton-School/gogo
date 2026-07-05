@@ -1,6 +1,8 @@
 package admin
 
 import (
+	"context"
+	"net/http"
 	"strings"
 
 	"github.com/cybersaksham/gogo/auth"
@@ -39,15 +41,15 @@ func (m IndexModel) RowID() string {
 
 // BuildIndex builds the permission-filtered admin index.
 func BuildIndex(site *Site, router *gogohttp.Router, user auth.User) (IndexContext, error) {
-	return buildIndex(site, router, user, "")
+	return buildIndex(site, router, adminIndexRequest(site, user), user, "")
 }
 
 // BuildAppList builds a permission-filtered app list for one app label.
 func BuildAppList(site *Site, router *gogohttp.Router, user auth.User, appLabel string) (IndexContext, error) {
-	return buildIndex(site, router, user, strings.ToLower(appLabel))
+	return buildIndex(site, router, adminIndexRequest(site, user), user, strings.ToLower(appLabel))
 }
 
-func buildIndex(site *Site, router *gogohttp.Router, user auth.User, onlyApp string) (IndexContext, error) {
+func buildIndex(site *Site, router *gogohttp.Router, request *http.Request, user auth.User, onlyApp string) (IndexContext, error) {
 	if site == nil {
 		site = DefaultSite()
 	}
@@ -70,7 +72,7 @@ func buildIndex(site *Site, router *gogohttp.Router, user auth.User, onlyApp str
 		if onlyApp != "" && appLabel != onlyApp {
 			continue
 		}
-		if !canViewOrChange(user, appLabel, modelName) {
+		if !canSeeIndexModel(admin, request, user) {
 			continue
 		}
 		changeURL, err := router.Reverse(routeName(appLabel, modelName, "changelist"), nil)
@@ -78,7 +80,7 @@ func buildIndex(site *Site, router *gogohttp.Router, user auth.User, onlyApp str
 			return IndexContext{}, err
 		}
 		addURL := ""
-		if auth.HasPerm(user, appLabel+".add_"+modelName) {
+		if canAddIndexModel(admin, request, user) {
 			addURL, err = router.Reverse(routeName(appLabel, modelName, "add"), nil)
 			if err != nil {
 				return IndexContext{}, err
@@ -98,6 +100,33 @@ func buildIndex(site *Site, router *gogohttp.Router, user auth.User, onlyApp str
 		})
 	}
 	return context, nil
+}
+
+func adminIndexRequest(site *Site, user auth.User) *http.Request {
+	prefix := "/admin/"
+	if site != nil && site.URLPrefix != "" {
+		prefix = strings.TrimRight(site.URLPrefix, "/") + "/"
+	}
+	request, err := http.NewRequestWithContext(context.Background(), http.MethodGet, prefix, nil)
+	if err != nil {
+		return nil
+	}
+	return request.WithContext(auth.ContextWithUser(request.Context(), user))
+}
+
+func canSeeIndexModel(admin ModelAdmin, request *http.Request, user auth.User) bool {
+	appLabel := strings.ToLower(admin.Model.AppLabel)
+	modelName := strings.ToLower(admin.Model.ModelName)
+	if !admin.HasModulePermission(request, user) && !auth.HasModulePerms(user, appLabel) {
+		return false
+	}
+	return admin.HasViewPermission(request, user) || admin.HasChangePermission(request, user) || canViewOrChange(user, appLabel, modelName)
+}
+
+func canAddIndexModel(admin ModelAdmin, request *http.Request, user auth.User) bool {
+	appLabel := strings.ToLower(admin.Model.AppLabel)
+	modelName := strings.ToLower(admin.Model.ModelName)
+	return admin.HasAddPermission(request, user) || auth.HasPerm(user, appLabel+".add_"+modelName)
 }
 
 func canViewOrChange(user auth.User, appLabel, modelName string) bool {

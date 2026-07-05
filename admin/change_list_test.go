@@ -17,6 +17,7 @@ func TestChangeListBuildsDisplayRowsSortingPaginationAndFilters(t *testing.T) {
 		ListMaxShowAll:    5,
 		EmptyValueDisplay: "(none)",
 		DateHierarchy:     "created_at",
+		ActionDefinitions: []Action{{Name: "publish", Label: "Publish"}},
 		ComputedColumns: map[string]ComputedColumn{
 			"summary": func(row map[string]any) any { return row["title"].(string) + "!" },
 		},
@@ -82,6 +83,27 @@ func TestChangeListShowAllAndInvalidQuery(t *testing.T) {
 	}
 }
 
+func TestChangeListBulkSelectionRequiresActions(t *testing.T) {
+	withoutActions, err := BuildChangeList(ModelAdmin{ListDisplay: []string{"title"}}, []map[string]any{{"id": 1, "title": "A"}}, nil)
+	if err != nil {
+		t.Fatalf("BuildChangeList(without actions) error = %v", err)
+	}
+	if withoutActions.BulkSelection {
+		t.Fatalf("bulk selection should be disabled without configured actions: %#v", withoutActions)
+	}
+
+	withActions, err := BuildChangeList(ModelAdmin{
+		ListDisplay:       []string{"title"},
+		ActionDefinitions: []Action{{Name: "publish", Label: "Publish"}},
+	}, []map[string]any{{"id": 1, "title": "A"}}, nil)
+	if err != nil {
+		t.Fatalf("BuildChangeList(with actions) error = %v", err)
+	}
+	if !withActions.BulkSelection {
+		t.Fatalf("bulk selection should be enabled with configured actions: %#v", withActions)
+	}
+}
+
 func TestChangeListHonorsExplicitListDisplayLinks(t *testing.T) {
 	admin := ModelAdmin{ListDisplay: []string{"title", "slug"}, ListDisplayLinks: []string{"slug"}}
 	changeList, err := BuildChangeList(admin, []map[string]any{{"id": 7, "title": "A", "slug": "a"}}, nil)
@@ -106,6 +128,7 @@ func TestChangeListTemplateUsesDjangoBooleanIconsFiltersAndActionMarkup(t *testi
 		ListDisplayLinks:  []string{"username"},
 		ListFilter:        []string{"is_staff", "is_superuser", "is_active"},
 		EmptyValueDisplay: "-",
+		ActionDefinitions: []Action{DeleteSelectedAction()},
 	}, []map[string]any{
 		{"id": 1, "username": "admin", "email": "admin@example.com", "is_staff": true},
 	}, url.Values{})

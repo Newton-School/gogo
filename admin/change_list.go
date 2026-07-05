@@ -110,11 +110,15 @@ func BuildChangeList(admin ModelAdmin, rows []map[string]any, query url.Values) 
 		PerPage:          perPage,
 		ShowAll:          showAll,
 		CanShowAll:       canShowAll,
-		BulkSelection:    len(options.Actions) > 0 || true,
+		BulkSelection:    hasConfiguredActions(options),
 		Popup:            query.Get("_popup") == "1",
 		PreservedFilters: preservedFilters(query),
 		DateHierarchy:    buildDateHierarchy(options, copiedRows),
 	}, nil
+}
+
+func hasConfiguredActions(admin ModelAdmin) bool {
+	return len(admin.Actions) > 0 || len(admin.ActionDefinitions) > 0
 }
 
 func buildColumns(admin ModelAdmin) []ChangeListColumn {
