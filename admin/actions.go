@@ -2,9 +2,11 @@ package admin
 
 import (
 	"fmt"
+	"net/http"
 	"sync"
 
 	"github.com/cybersaksham/gogo/auth"
+	"github.com/cybersaksham/gogo/models"
 )
 
 // ActionHandler executes one admin action.
@@ -21,16 +23,22 @@ type Action struct {
 
 // ActionContext stores selected rows and execution dependencies.
 type ActionContext struct {
-	User      auth.User
-	Selected  []map[string]any
-	Store     ActionStore
-	Confirmed bool
+	Request       *http.Request
+	User          auth.User
+	Model         models.Metadata
+	SelectedIDs   []string
+	Selected      []map[string]any
+	SelectedQuery models.ObjectQuery
+	SelectAcross  bool
+	Store         ActionStore
+	Confirmed     bool
 }
 
 // ActionResult stores action outcome metadata.
 type ActionResult struct {
 	Message              string
 	ConfirmationRequired bool
+	Response             http.Handler
 }
 
 // ActionStore persists action mutations.

@@ -14,7 +14,8 @@
     <input type="hidden" name="csrfmiddlewaretoken" value="{{.CSRFToken}}">
     <div>
       {{range .Deletion.SelectedIDs}}<input type="hidden" name="_selected_action" value="{{.}}">{{end}}
-      <input type="hidden" name="action" value="delete_selected">
+      <input type="hidden" name="action" value="{{.Deletion.ActionName}}">
+      <input type="hidden" name="select_across" value="{{if .Deletion.SelectAcross}}1{{else}}0{{end}}">
       <input type="hidden" name="post" value="yes">
       <input type="submit" value="Yes, I&rsquo;m sure">
       <a role="button" href="#" class="button cancel-link">No, take me back</a>

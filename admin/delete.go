@@ -28,6 +28,8 @@ type DeletionSummary struct {
 	Protected          []string
 	PermissionsMissing []string
 	SelectedIDs        []string
+	ActionName         string
+	SelectAcross       bool
 	ModelCounts        []DeletionModelCount
 	Count              int
 }

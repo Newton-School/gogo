@@ -12,6 +12,7 @@ import (
 
 	"github.com/cybersaksham/gogo/auth"
 	gogohttp "github.com/cybersaksham/gogo/http"
+	"github.com/cybersaksham/gogo/messages"
 	"github.com/cybersaksham/gogo/models"
 	"github.com/cybersaksham/gogo/orm"
 	sqlitedialect "github.com/cybersaksham/gogo/orm/dialects/sqlite"
@@ -612,6 +613,115 @@ func TestAdminChangeListExecutesCustomActions(t *testing.T) {
 	}
 	if len(selected) != 1 || selected[0]["title"] != "Action target" {
 		t.Fatalf("selected rows = %#v", selected)
+	}
+}
+
+func TestAdminChangeListActionSelectAcrossUsesQueryStoreAndCustomResponse(t *testing.T) {
+	meta := models.Metadata{
+		AppLabel:    "blog",
+		ModelName:   "Post",
+		TableName:   "blog_post",
+		Fields:      []models.FieldMeta{{Name: "id", Column: "id", PrimaryKey: true}, {Name: "title", Column: "title"}, {Name: "status", Column: "status"}},
+		VerboseName: "post",
+	}
+	store := &queryAdminStore{
+		rows: []map[string]any{
+			{"id": "1", "title": "First", "status": "published"},
+			{"id": "2", "title": "Second", "status": "published"},
+		},
+		total: 2,
+	}
+	logStore := NewMemoryLogStore()
+	site := DefaultSite()
+	site.ModelStore = store
+	site.LogStore = logStore
+	var selectedAcross bool
+	var selectedQuery models.ObjectQuery
+	if err := site.ModelRegistry.RegisterMetadata(meta, ModelAdmin{
+		ListDisplay: []string{"title", "status"},
+		ActionDefinitions: []Action{{
+			Name:  "export",
+			Label: "Export",
+			Handler: func(ctx ActionContext) (ActionResult, error) {
+				selectedAcross = ctx.SelectAcross
+				selectedQuery = ctx.SelectedQuery
+				if len(ctx.Selected) != 2 {
+					t.Fatalf("selected rows in handler = %#v", ctx.Selected)
+				}
+				return ActionResult{
+					Message: "Exported 2 posts",
+					Response: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						w.WriteHeader(http.StatusAccepted)
+						_, _ = w.Write([]byte("exported"))
+					}),
+				}, nil
+			},
+		}},
+	}); err != nil {
+		t.Fatalf("RegisterMetadata() error = %v", err)
+	}
+	router, err := site.URLs()
+	if err != nil {
+		t.Fatalf("URLs() error = %v", err)
+	}
+	messageStore := messages.NewMemoryStorage()
+	handler := messages.Middleware(func(*http.Request) messages.Storage { return messageStore })(router)
+
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, staffAdminFormRequest("/admin/blog/post/?status__exact=published", "action=export&select_across=1&index=0"))
+	if response.Code != http.StatusAccepted || response.Body.String() != "exported" {
+		t.Fatalf("action response = %d body=%s", response.Code, response.Body.String())
+	}
+	if !selectedAcross || !store.queried || store.query.Limit != 0 || !reflect.DeepEqual(store.query.Filters["status__exact"], []string{"published"}) {
+		t.Fatalf("selected across=%v query=%#v queried=%v", selectedAcross, store.query, store.queried)
+	}
+	if !reflect.DeepEqual(selectedQuery.Filters["status__exact"], []string{"published"}) {
+		t.Fatalf("handler selected query = %#v", selectedQuery)
+	}
+	if got := messageStore.Messages(); len(got) != 1 || got[0].Text != "Exported 2 posts" {
+		t.Fatalf("messages = %#v", got)
+	}
+	if len(logStore.Entries) != 2 || logStore.Entries[0].ActionFlag != ActionFlagAction || logStore.Entries[0].ChangeMessage != "Exported 2 posts" {
+		t.Fatalf("log entries = %#v", logStore.Entries)
+	}
+}
+
+func TestAdminDeleteSelectedConfirmationPreservesSelectAcross(t *testing.T) {
+	meta := models.Metadata{
+		AppLabel:    "blog",
+		ModelName:   "Post",
+		TableName:   "blog_post",
+		Fields:      []models.FieldMeta{{Name: "id", Column: "id", PrimaryKey: true}, {Name: "title", Column: "title"}, {Name: "status", Column: "status"}},
+		VerboseName: "post",
+	}
+	store := &queryAdminStore{
+		rows:  []map[string]any{{"id": "1", "title": "First", "status": "published"}},
+		total: 1,
+	}
+	site := DefaultSite()
+	site.ModelStore = store
+	if err := site.ModelRegistry.RegisterMetadata(meta, ModelAdmin{ListDisplay: []string{"title", "status"}}); err != nil {
+		t.Fatalf("RegisterMetadata() error = %v", err)
+	}
+	router, err := site.URLs()
+	if err != nil {
+		t.Fatalf("URLs() error = %v", err)
+	}
+
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, staffAdminFormRequest("/admin/blog/post/?status__exact=published", "action=delete_selected&select_across=1&index=0"))
+	if response.Code != http.StatusOK {
+		t.Fatalf("delete selected confirmation status = %d body=%s", response.Code, response.Body.String())
+	}
+	body := response.Body.String()
+	for _, want := range []string{
+		`name="action" value="delete_selected"`,
+		`name="select_across" value="1"`,
+		`name="_selected_action" value="1"`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("confirmation body missing %q:\n%s", want, body)
+		}
 	}
 }
 

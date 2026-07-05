@@ -646,30 +646,42 @@ func adminChangeListAction(ctx context.Context, site *Site, modelAdmin ModelAdmi
 		return gogohttp.BadRequest("Bad Request", fmt.Errorf("%w: unknown action %s", ErrInvalidChangeListQuery, actionName)), true
 	}
 	selectedIDs := request.PostForm["_selected_action"]
-	if len(selectedIDs) == 0 {
+	selectAcross := request.PostFormValue("select_across") == "1"
+	if len(selectedIDs) == 0 && !selectAcross {
 		return gogohttp.BadRequest("Bad Request", fmt.Errorf("%w: no selected objects", ErrInvalidChangeListQuery)), true
 	}
-	selectedRows, err := selectedAdminActionRows(ctx, site, modelAdmin, request, selectedIDs)
+	selectedRows, selectedQuery, err := selectedAdminActionRows(ctx, site, modelAdmin, request, selectedIDs, selectAcross)
 	if err != nil {
 		return gogohttp.InternalServerError(err), true
 	}
 	result, err := ExecuteAction(action, ActionContext{
-		User:      user,
-		Selected:  selectedRows,
-		Store:     modelObjectActionStore{ctx: ctx, store: adminSiteOrDefault(site).ModelStore, meta: modelAdmin.Model},
-		Confirmed: request.PostFormValue("post") == "yes",
+		Request:       request,
+		User:          user,
+		Model:         modelAdmin.Model,
+		SelectedIDs:   append([]string(nil), selectedIDs...),
+		Selected:      selectedRows,
+		SelectedQuery: selectedQuery,
+		SelectAcross:  selectAcross,
+		Store:         modelObjectActionStore{ctx: ctx, store: adminSiteOrDefault(site).ModelStore, meta: modelAdmin.Model},
+		Confirmed:     request.PostFormValue("post") == "yes",
 	})
 	if err != nil {
 		return gogohttp.Forbidden("Forbidden", err), true
 	}
 	if result.ConfirmationRequired {
-		return renderDeleteSelectedConfirmation(site, modelAdmin, request, selectedRows), true
+		return renderDeleteSelectedConfirmation(site, modelAdmin, request, action.Name, selectAcross, selectedRows), true
+	}
+	if result.Message == "" {
+		result.Message = fmt.Sprintf("Action %q applied to %d objects.", adminActionLabel(action), len(selectedRows))
 	}
 	if result.Message != "" {
 		messages.Add(request.Context(), messages.LevelSuccess, result.Message)
 		if err := logSelectedAdminAction(site, user, modelAdmin.Model, selectedRows, result.Message); err != nil {
 			return gogohttp.InternalServerError(err), true
 		}
+	}
+	if result.Response != nil {
+		return gogohttp.FromHandler(result.Response)(ctx, gogohttp.NewRequest(request)), true
 	}
 	return gogohttp.TemporaryRedirect(adminModelURL(adminSiteOrDefault(site), modelAdmin)), true
 }
@@ -683,20 +695,43 @@ func findAdminAction(actions []Action, name string) (Action, bool) {
 	return Action{}, false
 }
 
-func selectedAdminActionRows(ctx context.Context, site *Site, modelAdmin ModelAdmin, request *http.Request, selectedIDs []string) ([]map[string]any, error) {
+func selectedAdminActionRows(ctx context.Context, site *Site, modelAdmin ModelAdmin, request *http.Request, selectedIDs []string, selectAcross bool) ([]map[string]any, models.ObjectQuery, error) {
 	site = adminSiteOrDefault(site)
+	if selectAcross {
+		query, err := adminObjectQuery(modelAdmin, request)
+		if err != nil {
+			return nil, models.ObjectQuery{}, err
+		}
+		query.Limit = 0
+		query.Offset = 0
+		query.IncludeTotal = true
+		if site.ModelStore != nil {
+			if queryStore, ok := site.ModelStore.(models.ObjectQueryStore); ok {
+				result, err := queryStore.Query(ctx, modelAdmin.Model, query)
+				if err != nil {
+					return nil, models.ObjectQuery{}, err
+				}
+				return cloneRows(result.Rows), query, nil
+			}
+		}
+		rows, err := rowsForAdminChangeList(ctx, site, modelAdmin, request)
+		if err != nil {
+			return nil, models.ObjectQuery{}, err
+		}
+		return rows, query, nil
+	}
 	rows := make([]map[string]any, 0, len(selectedIDs))
 	if site.ModelStore != nil {
 		for _, objectID := range selectedIDs {
 			row, exists, err := site.ModelStore.Get(ctx, modelAdmin.Model, objectID)
 			if err != nil {
-				return nil, err
+				return nil, models.ObjectQuery{}, err
 			}
 			if exists {
 				rows = append(rows, row)
 			}
 		}
-		return rows, nil
+		return rows, models.ObjectQuery{}, nil
 	}
 	allRows := rowsFromModelAdmin(modelAdmin, request)
 	selected := setFromSlice(selectedIDs)
@@ -705,10 +740,10 @@ func selectedAdminActionRows(ctx context.Context, site *Site, modelAdmin ModelAd
 			rows = append(rows, row)
 		}
 	}
-	return rows, nil
+	return rows, models.ObjectQuery{}, nil
 }
 
-func renderDeleteSelectedConfirmation(site *Site, modelAdmin ModelAdmin, request *http.Request, selectedRows []map[string]any) gogohttp.Response {
+func renderDeleteSelectedConfirmation(site *Site, modelAdmin ModelAdmin, request *http.Request, actionName string, selectAcross bool, selectedRows []map[string]any) gogohttp.Response {
 	data := modelAdminPageData(site, request, modelAdmin, "Are you sure?", "Are you sure?", "delete-confirmation")
 	objects := make([]DeletionObject, 0, len(selectedRows))
 	for _, row := range selectedRows {
@@ -720,7 +755,16 @@ func renderDeleteSelectedConfirmation(site *Site, modelAdmin ModelAdmin, request
 		})
 	}
 	data.Deletion = CollectDeletion(objects)
+	data.Deletion.ActionName = actionName
+	data.Deletion.SelectAcross = selectAcross
 	return renderAdminTemplate("delete_selected_confirmation.html", data)
+}
+
+func adminActionLabel(action Action) string {
+	if strings.TrimSpace(action.Label) != "" {
+		return action.Label
+	}
+	return action.Name
 }
 
 type modelObjectActionStore struct {
