@@ -2,6 +2,7 @@ package admin
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -420,10 +421,44 @@ func adminDeleteView(site *Site, modelAdmin ModelAdmin) gogohttp.View {
 			if err := logAdminRow(site, user, modelAdmin.Model, objectID, objectRepr, ActionFlagDeletion, "Deleted"); err != nil {
 				return gogohttp.InternalServerError(err)
 			}
+			if request.Raw().URL.Query().Get("_popup") == "1" {
+				return renderAdminPopupResponse("delete", objectID, objectRepr)
+			}
 			return gogohttp.TemporaryRedirect(data.ChangeListURL)
 		}
 		return renderAdminTemplate("delete_confirmation.html", data)
 	}
+}
+
+func renderAdminPopupResponse(action, objectID, objectRepr string) gogohttp.Response {
+	payload, err := json.Marshal(map[string]string{
+		"action": action,
+		"value":  objectID,
+		"obj":    objectRepr,
+	})
+	if err != nil {
+		return gogohttp.InternalServerError(err)
+	}
+	rendered, err := RenderTemplate("popup_response.html", map[string]any{"PopupResponseData": string(payload)}, nil)
+	if err != nil {
+		return gogohttp.InternalServerError(err)
+	}
+	return gogohttp.HTML(http.StatusOK, rendered)
+}
+
+func popupObjectID(meta models.Metadata, object map[string]any, request *http.Request) string {
+	toField := strings.TrimSpace(request.URL.Query().Get("_to_field"))
+	if toField == "" {
+		toField = strings.TrimSpace(request.URL.Query().Get("to_field"))
+	}
+	if toField != "" {
+		if _, ok := adminFieldMetaMap(meta)[toField]; ok {
+			if value := object[toField]; value != nil && fmt.Sprint(value) != "" {
+				return fmt.Sprint(value)
+			}
+		}
+	}
+	return fmt.Sprint(objectPrimaryKey(meta, object))
 }
 
 func adminHistoryView(site *Site, modelAdmin ModelAdmin) gogohttp.View {

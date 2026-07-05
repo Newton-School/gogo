@@ -191,6 +191,14 @@ func (p AdminFormProcessor) Process(ctx context.Context, input AdminFormProcessI
 	} else {
 		messages.Add(request.Context(), messages.LevelSuccess, message)
 	}
+	if request.URL.Query().Get("_popup") == "1" {
+		action := "change"
+		if mode == ChangeFormAdd {
+			action = "add"
+		}
+		objectID := popupObjectID(p.ModelAdmin.Model, saved, request)
+		return renderAdminPopupResponse(action, objectID, rowDisplay(saved, objectID)), nil
+	}
 	if mode == ChangeFormAdd && p.ModelAdmin.Hooks.ResponseAdd != nil {
 		if handler := p.ModelAdmin.Hooks.ResponseAdd(request, cloneRow(saved)); handler != nil {
 			return gogohttp.FromHandler(handler)(ctx, gogohttp.NewRequest(request)), nil

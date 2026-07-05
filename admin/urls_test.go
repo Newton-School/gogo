@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -725,6 +726,44 @@ func TestAdminDeleteSelectedConfirmationPreservesSelectAcross(t *testing.T) {
 	}
 }
 
+func TestAdminRelatedPopupResponsesForAddChangeAndDelete(t *testing.T) {
+	meta := models.Metadata{
+		AppLabel:    "blog",
+		ModelName:   "Post",
+		TableName:   "blog_post",
+		Fields:      []models.FieldMeta{{Name: "id", Column: "id", PrimaryKey: true}, {Name: "slug", Column: "slug"}, {Name: "title", Column: "title"}},
+		VerboseName: "post",
+	}
+	store := &popupModelStore{rows: map[string]map[string]any{"1": {"id": "1", "slug": "first", "title": "First"}}}
+	site := DefaultSite()
+	site.ModelStore = store
+	if err := site.ModelRegistry.RegisterMetadata(meta, ModelAdmin{Fields: []string{"slug", "title"}}); err != nil {
+		t.Fatalf("RegisterMetadata() error = %v", err)
+	}
+	router, err := site.URLs()
+	if err != nil {
+		t.Fatalf("URLs() error = %v", err)
+	}
+
+	add := httptest.NewRecorder()
+	router.ServeHTTP(add, staffAdminFormRequest("/admin/blog/post/add/?_popup=1&_to_field=slug", "slug=created&title=Created&_save=Save"))
+	if add.Code != http.StatusOK || !strings.Contains(add.Body.String(), `data-popup-response="{&#34;action&#34;:&#34;add&#34;,&#34;obj&#34;:&#34;Created&#34;,&#34;value&#34;:&#34;created&#34;}"`) {
+		t.Fatalf("add popup response = %d body=%s", add.Code, add.Body.String())
+	}
+
+	change := httptest.NewRecorder()
+	router.ServeHTTP(change, staffAdminFormRequest("/admin/blog/post/1/change/?_popup=1", "slug=first&title=Updated&_save=Save"))
+	if change.Code != http.StatusOK || !strings.Contains(change.Body.String(), `&#34;action&#34;:&#34;change&#34;`) || !strings.Contains(change.Body.String(), `&#34;value&#34;:&#34;1&#34;`) {
+		t.Fatalf("change popup response = %d body=%s", change.Code, change.Body.String())
+	}
+
+	deleteResponse := httptest.NewRecorder()
+	router.ServeHTTP(deleteResponse, staffAdminFormRequest("/admin/blog/post/1/delete/?_popup=1", "post=yes"))
+	if deleteResponse.Code != http.StatusOK || !strings.Contains(deleteResponse.Body.String(), `&#34;action&#34;:&#34;delete&#34;`) || !strings.Contains(deleteResponse.Body.String(), `&#34;value&#34;:&#34;1&#34;`) {
+		t.Fatalf("delete popup response = %d body=%s", deleteResponse.Code, deleteResponse.Body.String())
+	}
+}
+
 func TestAdminModelPostRejectsMissingCSRF(t *testing.T) {
 	meta := models.Metadata{
 		AppLabel:  "blog",
@@ -897,5 +936,50 @@ func (s *queryAdminStore) Update(context.Context, models.Metadata, string, map[s
 }
 
 func (s *queryAdminStore) Delete(context.Context, models.Metadata, string) error {
+	return nil
+}
+
+type popupModelStore struct {
+	rows map[string]map[string]any
+	next int
+}
+
+func (s *popupModelStore) List(context.Context, models.Metadata) ([]map[string]any, error) {
+	rows := make([]map[string]any, 0, len(s.rows))
+	for _, row := range s.rows {
+		rows = append(rows, cloneRow(row))
+	}
+	return rows, nil
+}
+
+func (s *popupModelStore) Get(_ context.Context, _ models.Metadata, pk string) (map[string]any, bool, error) {
+	row, ok := s.rows[pk]
+	return cloneRow(row), ok, nil
+}
+
+func (s *popupModelStore) Create(_ context.Context, _ models.Metadata, values map[string]any) (map[string]any, error) {
+	if s.next == 0 {
+		s.next = len(s.rows) + 1
+	}
+	id := strconv.Itoa(s.next)
+	s.next++
+	row := cloneRow(values)
+	row["id"] = id
+	s.rows[id] = cloneRow(row)
+	return row, nil
+}
+
+func (s *popupModelStore) Update(_ context.Context, _ models.Metadata, pk string, values map[string]any, _ bool) (map[string]any, error) {
+	row := cloneRow(s.rows[pk])
+	for key, value := range values {
+		row[key] = value
+	}
+	row["id"] = pk
+	s.rows[pk] = cloneRow(row)
+	return row, nil
+}
+
+func (s *popupModelStore) Delete(_ context.Context, _ models.Metadata, pk string) error {
+	delete(s.rows, pk)
 	return nil
 }

@@ -331,6 +331,7 @@ func changeFormViewData(site *Site, modelAdmin ModelAdmin, context ChangeFormCon
 			if !ok {
 				field = ChangeFormField{Name: fieldName, Widget: WidgetText}
 			}
+			field.Relation = adminRelationTargetForRequest(site, modelAdmin, fieldName, context.Request, context.User)
 			fieldData := adminFormFieldData{
 				Name:       fieldName,
 				Label:      adminFieldLabel(modelAdmin, field),
@@ -583,8 +584,12 @@ func renderAdminFormWidget(site *Site, modelAdmin ModelAdmin, field ChangeFormFi
 			"id":    "id_" + field.Name,
 			"class": "vTextField",
 		},
-		RelationURL: adminRelationAutocompleteURL(site, modelAdmin, field.Name),
 	}
+	relation := field.Relation
+	if relation.ModelName == "" && relation.AutocompleteURL == "" {
+		relation = adminRelationTarget(site, modelAdmin, field.Name)
+	}
+	config.RelationURL = relation.AutocompleteURL
 	switch field.Widget {
 	case WidgetReadonly:
 		return ReadonlyDisplay(config)
@@ -628,7 +633,6 @@ func renderAdminFormWidget(site *Site, modelAdmin ModelAdmin, field ChangeFormFi
 			"data-is-stacked": "0",
 		}
 		widget := FilteredSelectMultiple(config)
-		relation := adminRelationTarget(site, modelAdmin, field.Name)
 		related := WidgetConfig{
 			Name:                     field.Name,
 			RelatedModelName:         relation.ModelName,
@@ -693,31 +697,43 @@ func adminRelationAutocompleteURL(site *Site, modelAdmin ModelAdmin, fieldName s
 }
 
 func adminRelationTarget(site *Site, modelAdmin ModelAdmin, fieldName string) adminRelation {
+	return adminRelationTargetForRequest(site, modelAdmin, fieldName, nil, auth.User{})
+}
+
+func adminRelationTargetForRequest(site *Site, modelAdmin ModelAdmin, fieldName string, request *http.Request, user auth.User) adminRelation {
 	site = adminSiteOrDefault(site)
 	target := adminRelationTargetLabel(modelAdmin, fieldName)
 	appLabel, modelName, ok := splitAdminModelLabel(target)
 	if !ok {
-		modelName = relatedModelName(fieldName)
-		return adminRelation{
-			ModelName:         modelName,
-			ModelLabel:        modelName,
-			AddURL:            relatedAddURL(fieldName),
-			ChangeTemplateURL: relatedChangeTemplateURL(fieldName),
-			DeleteTemplateURL: relatedDeleteTemplateURL(fieldName),
-			ViewTemplateURL:   relatedChangeTemplateURL(fieldName),
-		}
+		return adminRelation{}
 	}
+	relatedAdmin, registered := site.ModelRegistry.GetAdmin(target)
 	base := site.URLPrefix + "/" + strings.ToLower(appLabel) + "/" + strings.ToLower(modelName) + "/"
 	label := strings.ToLower(modelName)
-	return adminRelation{
-		ModelName:         label,
-		ModelLabel:        label,
-		AddURL:            base + "add/",
-		ChangeTemplateURL: base + "__fk__/change/",
-		DeleteTemplateURL: base + "__fk__/delete/",
-		ViewTemplateURL:   base + "__fk__/change/",
-		AutocompleteURL:   base + "autocomplete/",
+	relation := adminRelation{
+		ModelName:       label,
+		ModelLabel:      label,
+		AutocompleteURL: base + "autocomplete/",
 	}
+	if registered {
+		relation.ModelLabel = modelVerboseName(relatedAdmin)
+		if request == nil {
+			request, _ = http.NewRequest(http.MethodGet, "/", nil)
+		}
+		if relatedAdmin.HasAddPermission(request, user) {
+			relation.AddURL = base + "add/"
+		}
+		if relatedAdmin.HasChangePermission(request, user) {
+			relation.ChangeTemplateURL = base + "__fk__/change/"
+		}
+		if relatedAdmin.HasDeletePermission(request, user) {
+			relation.DeleteTemplateURL = base + "__fk__/delete/"
+		}
+		if relatedAdmin.HasViewPermission(request, user) || relatedAdmin.HasChangePermission(request, user) {
+			relation.ViewTemplateURL = base + "__fk__/change/"
+		}
+	}
+	return relation
 }
 
 func adminRelationTargetLabel(modelAdmin ModelAdmin, fieldName string) string {
@@ -735,50 +751,6 @@ func splitAdminModelLabel(label string) (string, string, bool) {
 		return "", "", false
 	}
 	return strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1]), true
-}
-
-func relatedModelName(field string) string {
-	switch field {
-	case "groups":
-		return "group"
-	case "user_permissions", "permissions":
-		return "permission"
-	default:
-		return strings.TrimSuffix(field, "s")
-	}
-}
-
-func relatedAddURL(field string) string {
-	switch field {
-	case "groups":
-		return "/admin/auth/group/add/"
-	case "user_permissions", "permissions":
-		return "/admin/auth/permission/add/"
-	default:
-		return ""
-	}
-}
-
-func relatedChangeTemplateURL(field string) string {
-	switch field {
-	case "groups":
-		return "/admin/auth/group/__fk__/change/"
-	case "user_permissions", "permissions":
-		return "/admin/auth/permission/__fk__/change/"
-	default:
-		return ""
-	}
-}
-
-func relatedDeleteTemplateURL(field string) string {
-	switch field {
-	case "groups":
-		return "/admin/auth/group/__fk__/delete/"
-	case "user_permissions", "permissions":
-		return "/admin/auth/permission/__fk__/delete/"
-	default:
-		return ""
-	}
 }
 
 func submitButtons(buttons []SaveButton) []adminSubmitButton {

@@ -75,6 +75,8 @@ type ChangeFormInput struct {
 type ChangeFormContext struct {
 	Mode                ChangeFormMode
 	ObjectID            string
+	Request             *http.Request
+	User                auth.User
 	Fieldsets           []Fieldset
 	Fields              map[string]ChangeFormField
 	PrepopulatedFields  map[string][]string
@@ -105,6 +107,7 @@ type ChangeFormField struct {
 	Required bool
 	Choices  []WidgetChoice
 	Meta     models.FieldMeta
+	Relation adminRelation
 }
 
 // BuildChangeForm builds add/edit form metadata with permission checks.
@@ -135,6 +138,8 @@ func BuildChangeForm(admin ModelAdmin, input ChangeFormInput) (ChangeFormContext
 	context := ChangeFormContext{
 		Mode:                mode,
 		ObjectID:            input.ObjectID,
+		Request:             request,
+		User:                user,
 		Fieldsets:           fieldsets,
 		Fields:              buildChangeFormFields(admin, fields, input.Values),
 		PrepopulatedFields:  cloneStringSliceMap(admin.PrepopulatedFields),

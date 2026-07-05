@@ -33,7 +33,7 @@ func TestChangeFormBuildsAddAndEditMetadata(t *testing.T) {
 			HasDeletePermission: func(*http.Request, auth.User) bool { return true },
 		},
 	}
-	user := auth.User{AbstractUser: auth.AbstractUser{AbstractBaseUser: auth.AbstractBaseUser{ID: 1, IsActive: true, Authenticated: true}}}
+	user := auth.User{AbstractUser: auth.AbstractUser{AbstractBaseUser: auth.AbstractBaseUser{ID: 1, IsActive: true, Authenticated: true}, IsStaff: true}}
 	request := httptest.NewRequest("GET", "/admin/blog/post/add/?_popup=1", nil)
 
 	form, err := BuildChangeForm(admin, ChangeFormInput{Mode: ChangeFormAdd, User: user, Request: request})
@@ -70,7 +70,7 @@ func TestChangeFormBuildsAddAndEditMetadata(t *testing.T) {
 
 func TestChangeFormEnforcesPermissionsAndSaveIntents(t *testing.T) {
 	admin := ModelAdmin{Hooks: ModelAdminHooks{HasAddPermission: func(*http.Request, auth.User) bool { return false }}}
-	user := auth.User{AbstractUser: auth.AbstractUser{AbstractBaseUser: auth.AbstractBaseUser{ID: 1, IsActive: true, Authenticated: true}}}
+	user := auth.User{AbstractUser: auth.AbstractUser{AbstractBaseUser: auth.AbstractBaseUser{ID: 1, IsActive: true, Authenticated: true}, IsStaff: true}}
 	_, err := BuildChangeForm(admin, ChangeFormInput{Mode: ChangeFormAdd, User: user, Request: httptest.NewRequest("GET", "/admin/add/", nil)})
 	if !errors.Is(err, ErrAdminPermissionDenied) {
 		t.Fatalf("BuildChangeForm(permission denied) error = %v, want ErrAdminPermissionDenied", err)
@@ -114,7 +114,7 @@ func TestAuthUserChangeFormUsesDjangoUserAdminWidgets(t *testing.T) {
 			HasDeletePermission: func(*http.Request, auth.User) bool { return true },
 		},
 	}
-	user := auth.User{AbstractUser: auth.AbstractUser{AbstractBaseUser: auth.AbstractBaseUser{ID: 1, IsActive: true, Authenticated: true}}}
+	user := auth.User{AbstractUser: auth.AbstractUser{AbstractBaseUser: auth.AbstractBaseUser{ID: 1, IsActive: true, Authenticated: true}, IsStaff: true}}
 	values := map[string]any{
 		"username":         "admin",
 		"password":         "pbkdf2_sha256$720000$saltvalue$hashvalue",
@@ -194,13 +194,23 @@ func TestChangeFormRelationWidgetsUseGenericMetadataTargets(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewSite() error = %v", err)
 	}
+	if err := site.ModelRegistry.RegisterMetadata(models.Metadata{AppLabel: "catalog", ModelName: "Category", Fields: []models.FieldMeta{{Name: "id", PrimaryKey: true}}}, ModelAdmin{}); err != nil {
+		t.Fatalf("RegisterMetadata(category) error = %v", err)
+	}
+	if err := site.ModelRegistry.RegisterMetadata(models.Metadata{AppLabel: "catalog", ModelName: "Tag", VerboseName: "tag", Fields: []models.FieldMeta{{Name: "id", PrimaryKey: true}}}, ModelAdmin{
+		Hooks: ModelAdminHooks{
+			HasDeletePermission: func(*http.Request, auth.User) bool { return false },
+		},
+	}); err != nil {
+		t.Fatalf("RegisterMetadata(tag) error = %v", err)
+	}
 	modelAdmin := ModelAdmin{
 		Model: models.Metadata{
 			AppLabel:  "blog",
 			ModelName: "Post",
 			Fields: []models.FieldMeta{
-				{Name: "category", RelationTarget: "catalog.Category"},
-				{Name: "tags", RelationTarget: "catalog.Tag"},
+				{Name: "category", RelationTarget: "catalog.Category", RelationType: "foreign_key"},
+				{Name: "tags", RelationTarget: "catalog.Tag", RelationType: "many_to_many"},
 			},
 		},
 		Fields:             []string{"category", "tags"},
@@ -210,7 +220,7 @@ func TestChangeFormRelationWidgetsUseGenericMetadataTargets(t *testing.T) {
 			HasAddPermission: func(*http.Request, auth.User) bool { return true },
 		},
 	}
-	user := auth.User{AbstractUser: auth.AbstractUser{AbstractBaseUser: auth.AbstractBaseUser{ID: 1, IsActive: true, Authenticated: true}}}
+	user := auth.User{AbstractUser: auth.AbstractUser{AbstractBaseUser: auth.AbstractBaseUser{ID: 1, IsActive: true, Authenticated: true}, IsStaff: true}}
 	form, err := BuildChangeForm(modelAdmin, ChangeFormInput{
 		Mode:    ChangeFormAdd,
 		User:    user,
@@ -232,12 +242,13 @@ func TestChangeFormRelationWidgetsUseGenericMetadataTargets(t *testing.T) {
 		`data-model-ref="tag"`,
 		`href="/manage/catalog/tag/add/?_to_field=id&amp;_popup=1"`,
 		`title="Add another tag"`,
+		`data-href-template="/manage/catalog/tag/__fk__/change/?_to_field=id&amp;_popup=1"`,
 	} {
 		if !strings.Contains(rendered, want) {
 			t.Fatalf("generic relation widget missing %q:\n%s", want, rendered)
 		}
 	}
-	for _, unwanted := range []string{"/admin/auth/group/add/", "/admin/auth/permission/add/"} {
+	for _, unwanted := range []string{"/admin/auth/group/add/", "/admin/auth/permission/add/", `delete_id_tags`} {
 		if strings.Contains(rendered, unwanted) {
 			t.Fatalf("generic relation widget should not contain %q:\n%s", unwanted, rendered)
 		}
