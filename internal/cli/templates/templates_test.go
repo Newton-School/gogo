@@ -393,6 +393,22 @@ func TestAppTemplatesRenderParseablePublicGoFiles(t *testing.T) {
 			t.Fatalf("generated migration missing %q:\n%s", want, migrationGo)
 		}
 	}
+
+	adminGo := files["admin.go"]
+	for _, want := range []string{
+		"func itemAdminOptions() admin.ModelAdmin",
+		`ListFilter:         []string{"status"}`,
+		"ActionDefinitions:  []admin.Action{markReviewedAction()}",
+		`AutocompleteFields: []string{"owner"}`,
+		"admin.InlineTabular",
+		"func readOnlyAdminOptions() admin.ModelAdmin",
+		"AllowUnmanaged: true",
+		"ReadOnly:       true",
+	} {
+		if !strings.Contains(adminGo, want) {
+			t.Fatalf("admin.go missing admin example %q:\n%s", want, adminGo)
+		}
+	}
 }
 
 func TestAppTemplatesRenderMeaningfulModuleAwareTests(t *testing.T) {

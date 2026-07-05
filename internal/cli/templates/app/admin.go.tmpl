@@ -4,14 +4,65 @@ import "github.com/cybersaksham/gogo/admin"
 
 func RegisterAdmin(registry *admin.Registry) error {
 	for _, meta := range ModelMetadata() {
-		if err := registry.RegisterMetadata(meta, admin.ModelAdmin{
-			ListDisplay:        []string{"name", "slug", "updated_at"},
-			SearchFields:       []string{"name", "slug"},
-			PrepopulatedFields: map[string][]string{"slug": []string{"name"}},
-			ReadonlyFields:     []string{"created_at", "updated_at"},
-		}); err != nil {
+		if err := registry.RegisterMetadata(meta, itemAdminOptions()); err != nil {
 			return err
 		}
 	}
+
+	// Read-only unmanaged metadata example:
+	// legacy := LegacyItemMetadata()
+	// if err := registry.RegisterMetadata(legacy, readOnlyAdminOptions()); err != nil {
+	// 	return err
+	// }
 	return nil
+}
+
+func itemAdminOptions() admin.ModelAdmin {
+	return admin.ModelAdmin{
+		ListDisplay:        []string{"name", "slug", "status", "updated_at"},
+		ListDisplayLinks:   []string{"name"},
+		ListFilter:         []string{"status"},
+		SearchFields:       []string{"name", "slug", "status"},
+		Fields:             []string{"name", "slug", "status"},
+		Fieldsets: []admin.Fieldset{
+			{Name: "Item", Fields: []string{"name", "slug", "status"}},
+		},
+		PrepopulatedFields: map[string][]string{"slug": []string{"name"}},
+		ReadonlyFields:     []string{"created_at", "updated_at"},
+		Actions:            []string{"mark_reviewed"},
+		ActionDefinitions:  []admin.Action{markReviewedAction()},
+
+		// Relation examples when the model metadata defines these fields:
+		// AutocompleteFields: []string{"owner"},
+		// RawIDFields:        []string{"owner"},
+		// Inlines: []admin.Inline{
+		// 	{
+		// 		Model:     AppLabel + ".Comment",
+		// 		Kind:      admin.InlineTabular,
+		// 		Extra:     1,
+		// 		CanDelete: true,
+		// 	},
+		// },
+	}
+}
+
+func markReviewedAction() admin.Action {
+	return admin.Action{
+		Name:        "mark_reviewed",
+		Label:       "Mark selected items for review",
+		Permissions: []string{AppLabel + ".change_item"},
+		Handler: func(ctx admin.ActionContext) (admin.ActionResult, error) {
+			return admin.ActionResult{Message: "Selected items marked for review."}, nil
+		},
+	}
+}
+
+func readOnlyAdminOptions() admin.ModelAdmin {
+	return admin.ModelAdmin{
+		AllowUnmanaged: true,
+		ReadOnly:       true,
+		ListDisplay:    []string{"name"},
+		SearchFields:   []string{"name"},
+		ReadonlyFields: []string{"id", "name"},
+	}
 }

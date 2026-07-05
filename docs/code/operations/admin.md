@@ -28,6 +28,13 @@ Run `admin.CheckSite(site)` or register `admin.RegisterChecks(registry, site)`
 in project checks so invalid field names, list-editable conflicts, and other
 admin option errors fail before deploy.
 
+Treat admin checks as release blockers:
+
+- `admin.E001` catches invalid option combinations.
+- `admin.E002` catches unknown field references.
+- `admin.E003` catches widget options that do not match field metadata.
+- `admin.E004` catches missing many-to-many store or file-storage capability.
+
 Do not register sensitive models only because they exist. Secrets, tokens,
 sessions, password reset state, and queue internals need explicit review before
 admin exposure.
@@ -66,6 +73,21 @@ If admin pages render without styles:
 4. Confirm the web process or fronting static server serves the collected path.
 5. Confirm cache or CDN invalidation after deploy.
 
+## Template Overrides
+
+Generated projects pass configured template dirs to the admin site. Keep admin
+overrides under `templates/admin/...`:
+
+- `templates/admin/base_site.html` customizes the admin wrapper.
+- `templates/admin/<app_label>/<model_name>/change_form.html` customizes one
+  model form.
+- `templates/admin/<app_label>/change_list.html` customizes one app's list
+  layout.
+
+Do not put admin customizations in the project-level `templates/base.html`.
+That file is for application pages and is intentionally ignored by the admin
+partial loader.
+
 ## Audit Logs
 
 Admin audit logs should capture:
@@ -84,13 +106,20 @@ Keep audit logs in durable storage. Do not store raw passwords, session cookie
 values, CSRF tokens, authorization headers, or full secret fields in audit
 entries.
 
-Generated projects install `admin.NewMemoryLogStore()` for local history pages.
-Production deployments that need retention should provide a durable
-`admin.AdminLogStore` and back it up with the application database.
+Generated projects install `admin.NewSQLLogStore(store.Database)` when the
+configured database opens successfully and fall back to `admin.NewMemoryLogStore()`
+only when no model store is available. Back up `gogo_admin_log` with the
+application database when audit retention matters.
 
 For large tables, use a `ModelStore` that implements `models.ObjectQueryStore`.
 The admin change list passes search terms, filters, ordering, limit, offset,
 and total-count intent to that interface so pages stay bounded under load.
+Autocomplete and selected-across-pages actions also use the bounded query path.
+
+For many-to-many fields, use a model store that implements
+`admin.ManyToManyStore`. For file and image fields, configure
+`Site.FileStorage`. The admin form processor validates and saves those fields
+through the same add/change lifecycle as scalar fields.
 
 ## Admin Health Checks
 

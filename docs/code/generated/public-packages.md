@@ -6,6 +6,8 @@
 | --- | --- | --- |
 | `github.com/cybersaksham/gogo` | `gogo` | Package gogo exposes the public framework entrypoint. |
 | `github.com/cybersaksham/gogo/admin` | `admin` | - |
+| `github.com/cybersaksham/gogo/admin/migrations` | `migrations` | - |
+| `github.com/cybersaksham/gogo/admin/parity` | `parity` | - |
 | `github.com/cybersaksham/gogo/api` | `api` | - |
 | `github.com/cybersaksham/gogo/app` | `app` | - |
 | `github.com/cybersaksham/gogo/auth` | `auth` | - |

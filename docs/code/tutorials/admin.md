@@ -38,6 +38,9 @@ publish := admin.Action{
 	Label:       "Publish selected posts",
 	Permissions: []string{"blog.change_post"},
 	Handler: func(ctx admin.ActionContext) (admin.ActionResult, error) {
+		// ctx.SelectedIDs contains explicit selections. When select-across is
+		// used, ctx.SelectedQuery carries the filtered queryset that the store
+		// executed for the action.
 		return admin.ActionResult{Message: "Published selected posts"}, nil
 	},
 }
@@ -61,6 +64,10 @@ _ = admin.Inline{
 }
 ```
 
+Inline formsets use Django-compatible management form names, validate before the
+parent save commits, and save child creates/updates/deletes inside the same
+admin form lifecycle.
+
 ## Autocomplete
 
 Use `AutocompleteFields` for large relations:
@@ -72,6 +79,17 @@ _ = admin.ModelAdmin{
 ```
 
 Pair it with `SearchFields` on related admins.
+
+Autocomplete, changelist pagination, and selected-across-pages actions should
+use a store that implements `models.ObjectQueryStore` so large tables are not
+materialized in memory.
+
+## Files And Many-To-Many
+
+For file or image fields, configure `Site.FileStorage`. For many-to-many
+fields, use a `Site.ModelStore` that implements `admin.ManyToManyStore`.
+`admin.CheckSite(site)` reports `admin.E004` if a registered model needs one of
+those capabilities and the site does not provide it.
 
 ## Permission Hooks
 
@@ -115,7 +133,22 @@ Set `Site.ModelStore` to an `orm.MetadataStore` or another store implementing
 `models.ObjectQueryStore` so change lists can search, filter, order, paginate,
 and count through the storage layer. Set `Site.LogStore` to an
 `admin.AdminLogStore` implementation so object history records additions,
-changes, deletions, and actions.
+changes, deletions, and actions. Generated projects use `admin.NewSQLLogStore`
+when the configured database opens successfully.
+
+## Template Overrides
+
+Put admin overrides under the configured template dir:
+
+```text
+templates/admin/base_site.html
+templates/admin/blog/post/change_form.html
+templates/admin/blog/change_list.html
+```
+
+`base_site.html` can wrap every admin page. App/model templates override only
+that model's admin page. Application `templates/base.html` is ignored by admin
+partials so normal site layout does not accidentally replace the admin shell.
 
 ## Testing
 
