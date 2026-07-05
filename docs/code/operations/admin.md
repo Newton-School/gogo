@@ -24,6 +24,10 @@ Review every `ModelAdmin` option that changes data visibility or data mutation:
 - `Hooks`
 - Permission hooks
 
+Run `admin.CheckSite(site)` or register `admin.RegisterChecks(registry, site)`
+in project checks so invalid field names, list-editable conflicts, and other
+admin option errors fail before deploy.
+
 Do not register sensitive models only because they exist. Secrets, tokens,
 sessions, password reset state, and queue internals need explicit review before
 admin exposure.
@@ -79,6 +83,14 @@ Admin audit logs should capture:
 Keep audit logs in durable storage. Do not store raw passwords, session cookie
 values, CSRF tokens, authorization headers, or full secret fields in audit
 entries.
+
+Generated projects install `admin.NewMemoryLogStore()` for local history pages.
+Production deployments that need retention should provide a durable
+`admin.AdminLogStore` and back it up with the application database.
+
+For large tables, use a `ModelStore` that implements `models.ObjectQueryStore`.
+The admin change list passes search terms, filters, ordering, limit, offset,
+and total-count intent to that interface so pages stay bounded under load.
 
 ## Admin Health Checks
 

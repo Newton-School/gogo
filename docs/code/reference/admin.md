@@ -6,7 +6,7 @@ The admin package provides model registration, sites, staff access policies, aut
 
 | Area | Types |
 | --- | --- |
-| Site | `Site`, `SiteOptions`, `SiteCollection`, `PermissionPolicy`, `StaffPermissionPolicy`, `SessionPermissionPolicy` |
+| Site | `Site`, `SiteOptions`, `SiteCollection`, `PermissionPolicy`, `StaffPermissionPolicy`, `SessionPermissionPolicy`, `ModelObjectStore`, `AdminLogStore` |
 | Registry | `Registry`, `ModelAdmin`, `ModelAdminHooks` |
 | Model options | `Fieldset`, `Inline`, `InlineKind`, `URLPattern`, `ComputedColumn` |
 | Auth views | `AuthViewConfig` |
@@ -19,6 +19,9 @@ The admin package provides model registration, sites, staff access policies, aut
 | Inlines | `InlineInput`, `InlineFormset`, `InlineForm`, `InlineStore`, `MemoryInlineStore` |
 | Widgets | `WidgetChoice`, `WidgetConfig` |
 
+`CheckSite` validates registered `ModelAdmin` options, and `RegisterChecks`
+adds those results to the shared `checks.Registry`.
+
 ## ModelAdmin Options
 
 `ModelAdmin` supports:
@@ -27,6 +30,11 @@ The admin package provides model registration, sites, staff access policies, aut
 
 Set `ReadOnly` to true for admin registrations that should allow staff users to
 view modules and objects while blocking add, change, and delete by default.
+
+Change forms validate POST data through model-form metadata before calling the
+site `ModelStore`. Metadata-backed stores can implement `models.ObjectQueryStore`
+to let change lists push search, filters, ordering, limit, offset, and total
+count into the storage layer instead of loading every row into memory.
 
 ## Hooks
 
@@ -45,6 +53,13 @@ Admin site access defaults to active authenticated staff users. Generated
 projects configure `SessionPermissionPolicy` with the built-in file user store
 and file session store so `/admin/` redirects anonymous users to login and
 allows staff users created with `go run manage.go createsuperuser`.
+
+Set `Site.ModelStore` to a metadata store, such as `orm.MetadataStore`, to
+enable add, change, delete, autocomplete, actions, and query-backed change
+lists. Set `Site.LogStore` to an `AdminLogStore` implementation to render
+durable object history. Generated projects install `MemoryLogStore` by default;
+production projects should replace it with durable storage when audit retention
+is required.
 
 ## Errors
 

@@ -256,6 +256,7 @@ func TestProjectTemplatesWireBuiltInAuthByDefault(t *testing.T) {
 	adminGo := files[filepath.Join("myproject", "admin.go")]
 	for _, want := range []string{
 		"admin.RegisterAuthModels(registry)",
+		"site.LogStore = admin.NewMemoryLogStore()",
 		"func NewAuthUserStore(ctx context.Context) auth.UserStore",
 		"auth.NewSQLUserStore(database)",
 	} {

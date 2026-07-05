@@ -89,6 +89,21 @@ _ = admin.ModelAdmin{
 
 `HasChangePermission`, add/delete/view hooks, and module permission hooks are evaluated by admin views and actions.
 
+## Checks And Storage
+
+Use admin checks during startup or CI:
+
+```go
+registry := checks.NewRegistry()
+admin.RegisterChecks(registry, site)
+```
+
+Set `Site.ModelStore` to an `orm.MetadataStore` or another store implementing
+`models.ObjectQueryStore` so change lists can search, filter, order, paginate,
+and count through the storage layer. Set `Site.LogStore` to an
+`admin.AdminLogStore` implementation so object history records additions,
+changes, deletions, and actions.
+
 ## Testing
 
 Use `testing.NewAdminClient` to attach a staff user, `testing.AssertAdminModelRegistered` for registry checks, and `testing.AssertAdminColumn` for rendered page checks.

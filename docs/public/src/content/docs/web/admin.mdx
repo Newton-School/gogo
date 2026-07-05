@@ -15,6 +15,8 @@ can sign in through the generated admin auth views. The generated admin uses
 
 The admin index renders the registered model list from app `admin.go` metadata
 so new apps are visible after `startapp` auto-installs their admin registration.
+Model-level permissions are evaluated for the index, app list, change list,
+forms, deletes, history, autocomplete, and actions.
 
 ## Model admin options
 
@@ -23,6 +25,15 @@ readonly fields, fieldsets, forms, inlines, autocomplete fields, raw ID fields,
 prepopulated fields, actions, custom URLs, computed columns, and lifecycle
 hooks. Set `ReadOnly` for registrations that should expose staff-only list and
 detail views while blocking add, change, and delete.
+
+Change forms validate POST data through model metadata before persisting. A
+site `ModelStore` that also implements `models.ObjectQueryStore` receives
+search, filter, ordering, limit, offset, and total-count input for bounded
+change-list queries. A site `LogStore` records additions, changes, deletions,
+and actions for history pages.
+
+Use `admin.CheckSite(site)` or `admin.RegisterChecks(registry, site)` to catch
+invalid field names and conflicting admin options before release.
 
 ## Register metadata
 

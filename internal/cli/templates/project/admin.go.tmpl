@@ -24,6 +24,7 @@ func NewAdminRegistry() *admin.Registry {
 func NewAdminSite() *admin.Site {
 	site := admin.DefaultSite()
 	site.ModelRegistry = NewAdminRegistry()
+	site.LogStore = admin.NewMemoryLogStore()
 	authConfig := newAdminAuthConfig(site)
 	site.LoginView = admin.LoginView(authConfig)
 	site.LogoutView = admin.LogoutView(authConfig)
