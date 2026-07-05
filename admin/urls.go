@@ -2,6 +2,7 @@ package admin
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"mime"
@@ -12,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/cybersaksham/gogo/auth"
+	"github.com/cybersaksham/gogo/forms"
 	gogohttp "github.com/cybersaksham/gogo/http"
 	"github.com/cybersaksham/gogo/messages"
 	"github.com/cybersaksham/gogo/models"
@@ -270,18 +272,15 @@ func adminChangeFormView(site *Site, modelAdmin ModelAdmin, mode ChangeFormMode)
 				if !modelAdmin.HasAddPermission(request.Raw(), user) {
 					return gogohttp.Forbidden("Forbidden", nil)
 				}
-				cleaned, err := validateAdminModelForm(ctx, request.Raw(), modelAdmin, nil, values)
+				response, err := AdminFormProcessor{Site: site, ModelAdmin: modelAdmin, Mode: ChangeFormAdd}.Process(ctx, AdminFormProcessInput{
+					Request: request.Raw(),
+					User:    user,
+					Values:  values,
+				})
 				if err != nil {
-					return gogohttp.BadRequest("Bad Request", err)
+					return adminFormProcessError(err)
 				}
-				created, err := site.ModelStore.Create(ctx, modelAdmin.Model, cleaned)
-				if err != nil {
-					return gogohttp.BadRequest("Bad Request", err)
-				}
-				if err := logAdminObject(site, user, modelAdmin.Model, created, ActionFlagAddition, "Added"); err != nil {
-					return gogohttp.InternalServerError(err)
-				}
-				return adminSaveRedirect(site, modelAdmin, created, request.Raw())
+				return response
 			case mode == ChangeFormEdit:
 				object, exists, err := site.ModelStore.Get(ctx, modelAdmin.Model, objectID)
 				if err != nil {
@@ -294,18 +293,17 @@ func adminChangeFormView(site *Site, modelAdmin ModelAdmin, mode ChangeFormMode)
 					if !modelAdmin.HasChangePermission(request.Raw(), user) {
 						return gogohttp.Forbidden("Forbidden", nil)
 					}
-					cleaned, err := validateAdminModelForm(ctx, request.Raw(), modelAdmin, object, values)
+					response, err := AdminFormProcessor{Site: site, ModelAdmin: modelAdmin, Mode: ChangeFormEdit}.Process(ctx, AdminFormProcessInput{
+						Request:  request.Raw(),
+						User:     user,
+						ObjectID: objectID,
+						Existing: object,
+						Values:   values,
+					})
 					if err != nil {
-						return gogohttp.BadRequest("Bad Request", err)
+						return adminFormProcessError(err)
 					}
-					updated, err := site.ModelStore.Update(ctx, modelAdmin.Model, objectID, cleaned, true)
-					if err != nil {
-						return gogohttp.BadRequest("Bad Request", err)
-					}
-					if err := logAdminObject(site, user, modelAdmin.Model, updated, ActionFlagChange, "Changed"); err != nil {
-						return gogohttp.InternalServerError(err)
-					}
-					return adminSaveRedirect(site, modelAdmin, updated, request.Raw())
+					return response
 				}
 				values = object
 			}
@@ -502,6 +500,16 @@ func formValues(request *http.Request) map[string]any {
 		values[key] = request.PostFormValue(key)
 	}
 	return values
+}
+
+func adminFormProcessError(err error) gogohttp.Response {
+	if errors.Is(err, ErrAdminPermissionDenied) {
+		return gogohttp.Forbidden("Forbidden", err)
+	}
+	if errors.Is(err, forms.ErrValidation) {
+		return gogohttp.BadRequest("Bad Request", err)
+	}
+	return gogohttp.BadRequest("Bad Request", err)
 }
 
 func rowsForAdminChangeList(ctx context.Context, site *Site, modelAdmin ModelAdmin, request *http.Request) ([]map[string]any, error) {
