@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/cybersaksham/gogo/auth"
+	"github.com/cybersaksham/gogo/models"
 )
 
 func TestChangeFormBuildsAddAndEditMetadata(t *testing.T) {
@@ -157,7 +158,7 @@ func TestAuthUserChangeFormUsesDjangoUserAdminWidgets(t *testing.T) {
 		CSRFToken:  "token",
 		DeleteURL:  "/admin/auth/user/1/delete/",
 		HistoryURL: "/admin/auth/user/1/history/",
-		Form:       changeFormViewData(modelAdmin, form),
+		Form:       changeFormViewData(DefaultSite(), modelAdmin, form),
 	}, nil)
 	if err != nil {
 		t.Fatalf("RenderTemplate(change_form) error = %v", err)
@@ -185,5 +186,60 @@ func TestAuthUserChangeFormUsesDjangoUserAdminWidgets(t *testing.T) {
 	}
 	if strings.Contains(rendered, `name="password"`) {
 		t.Fatalf("password hash should not render as editable input:\n%s", rendered)
+	}
+}
+
+func TestChangeFormRelationWidgetsUseGenericMetadataTargets(t *testing.T) {
+	site, err := NewSite(SiteOptions{URLPrefix: "/manage"})
+	if err != nil {
+		t.Fatalf("NewSite() error = %v", err)
+	}
+	modelAdmin := ModelAdmin{
+		Model: models.Metadata{
+			AppLabel:  "blog",
+			ModelName: "Post",
+			Fields: []models.FieldMeta{
+				{Name: "category", RelationTarget: "catalog.Category"},
+				{Name: "tags", RelationTarget: "catalog.Tag"},
+			},
+		},
+		Fields:             []string{"category", "tags"},
+		AutocompleteFields: []string{"category"},
+		FilterHorizontal:   []string{"tags"},
+		Hooks: ModelAdminHooks{
+			HasAddPermission: func(*http.Request, auth.User) bool { return true },
+		},
+	}
+	user := auth.User{AbstractUser: auth.AbstractUser{AbstractBaseUser: auth.AbstractBaseUser{ID: 1, IsActive: true, Authenticated: true}}}
+	form, err := BuildChangeForm(modelAdmin, ChangeFormInput{
+		Mode:    ChangeFormAdd,
+		User:    user,
+		Request: httptest.NewRequest(http.MethodGet, "/manage/blog/post/add/", nil),
+	})
+	if err != nil {
+		t.Fatalf("BuildChangeForm() error = %v", err)
+	}
+
+	rendered, err := RenderTemplate("change_form.html", adminPageData{
+		CSRFToken: "token",
+		Form:      changeFormViewData(site, modelAdmin, form),
+	}, nil)
+	if err != nil {
+		t.Fatalf("RenderTemplate(change_form) error = %v", err)
+	}
+	for _, want := range []string{
+		`data-autocomplete-url="/manage/catalog/category/autocomplete/"`,
+		`data-model-ref="tag"`,
+		`href="/manage/catalog/tag/add/?_to_field=id&amp;_popup=1"`,
+		`title="Add another tag"`,
+	} {
+		if !strings.Contains(rendered, want) {
+			t.Fatalf("generic relation widget missing %q:\n%s", want, rendered)
+		}
+	}
+	for _, unwanted := range []string{"/admin/auth/group/add/", "/admin/auth/permission/add/"} {
+		if strings.Contains(rendered, unwanted) {
+			t.Fatalf("generic relation widget should not contain %q:\n%s", unwanted, rendered)
+		}
 	}
 }

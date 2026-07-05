@@ -326,7 +326,7 @@ func adminChangeFormView(site *Site, modelAdmin ModelAdmin, mode ChangeFormMode)
 		}
 		verboseName := modelVerboseName(modelAdmin)
 		data := modelAdminPageData(site, request.Raw(), modelAdmin, action+" "+verboseName, action+" "+verboseName, "change-form")
-		data.Form = changeFormViewData(modelAdmin, formContext)
+		data.Form = changeFormViewData(site, modelAdmin, formContext)
 		if objectID != "" {
 			data.DeleteURL = data.ChangeListURL + objectID + "/delete/"
 			data.HistoryURL = data.ChangeListURL + objectID + "/history/"
