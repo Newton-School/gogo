@@ -13,6 +13,7 @@ import (
 
 	"github.com/cybersaksham/gogo/auth"
 	gogohttp "github.com/cybersaksham/gogo/http"
+	"github.com/cybersaksham/gogo/messages"
 	"github.com/cybersaksham/gogo/models"
 )
 
@@ -236,6 +237,11 @@ func adminChangeListView(site *Site, modelAdmin ModelAdmin) gogohttp.View {
 		if !ok || !(modelAdmin.HasViewPermission(request.Raw(), user) || modelAdmin.HasChangePermission(request.Raw(), user)) {
 			return gogohttp.Forbidden("Forbidden", nil)
 		}
+		if request.Method() == http.MethodPost {
+			if response, handled := adminChangeListAction(ctx, site, modelAdmin, request.Raw(), user); handled {
+				return response
+			}
+		}
 		changeList, err := changeListForAdmin(ctx, site, modelAdmin, request.Raw())
 		if err != nil {
 			return gogohttp.BadRequest("Bad Request", err)
@@ -264,7 +270,11 @@ func adminChangeFormView(site *Site, modelAdmin ModelAdmin, mode ChangeFormMode)
 				if !modelAdmin.HasAddPermission(request.Raw(), user) {
 					return gogohttp.Forbidden("Forbidden", nil)
 				}
-				created, err := site.ModelStore.Create(ctx, modelAdmin.Model, values)
+				cleaned, err := validateAdminModelForm(ctx, request.Raw(), modelAdmin, nil, values)
+				if err != nil {
+					return gogohttp.BadRequest("Bad Request", err)
+				}
+				created, err := site.ModelStore.Create(ctx, modelAdmin.Model, cleaned)
 				if err != nil {
 					return gogohttp.BadRequest("Bad Request", err)
 				}
@@ -284,7 +294,11 @@ func adminChangeFormView(site *Site, modelAdmin ModelAdmin, mode ChangeFormMode)
 					if !modelAdmin.HasChangePermission(request.Raw(), user) {
 						return gogohttp.Forbidden("Forbidden", nil)
 					}
-					updated, err := site.ModelStore.Update(ctx, modelAdmin.Model, objectID, values, true)
+					cleaned, err := validateAdminModelForm(ctx, request.Raw(), modelAdmin, object, values)
+					if err != nil {
+						return gogohttp.BadRequest("Bad Request", err)
+					}
+					updated, err := site.ModelStore.Update(ctx, modelAdmin.Model, objectID, cleaned, true)
 					if err != nil {
 						return gogohttp.BadRequest("Bad Request", err)
 					}
@@ -488,6 +502,128 @@ func changeListForAdmin(ctx context.Context, site *Site, modelAdmin ModelAdmin, 
 		return ChangeList{}, err
 	}
 	return BuildChangeList(modelAdmin, rows, request.URL.Query())
+}
+
+func adminChangeListAction(ctx context.Context, site *Site, modelAdmin ModelAdmin, request *http.Request, user auth.User) (gogohttp.Response, bool) {
+	if err := request.ParseForm(); err != nil {
+		return gogohttp.BadRequest("Bad Request", err), true
+	}
+	actionName := request.PostFormValue("action")
+	if actionName == "" {
+		return gogohttp.Response{}, false
+	}
+	action, ok := findAdminAction(adminActionsForRequest(modelAdmin, request, user), actionName)
+	if !ok {
+		return gogohttp.BadRequest("Bad Request", fmt.Errorf("%w: unknown action %s", ErrInvalidChangeListQuery, actionName)), true
+	}
+	selectedIDs := request.PostForm["_selected_action"]
+	if len(selectedIDs) == 0 {
+		return gogohttp.BadRequest("Bad Request", fmt.Errorf("%w: no selected objects", ErrInvalidChangeListQuery)), true
+	}
+	selectedRows, err := selectedAdminActionRows(ctx, site, modelAdmin, request, selectedIDs)
+	if err != nil {
+		return gogohttp.InternalServerError(err), true
+	}
+	result, err := ExecuteAction(action, ActionContext{
+		User:      user,
+		Selected:  selectedRows,
+		Store:     modelObjectActionStore{ctx: ctx, store: adminSiteOrDefault(site).ModelStore, meta: modelAdmin.Model},
+		Confirmed: request.PostFormValue("post") == "yes",
+	})
+	if err != nil {
+		return gogohttp.Forbidden("Forbidden", err), true
+	}
+	if result.ConfirmationRequired {
+		return renderDeleteSelectedConfirmation(site, modelAdmin, request, selectedRows), true
+	}
+	if result.Message != "" {
+		messages.Add(request.Context(), messages.LevelSuccess, result.Message)
+		if err := logSelectedAdminAction(site, user, modelAdmin.Model, selectedRows, result.Message); err != nil {
+			return gogohttp.InternalServerError(err), true
+		}
+	}
+	return gogohttp.TemporaryRedirect(adminModelURL(adminSiteOrDefault(site), modelAdmin)), true
+}
+
+func findAdminAction(actions []Action, name string) (Action, bool) {
+	for _, action := range actions {
+		if action.Name == name {
+			return action, true
+		}
+	}
+	return Action{}, false
+}
+
+func selectedAdminActionRows(ctx context.Context, site *Site, modelAdmin ModelAdmin, request *http.Request, selectedIDs []string) ([]map[string]any, error) {
+	site = adminSiteOrDefault(site)
+	rows := make([]map[string]any, 0, len(selectedIDs))
+	if site.ModelStore != nil {
+		for _, objectID := range selectedIDs {
+			row, exists, err := site.ModelStore.Get(ctx, modelAdmin.Model, objectID)
+			if err != nil {
+				return nil, err
+			}
+			if exists {
+				rows = append(rows, row)
+			}
+		}
+		return rows, nil
+	}
+	allRows := rowsFromModelAdmin(modelAdmin, request)
+	selected := setFromSlice(selectedIDs)
+	for _, row := range allRows {
+		if _, ok := selected[objectIDFromRow(row)]; ok {
+			rows = append(rows, row)
+		}
+	}
+	return rows, nil
+}
+
+func renderDeleteSelectedConfirmation(site *Site, modelAdmin ModelAdmin, request *http.Request, selectedRows []map[string]any) gogohttp.Response {
+	data := modelAdminPageData(site, request, modelAdmin, "Are you sure?", "Are you sure?", "delete-confirmation")
+	objects := make([]DeletionObject, 0, len(selectedRows))
+	for _, row := range selectedRows {
+		objectID := objectIDFromRow(row)
+		objects = append(objects, DeletionObject{
+			Label:    data.ModelVerboseName,
+			ObjectID: objectID,
+			Repr:     rowDisplay(row, objectID),
+		})
+	}
+	data.Deletion = CollectDeletion(objects)
+	return renderAdminTemplate("delete_selected_confirmation.html", data)
+}
+
+type modelObjectActionStore struct {
+	ctx   context.Context
+	store ModelObjectStore
+	meta  models.Metadata
+}
+
+func (s modelObjectActionStore) DeleteObjects(rows []map[string]any) error {
+	if s.store == nil {
+		return nil
+	}
+	for _, row := range rows {
+		objectID := objectIDFromRow(row)
+		if objectID == "" {
+			return fmt.Errorf("%w: selected object is missing primary key", ErrInvalidChangeListQuery)
+		}
+		if err := s.store.Delete(s.ctx, s.meta, objectID); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func logSelectedAdminAction(site *Site, user auth.User, meta models.Metadata, selectedRows []map[string]any, message string) error {
+	for _, row := range selectedRows {
+		objectID := objectIDFromRow(row)
+		if err := logAdminRow(site, user, meta, objectID, rowDisplay(row, objectID), ActionFlagAction, message); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func adminObjectQuery(modelAdmin ModelAdmin, request *http.Request) (models.ObjectQuery, error) {

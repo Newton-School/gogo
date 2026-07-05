@@ -17,9 +17,11 @@ type DeletionObject struct {
 
 // DeletionSummary stores delete confirmation context.
 type DeletionSummary struct {
-	Objects   []string
-	Protected []string
-	Count     int
+	Objects            []string
+	Protected          []string
+	PermissionsMissing []string
+	SelectedIDs        []string
+	Count              int
 }
 
 // CollectDeletion walks objects and related objects for confirmation.
@@ -42,6 +44,9 @@ func ConfirmDeletion(summary DeletionSummary) error {
 func collectDeletionObject(object DeletionObject, summary *DeletionSummary) {
 	label := object.Label + ": " + object.Repr
 	summary.Objects = append(summary.Objects, label)
+	if object.ObjectID != "" {
+		summary.SelectedIDs = append(summary.SelectedIDs, object.ObjectID)
+	}
 	summary.Count++
 	if object.Protected {
 		summary.Protected = append(summary.Protected, label)

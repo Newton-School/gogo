@@ -162,7 +162,7 @@ func (mf *ModelForm) assignCleanedData() error {
 }
 
 func buildModelFormField(name string, metaField models.FieldMeta, modelField modelfields.Field, initial any, options ModelFormOptions, readonly, localized bool) *Field {
-	fieldOptions := modelFormFieldOptions(name, modelField, initial, options, readonly, localized)
+	fieldOptions := modelFormFieldOptions(name, metaField, modelField, initial, options, readonly, localized)
 	if factory := options.FieldClasses[name]; factory != nil {
 		return factory(modelField, fieldOptions)
 	}
@@ -215,9 +215,9 @@ func buildModelFormField(name string, metaField models.FieldMeta, modelField mod
 	}
 }
 
-func modelFormFieldOptions(name string, modelField modelfields.Field, initial any, options ModelFormOptions, readonly, localized bool) FieldOptions {
+func modelFormFieldOptions(name string, metaField models.FieldMeta, modelField modelfields.Field, initial any, options ModelFormOptions, readonly, localized bool) FieldOptions {
 	fieldOptions := FieldOptions{
-		Required: !modelFieldAllowsBlank(modelField),
+		Required: modelFormFieldRequired(metaField, modelField),
 		Label:    modelFormLabel(name, modelField, options.Labels),
 		Initial:  initial,
 		HelpText: modelFormHelpText(name, modelField, options.HelpTexts),
@@ -282,7 +282,21 @@ func modelFieldKind(metaField models.FieldMeta, modelField modelfields.Field) st
 	if metaField.RelationTarget != "" {
 		return "foreign_key"
 	}
+	if metaField.Kind != "" {
+		return strings.ToLower(metaField.Kind)
+	}
 	return "char"
+}
+
+func modelFormFieldRequired(metaField models.FieldMeta, modelField modelfields.Field) bool {
+	if modelField != nil {
+		return !modelFieldAllowsBlank(modelField)
+	}
+	if metaField.PrimaryKey || metaField.Null {
+		return false
+	}
+	defaultValue, err := models.NormalizeDatabaseDefault(metaField.DBDefault)
+	return err != nil || defaultValue.Kind == models.DefaultNone
 }
 
 func modelFormChoices(modelField modelfields.Field) []Choice {

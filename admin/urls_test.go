@@ -441,6 +441,99 @@ func TestAdminChangeListUsesQueryCapableModelStore(t *testing.T) {
 	}
 }
 
+func TestAdminChangeFormValidatesMetadataFieldKinds(t *testing.T) {
+	meta := models.Metadata{
+		AppLabel:    "blog",
+		ModelName:   "Post",
+		TableName:   "blog_post",
+		Fields:      []models.FieldMeta{{Name: "id", Column: "id", PrimaryKey: true}, {Name: "title", Column: "title", Kind: "text"}, {Name: "rank", Column: "rank", Kind: "integer"}},
+		VerboseName: "post",
+	}
+	database, err := orm.OpenDatabase(t.Context(), orm.DatabaseConfig{Name: orm.DefaultDatabase, Driver: "sqlite", DSN: t.TempDir() + "/admin-validation.sqlite3", Dialect: sqlitedialect.New()})
+	if err != nil {
+		t.Fatalf("OpenDatabase() error = %v", err)
+	}
+	defer database.Close()
+	if _, err := database.SQLDB().ExecContext(t.Context(), `CREATE TABLE blog_post (id bigint PRIMARY KEY, title text NOT NULL, rank integer NOT NULL)`); err != nil {
+		t.Fatalf("create table: %v", err)
+	}
+
+	site := DefaultSite()
+	site.ModelStore = orm.NewMetadataStore(database, meta)
+	if err := site.ModelRegistry.RegisterMetadata(meta, ModelAdmin{Fields: []string{"title", "rank"}}); err != nil {
+		t.Fatalf("RegisterMetadata() error = %v", err)
+	}
+	router, err := site.URLs()
+	if err != nil {
+		t.Fatalf("URLs() error = %v", err)
+	}
+
+	invalid := httptest.NewRecorder()
+	router.ServeHTTP(invalid, staffAdminFormRequest("/admin/blog/post/add/", "title=Bad&rank=not-a-number&_save=Save"))
+	if invalid.Code != http.StatusBadRequest {
+		t.Fatalf("invalid add response = %d body=%s", invalid.Code, invalid.Body.String())
+	}
+	list, err := site.ModelStore.List(t.Context(), meta)
+	if err != nil {
+		t.Fatalf("List() error = %v", err)
+	}
+	if len(list) != 0 {
+		t.Fatalf("invalid form should not create rows: %#v", list)
+	}
+}
+
+func TestAdminChangeListExecutesCustomActions(t *testing.T) {
+	meta := models.Metadata{
+		AppLabel:    "blog",
+		ModelName:   "Post",
+		TableName:   "blog_post",
+		Fields:      []models.FieldMeta{{Name: "id", Column: "id", PrimaryKey: true}, {Name: "title", Column: "title"}},
+		VerboseName: "post",
+	}
+	database, err := orm.OpenDatabase(t.Context(), orm.DatabaseConfig{Name: orm.DefaultDatabase, Driver: "sqlite", DSN: t.TempDir() + "/admin-actions.sqlite3", Dialect: sqlitedialect.New()})
+	if err != nil {
+		t.Fatalf("OpenDatabase() error = %v", err)
+	}
+	defer database.Close()
+	if _, err := database.SQLDB().ExecContext(t.Context(), `CREATE TABLE blog_post (id bigint PRIMARY KEY, title text NOT NULL)`); err != nil {
+		t.Fatalf("create table: %v", err)
+	}
+	store := orm.NewMetadataStore(database, meta)
+	if _, err := store.Create(t.Context(), meta, map[string]any{"title": "Action target"}); err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+
+	var selected []map[string]any
+	site := DefaultSite()
+	site.ModelStore = store
+	if err := site.ModelRegistry.RegisterMetadata(meta, ModelAdmin{
+		ListDisplay: []string{"title"},
+		ActionDefinitions: []Action{{
+			Name:  "mark_reviewed",
+			Label: "Mark reviewed",
+			Handler: func(ctx ActionContext) (ActionResult, error) {
+				selected = append([]map[string]any(nil), ctx.Selected...)
+				return ActionResult{Message: "Marked reviewed"}, nil
+			},
+		}},
+	}); err != nil {
+		t.Fatalf("RegisterMetadata() error = %v", err)
+	}
+	router, err := site.URLs()
+	if err != nil {
+		t.Fatalf("URLs() error = %v", err)
+	}
+
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, staffAdminFormRequest("/admin/blog/post/", "action=mark_reviewed&_selected_action=1&index=0"))
+	if response.Code != http.StatusFound || response.Header().Get("Location") != "/admin/blog/post/" {
+		t.Fatalf("action response = %d location=%q body=%s", response.Code, response.Header().Get("Location"), response.Body.String())
+	}
+	if len(selected) != 1 || selected[0]["title"] != "Action target" {
+		t.Fatalf("selected rows = %#v", selected)
+	}
+}
+
 func TestAdminModelPostRejectsMissingCSRF(t *testing.T) {
 	meta := models.Metadata{
 		AppLabel:  "blog",
