@@ -76,7 +76,7 @@ func NewModelForm(options ModelFormOptions) *ModelForm {
 	formFields := make(map[string]*Field, len(fieldNames))
 	for _, name := range fieldNames {
 		if _, ok := initial[name]; !ok {
-			if value, ok := modelInitialValue(options.Model, name, modelFieldByName[name]); ok {
+			if value, ok := modelInitialValue(options.Model, name, metaFieldByName[name], modelFieldByName[name]); ok {
 				initial[name] = value
 			}
 		}
@@ -167,7 +167,7 @@ func buildModelFormField(name string, metaField models.FieldMeta, modelField mod
 		return factory(modelField, fieldOptions)
 	}
 
-	choices := modelFormChoices(modelField)
+	choices := modelFormChoices(metaField, modelField)
 	if len(choices) > 0 {
 		return ChoiceField(fieldOptions, choices)
 	}
@@ -218,10 +218,10 @@ func buildModelFormField(name string, metaField models.FieldMeta, modelField mod
 func modelFormFieldOptions(name string, metaField models.FieldMeta, modelField modelfields.Field, initial any, options ModelFormOptions, readonly, localized bool) FieldOptions {
 	fieldOptions := FieldOptions{
 		Required: modelFormFieldRequired(metaField, modelField),
-		Label:    modelFormLabel(name, modelField, options.Labels),
+		Label:    modelFormLabel(name, metaField, modelField, options.Labels),
 		Initial:  initial,
-		HelpText: modelFormHelpText(name, modelField, options.HelpTexts),
-		Disabled: readonly || !modelFieldEditable(modelField),
+		HelpText: modelFormHelpText(name, metaField, modelField, options.HelpTexts),
+		Disabled: readonly || !modelFormFieldEditable(metaField, modelField),
 		Localize: localized,
 	}
 	if modelField != nil {
@@ -259,13 +259,15 @@ func selectModelFormFields(metaFields []models.FieldMeta, modelFieldOrder []stri
 
 	selected := make([]string, 0, len(base))
 	seen := map[string]bool{}
+	metaFieldByName := metadataFieldMap(metaFields)
 	for _, name := range base {
 		if name == "" || seen[name] || excludeSet[name] {
 			continue
 		}
 		modelField := modelFieldByName[name]
+		metaField := metaFieldByName[name]
 		if len(includeSet) == 0 {
-			if modelFieldPrimaryKey(modelField) || !modelFieldEditable(modelField) {
+			if metaField.PrimaryKey || !metadataFieldEditable(metaField) || modelFieldPrimaryKey(modelField) || !modelFieldEditable(modelField) {
 				continue
 			}
 		}
@@ -280,6 +282,9 @@ func modelFieldKind(metaField models.FieldMeta, modelField modelfields.Field) st
 		return modelField.Kind()
 	}
 	if metaField.RelationTarget != "" {
+		if metaField.RelationType != "" {
+			return strings.ToLower(metaField.RelationType)
+		}
 		return "foreign_key"
 	}
 	if metaField.Kind != "" {
@@ -292,23 +297,40 @@ func modelFormFieldRequired(metaField models.FieldMeta, modelField modelfields.F
 	if modelField != nil {
 		return !modelFieldAllowsBlank(modelField)
 	}
-	if metaField.PrimaryKey || metaField.Null {
+	if metaField.PrimaryKey || metaField.Null || metaField.Blank {
+		return false
+	}
+	if metaField.Default != nil {
 		return false
 	}
 	defaultValue, err := models.NormalizeDatabaseDefault(metaField.DBDefault)
 	return err != nil || defaultValue.Kind == models.DefaultNone
 }
 
-func modelFormChoices(modelField modelfields.Field) []Choice {
+func modelFormChoices(metaField models.FieldMeta, modelField modelfields.Field) []Choice {
 	if modelField == nil {
-		return nil
+		return modelFormMetadataChoices(metaField.Choices)
 	}
 	modelOptions := modelField.Options()
 	choices := make([]Choice, len(modelOptions.Choices))
 	for i, choice := range modelOptions.Choices {
 		choices[i] = Choice{Value: choice.Value, Label: choice.Label}
 	}
-	return choices
+	if len(choices) > 0 {
+		return choices
+	}
+	return modelFormMetadataChoices(metaField.Choices)
+}
+
+func modelFormMetadataChoices(choices []models.FieldChoiceMeta) []Choice {
+	if len(choices) == 0 {
+		return nil
+	}
+	copied := make([]Choice, len(choices))
+	for i, choice := range choices {
+		copied[i] = Choice{Value: choice.Value, Label: choice.Label}
+	}
+	return copied
 }
 
 func modelFieldAllowsBlank(modelField modelfields.Field) bool {
@@ -330,6 +352,17 @@ func modelFieldEditable(modelField modelfields.Field) bool {
 	return *options.Editable
 }
 
+func modelFormFieldEditable(metaField models.FieldMeta, modelField modelfields.Field) bool {
+	return metadataFieldEditable(metaField) && modelFieldEditable(modelField)
+}
+
+func metadataFieldEditable(metaField models.FieldMeta) bool {
+	if metaField.Editable == nil {
+		return true
+	}
+	return *metaField.Editable
+}
+
 func modelFieldPrimaryKey(modelField modelfields.Field) bool {
 	if modelField == nil {
 		return false
@@ -337,7 +370,7 @@ func modelFieldPrimaryKey(modelField modelfields.Field) bool {
 	return modelField.Options().PrimaryKey
 }
 
-func modelFormLabel(name string, modelField modelfields.Field, overrides map[string]string) string {
+func modelFormLabel(name string, metaField models.FieldMeta, modelField modelfields.Field, overrides map[string]string) string {
 	if label := overrides[name]; label != "" {
 		return label
 	}
@@ -346,20 +379,23 @@ func modelFormLabel(name string, modelField modelfields.Field, overrides map[str
 			return label
 		}
 	}
+	if metaField.VerboseName != "" {
+		return metaField.VerboseName
+	}
 	return strings.ReplaceAll(name, "_", " ")
 }
 
-func modelFormHelpText(name string, modelField modelfields.Field, overrides map[string]string) string {
+func modelFormHelpText(name string, metaField models.FieldMeta, modelField modelfields.Field, overrides map[string]string) string {
 	if help := overrides[name]; help != "" {
 		return help
 	}
 	if modelField != nil {
 		return modelField.Options().HelpText
 	}
-	return ""
+	return metaField.HelpText
 }
 
-func modelInitialValue(model models.Model, name string, modelField modelfields.Field) (any, bool) {
+func modelInitialValue(model models.Model, name string, metaField models.FieldMeta, modelField modelfields.Field) (any, bool) {
 	if model != nil {
 		if value, ok := models.SerializableValue(model, name); ok {
 			return value, true
@@ -377,6 +413,9 @@ func modelInitialValue(model models.Model, name string, modelField modelfields.F
 		if value := modelField.Options().Default; value != nil {
 			return value, true
 		}
+	}
+	if metaField.Default != nil {
+		return metaField.Default, true
 	}
 	return nil, false
 }

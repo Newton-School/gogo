@@ -88,6 +88,32 @@ func TestAdminChecksAcceptValidModelAdminOptions(t *testing.T) {
 	}
 }
 
+func TestAdminChecksReportUnsupportedMetadataWidgets(t *testing.T) {
+	site := DefaultSite()
+	if err := site.ModelRegistry.RegisterMetadata(models.Metadata{
+		AppLabel:  "blog",
+		ModelName: "Post",
+		TableName: "blog_post",
+		Fields: []models.FieldMeta{
+			{Name: "title", Column: "title"},
+			{Name: "author", Column: "author_id", RelationTarget: "auth.User", RelationType: "foreign_key"},
+			{Name: "status", Column: "status"},
+		},
+	}, ModelAdmin{
+		AutocompleteFields: []string{"title"},
+		FilterHorizontal:   []string{"author"},
+		RadioFields:        map[string]string{"status": "horizontal"},
+	}); err != nil {
+		t.Fatalf("RegisterMetadata() error = %v", err)
+	}
+
+	results := CheckSite(site)
+	ids := checkResultIDs(results)
+	if !hasCheckID(ids, "admin.E003") {
+		t.Fatalf("admin check IDs = %#v, want admin.E003; results=%#v", ids, results)
+	}
+}
+
 func checkResultIDs(results []checks.Result) []string {
 	ids := make([]string, len(results))
 	for i, result := range results {

@@ -243,3 +243,56 @@ func TestChangeFormRelationWidgetsUseGenericMetadataTargets(t *testing.T) {
 		}
 	}
 }
+
+func TestChangeFormUsesFieldMetadataForWidgetsAndLabels(t *testing.T) {
+	meta := models.Metadata{
+		AppLabel:  "blog",
+		ModelName: "Post",
+		Fields: []models.FieldMeta{
+			{Name: "title", Kind: "text", VerboseName: "headline", HelpText: "Shown on listing"},
+			{Name: "published", Kind: "boolean"},
+			{Name: "status", Choices: []models.FieldChoiceMeta{{Value: "draft", Label: "Draft"}, {Value: "live", Label: "Live"}}},
+			{Name: "starts_at", Kind: "datetime"},
+			{Name: "attachment", Kind: "file"},
+		},
+	}
+	modelAdmin := ModelAdmin{
+		Model:  meta,
+		Fields: []string{"title", "published", "status", "starts_at", "attachment"},
+		Hooks:  ModelAdminHooks{HasAddPermission: func(*http.Request, auth.User) bool { return true }},
+	}
+	user := auth.User{AbstractUser: auth.AbstractUser{AbstractBaseUser: auth.AbstractBaseUser{ID: 1, IsActive: true, Authenticated: true}}}
+	form, err := BuildChangeForm(modelAdmin, ChangeFormInput{
+		Mode:    ChangeFormAdd,
+		User:    user,
+		Request: httptest.NewRequest(http.MethodGet, "/admin/blog/post/add/", nil),
+		Values:  map[string]any{"status": "live"},
+	})
+	if err != nil {
+		t.Fatalf("BuildChangeForm() error = %v", err)
+	}
+	if form.Fields["published"].Widget != WidgetCheckbox || form.Fields["status"].Widget != WidgetSelect || form.Fields["starts_at"].Widget != WidgetDateTime || form.Fields["attachment"].Widget != WidgetFile {
+		t.Fatalf("metadata widgets = %#v", form.Fields)
+	}
+
+	rendered, err := RenderTemplate("change_form.html", adminPageData{
+		CSRFToken: "token",
+		Form:      changeFormViewData(DefaultSite(), modelAdmin, form),
+	}, nil)
+	if err != nil {
+		t.Fatalf("RenderTemplate(change_form) error = %v", err)
+	}
+	for _, want := range []string{
+		`<label class="required" for="id_title">headline:</label>`,
+		`<div class="help" id="id_title_helptext"><div>Shown on listing</div></div>`,
+		`<input type="checkbox" name="published"`,
+		`<select name="status"`,
+		`<option value="live" selected>Live</option>`,
+		`name="starts_at_0"`,
+		`<input type="file" name="attachment"`,
+	} {
+		if !strings.Contains(rendered, want) {
+			t.Fatalf("metadata change form missing %q:\n%s", want, rendered)
+		}
+	}
+}

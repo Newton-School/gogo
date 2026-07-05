@@ -327,8 +327,9 @@ func renderAdminFormWidget(site *Site, modelAdmin ModelAdmin, field ChangeFormFi
 		}
 	}
 	config := WidgetConfig{
-		Name:  field.Name,
-		Value: value,
+		Name:    field.Name,
+		Value:   value,
+		Choices: append([]WidgetChoice(nil), field.Choices...),
 		Attrs: map[string]string{
 			"id":    "id_" + field.Name,
 			"class": "vTextField",
@@ -343,10 +344,24 @@ func renderAdminFormWidget(site *Site, modelAdmin ModelAdmin, field ChangeFormFi
 	case WidgetCheckbox:
 		config.Attrs = map[string]string{"id": "id_" + field.Name}
 		return Checkbox(config)
+	case WidgetTextarea:
+		return Textarea(config)
+	case WidgetNumber:
+		config.Attrs["class"] = "vIntegerField"
+		return NumberInput(config)
+	case WidgetSelect:
+		return Select(config)
+	case WidgetDate:
+		return DateInput(config)
+	case WidgetTime:
+		return TimeInput(config)
 	case WidgetDateTime:
 		return DateTimeInput(config)
 	case WidgetEmail:
 		return EmailInput(config)
+	case WidgetFile:
+		config.Attrs = map[string]string{"id": "id_" + field.Name}
+		return ClearableFileInput(config)
 	case WidgetRawID:
 		config.Attrs["class"] = "vForeignKeyRawIdAdminField"
 		return RawIDRelationWidget(config)
@@ -387,6 +402,9 @@ func renderAdminFormWidget(site *Site, modelAdmin ModelAdmin, field ChangeFormFi
 }
 
 func adminFieldLabel(modelAdmin ModelAdmin, field ChangeFormField) string {
+	if field.Label != "" {
+		return field.Label
+	}
 	if modelAdmin.Model.Label() == "auth.User" {
 		switch field.Name {
 		case "username":
@@ -422,10 +440,19 @@ func adminFieldRequired(modelAdmin ModelAdmin, field ChangeFormField) bool {
 	if modelAdmin.Model.Label() == "auth.User" {
 		return field.Name == "username"
 	}
+	if field.Readonly || field.Widget == WidgetPasswordHash {
+		return false
+	}
+	if field.Required {
+		return true
+	}
 	return false
 }
 
 func adminFieldHelpText(modelAdmin ModelAdmin, field ChangeFormField) string {
+	if field.HelpText != "" {
+		return field.HelpText
+	}
 	if modelAdmin.Model.Label() == "auth.User" {
 		switch field.Name {
 		case "username":

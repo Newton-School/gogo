@@ -179,23 +179,43 @@ func TestModelFormValidatesUniquenessHook(t *testing.T) {
 }
 
 func TestModelFormFallsBackToLightweightMetadata(t *testing.T) {
+	editable := false
 	form := NewModelForm(ModelFormOptions{
 		Meta: models.Metadata{
 			AppLabel:  "blog",
 			ModelName: "Comment",
 			Fields: []models.FieldMeta{
-				{Name: "body"},
+				{Name: "body", Kind: "text", Blank: true, VerboseName: "comment body", HelpText: "Shown publicly"},
+				{Name: "status", Choices: []models.FieldChoiceMeta{{Value: "draft", Label: "Draft"}, {Value: "live", Label: "Live"}}, Default: "draft"},
+				{Name: "hidden_note", Editable: &editable},
 				{Name: "author_id", RelationTarget: "auth.User"},
 			},
 		},
-		Data: map[string]any{"body": "Nice", "author_id": "1"},
+		Data: map[string]any{"body": "", "status": "live", "hidden_note": "ignored", "author_id": "1"},
 	})
 
-	if got := form.FieldNames(); !reflect.DeepEqual(got, []string{"body", "author_id"}) {
+	if got := form.FieldNames(); !reflect.DeepEqual(got, []string{"body", "status", "author_id"}) {
 		t.Fatalf("FieldNames() = %#v", got)
+	}
+	body := form.BoundField("body").Field
+	if body.Kind != "char" || body.Options.Required || body.Options.Label != "comment body" || body.Options.HelpText != "Shown publicly" {
+		t.Fatalf("body fallback field = %#v", body)
+	}
+	status := form.BoundField("status").Field
+	if status.Kind != "choice" || status.Options.Initial != "draft" || len(status.Choices) != 2 || status.Choices[1].Label != "Live" {
+		t.Fatalf("status fallback field = %#v", status)
+	}
+	if form.BoundField("hidden_note").Field != nil {
+		t.Fatalf("non-editable metadata field should be skipped")
 	}
 	if form.BoundField("author_id").Field.Kind != "model_choice" {
 		t.Fatalf("author_id fallback kind = %q", form.BoundField("author_id").Field.Kind)
+	}
+	if !form.IsValid() {
+		t.Fatalf("metadata-only form should validate; errors=%#v", form.Errors())
+	}
+	if form.CleanedData["status"] != "live" {
+		t.Fatalf("status cleaned value = %#v", form.CleanedData["status"])
 	}
 }
 

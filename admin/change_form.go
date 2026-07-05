@@ -2,8 +2,10 @@ package admin
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/cybersaksham/gogo/auth"
@@ -23,6 +25,12 @@ type WidgetKind string
 
 const (
 	WidgetText                   WidgetKind = "text"
+	WidgetTextarea               WidgetKind = "textarea"
+	WidgetNumber                 WidgetKind = "number"
+	WidgetSelect                 WidgetKind = "select"
+	WidgetDate                   WidgetKind = "date"
+	WidgetTime                   WidgetKind = "time"
+	WidgetFile                   WidgetKind = "file"
 	WidgetReadonly               WidgetKind = "readonly"
 	WidgetCheckbox               WidgetKind = "checkbox"
 	WidgetDateTime               WidgetKind = "datetime"
@@ -91,6 +99,11 @@ type ChangeFormField struct {
 	Widget   WidgetKind
 	Readonly bool
 	Value    any
+	Label    string
+	HelpText string
+	Required bool
+	Choices  []WidgetChoice
+	Meta     models.FieldMeta
 }
 
 // BuildChangeForm builds add/edit form metadata with permission checks.
@@ -148,6 +161,9 @@ func editableModelFields(meta models.Metadata, exclude []string) []string {
 		if field.PrimaryKey || field.Name == "" {
 			continue
 		}
+		if field.Editable != nil && !*field.Editable {
+			continue
+		}
 		if hasKey(excluded, field.Name) {
 			continue
 		}
@@ -165,19 +181,43 @@ func buildChangeFormFields(admin ModelAdmin, fields []string, values map[string]
 	autocomplete := setFromSlice(admin.AutocompleteFields)
 	radio := setFromSlice(keys(admin.RadioFields))
 	filtered := setFromSlice(append(append([]string(nil), admin.FilterHorizontal...), admin.FilterVertical...))
+	metaFields := adminFieldMetaMap(admin.Model)
 	result := make(map[string]ChangeFormField, len(fields)+len(readonly))
 	for _, field := range fields {
-		result[field] = ChangeFormField{Name: field, Widget: widgetForField(admin.Model.Label(), field, values[field], readonly, rawID, autocomplete, radio, filtered), Readonly: hasKey(readonly, field), Value: values[field]}
+		metaField := metaFields[field]
+		isReadonly := hasKey(readonly, field)
+		result[field] = ChangeFormField{
+			Name:     field,
+			Widget:   widgetForField(admin.Model.Label(), metaField, field, values[field], readonly, rawID, autocomplete, radio, filtered),
+			Readonly: isReadonly,
+			Value:    values[field],
+			Label:    adminMetadataLabel(metaField),
+			HelpText: metaField.HelpText,
+			Required: adminMetadataRequired(metaField),
+			Choices:  adminWidgetChoices(metaField.Choices),
+			Meta:     metaField,
+		}
 	}
 	for field := range readonly {
 		if _, ok := result[field]; !ok {
-			result[field] = ChangeFormField{Name: field, Widget: WidgetReadonly, Readonly: true, Value: values[field]}
+			metaField := metaFields[field]
+			result[field] = ChangeFormField{
+				Name:     field,
+				Widget:   WidgetReadonly,
+				Readonly: true,
+				Value:    values[field],
+				Label:    adminMetadataLabel(metaField),
+				HelpText: metaField.HelpText,
+				Required: false,
+				Choices:  adminWidgetChoices(metaField.Choices),
+				Meta:     metaField,
+			}
 		}
 	}
 	return result
 }
 
-func widgetForField(modelLabel, field string, value any, readonly, rawID, autocomplete, radio, filtered map[string]struct{}) WidgetKind {
+func widgetForField(modelLabel string, metaField models.FieldMeta, field string, value any, readonly, rawID, autocomplete, radio, filtered map[string]struct{}) WidgetKind {
 	switch {
 	case hasKey(readonly, field):
 		return WidgetReadonly
@@ -191,6 +231,22 @@ func widgetForField(modelLabel, field string, value any, readonly, rawID, autoco
 		return WidgetRadio
 	case hasKey(filtered, field):
 		return WidgetFilteredSelectMultiple
+	case len(metaField.Choices) > 0:
+		return WidgetSelect
+	case metadataKind(metaField) == "boolean":
+		return WidgetCheckbox
+	case metadataKind(metaField) == "datetime":
+		return WidgetDateTime
+	case metadataKind(metaField) == "date":
+		return WidgetDate
+	case metadataKind(metaField) == "time":
+		return WidgetTime
+	case metadataKind(metaField) == "email":
+		return WidgetEmail
+	case metadataKind(metaField) == "file" || metadataKind(metaField) == "image" || metadataKind(metaField) == "filepath":
+		return WidgetFile
+	case metadataKind(metaField) == "integer" || metadataKind(metaField) == "big_integer" || metadataKind(metaField) == "small_integer" || metadataKind(metaField) == "positive_integer" || metadataKind(metaField) == "positive_big_integer" || metadataKind(metaField) == "positive_small_integer" || metadataKind(metaField) == "float" || metadataKind(metaField) == "decimal":
+		return WidgetNumber
 	case isBooleanAdminField(field, value):
 		return WidgetCheckbox
 	case isDateTimeAdminField(field, value):
@@ -200,6 +256,44 @@ func widgetForField(modelLabel, field string, value any, readonly, rawID, autoco
 	default:
 		return WidgetText
 	}
+}
+
+func adminFieldMetaMap(meta models.Metadata) map[string]models.FieldMeta {
+	fields := make(map[string]models.FieldMeta, len(meta.Fields))
+	for _, field := range meta.Fields {
+		fields[field.Name] = field
+	}
+	return fields
+}
+
+func metadataKind(field models.FieldMeta) string {
+	if field.RelationType != "" {
+		return strings.ToLower(field.RelationType)
+	}
+	return strings.ToLower(field.Kind)
+}
+
+func adminMetadataLabel(field models.FieldMeta) string {
+	return strings.TrimSpace(field.VerboseName)
+}
+
+func adminMetadataRequired(field models.FieldMeta) bool {
+	if field.Name == "" || field.PrimaryKey || field.Null || field.Blank || field.Default != nil {
+		return false
+	}
+	defaultValue, err := models.NormalizeDatabaseDefault(field.DBDefault)
+	return err != nil || defaultValue.Kind == models.DefaultNone
+}
+
+func adminWidgetChoices(choices []models.FieldChoiceMeta) []WidgetChoice {
+	if len(choices) == 0 {
+		return nil
+	}
+	copied := make([]WidgetChoice, len(choices))
+	for i, choice := range choices {
+		copied[i] = WidgetChoice{Value: fmt.Sprint(choice.Value), Label: choice.Label}
+	}
+	return copied
 }
 
 func isBooleanAdminField(field string, value any) bool {

@@ -27,6 +27,7 @@ func CheckSite(site *Site) []checks.Result {
 			results = append(results, adminCheckResult("admin.E001", err.Error(), "Fix the invalid ModelAdmin option combination.", meta.Label()))
 		}
 		results = append(results, checkAdminReferencedFields(meta, modelAdmin)...)
+		results = append(results, checkAdminUnsupportedWidgets(meta, modelAdmin)...)
 	}
 	sort.Slice(results, func(i, j int) bool {
 		if results[i].ID == results[j].ID {
@@ -34,6 +35,39 @@ func CheckSite(site *Site) []checks.Result {
 		}
 		return results[i].ID < results[j].ID
 	})
+	return results
+}
+
+func checkAdminUnsupportedWidgets(meta models.Metadata, modelAdmin ModelAdmin) []checks.Result {
+	fields := adminFieldMetaMap(meta)
+	var results []checks.Result
+	for _, fieldName := range modelAdmin.RawIDFields {
+		field, ok := fields[fieldName]
+		if ok && strings.TrimSpace(field.RelationTarget) == "" {
+			results = append(results, adminCheckResult("admin.E003", fmt.Sprintf("raw_id_fields references non-relation field %s", fieldName), "Use raw_id_fields only with relationship metadata.", meta.Label()+".raw_id_fields"))
+		}
+	}
+	for _, fieldName := range modelAdmin.AutocompleteFields {
+		field, ok := fields[fieldName]
+		if ok && strings.TrimSpace(field.RelationTarget) == "" {
+			results = append(results, adminCheckResult("admin.E003", fmt.Sprintf("autocomplete_fields references non-relation field %s", fieldName), "Use autocomplete_fields only with relationship metadata.", meta.Label()+".autocomplete_fields"))
+		}
+	}
+	for _, fieldName := range append(append([]string(nil), modelAdmin.FilterHorizontal...), modelAdmin.FilterVertical...) {
+		field, ok := fields[fieldName]
+		if !ok || field.RelationType == "" {
+			continue
+		}
+		if !strings.EqualFold(field.RelationType, "many_to_many") {
+			results = append(results, adminCheckResult("admin.E003", fmt.Sprintf("filter_horizontal/filter_vertical references non-many-to-many field %s", fieldName), "Use filtered select widgets only with many-to-many relationship metadata.", meta.Label()+".filter_horizontal"))
+		}
+	}
+	for fieldName := range modelAdmin.RadioFields {
+		field, ok := fields[fieldName]
+		if ok && len(field.Choices) == 0 && strings.TrimSpace(field.RelationTarget) == "" {
+			results = append(results, adminCheckResult("admin.E003", fmt.Sprintf("radio_fields references field %s without choices or relation metadata", fieldName), "Use radio_fields only with choice or relationship fields.", meta.Label()+".radio_fields"))
+		}
+	}
 	return results
 }
 

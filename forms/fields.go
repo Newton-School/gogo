@@ -268,6 +268,9 @@ func (f *Field) cleanValue(value any) (any, error) {
 
 func (f *Field) cleanChoice(value any) (any, error) {
 	text := fmt.Sprint(value)
+	if len(f.Choices) == 0 && f.Kind == "model_choice" {
+		return text, nil
+	}
 	for _, choice := range f.Choices {
 		if fmt.Sprint(choice.Value) == text {
 			return choice.Value, nil
@@ -291,6 +294,9 @@ func (f *Field) cleanMultipleChoice(value any) ([]string, error) {
 	values, err := toStringSlice(value)
 	if err != nil {
 		return nil, f.validationError("invalid", "Enter a list of values.")
+	}
+	if len(f.Choices) == 0 && f.Kind == "model_multiple_choice" {
+		return values, nil
 	}
 	for _, value := range values {
 		if _, err := f.cleanChoice(value); err != nil {
