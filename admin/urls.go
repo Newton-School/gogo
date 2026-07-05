@@ -493,6 +493,48 @@ func formValues(request *http.Request) map[string]any {
 	if request.Method != http.MethodPost {
 		return values
 	}
+	contentType, _, _ := mime.ParseMediaType(request.Header.Get("Content-Type"))
+	if contentType == "multipart/form-data" {
+		if err := request.ParseMultipartForm(32 << 20); err != nil {
+			return values
+		}
+		if request.MultipartForm == nil {
+			return values
+		}
+		for key, raw := range request.MultipartForm.Value {
+			if len(raw) == 1 {
+				values[key] = raw[0]
+			} else if len(raw) > 1 {
+				values[key] = append([]string(nil), raw...)
+			}
+		}
+		for key, headers := range request.MultipartForm.File {
+			files := make([]forms.UploadedFile, 0, len(headers))
+			for _, header := range headers {
+				file, err := header.Open()
+				if err != nil {
+					continue
+				}
+				content, err := io.ReadAll(file)
+				_ = file.Close()
+				if err != nil {
+					continue
+				}
+				files = append(files, forms.UploadedFile{
+					Name:        header.Filename,
+					Size:        header.Size,
+					ContentType: header.Header.Get("Content-Type"),
+					Content:     content,
+				})
+			}
+			if len(files) == 1 {
+				values[key] = files[0]
+			} else if len(files) > 1 {
+				values[key] = files
+			}
+		}
+		return values
+	}
 	if err := request.ParseForm(); err != nil {
 		return values
 	}

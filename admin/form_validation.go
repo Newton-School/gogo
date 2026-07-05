@@ -39,6 +39,7 @@ func (m *adminRowModel) SetModelValue(name string, value any) error {
 
 func validateAdminModelForm(ctx context.Context, request *http.Request, modelAdmin ModelAdmin, existing map[string]any, data map[string]any) (map[string]any, error) {
 	initial := cloneRow(existing)
+	data = prepareAdminFormData(modelAdmin.Model, initial, data)
 	row := &adminRowModel{meta: modelAdmin.Model, values: cloneRow(initial)}
 	form := forms.NewModelForm(forms.ModelFormOptions{
 		Model:   row,
@@ -58,7 +59,39 @@ func validateAdminModelForm(ctx context.Context, request *http.Request, modelAdm
 			cleaned[name] = value
 		}
 	}
+	applyAdminFileClears(modelAdmin.Model, data, cleaned)
 	return cleaned, nil
+}
+
+func prepareAdminFormData(meta models.Metadata, initial map[string]any, data map[string]any) map[string]any {
+	prepared := cloneRow(data)
+	for _, field := range meta.Fields {
+		if !adminIsFileField(field) {
+			continue
+		}
+		if _, clear := prepared[field.Name+"-clear"]; clear {
+			prepared[field.Name] = ""
+			continue
+		}
+		if _, hasUpload := prepared[field.Name]; hasUpload {
+			continue
+		}
+		if value := initial[field.Name]; value != nil && fmt.Sprint(value) != "" {
+			prepared[field.Name] = value
+		}
+	}
+	return prepared
+}
+
+func applyAdminFileClears(meta models.Metadata, data map[string]any, cleaned map[string]any) {
+	for _, field := range meta.Fields {
+		if !adminIsFileField(field) {
+			continue
+		}
+		if _, clear := data[field.Name+"-clear"]; clear {
+			cleaned[field.Name] = ""
+		}
+	}
 }
 
 func adminEditableFormFields(modelAdmin ModelAdmin, request *http.Request) []string {

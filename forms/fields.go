@@ -386,20 +386,36 @@ func cleanEmail(value any) (string, error) {
 	return text, nil
 }
 
-func cleanFile(value any) (UploadedFile, error) {
-	file, ok := value.(UploadedFile)
-	if !ok || file.Name == "" {
+func cleanFile(value any) (any, error) {
+	switch typed := value.(type) {
+	case UploadedFile:
+		if typed.Name == "" {
+			return UploadedFile{}, fmt.Errorf("%w: upload a valid file", ErrValidation)
+		}
+		return typed, nil
+	case string:
+		if strings.TrimSpace(typed) == "" {
+			return nil, fmt.Errorf("%w: upload a valid file", ErrValidation)
+		}
+		return typed, nil
+	default:
 		return UploadedFile{}, fmt.Errorf("%w: upload a valid file", ErrValidation)
 	}
-	return file, nil
 }
 
-func cleanImage(value any) (UploadedFile, error) {
+func cleanImage(value any) (any, error) {
 	file, err := cleanFile(value)
 	if err != nil {
 		return UploadedFile{}, err
 	}
-	lower := strings.ToLower(file.Name)
+	name := ""
+	switch typed := file.(type) {
+	case UploadedFile:
+		name = typed.Name
+	case string:
+		name = typed
+	}
+	lower := strings.ToLower(name)
 	if !(strings.HasSuffix(lower, ".png") || strings.HasSuffix(lower, ".jpg") || strings.HasSuffix(lower, ".jpeg") || strings.HasSuffix(lower, ".gif")) {
 		return UploadedFile{}, fmt.Errorf("%w: upload a valid image", ErrValidation)
 	}

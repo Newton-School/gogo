@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"github.com/cybersaksham/gogo/auth"
+	"github.com/cybersaksham/gogo/files"
 	"github.com/cybersaksham/gogo/models"
 )
 
@@ -66,6 +67,7 @@ type Site struct {
 	ModelRegistry      *Registry
 	ModelStore         ModelObjectStore
 	LogStore           AdminLogStore
+	FileStorage        files.Storage
 }
 
 // SiteOptions configures an admin site.
@@ -82,6 +84,7 @@ type SiteOptions struct {
 	ModelRegistry      *Registry
 	ModelStore         ModelObjectStore
 	LogStore           AdminLogStore
+	FileStorage        files.Storage
 }
 
 // DefaultSite returns the built-in admin site.
@@ -118,6 +121,7 @@ func NewSite(options SiteOptions) (*Site, error) {
 		ModelRegistry:      options.ModelRegistry,
 		ModelStore:         options.ModelStore,
 		LogStore:           options.LogStore,
+		FileStorage:        options.FileStorage,
 	}
 	if site.PermissionPolicy == nil {
 		site.PermissionPolicy = StaffPermissionPolicy{}

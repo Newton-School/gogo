@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/cybersaksham/gogo/checks"
+	"github.com/cybersaksham/gogo/files"
 	"github.com/cybersaksham/gogo/models"
 )
 
@@ -114,12 +115,79 @@ func TestAdminChecksReportUnsupportedMetadataWidgets(t *testing.T) {
 	}
 }
 
+func TestAdminChecksReportMissingStoreCapabilities(t *testing.T) {
+	site := DefaultSite()
+	site.ModelStore = checkModelStore{}
+	if err := site.ModelRegistry.RegisterMetadata(models.Metadata{
+		AppLabel:  "blog",
+		ModelName: "Post",
+		TableName: "blog_post",
+		Fields: []models.FieldMeta{
+			{Name: "id", Column: "id", PrimaryKey: true},
+			{Name: "attachment", Column: "attachment", Kind: "file", UploadTo: "uploads"},
+			{Name: "tags", RelationTarget: "blog.Tag", RelationType: "many_to_many"},
+		},
+	}, ModelAdmin{}); err != nil {
+		t.Fatalf("RegisterMetadata() error = %v", err)
+	}
+
+	results := CheckSite(site)
+	ids := checkResultIDs(results)
+	if !hasCheckID(ids, "admin.E004") || len(results) != 2 {
+		t.Fatalf("admin store capability checks = %#v", results)
+	}
+}
+
+func TestAdminChecksAcceptConfiguredStoreCapabilities(t *testing.T) {
+	site := DefaultSite()
+	site.ModelStore = &processorStore{}
+	site.FileStorage = files.NewLocalStorage(t.TempDir(), files.LocalOptions{})
+	if err := site.ModelRegistry.RegisterMetadata(models.Metadata{
+		AppLabel:  "blog",
+		ModelName: "Post",
+		TableName: "blog_post",
+		Fields: []models.FieldMeta{
+			{Name: "id", Column: "id", PrimaryKey: true},
+			{Name: "attachment", Column: "attachment", Kind: "file", UploadTo: "uploads"},
+			{Name: "tags", RelationTarget: "blog.Tag", RelationType: "many_to_many"},
+		},
+	}, ModelAdmin{}); err != nil {
+		t.Fatalf("RegisterMetadata() error = %v", err)
+	}
+
+	if results := CheckSite(site); len(results) != 0 {
+		t.Fatalf("admin store capability checks = %#v", results)
+	}
+}
+
 func checkResultIDs(results []checks.Result) []string {
 	ids := make([]string, len(results))
 	for i, result := range results {
 		ids[i] = result.ID
 	}
 	return ids
+}
+
+type checkModelStore struct{}
+
+func (checkModelStore) List(context.Context, models.Metadata) ([]map[string]any, error) {
+	return nil, nil
+}
+
+func (checkModelStore) Get(context.Context, models.Metadata, string) (map[string]any, bool, error) {
+	return nil, false, nil
+}
+
+func (checkModelStore) Create(context.Context, models.Metadata, map[string]any) (map[string]any, error) {
+	return nil, nil
+}
+
+func (checkModelStore) Update(context.Context, models.Metadata, string, map[string]any, bool) (map[string]any, error) {
+	return nil, nil
+}
+
+func (checkModelStore) Delete(context.Context, models.Metadata, string) error {
+	return nil
 }
 
 func hasCheckID(ids []string, want string) bool {

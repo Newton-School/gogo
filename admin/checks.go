@@ -28,6 +28,7 @@ func CheckSite(site *Site) []checks.Result {
 		}
 		results = append(results, checkAdminReferencedFields(meta, modelAdmin)...)
 		results = append(results, checkAdminUnsupportedWidgets(meta, modelAdmin)...)
+		results = append(results, checkAdminStoreCapabilities(site, meta)...)
 	}
 	sort.Slice(results, func(i, j int) bool {
 		if results[i].ID == results[j].ID {
@@ -69,6 +70,37 @@ func checkAdminUnsupportedWidgets(meta models.Metadata, modelAdmin ModelAdmin) [
 		}
 	}
 	return results
+}
+
+func checkAdminStoreCapabilities(site *Site, meta models.Metadata) []checks.Result {
+	var results []checks.Result
+	if site.ModelStore != nil && hasAdminManyToManyFields(meta) {
+		if _, ok := site.ModelStore.(ManyToManyStore); !ok {
+			results = append(results, adminCheckResult("admin.E004", fmt.Sprintf("%s has many-to-many fields but the admin model store cannot persist them", meta.Label()), "Implement admin.ManyToManyStore on the configured admin model store.", meta.Label()+".model_store"))
+		}
+	}
+	if site.ModelStore != nil && hasAdminFileFields(meta) && site.FileStorage == nil {
+		results = append(results, adminCheckResult("admin.E004", fmt.Sprintf("%s has file fields but the admin site has no file storage", meta.Label()), "Configure admin.SiteOptions.FileStorage with a files.Storage implementation.", meta.Label()+".file_storage"))
+	}
+	return results
+}
+
+func hasAdminManyToManyFields(meta models.Metadata) bool {
+	for _, field := range meta.Fields {
+		if adminIsManyToManyField(field) {
+			return true
+		}
+	}
+	return false
+}
+
+func hasAdminFileFields(meta models.Metadata) bool {
+	for _, field := range meta.Fields {
+		if adminIsFileField(field) {
+			return true
+		}
+	}
+	return false
 }
 
 // RegisterChecks registers this site's admin checks into a checks registry.
