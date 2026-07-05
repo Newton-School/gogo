@@ -2,6 +2,7 @@ package admin
 
 import (
 	"errors"
+	"strings"
 )
 
 var ErrProtectedRelation = errors.New("protected relation prevents deletion")
@@ -15,20 +16,35 @@ type DeletionObject struct {
 	Related   []DeletionObject
 }
 
+// DeletionModelCount stores the per-model delete count displayed in confirmations.
+type DeletionModelCount struct {
+	Name  string
+	Count int
+}
+
 // DeletionSummary stores delete confirmation context.
 type DeletionSummary struct {
 	Objects            []string
 	Protected          []string
 	PermissionsMissing []string
 	SelectedIDs        []string
+	ModelCounts        []DeletionModelCount
 	Count              int
 }
 
 // CollectDeletion walks objects and related objects for confirmation.
 func CollectDeletion(objects []DeletionObject) DeletionSummary {
 	var summary DeletionSummary
+	counts := map[string]int{}
 	for _, object := range objects {
-		collectDeletionObject(object, &summary)
+		collectDeletionObject(object, &summary, counts)
+	}
+	for _, object := range summary.Objects {
+		label, _, _ := strings.Cut(object, ": ")
+		if counts[label] > 0 {
+			summary.ModelCounts = append(summary.ModelCounts, DeletionModelCount{Name: label, Count: counts[label]})
+			counts[label] = 0
+		}
 	}
 	return summary
 }
@@ -41,9 +57,10 @@ func ConfirmDeletion(summary DeletionSummary) error {
 	return nil
 }
 
-func collectDeletionObject(object DeletionObject, summary *DeletionSummary) {
+func collectDeletionObject(object DeletionObject, summary *DeletionSummary, counts map[string]int) {
 	label := object.Label + ": " + object.Repr
 	summary.Objects = append(summary.Objects, label)
+	counts[object.Label]++
 	if object.ObjectID != "" {
 		summary.SelectedIDs = append(summary.SelectedIDs, object.ObjectID)
 	}
@@ -52,6 +69,6 @@ func collectDeletionObject(object DeletionObject, summary *DeletionSummary) {
 		summary.Protected = append(summary.Protected, label)
 	}
 	for _, related := range object.Related {
-		collectDeletionObject(related, summary)
+		collectDeletionObject(related, summary, counts)
 	}
 }

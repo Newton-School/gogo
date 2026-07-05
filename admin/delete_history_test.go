@@ -23,6 +23,13 @@ func TestDeletionCollectorSummarizesAndBlocksProtectedRelations(t *testing.T) {
 	if !reflect.DeepEqual(summary.Protected, []string{"billing.Invoice: Invoice 7"}) {
 		t.Fatalf("protected = %#v", summary.Protected)
 	}
+	if !reflect.DeepEqual(summary.ModelCounts, []DeletionModelCount{
+		{Name: "blog.Post", Count: 1},
+		{Name: "blog.Comment", Count: 1},
+		{Name: "billing.Invoice", Count: 1},
+	}) {
+		t.Fatalf("model counts = %#v", summary.ModelCounts)
+	}
 	if err := ConfirmDeletion(summary); !errors.Is(err, ErrProtectedRelation) {
 		t.Fatalf("ConfirmDeletion() error = %v, want ErrProtectedRelation", err)
 	}
