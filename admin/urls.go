@@ -236,11 +236,7 @@ func adminChangeListView(site *Site, modelAdmin ModelAdmin) gogohttp.View {
 		if !ok || !(modelAdmin.HasViewPermission(request.Raw(), user) || modelAdmin.HasChangePermission(request.Raw(), user)) {
 			return gogohttp.Forbidden("Forbidden", nil)
 		}
-		rows, err := rowsForAdminChangeList(ctx, site, modelAdmin, request.Raw())
-		if err != nil {
-			return gogohttp.InternalServerError(err)
-		}
-		changeList, err := BuildChangeList(modelAdmin, rows, request.Raw().URL.Query())
+		changeList, err := changeListForAdmin(ctx, site, modelAdmin, request.Raw())
 		if err != nil {
 			return gogohttp.BadRequest("Bad Request", err)
 		}
@@ -470,6 +466,81 @@ func rowsForAdminChangeList(ctx context.Context, site *Site, modelAdmin ModelAdm
 		return site.ModelStore.List(ctx, modelAdmin.Model)
 	}
 	return rowsFromModelAdmin(modelAdmin, request), nil
+}
+
+func changeListForAdmin(ctx context.Context, site *Site, modelAdmin ModelAdmin, request *http.Request) (ChangeList, error) {
+	site = adminSiteOrDefault(site)
+	if site.ModelStore != nil {
+		if queryStore, ok := site.ModelStore.(models.ObjectQueryStore); ok {
+			query, err := adminObjectQuery(modelAdmin, request)
+			if err != nil {
+				return ChangeList{}, err
+			}
+			result, err := queryStore.Query(ctx, modelAdmin.Model, query)
+			if err != nil {
+				return ChangeList{}, err
+			}
+			return BuildChangeListFromQueryResult(modelAdmin, result, request.URL.Query())
+		}
+	}
+	rows, err := rowsForAdminChangeList(ctx, site, modelAdmin, request)
+	if err != nil {
+		return ChangeList{}, err
+	}
+	return BuildChangeList(modelAdmin, rows, request.URL.Query())
+}
+
+func adminObjectQuery(modelAdmin ModelAdmin, request *http.Request) (models.ObjectQuery, error) {
+	values := request.URL.Query()
+	options := modelAdmin.Normalize()
+	page, err := pageNumber(values.Get("p"))
+	if err != nil {
+		return models.ObjectQuery{}, err
+	}
+	ordering, err := adminObjectOrdering(options, request, values.Get("o"))
+	if err != nil {
+		return models.ObjectQuery{}, err
+	}
+	limit := options.ListPerPage
+	offset := (page - 1) * limit
+	if values.Get("all") == "1" {
+		limit = 0
+		offset = 0
+	}
+	return models.ObjectQuery{
+		Search:       strings.TrimSpace(values.Get("q")),
+		SearchFields: append([]string(nil), options.SearchFields...),
+		Filters:      adminObjectFilters(values),
+		Ordering:     ordering,
+		Limit:        limit,
+		Offset:       offset,
+		IncludeTotal: true,
+	}, nil
+}
+
+func adminObjectOrdering(modelAdmin ModelAdmin, request *http.Request, raw string) ([]string, error) {
+	if raw != "" {
+		if err := sortRows(nil, modelAdmin, raw); err != nil {
+			return nil, err
+		}
+		return []string{raw}, nil
+	}
+	return modelAdmin.GetOrdering(request), nil
+}
+
+func adminObjectFilters(values url.Values) map[string][]string {
+	filters := map[string][]string{}
+	for key, raw := range values {
+		switch key {
+		case "", "q", "o", "p", "all", "_popup", "csrfmiddlewaretoken", "action", "index", "_selected_action", "select_across":
+			continue
+		}
+		if strings.HasPrefix(key, "_") {
+			continue
+		}
+		filters[key] = append([]string(nil), raw...)
+	}
+	return filters
 }
 
 func adminActionsForRequest(modelAdmin ModelAdmin, request *http.Request, user auth.User) []Action {

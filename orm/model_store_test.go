@@ -130,6 +130,54 @@ func TestMetadataStoreCreateUsesDatabaseGeneratedPrimaryKey(t *testing.T) {
 	}
 }
 
+func TestMetadataStoreQueryFiltersSearchesOrdersPaginatesAndCounts(t *testing.T) {
+	ctx := context.Background()
+	database, err := OpenDatabase(ctx, DatabaseConfig{
+		Name:    DefaultDatabase,
+		Driver:  "sqlite",
+		DSN:     filepath.Join(t.TempDir(), "query.sqlite3"),
+		Dialect: sqlitedialect.New(),
+	})
+	if err != nil {
+		t.Fatalf("OpenDatabase() error = %v", err)
+	}
+	defer database.Close()
+
+	_, err = database.SQLDB().ExecContext(ctx, `CREATE TABLE notes_item (id bigint PRIMARY KEY, name text NOT NULL, slug text NOT NULL, created_at timestamp, updated_at timestamp)`)
+	if err != nil {
+		t.Fatalf("create table: %v", err)
+	}
+	store := NewMetadataStore(database, notesItemMeta())
+	for _, row := range []map[string]any{
+		{"id": 1, "name": "Alpha", "slug": "draft"},
+		{"id": 2, "name": "Gogo Admin", "slug": "published"},
+		{"id": 3, "name": "Gogo Forms", "slug": "published"},
+	} {
+		if _, err := store.Create(ctx, notesItemMeta(), row); err != nil {
+			t.Fatalf("Create(%#v) error = %v", row, err)
+		}
+	}
+
+	result, err := store.Query(ctx, notesItemMeta(), models.ObjectQuery{
+		Search:       "gogo",
+		SearchFields: []string{"name"},
+		Filters:      map[string][]string{"slug__exact": {"published"}},
+		Ordering:     []string{"-name"},
+		Limit:        1,
+		Offset:       1,
+		IncludeTotal: true,
+	})
+	if err != nil {
+		t.Fatalf("Query() error = %v", err)
+	}
+	if result.Total != 2 || len(result.Rows) != 1 {
+		t.Fatalf("query result = %#v", result)
+	}
+	if result.Rows[0]["name"] != "Gogo Admin" {
+		t.Fatalf("query row = %#v", result.Rows[0])
+	}
+}
+
 func notesItemMeta() models.Metadata {
 	return models.Metadata{
 		AppLabel:    "notes",

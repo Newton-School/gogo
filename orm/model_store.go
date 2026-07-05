@@ -63,6 +63,61 @@ func (s *MetadataStore) List(ctx context.Context, meta models.Metadata) ([]map[s
 	return scanRows(rows, fields)
 }
 
+// Query returns filtered, ordered, and bounded rows for metadata-backed object stores.
+func (s *MetadataStore) Query(ctx context.Context, meta models.Metadata, objectQuery models.ObjectQuery) (models.ObjectQueryResult, error) {
+	if err := s.ready(); err != nil {
+		return models.ObjectQueryResult{}, err
+	}
+	meta = s.resolve(meta)
+	fields := concreteFields(meta)
+	where, args, err := s.objectQueryWhere(meta, objectQuery)
+	if err != nil {
+		return models.ObjectQueryResult{}, err
+	}
+
+	result := models.ObjectQueryResult{}
+	if objectQuery.IncludeTotal {
+		countQuery := "SELECT COUNT(*) FROM " + s.q(tableName(meta)) + where
+		if err := s.Database.SQLDB().QueryRowContext(ctx, countQuery, args...).Scan(&result.Total); err != nil {
+			return models.ObjectQueryResult{}, err
+		}
+	}
+
+	statement := "SELECT " + columnSelectList(s.Database, fields) + " FROM " + s.q(tableName(meta)) + where
+	ordering, err := s.objectQueryOrdering(meta, objectQuery.Ordering)
+	if err != nil {
+		return models.ObjectQueryResult{}, err
+	}
+	if ordering != "" {
+		statement += " ORDER BY " + ordering
+	}
+	queryArgs := append([]any(nil), args...)
+	if objectQuery.Limit > 0 {
+		statement += " LIMIT " + s.placeholder(len(queryArgs)+1)
+		queryArgs = append(queryArgs, objectQuery.Limit)
+		if objectQuery.Offset > 0 {
+			statement += " OFFSET " + s.placeholder(len(queryArgs)+1)
+			queryArgs = append(queryArgs, objectQuery.Offset)
+		}
+	} else if objectQuery.Offset > 0 {
+		statement += " LIMIT -1 OFFSET " + s.placeholder(len(queryArgs)+1)
+		queryArgs = append(queryArgs, objectQuery.Offset)
+	}
+	rows, err := s.Database.SQLDB().QueryContext(ctx, statement, queryArgs...)
+	if err != nil {
+		return models.ObjectQueryResult{}, err
+	}
+	defer rows.Close()
+	result.Rows, err = scanRows(rows, fields)
+	if err != nil {
+		return models.ObjectQueryResult{}, err
+	}
+	if !objectQuery.IncludeTotal {
+		result.Total = len(result.Rows)
+	}
+	return result, nil
+}
+
 // Get returns one row by primary key.
 func (s *MetadataStore) Get(ctx context.Context, meta models.Metadata, pk string) (map[string]any, bool, error) {
 	if err := s.ready(); err != nil {
@@ -304,6 +359,158 @@ func (s *MetadataStore) ready() error {
 		return ErrDatabaseNotFound
 	}
 	return nil
+}
+
+func (s *MetadataStore) objectQueryWhere(meta models.Metadata, query models.ObjectQuery) (string, []any, error) {
+	fields := fieldMetaByName(meta)
+	var parts []string
+	var args []any
+	for key, values := range query.Filters {
+		fieldName, lookup := objectQueryLookup(key)
+		field, ok := fields[fieldName]
+		if !ok {
+			return "", nil, fmt.Errorf("%w: unknown filter field %s", ErrInvalidQuery, fieldName)
+		}
+		clause, clauseArgs, err := s.objectQueryPredicate(field, lookup, values, len(args)+1)
+		if err != nil {
+			return "", nil, err
+		}
+		if clause != "" {
+			parts = append(parts, clause)
+			args = append(args, clauseArgs...)
+		}
+	}
+	if strings.TrimSpace(query.Search) != "" && len(query.SearchFields) > 0 {
+		searchClause, searchArgs, err := s.objectQuerySearch(fields, query.SearchFields, query.Search, len(args)+1)
+		if err != nil {
+			return "", nil, err
+		}
+		if searchClause != "" {
+			parts = append(parts, searchClause)
+			args = append(args, searchArgs...)
+		}
+	}
+	if len(parts) == 0 {
+		return "", nil, nil
+	}
+	return " WHERE " + strings.Join(parts, " AND "), args, nil
+}
+
+func (s *MetadataStore) objectQueryPredicate(field models.FieldMeta, lookup string, values []string, placeholderStart int) (string, []any, error) {
+	column := s.q(columnName(field))
+	switch lookup {
+	case "", "exact":
+		if len(values) == 0 {
+			return "", nil, nil
+		}
+		return column + " = " + s.placeholder(placeholderStart), []any{values[0]}, nil
+	case "contains", "icontains":
+		if len(values) == 0 {
+			return "", nil, nil
+		}
+		return "LOWER(" + column + ") LIKE LOWER(" + s.placeholder(placeholderStart) + ")", []any{"%" + values[0] + "%"}, nil
+	case "in":
+		if len(values) == 0 {
+			return "", nil, nil
+		}
+		placeholders := make([]string, len(values))
+		args := make([]any, len(values))
+		for i, value := range values {
+			placeholders[i] = s.placeholder(placeholderStart + i)
+			args[i] = value
+		}
+		return column + " IN (" + strings.Join(placeholders, ", ") + ")", args, nil
+	default:
+		return "", nil, fmt.Errorf("%w: unsupported lookup %s", ErrInvalidQuery, lookup)
+	}
+}
+
+func (s *MetadataStore) objectQuerySearch(fields map[string]models.FieldMeta, searchFields []string, term string, placeholderStart int) (string, []any, error) {
+	var parts []string
+	var args []any
+	for _, raw := range searchFields {
+		lookup, fieldName := objectQuerySearchLookup(raw)
+		field, ok := fields[fieldName]
+		if !ok {
+			return "", nil, fmt.Errorf("%w: unknown search field %s", ErrInvalidQuery, fieldName)
+		}
+		column := s.q(columnName(field))
+		switch lookup {
+		case "exact":
+			parts = append(parts, column+" = "+s.placeholder(placeholderStart+len(args)))
+			args = append(args, term)
+		case "startswith":
+			parts = append(parts, "LOWER("+column+") LIKE LOWER("+s.placeholder(placeholderStart+len(args))+")")
+			args = append(args, term+"%")
+		default:
+			parts = append(parts, "LOWER("+column+") LIKE LOWER("+s.placeholder(placeholderStart+len(args))+")")
+			args = append(args, "%"+term+"%")
+		}
+	}
+	if len(parts) == 0 {
+		return "", nil, nil
+	}
+	return "(" + strings.Join(parts, " OR ") + ")", args, nil
+}
+
+func (s *MetadataStore) objectQueryOrdering(meta models.Metadata, ordering []string) (string, error) {
+	fields := fieldMetaByName(meta)
+	var parts []string
+	for _, raw := range ordering {
+		desc := strings.HasPrefix(raw, "-")
+		fieldName := strings.TrimPrefix(raw, "-")
+		field, ok := fields[fieldName]
+		if !ok {
+			return "", fmt.Errorf("%w: unknown ordering field %s", ErrInvalidQuery, fieldName)
+		}
+		part := s.q(columnName(field))
+		if desc {
+			part += " DESC"
+		} else {
+			part += " ASC"
+		}
+		parts = append(parts, part)
+	}
+	if len(parts) == 0 {
+		if pk := primaryField(meta); pk.Name != "" {
+			return s.q(columnName(pk)) + " ASC", nil
+		}
+	}
+	return strings.Join(parts, ", "), nil
+}
+
+func objectQueryLookup(raw string) (string, string) {
+	parts := strings.Split(raw, "__")
+	if len(parts) == 1 {
+		return raw, "exact"
+	}
+	return parts[0], parts[len(parts)-1]
+}
+
+func objectQuerySearchLookup(raw string) (string, string) {
+	if raw == "" {
+		return "contains", raw
+	}
+	switch raw[0] {
+	case '=':
+		return "exact", raw[1:]
+	case '^':
+		return "startswith", raw[1:]
+	case '@':
+		return "contains", raw[1:]
+	default:
+		return "contains", raw
+	}
+}
+
+func fieldMetaByName(meta models.Metadata) map[string]models.FieldMeta {
+	fields := make(map[string]models.FieldMeta, len(meta.Fields))
+	for _, field := range meta.Fields {
+		if field.Name != "" {
+			fields[field.Name] = field
+		}
+	}
+	return fields
 }
 
 func (s *MetadataStore) resolve(meta models.Metadata) models.Metadata {

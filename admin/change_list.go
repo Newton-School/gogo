@@ -9,6 +9,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/cybersaksham/gogo/models"
 )
 
 var ErrInvalidChangeListQuery = errors.New("invalid change list query")
@@ -114,6 +116,38 @@ func BuildChangeList(admin ModelAdmin, rows []map[string]any, query url.Values) 
 		Popup:            query.Get("_popup") == "1",
 		PreservedFilters: preservedFilters(query),
 		DateHierarchy:    buildDateHierarchy(options, copiedRows),
+	}, nil
+}
+
+// BuildChangeListFromQueryResult builds changelist data from store-paginated rows.
+func BuildChangeListFromQueryResult(admin ModelAdmin, result models.ObjectQueryResult, query url.Values) (ChangeList, error) {
+	options := admin.Normalize()
+	if len(options.ListDisplay) == 0 {
+		options.ListDisplay = []string{"__str__"}
+	}
+	page, err := pageNumber(query.Get("p"))
+	if err != nil {
+		return ChangeList{}, err
+	}
+	total := result.Total
+	if total == 0 && len(result.Rows) > 0 {
+		total = len(result.Rows)
+	}
+	canShowAll := total <= options.ListMaxShowAll
+	showAll := query.Get("all") == "1" && canShowAll
+	rows := cloneRows(result.Rows)
+	return ChangeList{
+		Columns:          buildColumns(options),
+		Rows:             buildDisplayRows(options, rows),
+		Total:            total,
+		Page:             page,
+		PerPage:          options.ListPerPage,
+		ShowAll:          showAll,
+		CanShowAll:       canShowAll,
+		BulkSelection:    hasConfiguredActions(options),
+		Popup:            query.Get("_popup") == "1",
+		PreservedFilters: preservedFilters(query),
+		DateHierarchy:    buildDateHierarchy(options, rows),
 	}, nil
 }
 

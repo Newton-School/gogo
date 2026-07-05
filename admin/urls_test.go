@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -390,6 +391,56 @@ func TestAdminModelAddUsesDatabaseGeneratedPrimaryKey(t *testing.T) {
 	}
 }
 
+func TestAdminChangeListUsesQueryCapableModelStore(t *testing.T) {
+	meta := models.Metadata{
+		AppLabel:    "blog",
+		ModelName:   "Post",
+		TableName:   "blog_post",
+		Fields:      []models.FieldMeta{{Name: "id", Column: "id", PrimaryKey: true}, {Name: "title", Column: "title"}, {Name: "status", Column: "status"}},
+		VerboseName: "post",
+	}
+	store := &queryAdminStore{
+		rows:  []map[string]any{{"id": 2, "title": "Bounded", "status": "published"}},
+		total: 42,
+	}
+	site := DefaultSite()
+	site.ModelStore = store
+	if err := site.ModelRegistry.RegisterMetadata(meta, ModelAdmin{
+		ListDisplay:  []string{"title", "status"},
+		ListFilter:   []string{"status"},
+		SearchFields: []string{"title"},
+		ListPerPage:  25,
+		Ordering:     []string{"-title"},
+	}); err != nil {
+		t.Fatalf("RegisterMetadata() error = %v", err)
+	}
+	router, err := site.URLs()
+	if err != nil {
+		t.Fatalf("URLs() error = %v", err)
+	}
+
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, staffAdminRequest(http.MethodGet, "/admin/blog/post/?q=bound&status__exact=published&p=2&o=title"))
+	if response.Code != http.StatusOK {
+		t.Fatalf("changelist response = %d body=%s", response.Code, response.Body.String())
+	}
+	if !store.queried || store.listed {
+		t.Fatalf("store queried=%v listed=%v, want query path only", store.queried, store.listed)
+	}
+	if store.query.Search != "bound" || store.query.Limit != 25 || store.query.Offset != 25 {
+		t.Fatalf("query = %#v", store.query)
+	}
+	if got := store.query.Filters["status__exact"]; !reflect.DeepEqual(got, []string{"published"}) {
+		t.Fatalf("filters = %#v", store.query.Filters)
+	}
+	if !reflect.DeepEqual(store.query.Ordering, []string{"title"}) || !reflect.DeepEqual(store.query.SearchFields, []string{"title"}) {
+		t.Fatalf("query ordering/search fields = %#v", store.query)
+	}
+	if body := response.Body.String(); !strings.Contains(body, "Bounded") || !strings.Contains(body, "42 posts") {
+		t.Fatalf("changelist body missing query result/total:\n%s", body)
+	}
+}
+
 func TestAdminModelPostRejectsMissingCSRF(t *testing.T) {
 	meta := models.Metadata{
 		AppLabel:  "blog",
@@ -528,4 +579,39 @@ func routeNames(routes []gogohttp.Route) []string {
 		names[i] = route.Name
 	}
 	return names
+}
+
+type queryAdminStore struct {
+	rows    []map[string]any
+	total   int
+	query   models.ObjectQuery
+	queried bool
+	listed  bool
+}
+
+func (s *queryAdminStore) List(context.Context, models.Metadata) ([]map[string]any, error) {
+	s.listed = true
+	return append([]map[string]any(nil), s.rows...), nil
+}
+
+func (s *queryAdminStore) Query(_ context.Context, _ models.Metadata, query models.ObjectQuery) (models.ObjectQueryResult, error) {
+	s.queried = true
+	s.query = query
+	return models.ObjectQueryResult{Rows: append([]map[string]any(nil), s.rows...), Total: s.total}, nil
+}
+
+func (s *queryAdminStore) Get(context.Context, models.Metadata, string) (map[string]any, bool, error) {
+	return nil, false, nil
+}
+
+func (s *queryAdminStore) Create(context.Context, models.Metadata, map[string]any) (map[string]any, error) {
+	return nil, nil
+}
+
+func (s *queryAdminStore) Update(context.Context, models.Metadata, string, map[string]any, bool) (map[string]any, error) {
+	return nil, nil
+}
+
+func (s *queryAdminStore) Delete(context.Context, models.Metadata, string) error {
+	return nil
 }
