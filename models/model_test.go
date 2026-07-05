@@ -113,12 +113,18 @@ func TestMetadataCloneDeepCopiesFieldMetadata(t *testing.T) {
 			Name:        "title",
 			ColumnTypes: map[string]string{"postgres": "varchar(200)"},
 			DBDefault:   "untitled",
+			Editable:    boolPointer(false),
+			Choices:     []FieldChoiceMeta{{Value: "draft", Label: "Draft"}},
+			Validators:  []FieldValidator{func(any) error { return nil }},
 		}},
 	}
 
 	cloned := meta.Clone()
 	cloned.Fields[0].ColumnTypes["postgres"] = "text"
 	cloned.Fields[0].DBDefault = "changed"
+	*cloned.Fields[0].Editable = true
+	cloned.Fields[0].Choices[0].Label = "Changed"
+	cloned.Fields[0].Validators = append(cloned.Fields[0].Validators, func(any) error { return nil })
 
 	if meta.Fields[0].ColumnTypes["postgres"] != "varchar(200)" {
 		t.Fatalf("field ColumnTypes were not deep-copied: %#v", meta.Fields[0].ColumnTypes)
@@ -126,4 +132,17 @@ func TestMetadataCloneDeepCopiesFieldMetadata(t *testing.T) {
 	if meta.Fields[0].DBDefault != "untitled" {
 		t.Fatalf("field DBDefault was mutated: %#v", meta.Fields[0].DBDefault)
 	}
+	if meta.Fields[0].Editable == nil || *meta.Fields[0].Editable {
+		t.Fatalf("field Editable was mutated: %#v", meta.Fields[0].Editable)
+	}
+	if meta.Fields[0].Choices[0].Label != "Draft" {
+		t.Fatalf("field Choices were not deep-copied: %#v", meta.Fields[0].Choices)
+	}
+	if len(meta.Fields[0].Validators) != 1 {
+		t.Fatalf("field Validators were not deep-copied: %#v", meta.Fields[0].Validators)
+	}
+}
+
+func boolPointer(value bool) *bool {
+	return &value
 }

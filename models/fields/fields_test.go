@@ -134,3 +134,63 @@ func TestCustomFieldColumnTypesMetadataAndConversion(t *testing.T) {
 		t.Fatalf("original column type changed to %q", got)
 	}
 }
+
+func TestFieldMetadataPreservesDjangoStyleOptions(t *testing.T) {
+	editable := false
+	validator := func(any) error { return nil }
+	field := NewCharField(Options{
+		Name:        "status",
+		Column:      "status_code",
+		Blank:       true,
+		Default:     "draft",
+		HelpText:    "Shown in admin",
+		VerboseName: "publication status",
+		Editable:    &editable,
+		Choices: []Choice{
+			{Value: "draft", Label: "Draft", Group: "Workflow"},
+			{Value: "live", Label: "Live", Group: "Workflow"},
+		},
+		Validators: []Validator{validator},
+	}, 32)
+
+	meta := Metadata(field, "postgres")
+	if meta.Name != "status" || meta.Column != "status_code" || meta.Kind != "varchar(32)" {
+		t.Fatalf("metadata identity = %#v", meta)
+	}
+	if !meta.Blank || meta.Default != "draft" || meta.HelpText != "Shown in admin" || meta.VerboseName != "publication status" {
+		t.Fatalf("metadata options = %#v", meta)
+	}
+	if meta.Editable == nil || *meta.Editable {
+		t.Fatalf("editable = %#v, want explicit false", meta.Editable)
+	}
+	if len(meta.Choices) != 2 || meta.Choices[1].Value != "live" || meta.Choices[1].Label != "Live" || meta.Choices[1].Group != "Workflow" {
+		t.Fatalf("choices = %#v", meta.Choices)
+	}
+	if len(meta.Validators) != 1 {
+		t.Fatalf("validators = %#v", meta.Validators)
+	}
+	if meta.MaxLength != 32 {
+		t.Fatalf("MaxLength = %d, want 32", meta.MaxLength)
+	}
+}
+
+func TestSpecializedFieldMetadataPreservesAdminDetails(t *testing.T) {
+	decimal := Metadata(NewDecimalField(Options{Name: "price"}, 8, 2), "postgres")
+	if decimal.MaxDigits != 8 || decimal.DecimalPlaces != 2 {
+		t.Fatalf("decimal metadata = %#v", decimal)
+	}
+
+	file := Metadata(NewFileField(Options{Name: "attachment"}, FileConfig{UploadTo: "uploads/docs"}), "postgres")
+	if file.UploadTo != "uploads/docs" {
+		t.Fatalf("file metadata = %#v", file)
+	}
+
+	relation := Metadata(NewManyToManyField(Options{Name: "tags"}, RelationConfig{
+		Target:      "blog.Tag",
+		Through:     "blog.PostTag",
+		RelatedName: "posts",
+	}), "postgres")
+	if relation.RelationType != string(RelationManyToMany) || relation.ThroughModel != "blog.PostTag" || relation.ReverseName != "posts" {
+		t.Fatalf("relation metadata = %#v", relation)
+	}
+}

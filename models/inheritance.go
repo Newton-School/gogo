@@ -4,6 +4,16 @@ import "fmt"
 
 const parentLinkDeleteBehavior = "cascade"
 
+// FieldChoiceMeta describes one selectable value for a model field.
+type FieldChoiceMeta struct {
+	Value any
+	Label string
+	Group string
+}
+
+// FieldValidator validates one metadata-backed field value.
+type FieldValidator func(any) error
+
 // FieldMeta describes model field metadata without importing the fields package.
 type FieldMeta struct {
 	Name            string
@@ -17,8 +27,22 @@ type FieldMeta struct {
 	DBIndex         bool
 	DBDefault       any
 	DBCollation     string
+	Blank           bool
+	Default         any
+	HelpText        string
+	VerboseName     string
+	Editable        *bool
+	Choices         []FieldChoiceMeta
+	Validators      []FieldValidator
+	MaxLength       int
+	DecimalPlaces   int
+	MaxDigits       int
+	UploadTo        string
 	ParentLink      bool
 	RelationTarget  string
+	RelationType    string
+	ThroughModel    string
+	ReverseName     string
 	TargetFieldName string
 	DeleteBehavior  string
 }
@@ -258,6 +282,12 @@ func cloneFieldMetaSlice(fields []FieldMeta) []FieldMeta {
 	for i, field := range fields {
 		copied[i] = field
 		copied[i].ColumnTypes = cloneStringMap(field.ColumnTypes)
+		copied[i].Choices = append([]FieldChoiceMeta(nil), field.Choices...)
+		copied[i].Validators = append([]FieldValidator(nil), field.Validators...)
+		if field.Editable != nil {
+			value := *field.Editable
+			copied[i].Editable = &value
+		}
 	}
 	return copied
 }
