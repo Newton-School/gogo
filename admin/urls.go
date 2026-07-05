@@ -278,6 +278,9 @@ func adminChangeFormView(site *Site, modelAdmin ModelAdmin, mode ChangeFormMode)
 					Values:  values,
 				})
 				if err != nil {
+					if response, ok := adminValidationErrorResponse(site, modelAdmin, ChangeFormAdd, request.Raw(), user, "", values, err); ok {
+						return response
+					}
 					return adminFormProcessError(err)
 				}
 				return response
@@ -301,6 +304,9 @@ func adminChangeFormView(site *Site, modelAdmin ModelAdmin, mode ChangeFormMode)
 						Values:   values,
 					})
 					if err != nil {
+						if response, ok := adminValidationErrorResponse(site, modelAdmin, ChangeFormEdit, request.Raw(), user, objectID, values, err); ok {
+							return response
+						}
 						return adminFormProcessError(err)
 					}
 					return response
@@ -318,6 +324,17 @@ func adminChangeFormView(site *Site, modelAdmin ModelAdmin, mode ChangeFormMode)
 		if err != nil {
 			return gogohttp.Forbidden("Forbidden", err)
 		}
+		inlineFormsets, err := BuildAdminInlineFormsets(ctx, site, modelAdmin, AdminInlineFormsetInput{
+			ParentID:  objectID,
+			User:      user,
+			Request:   request.Raw(),
+			Values:    values,
+			Submitted: request.Method() == http.MethodPost,
+		})
+		if err != nil {
+			return gogohttp.BadRequest("Bad Request", err)
+		}
+		formContext.Inlines = inlineFormsets
 		action := "Add"
 		if mode == ChangeFormEdit {
 			action = "Change"
@@ -333,6 +350,38 @@ func adminChangeFormView(site *Site, modelAdmin ModelAdmin, mode ChangeFormMode)
 		}
 		return renderAdminTemplate("change_form.html", data)
 	}
+}
+
+func adminValidationErrorResponse(site *Site, modelAdmin ModelAdmin, mode ChangeFormMode, request *http.Request, user auth.User, objectID string, values map[string]any, err error) (gogohttp.Response, bool) {
+	var validationErr AdminFormValidationError
+	if !errors.As(err, &validationErr) {
+		return gogohttp.Response{}, false
+	}
+	formContext, buildErr := BuildChangeForm(modelAdmin, ChangeFormInput{
+		Mode:     mode,
+		ObjectID: objectID,
+		User:     user,
+		Request:  request,
+		Values:   values,
+	})
+	if buildErr != nil {
+		return gogohttp.Forbidden("Forbidden", buildErr), true
+	}
+	formContext.Inlines = validationErr.InlineFormsets
+	action := "Add"
+	if mode == ChangeFormEdit {
+		action = "Change"
+	}
+	verboseName := modelVerboseName(modelAdmin)
+	data := modelAdminPageData(site, request, modelAdmin, action+" "+verboseName, action+" "+verboseName, "change-form")
+	data.Form = changeFormViewData(site, modelAdmin, formContext)
+	if objectID != "" {
+		data.DeleteURL = data.ChangeListURL + objectID + "/delete/"
+		data.HistoryURL = data.ChangeListURL + objectID + "/history/"
+		data.Form.DeleteURL = data.DeleteURL
+		data.Form.HistoryURL = data.HistoryURL
+	}
+	return renderAdminTemplate("change_form.html", data), true
 }
 
 func adminDeleteView(site *Site, modelAdmin ModelAdmin) gogohttp.View {

@@ -2,9 +2,27 @@
 <div class="inline-group" id="{{.Prefix}}-group" data-inline-type="tabular" data-inline-formset="{{.FormsetData}}">
   <fieldset class="module">
     <h2>{{.VerboseNamePlural}}</h2>
+    {{range .Management}}<input type="hidden" name="{{.Name}}" value="{{.Value}}">{{end}}
+    {{range .Errors}}<ul class="errorlist nonfield"><li>{{.}}</li></ul>{{end}}
     <table>
       <thead><tr>{{range .Headers}}<th class="{{.Class}}">{{.Label}}</th>{{end}}</tr></thead>
-      <tbody>{{range .Rows}}<tr class="form-row">{{.}}</tr>{{end}}</tbody>
+      <tbody>
+      {{range .Rows}}
+      {{if .NonFieldError}}<tr class="form-row"><td colspan="99"><ul class="errorlist nonfield"><li>{{.NonFieldError}}</li></ul></td></tr>{{end}}
+      <tr class="form-row" id="{{.ID}}">
+        {{range .HiddenInputs}}<input type="hidden" name="{{.Name}}" value="{{.Value}}">{{end}}
+        {{range .Cells}}
+        <td class="{{.Field.FieldCSS}}">
+          {{.Field.WidgetHTML}}
+          {{if .Field.Errors}}<ul class="errorlist"><li>{{.Field.Errors}}</li></ul>{{end}}
+        </td>
+        {{end}}
+        {{if $.CanDelete}}
+        <td class="delete"><input type="checkbox" name="{{.DeleteName}}" id="{{.DeleteID}}"{{if .DeleteChecked}} checked{{end}}></td>
+        {{end}}
+      </tr>
+      {{end}}
+      </tbody>
     </table>
   </fieldset>
 </div>

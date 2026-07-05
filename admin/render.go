@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"html/template"
 	"net/http"
+	"strconv"
 	"strings"
 	"unicode"
 
@@ -84,6 +85,7 @@ type adminFormData struct {
 	CanDelete   bool
 	DeleteURL   string
 	HistoryURL  string
+	Inlines     []adminInlineFormsetData
 }
 
 type adminFieldsetData struct {
@@ -106,6 +108,57 @@ type adminFormFieldData struct {
 	HelpText   string
 	Errors     string
 	WidgetHTML template.HTML
+}
+
+type adminHiddenInput struct {
+	Name  string
+	Value string
+}
+
+type adminInlineFormsetData struct {
+	ModelName         string
+	Prefix            string
+	Kind              InlineKind
+	Stacked           bool
+	Tabular           bool
+	VerboseNamePlural string
+	FormsetData       string
+	Management        []adminHiddenInput
+	Forms             []adminInlineFormData
+	Headers           []adminInlineHeaderData
+	Rows              []adminInlineRowData
+	CanDelete         bool
+	Errors            []string
+}
+
+type adminInlineFormData struct {
+	Index         int
+	ID            string
+	Fields        []adminFormFieldData
+	HiddenInputs  []adminHiddenInput
+	DeleteName    string
+	DeleteID      string
+	DeleteChecked bool
+	NonFieldError string
+}
+
+type adminInlineHeaderData struct {
+	Class string
+	Label string
+}
+
+type adminInlineRowData struct {
+	ID            string
+	Cells         []adminInlineCellData
+	HiddenInputs  []adminHiddenInput
+	DeleteName    string
+	DeleteID      string
+	DeleteChecked bool
+	NonFieldError string
+}
+
+type adminInlineCellData struct {
+	Field adminFormFieldData
 }
 
 func renderAdminTemplate(name string, data adminPageData) gogohttp.Response {
@@ -315,7 +368,203 @@ func changeFormViewData(site *Site, modelAdmin ModelAdmin, context ChangeFormCon
 		}
 		form.Fieldsets = append(form.Fieldsets, fieldsetData)
 	}
+	for _, inline := range context.Inlines {
+		form.Inlines = append(form.Inlines, inlineFormsetViewData(site, modelAdmin, inline))
+	}
 	return form
+}
+
+func inlineFormsetViewData(site *Site, modelAdmin ModelAdmin, formset InlineFormset) adminInlineFormsetData {
+	data := adminInlineFormsetData{
+		ModelName:         formset.Model,
+		Prefix:            formset.Prefix,
+		Kind:              formset.Kind,
+		Stacked:           formset.Kind != InlineTabular,
+		Tabular:           formset.Kind == InlineTabular,
+		VerboseNamePlural: inlineVerboseNamePlural(formset),
+		FormsetData:       inlineFormsetDataAttribute(formset),
+		CanDelete:         formset.CanDelete,
+		Errors:            append([]string(nil), formset.Errors...),
+	}
+	forms := append([]InlineForm(nil), formset.Forms...)
+	if !formset.Submitted {
+		nextIndex := len(forms)
+		for i := 0; i < formset.ExtraForms; i++ {
+			forms = append(forms, InlineForm{Index: nextIndex + i, Values: map[string]any{}})
+		}
+	}
+	data.Management = []adminHiddenInput{
+		{Name: formset.Prefix + "-TOTAL_FORMS", Value: strconv.Itoa(len(forms))},
+		{Name: formset.Prefix + "-INITIAL_FORMS", Value: strconv.Itoa(formset.InitialForms)},
+		{Name: formset.Prefix + "-MIN_NUM_FORMS", Value: strconv.Itoa(formset.MinNum)},
+		{Name: formset.Prefix + "-MAX_NUM_FORMS", Value: inlineMaxNumValue(formset.MaxNum)},
+	}
+	for _, field := range formset.Fields {
+		data.Headers = append(data.Headers, adminInlineHeaderData{
+			Class: "column-" + field,
+			Label: inlineFieldLabel(formset, field),
+		})
+	}
+	if formset.CanDelete {
+		data.Headers = append(data.Headers, adminInlineHeaderData{Class: "delete", Label: "Delete?"})
+	}
+	for _, form := range forms {
+		formData := inlineFormViewData(site, modelAdmin, formset, form)
+		data.Forms = append(data.Forms, formData)
+		row := adminInlineRowData{
+			ID:            formData.ID,
+			HiddenInputs:  formData.HiddenInputs,
+			DeleteName:    formData.DeleteName,
+			DeleteID:      formData.DeleteID,
+			DeleteChecked: formData.DeleteChecked,
+			NonFieldError: formData.NonFieldError,
+		}
+		for _, field := range formData.Fields {
+			row.Cells = append(row.Cells, adminInlineCellData{Field: field})
+		}
+		data.Rows = append(data.Rows, row)
+	}
+	return data
+}
+
+func inlineFormViewData(site *Site, modelAdmin ModelAdmin, formset InlineFormset, form InlineForm) adminInlineFormData {
+	index := form.Index
+	if index < 0 {
+		index = 0
+	}
+	data := adminInlineFormData{
+		Index:         index,
+		ID:            formset.Prefix + "-" + strconv.Itoa(index),
+		DeleteName:    inlineFieldKey(formset.Prefix, index, "DELETE"),
+		DeleteID:      "id_" + inlineFieldKey(formset.Prefix, index, "DELETE"),
+		DeleteChecked: form.Delete,
+		NonFieldError: form.Errors["__all__"],
+	}
+	if pkName := primaryKeyName(formset.Meta); pkName != "" {
+		data.HiddenInputs = append(data.HiddenInputs, adminHiddenInput{
+			Name:  inlineFieldKey(formset.Prefix, index, pkName),
+			Value: firstFormValue(form.Values[pkName]),
+		})
+	}
+	for _, fieldName := range formset.Fields {
+		data.Fields = append(data.Fields, inlineFieldViewData(site, modelAdmin, formset, form, fieldName))
+	}
+	return data
+}
+
+func inlineFieldViewData(site *Site, modelAdmin ModelAdmin, formset InlineFormset, form InlineForm, fieldName string) adminFormFieldData {
+	metaField := adminFieldMetaMap(formset.Meta)[fieldName]
+	value := form.Values[fieldName]
+	htmlName := inlineFieldKey(formset.Prefix, form.Index, fieldName)
+	fieldID := "id_" + htmlName
+	widget := widgetForField(formset.Meta.Label(), metaField, fieldName, value, map[string]struct{}{}, map[string]struct{}{}, map[string]struct{}{}, map[string]struct{}{}, map[string]struct{}{})
+	field := ChangeFormField{
+		Name:     htmlName,
+		Widget:   widget,
+		Value:    value,
+		Label:    adminMetadataLabel(metaField),
+		HelpText: metaField.HelpText,
+		Required: adminMetadataRequired(metaField),
+		Choices:  adminWidgetChoices(metaField.Choices),
+		Meta:     metaField,
+	}
+	fieldData := adminFormFieldData{
+		Name:       htmlName,
+		Label:      inlineFieldLabel(formset, fieldName),
+		FieldID:    fieldID,
+		FieldCSS:   "form-row field-" + fieldName,
+		LabelFor:   true,
+		Checkbox:   widget == WidgetCheckbox,
+		Fieldset:   widget == WidgetFilteredSelectMultiple || widget == WidgetDateTime,
+		Required:   field.Required,
+		HelpText:   metaField.HelpText,
+		Errors:     form.Errors[fieldName],
+		WidgetHTML: template.HTML(renderAdminInlineWidget(site, modelAdmin, field, fieldName, fieldID)),
+	}
+	if fieldData.Required {
+		fieldData.LabelClass = "required"
+	}
+	if fieldData.HelpText != "" {
+		fieldData.HelpID = fieldData.FieldID + "_helptext"
+	}
+	return fieldData
+}
+
+func renderAdminInlineWidget(site *Site, modelAdmin ModelAdmin, field ChangeFormField, originalName, fieldID string) string {
+	value := field.Value
+	if value == nil {
+		value = ""
+	}
+	config := WidgetConfig{
+		Name:    field.Name,
+		Value:   value,
+		Choices: append([]WidgetChoice(nil), field.Choices...),
+		Attrs: map[string]string{
+			"id":    fieldID,
+			"class": "vTextField",
+		},
+		RelationURL: adminRelationAutocompleteURL(site, modelAdmin, originalName),
+	}
+	switch field.Widget {
+	case WidgetCheckbox:
+		config.Attrs = map[string]string{"id": fieldID}
+		return Checkbox(config)
+	case WidgetTextarea:
+		return Textarea(config)
+	case WidgetNumber:
+		config.Attrs["class"] = "vIntegerField"
+		return NumberInput(config)
+	case WidgetSelect:
+		return Select(config)
+	case WidgetDate:
+		return DateInput(config)
+	case WidgetTime:
+		return TimeInput(config)
+	case WidgetDateTime:
+		return DateTimeInput(config)
+	case WidgetEmail:
+		return EmailInput(config)
+	case WidgetFile:
+		config.Attrs = map[string]string{"id": fieldID}
+		return ClearableFileInput(config)
+	case WidgetAutocomplete:
+		config.Attrs["class"] = "admin-autocomplete"
+		return AutocompleteWidget(config)
+	case WidgetRadio:
+		return Select(config)
+	default:
+		return TextInput(config)
+	}
+}
+
+func inlineVerboseNamePlural(formset InlineFormset) string {
+	if formset.Meta.VerboseNamePlural != "" {
+		return formset.Meta.VerboseNamePlural
+	}
+	if formset.Meta.ModelName == "" {
+		return formset.Model
+	}
+	return adminLabel(formset.Meta.ModelName) + "s"
+}
+
+func inlineFieldLabel(formset InlineFormset, fieldName string) string {
+	if metaField, ok := adminFieldMetaMap(formset.Meta)[fieldName]; ok {
+		if label := adminMetadataLabel(metaField); label != "" {
+			return label
+		}
+	}
+	return adminLabel(fieldName)
+}
+
+func inlineFormsetDataAttribute(formset InlineFormset) string {
+	return fmt.Sprintf(`{"name":"#%s-group","options":{"prefix":"%s","addText":"Add another","deleteText":"Remove"}}`, formset.Prefix, formset.Prefix)
+}
+
+func inlineMaxNumValue(maxNum int) string {
+	if maxNum > 0 {
+		return strconv.Itoa(maxNum)
+	}
+	return "1000"
 }
 
 func renderAdminFormWidget(site *Site, modelAdmin ModelAdmin, field ChangeFormField) string {

@@ -91,6 +91,7 @@ type ChangeFormContext struct {
 	FilterVertical      []string
 	RelatedPopupEnabled bool
 	ModelLabel          string
+	Inlines             []InlineFormset
 }
 
 // ChangeFormField describes one rendered form field.

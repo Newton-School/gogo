@@ -2,7 +2,35 @@
 <div class="inline-group" id="{{.Prefix}}-group" data-inline-type="stacked" data-inline-formset="{{.FormsetData}}">
   <fieldset class="module">
     <h2>{{.VerboseNamePlural}}</h2>
-    {{range .Forms}}<div class="inline-related">{{.}}</div>{{end}}
+    {{range .Management}}<input type="hidden" name="{{.Name}}" value="{{.Value}}">{{end}}
+    {{range .Errors}}<ul class="errorlist nonfield"><li>{{.}}</li></ul>{{end}}
+    {{range .Forms}}
+    <div class="inline-related" id="{{.ID}}">
+      {{range .HiddenInputs}}<input type="hidden" name="{{.Name}}" value="{{.Value}}">{{end}}
+      {{if .NonFieldError}}<ul class="errorlist nonfield"><li>{{.NonFieldError}}</li></ul>{{end}}
+      {{range .Fields}}
+      <div class="{{.FieldCSS}}">
+        <div>
+          <div class="flex-container{{if .Checkbox}} checkbox-row{{end}}">
+            {{if .Checkbox}}
+              {{.WidgetHTML}}<label class="vCheckboxLabel" for="{{.FieldID}}">{{.Label}}</label>
+            {{else}}
+              <label{{if .LabelClass}} class="{{.LabelClass}}"{{end}} for="{{.FieldID}}">{{.Label}}:</label>
+              {{.WidgetHTML}}
+            {{end}}
+          </div>
+          {{if .HelpText}}<div class="help"{{if .HelpID}} id="{{.HelpID}}"{{end}}><div>{{.HelpText}}</div></div>{{end}}
+          {{if .Errors}}<ul class="errorlist"><li>{{.Errors}}</li></ul>{{end}}
+        </div>
+      </div>
+      {{end}}
+      {{if $.CanDelete}}
+      <div class="form-row delete">
+        <label for="{{.DeleteID}}"><input type="checkbox" name="{{.DeleteName}}" id="{{.DeleteID}}"{{if .DeleteChecked}} checked{{end}}> Delete</label>
+      </div>
+      {{end}}
+    </div>
+    {{end}}
   </fieldset>
 </div>
 {{end}}

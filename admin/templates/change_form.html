@@ -31,6 +31,9 @@
       </fieldset>
       {{end}}
     </div>
+    {{range .Form.Inlines}}
+      {{if .Stacked}}{{template "edit-inline-stacked" .}}{{else}}{{template "edit-inline-tabular" .}}{{end}}
+    {{end}}
     {{template "submit-line" .}}
     <script id="django-admin-form-add-constants" src="/admin/static/admin/js/change_form.js" async></script>
   </form>

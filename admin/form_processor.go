@@ -32,6 +32,24 @@ type AdminFormProcessInput struct {
 	Values   map[string]any
 }
 
+// AdminFormValidationError carries bound formsets back to route rendering.
+type AdminFormValidationError struct {
+	Err            error
+	InlineFormsets []InlineFormset
+	Values         map[string]any
+}
+
+func (e AdminFormValidationError) Error() string {
+	if e.Err == nil {
+		return "admin form validation failed"
+	}
+	return e.Err.Error()
+}
+
+func (e AdminFormValidationError) Unwrap() error {
+	return e.Err
+}
+
 type adminAtomicStore interface {
 	Atomic(context.Context, func(context.Context) error) error
 }
@@ -93,6 +111,20 @@ func (p AdminFormProcessor) Process(ctx context.Context, input AdminFormProcessI
 	if err != nil {
 		return gogohttp.Response{}, err
 	}
+	inlineFormsets, err := BuildAdminInlineFormsets(ctx, site, p.ModelAdmin, AdminInlineFormsetInput{
+		ParentID:  input.ObjectID,
+		User:      input.User,
+		Request:   request,
+		Values:    values,
+		Submitted: true,
+	})
+	if err != nil {
+		return gogohttp.Response{}, err
+	}
+	inlineFormsets, err = ValidateAdminInlineFormsets(ctx, request, inlineFormsets)
+	if err != nil {
+		return gogohttp.Response{}, AdminFormValidationError{Err: err, InlineFormsets: inlineFormsets, Values: cloneRow(values)}
+	}
 	m2mValues := adminManyToManyValues(p.ModelAdmin.Model, cleaned)
 	scalarValues := adminScalarFormValues(p.ModelAdmin.Model, cleaned)
 
@@ -126,6 +158,10 @@ func (p AdminFormProcessor) Process(ctx context.Context, input AdminFormProcessI
 					return err
 				}
 			}
+		}
+		objectID := fmt.Sprint(objectPrimaryKey(p.ModelAdmin.Model, saved))
+		if err := SaveAdminInlineFormsets(txCtx, site, request, p.ModelAdmin, objectID, inlineFormsets); err != nil {
+			return err
 		}
 		if p.ModelAdmin.Hooks.SaveRelated != nil {
 			if err := p.ModelAdmin.Hooks.SaveRelated(request, cloneRow(saved)); err != nil {

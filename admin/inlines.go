@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/cybersaksham/gogo/auth"
+	"github.com/cybersaksham/gogo/models"
 )
 
 var ErrInvalidInlineFormset = errors.New("invalid inline formset")
@@ -21,21 +22,32 @@ type InlineInput struct {
 // InlineFormset stores render-ready inline form metadata.
 type InlineFormset struct {
 	Model          string
+	Meta           models.Metadata
+	Prefix         string
 	Kind           InlineKind
 	Forms          []InlineForm
 	ExtraForms     int
+	InitialForms   int
 	MinNum         int
 	MaxNum         int
 	CanDelete      bool
+	CanAdd         bool
+	CanChange      bool
+	CanView        bool
 	ShowChangeLink bool
 	FKName         string
 	ParentID       string
+	Fields         []string
+	Errors         []string
+	Submitted      bool
 }
 
 // InlineForm stores one inline form row.
 type InlineForm struct {
+	Index  int
 	Values map[string]any
 	Delete bool
+	Errors map[string]string
 }
 
 // InlineStore persists inline save/delete operations.
