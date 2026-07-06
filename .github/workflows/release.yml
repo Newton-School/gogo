@@ -116,7 +116,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p dist
-          ldflags="-s -w -X github.com/cybersaksham/gogo/internal/version.Version=${GOGO_RELEASE_VERSION} -X github.com/cybersaksham/gogo/internal/version.Commit=${GOGO_RELEASE_COMMIT} -X github.com/cybersaksham/gogo/internal/version.BuildDate=${GOGO_RELEASE_BUILD_DATE}"
+          ldflags="-s -w -X github.com/Newton-School/gogo/internal/version.Version=${GOGO_RELEASE_VERSION} -X github.com/Newton-School/gogo/internal/version.Commit=${GOGO_RELEASE_COMMIT} -X github.com/Newton-School/gogo/internal/version.BuildDate=${GOGO_RELEASE_BUILD_DATE}"
           while read -r goos goarch; do
             output="dist/gogo_${GOGO_RELEASE_VERSION}_${goos}_${goarch}"
             if [ "$goos" = "windows" ]; then
