@@ -1,6 +1,6 @@
 package testing
 
-import "github.com/cybersaksham/gogo/conf"
+import "github.com/Newton-School/gogo/conf"
 
 type SettingsOption func(*conf.Settings)
 

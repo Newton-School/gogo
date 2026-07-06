@@ -220,7 +220,7 @@ func checkTutorials(root string) error {
 	if err := run(root, "go", "run", "./cmd/gogo", "startapp", "blog", appDir); err != nil {
 		return err
 	}
-	replace := "github.com/cybersaksham/gogo=" + filepath.ToSlash(root)
+	replace := "github.com/Newton-School/gogo=" + filepath.ToSlash(root)
 	if err := run(projectDir, "go", "mod", "edit", "-replace", replace); err != nil {
 		return err
 	}
@@ -377,9 +377,9 @@ go 1.26.4
 
 toolchain go1.26.4
 
-require github.com/cybersaksham/gogo v0.0.0
+require github.com/Newton-School/gogo v0.0.0
 
-replace github.com/cybersaksham/gogo => %s
+replace github.com/Newton-School/gogo => %s
 `, filepath.ToSlash(root))
 	if err := os.WriteFile(filepath.Join(tmp, "go.mod"), []byte(content), 0o644); err != nil {
 		return err
@@ -436,19 +436,19 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cybersaksham/gogo/admin"
-	"github.com/cybersaksham/gogo/api"
-	"github.com/cybersaksham/gogo/auth"
-	"github.com/cybersaksham/gogo/conf"
-	"github.com/cybersaksham/gogo/email"
-	"github.com/cybersaksham/gogo/forms"
-	"github.com/cybersaksham/gogo/migrations"
-	"github.com/cybersaksham/gogo/migrations/operations"
-	"github.com/cybersaksham/gogo/models"
-	"github.com/cybersaksham/gogo/orm"
-	"github.com/cybersaksham/gogo/orm/dialects/postgres"
-	"github.com/cybersaksham/gogo/queue"
-	"github.com/cybersaksham/gogo/queue/canvas"
+	"github.com/Newton-School/gogo/admin"
+	"github.com/Newton-School/gogo/api"
+	"github.com/Newton-School/gogo/auth"
+	"github.com/Newton-School/gogo/conf"
+	"github.com/Newton-School/gogo/email"
+	"github.com/Newton-School/gogo/forms"
+	"github.com/Newton-School/gogo/migrations"
+	"github.com/Newton-School/gogo/migrations/operations"
+	"github.com/Newton-School/gogo/models"
+	"github.com/Newton-School/gogo/orm"
+	"github.com/Newton-School/gogo/orm/dialects/postgres"
+	"github.com/Newton-School/gogo/queue"
+	"github.com/Newton-School/gogo/queue/canvas"
 )
 
 var (

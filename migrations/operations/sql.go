@@ -3,7 +3,7 @@ package operations
 import (
 	"context"
 
-	"github.com/cybersaksham/gogo/migrations"
+	"github.com/Newton-School/gogo/migrations"
 )
 
 type OperationCategory string

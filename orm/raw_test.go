@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	sqlitedialect "github.com/cybersaksham/gogo/orm/dialects/sqlite"
+	sqlitedialect "github.com/Newton-School/gogo/orm/dialects/sqlite"
 	_ "modernc.org/sqlite"
 )
 

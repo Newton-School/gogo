@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/cybersaksham/gogo/auth"
+	"github.com/Newton-School/gogo/auth"
 )
 
 func TestInlineFormsetsBuildMetadataAndFilterPermissions(t *testing.T) {

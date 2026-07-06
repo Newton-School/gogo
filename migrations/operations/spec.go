@@ -1,6 +1,6 @@
 package operations
 
-import "github.com/cybersaksham/gogo/migrations"
+import "github.com/Newton-School/gogo/migrations"
 
 func (o CreateModel) MigrationOperationSpec() migrations.OperationSpec {
 	model := cloneModelState(o.Model)

@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/cybersaksham/gogo/migrations"
+	"github.com/Newton-School/gogo/migrations"
 )
 
 func TestIndexAndConstraintOperations(t *testing.T) {

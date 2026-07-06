@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/cybersaksham/gogo/orm/dialects"
+	"github.com/Newton-School/gogo/orm/dialects"
 )
 
 func TestPostgresDialectRendering(t *testing.T) {

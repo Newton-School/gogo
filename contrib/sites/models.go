@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/cybersaksham/gogo/checks"
-	"github.com/cybersaksham/gogo/models"
+	"github.com/Newton-School/gogo/checks"
+	"github.com/Newton-School/gogo/models"
 )
 
 var ErrSiteNotFound = errors.New("site not found")

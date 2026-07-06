@@ -1,6 +1,6 @@
 package flatpages
 
-import "github.com/cybersaksham/gogo/admin"
+import "github.com/Newton-School/gogo/admin"
 
 func Admin() admin.ModelAdmin {
 	return admin.ModelAdmin{

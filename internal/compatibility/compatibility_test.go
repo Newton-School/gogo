@@ -8,13 +8,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/cybersaksham/gogo/admin"
-	"github.com/cybersaksham/gogo/auth"
-	"github.com/cybersaksham/gogo/conf"
-	"github.com/cybersaksham/gogo/migrations"
-	"github.com/cybersaksham/gogo/models"
-	"github.com/cybersaksham/gogo/queue"
-	"github.com/cybersaksham/gogo/sessions"
+	"github.com/Newton-School/gogo/admin"
+	"github.com/Newton-School/gogo/auth"
+	"github.com/Newton-School/gogo/conf"
+	"github.com/Newton-School/gogo/migrations"
+	"github.com/Newton-School/gogo/models"
+	"github.com/Newton-School/gogo/queue"
+	"github.com/Newton-School/gogo/sessions"
 )
 
 func TestLegacyMigrationManifestLoads(t *testing.T) {
@@ -62,7 +62,7 @@ func TestLegacyGeneratedProjectFixtureMatchesContract(t *testing.T) {
 	for _, want := range []string{
 		"module example.com/legacy",
 		"go 1.26.4",
-		"require github.com/cybersaksham/gogo v0.1.0",
+		"require github.com/Newton-School/gogo v0.1.0",
 	} {
 		if !strings.Contains(moduleFile, want) {
 			t.Fatalf("go.mod missing %q:\n%s", want, moduleFile)

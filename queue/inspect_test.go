@@ -5,9 +5,9 @@ import (
 	"testing"
 	"time"
 
-	q "github.com/cybersaksham/gogo/queue"
-	"github.com/cybersaksham/gogo/queue/backends"
-	"github.com/cybersaksham/gogo/queue/brokers"
+	q "github.com/Newton-School/gogo/queue"
+	"github.com/Newton-School/gogo/queue/backends"
+	"github.com/Newton-School/gogo/queue/brokers"
 )
 
 func TestInspectorSnapshotsAndControls(t *testing.T) {

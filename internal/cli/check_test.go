@@ -10,9 +10,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/cybersaksham/gogo/conf"
-	"github.com/cybersaksham/gogo/migrations"
-	"github.com/cybersaksham/gogo/models"
+	"github.com/Newton-School/gogo/conf"
+	"github.com/Newton-School/gogo/migrations"
+	"github.com/Newton-School/gogo/models"
 )
 
 func TestCheckCommandPassesValidConfig(t *testing.T) {

@@ -3,7 +3,7 @@ package testing
 import (
 	"context"
 
-	"github.com/cybersaksham/gogo/email"
+	"github.com/Newton-School/gogo/email"
 )
 
 type MailOutbox struct {

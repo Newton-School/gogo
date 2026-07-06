@@ -6,7 +6,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/cybersaksham/gogo/internal/release"
+	"github.com/Newton-School/gogo/internal/release"
 )
 
 func main() {

@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cybersaksham/gogo/auth"
-	"github.com/cybersaksham/gogo/models"
+	"github.com/Newton-School/gogo/auth"
+	"github.com/Newton-School/gogo/models"
 )
 
 func TestChangeFormBuildsAddAndEditMetadata(t *testing.T) {

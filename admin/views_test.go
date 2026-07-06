@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cybersaksham/gogo/auth"
-	gogohttp "github.com/cybersaksham/gogo/http"
-	"github.com/cybersaksham/gogo/sessions"
+	"github.com/Newton-School/gogo/auth"
+	gogohttp "github.com/Newton-School/gogo/http"
+	"github.com/Newton-School/gogo/sessions"
 )
 
 func TestAdminLoginViewAllowsStaffAndSetsSession(t *testing.T) {

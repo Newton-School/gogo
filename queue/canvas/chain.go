@@ -5,7 +5,7 @@ import (
 
 	"github.com/google/uuid"
 
-	q "github.com/cybersaksham/gogo/queue"
+	q "github.com/Newton-School/gogo/queue"
 )
 
 type Signature struct {

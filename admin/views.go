@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cybersaksham/gogo/auth"
-	"github.com/cybersaksham/gogo/sessions"
+	"github.com/Newton-School/gogo/auth"
+	"github.com/Newton-School/gogo/sessions"
 )
 
 // AuthViewConfig configures admin authentication views.

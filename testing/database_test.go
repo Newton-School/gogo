@@ -5,8 +5,8 @@ import (
 	"os"
 	stdtesting "testing"
 
-	"github.com/cybersaksham/gogo/migrations"
-	"github.com/cybersaksham/gogo/migrations/operations"
+	"github.com/Newton-School/gogo/migrations"
+	"github.com/Newton-School/gogo/migrations/operations"
 )
 
 func TestSQLiteTestDatabaseLifecycleTransactionsFixturesMigrationsAndReset(t *stdtesting.T) {

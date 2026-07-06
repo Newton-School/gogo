@@ -4,7 +4,7 @@ import (
 	"context"
 	"strings"
 
-	"github.com/cybersaksham/gogo/models"
+	"github.com/Newton-School/gogo/models"
 )
 
 // SchemaEditor is the database-facing contract used by operations.

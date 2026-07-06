@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/cybersaksham/gogo/models"
+	"github.com/Newton-School/gogo/models"
 )
 
 func TestProjectStateCloneAndMutation(t *testing.T) {

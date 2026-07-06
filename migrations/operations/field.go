@@ -7,8 +7,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/cybersaksham/gogo/migrations"
-	"github.com/cybersaksham/gogo/models"
+	"github.com/Newton-School/gogo/migrations"
+	"github.com/Newton-School/gogo/models"
 )
 
 type AddField struct {

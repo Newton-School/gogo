@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/cybersaksham/gogo/app"
-	"github.com/cybersaksham/gogo/models"
+	"github.com/Newton-School/gogo/app"
+	"github.com/Newton-School/gogo/models"
 )
 
 var (

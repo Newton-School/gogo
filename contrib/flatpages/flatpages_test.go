@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/cybersaksham/gogo/contrib/sites"
+	"github.com/Newton-School/gogo/contrib/sites"
 )
 
 func TestFlatpageLookupViewSiteTemplateRegistrationAndAdmin(t *testing.T) {

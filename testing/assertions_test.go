@@ -5,11 +5,11 @@ import (
 	"errors"
 	stdtesting "testing"
 
-	"github.com/cybersaksham/gogo/auth"
-	"github.com/cybersaksham/gogo/email"
-	"github.com/cybersaksham/gogo/forms"
-	"github.com/cybersaksham/gogo/queue"
-	"github.com/cybersaksham/gogo/signals"
+	"github.com/Newton-School/gogo/auth"
+	"github.com/Newton-School/gogo/email"
+	"github.com/Newton-School/gogo/forms"
+	"github.com/Newton-School/gogo/queue"
+	"github.com/Newton-School/gogo/signals"
 )
 
 func TestFrameworkAssertionsCoverJSONFormsSignalsMailQueueAndPermissions(t *stdtesting.T) {

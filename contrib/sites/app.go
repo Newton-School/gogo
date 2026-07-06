@@ -1,6 +1,6 @@
 package sites
 
-import "github.com/cybersaksham/gogo/app"
+import "github.com/Newton-School/gogo/app"
 
 func AppConfig() app.Config {
 	return app.BaseConfig{

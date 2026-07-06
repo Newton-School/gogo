@@ -1,7 +1,7 @@
 # Compatibility Policy
 
 This policy defines what Gogo treats as stable for framework users and generated
-projects. It applies to the public module `github.com/cybersaksham/gogo`, the
+projects. It applies to the public module `github.com/Newton-School/gogo`, the
 `gogo` CLI, generated project templates, migration files, and documented
 runtime integrations.
 
@@ -26,7 +26,7 @@ issue requires faster removal.
 ## Public API Stability
 
 The public API is the set of exported identifiers in documented non-internal
-packages under `github.com/cybersaksham/gogo`. The generated list in
+packages under `github.com/Newton-School/gogo`. The generated list in
 `docs/code/generated/public-packages.md` is the source of truth for public package
 visibility.
 
@@ -89,7 +89,7 @@ user explicitly asks for that behavior.
 
 Compatibility rules:
 
-- Generated `go.mod` must continue to use `github.com/cybersaksham/gogo`.
+- Generated `go.mod` must continue to use `github.com/Newton-School/gogo`.
 - Generated `.env.example` must stay synced with framework settings.
 - Generated `.gitignore` must keep production-unsafe files out of version
   control.

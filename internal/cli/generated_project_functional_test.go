@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/cybersaksham/gogo/auth"
+	"github.com/Newton-School/gogo/auth"
 )
 
 func TestGeneratedProjectFunctionalSurface(t *testing.T) {
@@ -38,7 +38,7 @@ GOGO_HTTP_ADDR=127.0.0.1:0
 	if err != nil {
 		t.Fatalf("resolve repo root: %v", err)
 	}
-	runGeneratedCommand(t, target, "go", "mod", "edit", "-replace", "github.com/cybersaksham/gogo="+filepath.ToSlash(repoRoot))
+	runGeneratedCommand(t, target, "go", "mod", "edit", "-replace", "github.com/Newton-School/gogo="+filepath.ToSlash(repoRoot))
 	writeTextFile(t, filepath.Join(target, "functional_test.go"), generatedFunctionalTestSource())
 	runGeneratedCommand(t, target, "go", "mod", "tidy")
 
@@ -108,11 +108,11 @@ import (
 	blog "sampleproject/apps/blog"
 	project "sampleproject/sampleproject"
 
-	"github.com/cybersaksham/gogo/admin"
-	"github.com/cybersaksham/gogo/api"
-	"github.com/cybersaksham/gogo/app"
-	"github.com/cybersaksham/gogo/auth"
-	"github.com/cybersaksham/gogo/queue"
+	"github.com/Newton-School/gogo/admin"
+	"github.com/Newton-School/gogo/api"
+	"github.com/Newton-School/gogo/app"
+	"github.com/Newton-School/gogo/auth"
+	"github.com/Newton-School/gogo/queue"
 )
 
 func TestGeneratedFunctionalSurface(t *testing.T) {

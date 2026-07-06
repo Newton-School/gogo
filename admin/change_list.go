@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cybersaksham/gogo/models"
+	"github.com/Newton-School/gogo/models"
 )
 
 var ErrInvalidChangeListQuery = errors.New("invalid change list query")

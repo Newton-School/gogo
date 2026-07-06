@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	modelconstraints "github.com/cybersaksham/gogo/models/constraints"
+	modelconstraints "github.com/Newton-School/gogo/models/constraints"
 )
 
 const (

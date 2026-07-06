@@ -3,7 +3,7 @@ package vector
 import (
 	"strings"
 
-	"github.com/cybersaksham/gogo/models"
+	"github.com/Newton-School/gogo/models"
 )
 
 // HNSWIndex creates HNSW vector index metadata.

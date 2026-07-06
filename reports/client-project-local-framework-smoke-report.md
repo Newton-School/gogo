@@ -16,7 +16,7 @@ go build -o /tmp/gogo-local ./cmd/gogo
 The generated client used a local module replacement:
 
 ```bash
-go mod edit -replace github.com/cybersaksham/gogo=/Users/cybersaksham/Desktop/ns/gogo
+go mod edit -replace github.com/Newton-School/gogo=/Users/cybersaksham/Desktop/ns/gogo
 go mod tidy
 ```
 

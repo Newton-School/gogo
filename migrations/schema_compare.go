@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/cybersaksham/gogo/models"
+	"github.com/Newton-School/gogo/models"
 )
 
 // SchemaDifference describes one mismatch between expected and actual table shape.

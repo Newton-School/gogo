@@ -1,8 +1,8 @@
 package blog
 
 import (
-	"github.com/cybersaksham/gogo/migrations"
-	"github.com/cybersaksham/gogo/migrations/operations"
+	"github.com/Newton-School/gogo/migrations"
+	"github.com/Newton-School/gogo/migrations/operations"
 )
 
 func Migrations() []migrations.Migration {

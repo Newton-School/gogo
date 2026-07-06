@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cybersaksham/gogo/auth"
+	"github.com/Newton-School/gogo/auth"
 )
 
 type fileAuthUserStore struct {

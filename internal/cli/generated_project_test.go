@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/cybersaksham/gogo/internal/version"
+	"github.com/Newton-School/gogo/internal/version"
 )
 
 func TestGeneratedProjectWithAppCompilesAsDownstreamModule(t *testing.T) {
@@ -26,7 +26,7 @@ func TestGeneratedProjectWithAppCompilesAsDownstreamModule(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolve repo root: %v", err)
 	}
-	runGeneratedCommand(t, target, "go", "mod", "edit", "-replace", "github.com/cybersaksham/gogo="+filepath.ToSlash(repoRoot))
+	runGeneratedCommand(t, target, "go", "mod", "edit", "-replace", "github.com/Newton-School/gogo="+filepath.ToSlash(repoRoot))
 	writeTextFile(t, filepath.Join(target, ".env"), "GOGO_SECRET_KEY=generated-project-secret\nDATABASE_URL=sqlite://./db.sqlite3\n")
 	writeTextFile(t, filepath.Join(target, "generated_runtime_test.go"), generatedRuntimeRouteTestSource())
 	runGeneratedCommand(t, target, "go", "mod", "tidy")
@@ -75,7 +75,7 @@ func TestGeneratedProjectCanRunStartappBeforeManualTidy(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolve repo root: %v", err)
 	}
-	runGeneratedCommand(t, target, "go", "mod", "edit", "-replace", "github.com/cybersaksham/gogo="+filepath.ToSlash(repoRoot))
+	runGeneratedCommand(t, target, "go", "mod", "edit", "-replace", "github.com/Newton-School/gogo="+filepath.ToSlash(repoRoot))
 	runGeneratedCommand(t, target, "go", "run", "manage.go", "startapp", "blog", "apps/blog")
 }
 
@@ -189,7 +189,7 @@ func assertNoInternalFrameworkImports(t *testing.T, root string) {
 		if err != nil {
 			return err
 		}
-		if strings.Contains(string(contents), "github.com/cybersaksham/gogo/internal") {
+		if strings.Contains(string(contents), "github.com/Newton-School/gogo/internal") {
 			t.Fatalf("generated file imports internal framework package: %s", path)
 		}
 		return nil

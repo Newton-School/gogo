@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cybersaksham/gogo/cache"
+	"github.com/Newton-School/gogo/cache"
 )
 
 func TestSessionStoresCreateLoadCycleFlushAndExpire(t *testing.T) {

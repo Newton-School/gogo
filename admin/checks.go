@@ -6,8 +6,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/cybersaksham/gogo/checks"
-	"github.com/cybersaksham/gogo/models"
+	"github.com/Newton-School/gogo/checks"
+	"github.com/Newton-School/gogo/models"
 )
 
 // CheckSite validates registered ModelAdmin configuration.

@@ -3,7 +3,7 @@ package orm
 import (
 	"testing"
 
-	"github.com/cybersaksham/gogo/orm/dialects/postgres"
+	"github.com/Newton-School/gogo/orm/dialects/postgres"
 )
 
 func TestPrefetchPlannerBuildsBatchedPlans(t *testing.T) {

@@ -8,12 +8,12 @@ import (
 	"path"
 	"strings"
 
-	"github.com/cybersaksham/gogo/auth"
-	"github.com/cybersaksham/gogo/files"
-	"github.com/cybersaksham/gogo/forms"
-	gogohttp "github.com/cybersaksham/gogo/http"
-	"github.com/cybersaksham/gogo/messages"
-	"github.com/cybersaksham/gogo/models"
+	"github.com/Newton-School/gogo/auth"
+	"github.com/Newton-School/gogo/files"
+	"github.com/Newton-School/gogo/forms"
+	gogohttp "github.com/Newton-School/gogo/http"
+	"github.com/Newton-School/gogo/messages"
+	"github.com/Newton-School/gogo/models"
 )
 
 // AdminFormProcessor runs the Django-style add/change admin POST lifecycle.

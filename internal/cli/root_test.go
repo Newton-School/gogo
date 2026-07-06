@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/cybersaksham/gogo/internal/version"
+	"github.com/Newton-School/gogo/internal/version"
 )
 
 func TestRootHelpListsPlannedCommandsInStableOrder(t *testing.T) {

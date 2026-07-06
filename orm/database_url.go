@@ -5,8 +5,8 @@ import (
 	"errors"
 	"strings"
 
-	postgresdialect "github.com/cybersaksham/gogo/orm/dialects/postgres"
-	sqlitedialect "github.com/cybersaksham/gogo/orm/dialects/sqlite"
+	postgresdialect "github.com/Newton-School/gogo/orm/dialects/postgres"
+	sqlitedialect "github.com/Newton-School/gogo/orm/dialects/sqlite"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 	_ "modernc.org/sqlite"

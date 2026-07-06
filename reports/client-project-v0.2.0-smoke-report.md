@@ -80,7 +80,7 @@ Created by framework commands:
 ## What I Had To Add Manually
 
 - Ran `go mod tidy`; the generated `go.mod` did not initially pin
-  `github.com/cybersaksham/gogo`.
+  `github.com/Newton-School/gogo`.
 - Created `.env`; generated commands failed without `GOGO_SECRET_KEY` and
   `DATABASE_URL`.
 - Added `apps/notes/static/notes/site.css` so static collection and dev static
@@ -103,7 +103,7 @@ Created by framework commands:
 | --- | --- |
 | `gogo version` | Passed, reported `gogo 0.2.0` |
 | `gogo startproject My_Gogo` | Passed |
-| `go mod tidy` | Passed, added `github.com/cybersaksham/gogo v0.2.0` |
+| `go mod tidy` | Passed, added `github.com/Newton-School/gogo v0.2.0` |
 | `go run manage.go startapp notes apps/notes` | Passed |
 | `go test ./...` after startapp | Passed before migration squash |
 
@@ -317,7 +317,7 @@ client project because migration apply/persistence is not working.
 1. Make `startproject` produce a runnable dev project:
    - write `.env` with development-safe defaults, or
    - print a post-create next-step command that creates `.env`, and
-   - write `github.com/cybersaksham/gogo vX.Y.Z` into `go.mod`.
+   - write `github.com/Newton-School/gogo vX.Y.Z` into `go.mod`.
 2. Implement real migration apply/recording for generated project migrations:
    - execute rendered SQL,
    - create/update migration recorder state,

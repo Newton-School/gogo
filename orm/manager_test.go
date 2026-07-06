@@ -3,8 +3,8 @@ package orm
 import (
 	"testing"
 
-	"github.com/cybersaksham/gogo/models"
-	"github.com/cybersaksham/gogo/orm/dialects/postgres"
+	"github.com/Newton-School/gogo/models"
+	"github.com/Newton-School/gogo/orm/dialects/postgres"
 )
 
 type managerTestModel struct{ models.BaseModel }

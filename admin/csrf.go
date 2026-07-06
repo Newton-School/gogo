@@ -3,8 +3,8 @@ package admin
 import (
 	"net/http"
 
-	gogohttp "github.com/cybersaksham/gogo/http"
-	"github.com/cybersaksham/gogo/security"
+	gogohttp "github.com/Newton-School/gogo/http"
+	"github.com/Newton-School/gogo/security"
 )
 
 const csrfFailureMessage = "CSRF verification failed"

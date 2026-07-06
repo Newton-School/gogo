@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cybersaksham/gogo/templates"
+	"github.com/Newton-School/gogo/templates"
 )
 
 func TestHumanizeFiltersAndTemplateIntegration(t *testing.T) {

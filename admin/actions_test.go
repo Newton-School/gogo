@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/cybersaksham/gogo/auth"
+	"github.com/Newton-School/gogo/auth"
 )
 
 func TestDeleteSelectedActionRequiresConfirmationAndDeletes(t *testing.T) {

@@ -5,25 +5,25 @@
 Install the CLI from the published release:
 
 ```bash
-go install github.com/cybersaksham/gogo/cmd/gogo@v0.2.0
+go install github.com/Newton-School/gogo/cmd/gogo@v0.2.0
 ```
 
 Use the framework as a Go module:
 
 ```bash
-go get github.com/cybersaksham/gogo@v0.2.0
+go get github.com/Newton-School/gogo@v0.2.0
 ```
 
 Prebuilt CLI binaries and checksums are available from GitHub Releases:
 
-https://github.com/cybersaksham/gogo/releases
+https://github.com/Newton-School/gogo/releases
 
 If a newly published tag is not available from the public Go checksum database
 yet, install directly from Git:
 
 ```bash
-GOPROXY=direct GONOSUMDB=github.com/cybersaksham/gogo \
-  go install github.com/cybersaksham/gogo/cmd/gogo@v0.2.0
+GOPROXY=direct GONOSUMDB=github.com/Newton-School/gogo \
+  go install github.com/Newton-School/gogo/cmd/gogo@v0.2.0
 ```
 
 ## Setup
@@ -36,7 +36,7 @@ Requirements:
 Clone the repository:
 
 ```bash
-git clone git@github.com:cybersaksham/gogo.git
+git clone git@github.com:Newton-School/gogo.git
 cd gogo
 go mod download
 ```

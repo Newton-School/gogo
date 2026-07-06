@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/cybersaksham/gogo/contrib/sites"
+	"github.com/Newton-School/gogo/contrib/sites"
 )
 
 type Options struct {

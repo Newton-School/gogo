@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	gogotemplates "github.com/cybersaksham/gogo/internal/cli/templates"
+	gogotemplates "github.com/Newton-School/gogo/internal/cli/templates"
 )
 
 // NewStartappCommand creates the app generator command.

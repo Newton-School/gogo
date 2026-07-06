@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/cybersaksham/gogo/email"
-	"github.com/cybersaksham/gogo/queue"
+	"github.com/Newton-School/gogo/email"
+	"github.com/Newton-School/gogo/queue"
 )
 
 func RegisterTasks(app *queue.App, backend email.Backend) error {

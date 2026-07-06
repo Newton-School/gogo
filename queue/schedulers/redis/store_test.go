@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cybersaksham/gogo/queue"
+	"github.com/Newton-School/gogo/queue"
 )
 
 func TestRedisScheduleStoreKeys(t *testing.T) {

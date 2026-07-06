@@ -6,7 +6,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/cybersaksham/gogo/orm/dialects"
+	"github.com/Newton-School/gogo/orm/dialects"
 )
 
 var (

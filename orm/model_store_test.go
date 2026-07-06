@@ -6,8 +6,8 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/cybersaksham/gogo/models"
-	sqlitedialect "github.com/cybersaksham/gogo/orm/dialects/sqlite"
+	"github.com/Newton-School/gogo/models"
+	sqlitedialect "github.com/Newton-School/gogo/orm/dialects/sqlite"
 
 	_ "modernc.org/sqlite"
 )

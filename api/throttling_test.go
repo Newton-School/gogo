@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cybersaksham/gogo/auth"
+	"github.com/Newton-School/gogo/auth"
 )
 
 func TestAnonymousThrottleUsesIPAndRateWindows(t *testing.T) {

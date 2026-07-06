@@ -9,7 +9,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/cybersaksham/gogo/static"
+	"github.com/Newton-School/gogo/static"
 )
 
 func TestCollectstaticCommandRunsConfiguredCollector(t *testing.T) {

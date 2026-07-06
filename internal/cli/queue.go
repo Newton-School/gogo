@@ -10,12 +10,12 @@ import (
 	"strings"
 	"time"
 
-	q "github.com/cybersaksham/gogo/queue"
-	"github.com/cybersaksham/gogo/queue/backends"
-	_ "github.com/cybersaksham/gogo/queue/backends/redis"
-	"github.com/cybersaksham/gogo/queue/brokers"
-	_ "github.com/cybersaksham/gogo/queue/brokers/redis"
-	_ "github.com/cybersaksham/gogo/queue/schedulers/redis"
+	q "github.com/Newton-School/gogo/queue"
+	"github.com/Newton-School/gogo/queue/backends"
+	_ "github.com/Newton-School/gogo/queue/backends/redis"
+	"github.com/Newton-School/gogo/queue/brokers"
+	_ "github.com/Newton-School/gogo/queue/brokers/redis"
+	_ "github.com/Newton-School/gogo/queue/schedulers/redis"
 )
 
 var defaultQueueRuntime = NewQueueRuntime()

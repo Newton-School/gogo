@@ -3,7 +3,7 @@ package blog
 import (
 	"time"
 
-	"github.com/cybersaksham/gogo/models"
+	"github.com/Newton-School/gogo/models"
 )
 
 type ModelMeta = models.Metadata

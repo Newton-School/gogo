@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/cybersaksham/gogo/auth"
-	"github.com/cybersaksham/gogo/forms"
-	"github.com/cybersaksham/gogo/signals"
+	"github.com/Newton-School/gogo/auth"
+	"github.com/Newton-School/gogo/forms"
+	"github.com/Newton-School/gogo/signals"
 )
 
 type QueryCounter struct {

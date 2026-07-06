@@ -6,10 +6,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cybersaksham/gogo/admin"
-	"github.com/cybersaksham/gogo/auth"
-	q "github.com/cybersaksham/gogo/queue"
-	"github.com/cybersaksham/gogo/queue/brokers"
+	"github.com/Newton-School/gogo/admin"
+	"github.com/Newton-School/gogo/auth"
+	q "github.com/Newton-School/gogo/queue"
+	"github.com/Newton-School/gogo/queue/brokers"
 )
 
 func TestQueueAdminRegistrationMetadata(t *testing.T) {

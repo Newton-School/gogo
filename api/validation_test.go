@@ -6,7 +6,7 @@ import (
 	"reflect"
 	"testing"
 
-	modelvalidation "github.com/cybersaksham/gogo/models/validation"
+	modelvalidation "github.com/Newton-School/gogo/models/validation"
 )
 
 func TestAPIValidationSupportsFieldObjectUniqueTogetherAndModelReuse(t *testing.T) {

@@ -93,11 +93,11 @@ func TestProjectTemplatesRenderGogoAgentRules(t *testing.T) {
 	index := files[filepath.Join(".agent", "rules", "gogo", "package-feature-index.md")]
 	for _, want := range []string{
 		"Public Package Map",
-		"github.com/cybersaksham/gogo/contrib/sites",
+		"github.com/Newton-School/gogo/contrib/sites",
 		"gogo startproject",
 		"go run manage.go makemigrations",
 		"go run manage.go loaddata",
-		"go doc github.com/cybersaksham/gogo/<package>",
+		"go doc github.com/Newton-School/gogo/<package>",
 	} {
 		if !strings.Contains(index, want) {
 			t.Fatalf("package-feature-index.md missing %q:\n%s", want, index)
@@ -109,7 +109,7 @@ func TestProjectTemplatesRenderGogoAgentRules(t *testing.T) {
 			continue
 		}
 		for _, want := range []string{
-			"github.com/cybersaksham/gogo",
+			"github.com/Newton-School/gogo",
 			"gogo",
 		} {
 			if !strings.Contains(contents, want) {
@@ -164,7 +164,7 @@ func TestProjectTemplatesRenderParseablePublicGoFiles(t *testing.T) {
 		if filepath.Ext(path) != ".go" {
 			continue
 		}
-		if strings.Contains(contents, "github.com/cybersaksham/gogo/internal") {
+		if strings.Contains(contents, "github.com/Newton-School/gogo/internal") {
 			t.Fatalf("%s imports internal framework package", path)
 		}
 		if _, err := parser.ParseFile(token.NewFileSet(), path, contents, parser.AllErrors); err != nil {
@@ -172,7 +172,7 @@ func TestProjectTemplatesRenderParseablePublicGoFiles(t *testing.T) {
 		}
 	}
 
-	if !strings.Contains(files["manage.go"], "github.com/cybersaksham/gogo/management") {
+	if !strings.Contains(files["manage.go"], "github.com/Newton-School/gogo/management") {
 		t.Fatalf("manage.go must use public management package:\n%s", files["manage.go"])
 	}
 	for _, want := range []string{
@@ -245,7 +245,7 @@ func TestProjectTemplatesWireBuiltInAuthByDefault(t *testing.T) {
 
 	appGo := files[filepath.Join("myproject", "app.go")]
 	for _, want := range []string{
-		`"github.com/cybersaksham/gogo/auth"`,
+		`"github.com/Newton-School/gogo/auth"`,
 		"metadata = append(metadata, auth.ModelMetadata()...)",
 	} {
 		if !strings.Contains(appGo, want) {
@@ -361,7 +361,7 @@ func TestAppTemplatesRenderParseablePublicGoFiles(t *testing.T) {
 		if filepath.Ext(path) != ".go" {
 			continue
 		}
-		if strings.Contains(contents, "github.com/cybersaksham/gogo/internal") {
+		if strings.Contains(contents, "github.com/Newton-School/gogo/internal") {
 			t.Fatalf("%s imports internal framework package", path)
 		}
 		if _, err := parser.ParseFile(token.NewFileSet(), path, contents, parser.AllErrors); err != nil {
@@ -443,12 +443,12 @@ func TestGeneratedAppCompilesAsDownstreamModule(t *testing.T) {
 	}
 
 	root := t.TempDir()
-	writeFile(t, root, "go.mod", "module sample\n\ngo 1.26.4\n\ntoolchain go1.26.4\n\nrequire github.com/cybersaksham/gogo v0.0.0\n")
+	writeFile(t, root, "go.mod", "module sample\n\ngo 1.26.4\n\ntoolchain go1.26.4\n\nrequire github.com/Newton-School/gogo v0.0.0\n")
 	repoRoot, err := filepath.Abs(filepath.Join("..", "..", ".."))
 	if err != nil {
 		t.Fatalf("resolve repo root: %v", err)
 	}
-	runCommand(t, root, "go", "mod", "edit", "-replace", "github.com/cybersaksham/gogo="+filepath.ToSlash(repoRoot))
+	runCommand(t, root, "go", "mod", "edit", "-replace", "github.com/Newton-School/gogo="+filepath.ToSlash(repoRoot))
 	for path, contents := range files {
 		writeFile(t, root, filepath.Join("apps", "blog", path), contents)
 	}

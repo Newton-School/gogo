@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/cybersaksham/gogo/internal/version"
+	"github.com/Newton-School/gogo/internal/version"
 )
 
 func TestStartprojectGeneratesExpectedFiles(t *testing.T) {
@@ -114,7 +114,7 @@ func TestStartprojectPinsCurrentGogoModuleVersion(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read generated go.mod: %v", err)
 	}
-	if !strings.Contains(string(goMod), "require github.com/cybersaksham/gogo v0.2.1") {
+	if !strings.Contains(string(goMod), "require github.com/Newton-School/gogo v0.2.1") {
 		t.Fatalf("generated go.mod does not pin current framework version:\n%s", goMod)
 	}
 }

@@ -90,7 +90,7 @@ func moduleVersion(info *debug.BuildInfo) string {
 		if dependency == nil {
 			continue
 		}
-		if dependency.Path == "github.com/cybersaksham/gogo" {
+		if dependency.Path == "github.com/Newton-School/gogo" {
 			if version := normalizeModuleVersion(dependency.Version); version != "" {
 				return version
 			}

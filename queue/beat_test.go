@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	q "github.com/cybersaksham/gogo/queue"
-	"github.com/cybersaksham/gogo/queue/brokers"
+	q "github.com/Newton-School/gogo/queue"
+	"github.com/Newton-School/gogo/queue/brokers"
 )
 
 func TestBeatTickEnqueuesDueScheduleAndPersistsRunState(t *testing.T) {

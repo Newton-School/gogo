@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/cybersaksham/gogo/admin"
-	"github.com/cybersaksham/gogo/auth"
+	"github.com/Newton-School/gogo/admin"
+	"github.com/Newton-School/gogo/auth"
 )
 
 type RouteDoc struct {

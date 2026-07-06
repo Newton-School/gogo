@@ -8,8 +8,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/cybersaksham/gogo/conf"
-	"github.com/cybersaksham/gogo/static"
+	"github.com/Newton-School/gogo/conf"
+	"github.com/Newton-School/gogo/static"
 )
 
 // StaticCollector runs one collectstatic operation.

@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cybersaksham/gogo/admin/parity"
-	"github.com/cybersaksham/gogo/models"
+	"github.com/Newton-School/gogo/admin/parity"
+	"github.com/Newton-School/gogo/models"
 )
 
 type parityPage string

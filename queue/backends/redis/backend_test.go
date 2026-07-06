@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cybersaksham/gogo/queue"
+	"github.com/Newton-School/gogo/queue"
 )
 
 func TestRedisBackendKeysAndResultBehavior(t *testing.T) {

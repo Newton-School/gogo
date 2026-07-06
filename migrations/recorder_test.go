@@ -6,9 +6,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/cybersaksham/gogo/orm"
-	postgresdialect "github.com/cybersaksham/gogo/orm/dialects/postgres"
-	sqlitedialect "github.com/cybersaksham/gogo/orm/dialects/sqlite"
+	"github.com/Newton-School/gogo/orm"
+	postgresdialect "github.com/Newton-School/gogo/orm/dialects/postgres"
+	sqlitedialect "github.com/Newton-School/gogo/orm/dialects/sqlite"
 	_ "modernc.org/sqlite"
 )
 

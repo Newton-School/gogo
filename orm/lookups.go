@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/cybersaksham/gogo/orm/dialects"
+	"github.com/Newton-School/gogo/orm/dialects"
 )
 
 var ErrInvalidLookup = errors.New("invalid lookup")

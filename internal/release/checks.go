@@ -85,9 +85,9 @@ func NewPlan(tag, commit, buildDate string) (Plan, error) {
 		LinkerFlags: []string{
 			"-s",
 			"-w",
-			"-X", "github.com/cybersaksham/gogo/internal/version.Version=" + version,
-			"-X", "github.com/cybersaksham/gogo/internal/version.Commit=" + commit,
-			"-X", "github.com/cybersaksham/gogo/internal/version.BuildDate=" + buildDate,
+			"-X", "github.com/Newton-School/gogo/internal/version.Version=" + version,
+			"-X", "github.com/Newton-School/gogo/internal/version.Commit=" + commit,
+			"-X", "github.com/Newton-School/gogo/internal/version.BuildDate=" + buildDate,
 		},
 	}
 	for _, platform := range SupportedPlatforms() {

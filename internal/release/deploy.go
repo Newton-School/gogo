@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cybersaksham/gogo/checks"
-	"github.com/cybersaksham/gogo/conf"
+	"github.com/Newton-School/gogo/checks"
+	"github.com/Newton-School/gogo/conf"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 	_ "modernc.org/sqlite"

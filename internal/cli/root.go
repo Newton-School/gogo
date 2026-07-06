@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/cybersaksham/gogo/checks"
-	"github.com/cybersaksham/gogo/internal/version"
-	"github.com/cybersaksham/gogo/migrations"
-	"github.com/cybersaksham/gogo/models"
+	"github.com/Newton-School/gogo/checks"
+	"github.com/Newton-School/gogo/internal/version"
+	"github.com/Newton-School/gogo/migrations"
+	"github.com/Newton-School/gogo/models"
 )
 
 // Root dispatches built-in CLI commands.

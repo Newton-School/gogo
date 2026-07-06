@@ -1,6 +1,6 @@
 package fields
 
-import "github.com/cybersaksham/gogo/models"
+import "github.com/Newton-School/gogo/models"
 
 // Metadata converts a concrete field into model metadata for migrations, admin,
 // API, and ORM stores.

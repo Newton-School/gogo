@@ -8,8 +8,8 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/cybersaksham/gogo/auth"
-	gogohttp "github.com/cybersaksham/gogo/http"
+	"github.com/Newton-School/gogo/auth"
+	gogohttp "github.com/Newton-School/gogo/http"
 )
 
 type adminBreadcrumb struct {

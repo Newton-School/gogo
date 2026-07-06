@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cybersaksham/gogo/cache"
-	"github.com/cybersaksham/gogo/i18n"
-	"github.com/cybersaksham/gogo/security"
+	"github.com/Newton-School/gogo/cache"
+	"github.com/Newton-School/gogo/i18n"
+	"github.com/Newton-School/gogo/security"
 )
 
 func TestCommonMiddlewareRedirectsAppendSlashAndPrependWWW(t *testing.T) {

@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/cybersaksham/gogo/orm/dialects"
+	"github.com/Newton-School/gogo/orm/dialects"
 )
 
 var ErrUnsupportedFunction = errors.New("unsupported database function")

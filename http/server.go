@@ -7,8 +7,8 @@ import (
 	nethttp "net/http"
 	"time"
 
-	"github.com/cybersaksham/gogo/app"
-	"github.com/cybersaksham/gogo/conf"
+	"github.com/Newton-School/gogo/app"
+	"github.com/Newton-School/gogo/conf"
 )
 
 const (

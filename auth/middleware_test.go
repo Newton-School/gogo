@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cybersaksham/gogo/sessions"
+	"github.com/Newton-School/gogo/sessions"
 )
 
 func TestAuthMiddlewareAttachesAuthenticatedUserFromSession(t *testing.T) {

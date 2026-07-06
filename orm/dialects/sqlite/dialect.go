@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/cybersaksham/gogo/orm/dialects"
+	"github.com/Newton-School/gogo/orm/dialects"
 )
 
 // Dialect renders SQLite SQL syntax.

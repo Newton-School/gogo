@@ -9,7 +9,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/cybersaksham/gogo/conf"
+	"github.com/Newton-School/gogo/conf"
 )
 
 func TestMiddlewareChainPreservesOrder(t *testing.T) {

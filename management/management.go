@@ -6,16 +6,16 @@ import (
 	"io"
 	"os"
 
-	"github.com/cybersaksham/gogo/app"
-	"github.com/cybersaksham/gogo/auth"
-	"github.com/cybersaksham/gogo/checks"
-	"github.com/cybersaksham/gogo/conf"
-	gogohttp "github.com/cybersaksham/gogo/http"
-	"github.com/cybersaksham/gogo/internal/cli"
-	"github.com/cybersaksham/gogo/migrations"
-	"github.com/cybersaksham/gogo/models"
-	"github.com/cybersaksham/gogo/orm"
-	"github.com/cybersaksham/gogo/queue"
+	"github.com/Newton-School/gogo/app"
+	"github.com/Newton-School/gogo/auth"
+	"github.com/Newton-School/gogo/checks"
+	"github.com/Newton-School/gogo/conf"
+	gogohttp "github.com/Newton-School/gogo/http"
+	"github.com/Newton-School/gogo/internal/cli"
+	"github.com/Newton-School/gogo/migrations"
+	"github.com/Newton-School/gogo/models"
+	"github.com/Newton-School/gogo/orm"
+	"github.com/Newton-School/gogo/queue"
 )
 
 // Command is the public management command contract for generated projects.

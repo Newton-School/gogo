@@ -12,11 +12,11 @@ import (
 	"strings"
 	"testing"
 
-	authmigrations "github.com/cybersaksham/gogo/auth/migrations"
-	"github.com/cybersaksham/gogo/migrations"
-	"github.com/cybersaksham/gogo/migrations/operations"
-	"github.com/cybersaksham/gogo/models"
-	sqlitedialect "github.com/cybersaksham/gogo/orm/dialects/sqlite"
+	authmigrations "github.com/Newton-School/gogo/auth/migrations"
+	"github.com/Newton-School/gogo/migrations"
+	"github.com/Newton-School/gogo/migrations/operations"
+	"github.com/Newton-School/gogo/models"
+	sqlitedialect "github.com/Newton-School/gogo/orm/dialects/sqlite"
 
 	_ "modernc.org/sqlite"
 )
@@ -928,9 +928,9 @@ func TestSquashMigrationsWritesReplacementMigrationFile(t *testing.T) {
 	if !strings.Contains(stdout.String(), "created squashed migration blog.0001_squashed_0002_post replacing 2 migration(s)") {
 		t.Fatalf("stdout = %q", stdout.String())
 	}
-	writeTextFile(t, filepath.Join(dir, "go.mod"), "module generated-client\n\ngo 1.26.4\n\ntoolchain go1.26.4\n\nrequire github.com/cybersaksham/gogo v0.0.0\n")
+	writeTextFile(t, filepath.Join(dir, "go.mod"), "module generated-client\n\ngo 1.26.4\n\ntoolchain go1.26.4\n\nrequire github.com/Newton-School/gogo v0.0.0\n")
 	repoRoot := cliTestRepoRoot(t)
-	runCLICommand(t, dir, "go", "mod", "edit", "-replace", "github.com/cybersaksham/gogo="+filepath.ToSlash(repoRoot))
+	runCLICommand(t, dir, "go", "mod", "edit", "-replace", "github.com/Newton-School/gogo="+filepath.ToSlash(repoRoot))
 	runCLICommand(t, dir, "go", "mod", "tidy")
 	runCLICommand(t, dir, "go", "test", "./apps/blog/migrations")
 }

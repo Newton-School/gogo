@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cybersaksham/gogo/queue"
-	"github.com/cybersaksham/gogo/queue/brokers"
+	"github.com/Newton-School/gogo/queue"
+	"github.com/Newton-School/gogo/queue/brokers"
 )
 
 func TestRedisKeyNamingAndEnvelopeEncoding(t *testing.T) {

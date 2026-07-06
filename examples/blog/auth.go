@@ -3,7 +3,7 @@ package blog
 import (
 	"time"
 
-	"github.com/cybersaksham/gogo/auth"
+	"github.com/Newton-School/gogo/auth"
 )
 
 func StaffUser() auth.User {

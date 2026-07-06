@@ -3,7 +3,7 @@ package api
 import (
 	"fmt"
 
-	"github.com/cybersaksham/gogo/models"
+	"github.com/Newton-School/gogo/models"
 )
 
 // ModelSerializerConfig configures metadata-driven serializers.

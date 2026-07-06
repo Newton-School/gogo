@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/cybersaksham/gogo/orm/dialects/postgres"
+	"github.com/Newton-School/gogo/orm/dialects/postgres"
 )
 
 func TestBuiltInLookupsCompile(t *testing.T) {

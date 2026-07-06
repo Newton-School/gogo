@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/cybersaksham/gogo/forms"
+	"github.com/Newton-School/gogo/forms"
 )
 
 func NewPostForm(data map[string]any) *forms.Form {

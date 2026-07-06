@@ -9,7 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	"github.com/cybersaksham/gogo/internal/cli"
+	"github.com/Newton-School/gogo/internal/cli"
 )
 
 func main() {

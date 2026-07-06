@@ -13,8 +13,8 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/cybersaksham/gogo/auth"
-	"github.com/cybersaksham/gogo/sessions"
+	"github.com/Newton-School/gogo/auth"
+	"github.com/Newton-School/gogo/sessions"
 )
 
 const (

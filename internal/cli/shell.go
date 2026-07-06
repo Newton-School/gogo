@@ -9,8 +9,8 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/cybersaksham/gogo/app"
-	"github.com/cybersaksham/gogo/conf"
+	"github.com/Newton-School/gogo/app"
+	"github.com/Newton-School/gogo/conf"
 )
 
 // ShellConfig contains resolved shell execution context.

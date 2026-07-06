@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cybersaksham/gogo/app"
+	"github.com/Newton-School/gogo/app"
 )
 
 type Options struct {

@@ -9,8 +9,8 @@ import (
 	"path/filepath"
 	"regexp"
 
-	gogotemplates "github.com/cybersaksham/gogo/internal/cli/templates"
-	"github.com/cybersaksham/gogo/internal/version"
+	gogotemplates "github.com/Newton-School/gogo/internal/cli/templates"
+	"github.com/Newton-School/gogo/internal/version"
 )
 
 var goIdentifierPattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)

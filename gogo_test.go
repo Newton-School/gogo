@@ -7,7 +7,7 @@ func TestPackageMetadata(t *testing.T) {
 		t.Fatalf("Name = %q, want %q", Name, "Gogo")
 	}
 
-	if ModulePath != "github.com/cybersaksham/gogo" {
-		t.Fatalf("ModulePath = %q, want %q", ModulePath, "github.com/cybersaksham/gogo")
+	if ModulePath != "github.com/Newton-School/gogo" {
+		t.Fatalf("ModulePath = %q, want %q", ModulePath, "github.com/Newton-School/gogo")
 	}
 }

@@ -6,7 +6,7 @@ Framework repo: `/Users/cybersaksham/Desktop/ns/gogo`
 
 Client project: `/Users/cybersaksham/Desktop/ns/My_Gogo`
 
-Framework source tested: current local branch with a downstream `replace github.com/cybersaksham/gogo => ../gogo`.
+Framework source tested: current local branch with a downstream `replace github.com/Newton-School/gogo => ../gogo`.
 
 ## Summary
 
@@ -34,8 +34,8 @@ go run ./cmd/gogo startproject My_Gogo ../My_Gogo
 Because the local development CLI reports `0.0.0-dev`, the generated `go.mod` did not pin a release. For this smoke test only, I added:
 
 ```bash
-go mod edit -require=github.com/cybersaksham/gogo@v0.0.0
-go mod edit -replace=github.com/cybersaksham/gogo=../gogo
+go mod edit -require=github.com/Newton-School/gogo@v0.0.0
+go mod edit -replace=github.com/Newton-School/gogo=../gogo
 go mod tidy
 ```
 
@@ -130,5 +130,5 @@ Passed:
 ## Remaining Notes
 
 - The generated project still intentionally requires a real `.env` for required settings.
-- Local unreleased smoke testing requires a `replace` directive. Published releases should pin `github.com/cybersaksham/gogo vX.Y.Z` automatically.
+- Local unreleased smoke testing requires a `replace` directive. Published releases should pin `github.com/Newton-School/gogo vX.Y.Z` automatically.
 - Admin pages now render Django-style structure and styling, but persistence for add/change/delete forms remains a separate product capability from this UI rendering pass.

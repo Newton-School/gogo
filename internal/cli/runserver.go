@@ -8,9 +8,9 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/cybersaksham/gogo/app"
-	"github.com/cybersaksham/gogo/conf"
-	gogohttp "github.com/cybersaksham/gogo/http"
+	"github.com/Newton-School/gogo/app"
+	"github.com/Newton-School/gogo/conf"
+	gogohttp "github.com/Newton-School/gogo/http"
 )
 
 // RunserverConfig contains resolved settings for the development server.

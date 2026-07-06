@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cybersaksham/gogo/queue"
+	"github.com/Newton-School/gogo/queue"
 )
 
 var (

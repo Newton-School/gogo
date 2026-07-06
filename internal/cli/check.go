@@ -8,11 +8,11 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/cybersaksham/gogo/checks"
-	"github.com/cybersaksham/gogo/conf"
-	"github.com/cybersaksham/gogo/internal/release"
-	"github.com/cybersaksham/gogo/migrations"
-	"github.com/cybersaksham/gogo/models"
+	"github.com/Newton-School/gogo/checks"
+	"github.com/Newton-School/gogo/conf"
+	"github.com/Newton-School/gogo/internal/release"
+	"github.com/Newton-School/gogo/migrations"
+	"github.com/Newton-School/gogo/models"
 )
 
 // NewCheckCommand creates the built-in system check command.

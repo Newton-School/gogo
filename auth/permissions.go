@@ -4,7 +4,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/cybersaksham/gogo/models"
+	"github.com/Newton-School/gogo/models"
 )
 
 var defaultModelPermissions = []string{"add", "change", "delete", "view"}

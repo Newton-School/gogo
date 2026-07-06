@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cybersaksham/gogo/models"
+	"github.com/Newton-School/gogo/models"
 )
 
 // MetadataFixtureRecord is one serialized row used by metadata-backed stores.

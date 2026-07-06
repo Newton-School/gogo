@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/cybersaksham/gogo/orm"
+	"github.com/Newton-School/gogo/orm"
 )
 
 // AppliedMigration stores one migration history row.

@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/cybersaksham/gogo/contrib/sites"
+	"github.com/Newton-School/gogo/contrib/sites"
 )
 
 func TestRedirectMiddlewareStatusUnsafeAndSiteFiltering(t *testing.T) {

@@ -31,7 +31,7 @@ normal routes and admin.
 ```go
 package docs
 
-import "github.com/cybersaksham/gogo/api"
+import "github.com/Newton-School/gogo/api"
 
 func ValidateTitle(input map[string]any) bool {
 	serializer := api.NewSerializer(api.StringField("title", api.FieldOptions{Required: true}))

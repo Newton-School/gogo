@@ -5,8 +5,8 @@ import (
 	"os"
 	"testing"
 
-	"github.com/cybersaksham/gogo/queue"
-	"github.com/cybersaksham/gogo/queue/brokers"
+	"github.com/Newton-School/gogo/queue"
+	"github.com/Newton-School/gogo/queue/brokers"
 )
 
 func TestRabbitMQRouteDeclarationPlanning(t *testing.T) {

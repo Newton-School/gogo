@@ -3,7 +3,7 @@ package orm
 import (
 	"strings"
 
-	"github.com/cybersaksham/gogo/models"
+	"github.com/Newton-School/gogo/models"
 )
 
 // Lookup identifies a field lookup operation.

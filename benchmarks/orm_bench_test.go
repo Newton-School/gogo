@@ -7,13 +7,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cybersaksham/gogo/admin"
-	gogoapi "github.com/cybersaksham/gogo/api"
-	"github.com/cybersaksham/gogo/migrations"
-	"github.com/cybersaksham/gogo/models"
-	"github.com/cybersaksham/gogo/orm"
-	"github.com/cybersaksham/gogo/orm/dialects/postgres"
-	sqlitedialect "github.com/cybersaksham/gogo/orm/dialects/sqlite"
+	"github.com/Newton-School/gogo/admin"
+	gogoapi "github.com/Newton-School/gogo/api"
+	"github.com/Newton-School/gogo/migrations"
+	"github.com/Newton-School/gogo/models"
+	"github.com/Newton-School/gogo/orm"
+	"github.com/Newton-School/gogo/orm/dialects/postgres"
+	sqlitedialect "github.com/Newton-School/gogo/orm/dialects/sqlite"
 
 	_ "modernc.org/sqlite"
 )

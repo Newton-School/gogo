@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cybersaksham/gogo/orm"
+	"github.com/Newton-School/gogo/orm"
 )
 
 const adminLogTable = "gogo_admin_log"

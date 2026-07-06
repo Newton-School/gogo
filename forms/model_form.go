@@ -7,8 +7,8 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/cybersaksham/gogo/models"
-	modelfields "github.com/cybersaksham/gogo/models/fields"
+	"github.com/Newton-School/gogo/models"
+	modelfields "github.com/Newton-School/gogo/models/fields"
 )
 
 // ModelFieldFactory overrides the generated form field for one model field.

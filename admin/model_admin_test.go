@@ -6,8 +6,8 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/cybersaksham/gogo/auth"
-	"github.com/cybersaksham/gogo/models"
+	"github.com/Newton-School/gogo/auth"
+	"github.com/Newton-School/gogo/models"
 )
 
 func TestModelAdminOptionsNormalizeAndClone(t *testing.T) {

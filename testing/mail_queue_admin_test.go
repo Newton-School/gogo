@@ -7,11 +7,11 @@ import (
 	"net/http"
 	stdtesting "testing"
 
-	"github.com/cybersaksham/gogo/admin"
-	"github.com/cybersaksham/gogo/auth"
-	"github.com/cybersaksham/gogo/email"
-	"github.com/cybersaksham/gogo/models"
-	"github.com/cybersaksham/gogo/queue"
+	"github.com/Newton-School/gogo/admin"
+	"github.com/Newton-School/gogo/auth"
+	"github.com/Newton-School/gogo/email"
+	"github.com/Newton-School/gogo/models"
+	"github.com/Newton-School/gogo/queue"
 )
 
 func TestMailOutboxCapturesAndClearsMessages(t *stdtesting.T) {

@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cybersaksham/gogo/orm"
+	"github.com/Newton-School/gogo/orm"
 )
 
 // SQLUserStore persists built-in auth users in the auth_user table.

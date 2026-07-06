@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/cybersaksham/gogo/models"
+	"github.com/Newton-School/gogo/models"
 )
 
 func TestRelationshipFieldTypesAndMetadata(t *testing.T) {

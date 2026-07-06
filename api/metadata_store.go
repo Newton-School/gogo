@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 
-	"github.com/cybersaksham/gogo/models"
-	"github.com/cybersaksham/gogo/orm"
+	"github.com/Newton-School/gogo/models"
+	"github.com/Newton-School/gogo/orm"
 )
 
 // MetadataViewSetStore adapts an ORM metadata store to ModelViewSetStore.

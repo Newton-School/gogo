@@ -26,7 +26,7 @@ func (w Writer) Write(migration Migration) (string, error) {
 	var builder strings.Builder
 	packageName := w.packageName()
 	builder.WriteString("package " + packageName + "\n\n")
-	builder.WriteString("import gogomigrations \"github.com/cybersaksham/gogo/migrations\"\n\n")
+	builder.WriteString("import gogomigrations \"github.com/Newton-School/gogo/migrations\"\n\n")
 	variableName := generatedMigrationVariableName(migration.Name)
 	builder.WriteString("// " + variableName + " describes this generated migration.\n")
 	builder.WriteString("var " + variableName + " = gogomigrations.Migration{\n")

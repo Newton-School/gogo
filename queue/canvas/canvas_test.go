@@ -6,10 +6,10 @@ import (
 	"reflect"
 	"testing"
 
-	q "github.com/cybersaksham/gogo/queue"
-	"github.com/cybersaksham/gogo/queue/backends"
-	"github.com/cybersaksham/gogo/queue/brokers"
-	"github.com/cybersaksham/gogo/queue/canvas"
+	q "github.com/Newton-School/gogo/queue"
+	"github.com/Newton-School/gogo/queue/backends"
+	"github.com/Newton-School/gogo/queue/brokers"
+	"github.com/Newton-School/gogo/queue/canvas"
 )
 
 func TestChainSerializationExecutionOrderCallbacksAndErrbacks(t *testing.T) {

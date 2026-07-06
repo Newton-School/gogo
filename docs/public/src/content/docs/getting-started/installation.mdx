@@ -14,7 +14,7 @@ description: Install the Gogo CLI and add the framework module to a Go project.
 Install the published CLI:
 
 ```bash
-go install github.com/cybersaksham/gogo/cmd/gogo@v0.2.0
+go install github.com/Newton-School/gogo/cmd/gogo@v0.2.0
 ```
 
 Check the installed binary:
@@ -27,8 +27,8 @@ If a newly published tag is not visible through the public Go checksum database
 yet, install directly from Git:
 
 ```bash
-GOPROXY=direct GONOSUMDB=github.com/cybersaksham/gogo \
-  go install github.com/cybersaksham/gogo/cmd/gogo@v0.2.0
+GOPROXY=direct GONOSUMDB=github.com/Newton-School/gogo \
+  go install github.com/Newton-School/gogo/cmd/gogo@v0.2.0
 ```
 
 ## Use Gogo as a dependency
@@ -36,7 +36,7 @@ GOPROXY=direct GONOSUMDB=github.com/cybersaksham/gogo \
 Add the framework module to an application:
 
 ```bash
-go get github.com/cybersaksham/gogo@v0.2.0
+go get github.com/Newton-School/gogo@v0.2.0
 ```
 
 Generated projects already reference the public module path. Run `go mod tidy`

@@ -73,8 +73,8 @@ func TestWriterWritesDeterministicGoMigration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolve repo root: %v", err)
 	}
-	writeTextFile(t, filepath.Join(root, "go.mod"), "module generated-migration\n\ngo 1.26.4\n\ntoolchain go1.26.4\n\nrequire github.com/cybersaksham/gogo v0.0.0\n")
-	runTestCommand(t, root, "go", "mod", "edit", "-replace", "github.com/cybersaksham/gogo="+filepath.ToSlash(repoRoot))
+	writeTextFile(t, filepath.Join(root, "go.mod"), "module generated-migration\n\ngo 1.26.4\n\ntoolchain go1.26.4\n\nrequire github.com/Newton-School/gogo v0.0.0\n")
+	runTestCommand(t, root, "go", "mod", "edit", "-replace", "github.com/Newton-School/gogo="+filepath.ToSlash(repoRoot))
 	runTestCommand(t, root, "go", "mod", "tidy")
 	runTestCommand(t, root, "go", "test", "./blog/migrations")
 }

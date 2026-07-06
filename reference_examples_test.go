@@ -4,12 +4,12 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/cybersaksham/gogo/api"
-	"github.com/cybersaksham/gogo/conf"
-	"github.com/cybersaksham/gogo/models"
-	"github.com/cybersaksham/gogo/orm"
-	"github.com/cybersaksham/gogo/orm/dialects/postgres"
-	"github.com/cybersaksham/gogo/queue"
+	"github.com/Newton-School/gogo/api"
+	"github.com/Newton-School/gogo/conf"
+	"github.com/Newton-School/gogo/models"
+	"github.com/Newton-School/gogo/orm"
+	"github.com/Newton-School/gogo/orm/dialects/postgres"
+	"github.com/Newton-School/gogo/queue"
 )
 
 func Example_referenceCoreAPIs() {

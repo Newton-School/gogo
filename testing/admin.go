@@ -3,8 +3,8 @@ package testing
 import (
 	"net/http"
 
-	"github.com/cybersaksham/gogo/admin"
-	"github.com/cybersaksham/gogo/auth"
+	"github.com/Newton-School/gogo/admin"
+	"github.com/Newton-School/gogo/auth"
 )
 
 type AdminClient struct {

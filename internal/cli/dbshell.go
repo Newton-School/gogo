@@ -10,7 +10,7 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/cybersaksham/gogo/conf"
+	"github.com/Newton-School/gogo/conf"
 )
 
 type DBShellConfig struct {

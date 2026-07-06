@@ -1,6 +1,6 @@
 package sites
 
-import sitemigrations "github.com/cybersaksham/gogo/contrib/sites/migrations"
+import sitemigrations "github.com/Newton-School/gogo/contrib/sites/migrations"
 
 func Migration() sitemigrations.MigrationInfo {
 	return sitemigrations.Initial()

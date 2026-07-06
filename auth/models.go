@@ -3,7 +3,7 @@ package auth
 import (
 	"time"
 
-	"github.com/cybersaksham/gogo/models"
+	"github.com/Newton-School/gogo/models"
 )
 
 const (

@@ -11,8 +11,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/cybersaksham/gogo/queue"
-	"github.com/cybersaksham/gogo/queue/brokers"
+	"github.com/Newton-School/gogo/queue"
+	"github.com/Newton-School/gogo/queue/brokers"
 	redisclient "github.com/redis/go-redis/v9"
 )
 

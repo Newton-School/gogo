@@ -3,7 +3,7 @@ package vector
 import (
 	"testing"
 
-	modelfields "github.com/cybersaksham/gogo/models/fields"
+	modelfields "github.com/Newton-School/gogo/models/fields"
 )
 
 func TestVectorFieldAndIndexMetadata(t *testing.T) {

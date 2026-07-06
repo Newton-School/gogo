@@ -4,8 +4,8 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/cybersaksham/gogo/contrib/sites"
-	"github.com/cybersaksham/gogo/models"
+	"github.com/Newton-School/gogo/contrib/sites"
+	"github.com/Newton-School/gogo/models"
 )
 
 type Redirect struct {

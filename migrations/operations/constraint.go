@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/cybersaksham/gogo/migrations"
+	"github.com/Newton-School/gogo/migrations"
 )
 
 type AddConstraint struct {

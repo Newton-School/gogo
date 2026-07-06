@@ -3,7 +3,7 @@ package orm
 import (
 	"fmt"
 
-	"github.com/cybersaksham/gogo/models"
+	"github.com/Newton-School/gogo/models"
 )
 
 // QueryMode describes queryset output mode.

@@ -42,7 +42,7 @@ Use `models.Metadata` as the source of truth:
 ```go
 package blog
 
-import "github.com/cybersaksham/gogo/models"
+import "github.com/Newton-School/gogo/models"
 
 type Post struct {
 	models.BaseModel
@@ -91,7 +91,7 @@ Use `go run manage.go changepassword` later for password rotation.
 ```go
 package blog
 
-import "github.com/cybersaksham/gogo/admin"
+import "github.com/Newton-School/gogo/admin"
 
 func RegisterAdmin(registry *admin.Registry) error {
 	return registry.Register(Post{}, admin.ModelAdmin{
@@ -111,7 +111,7 @@ package blog
 import (
 	"context"
 
-	"github.com/cybersaksham/gogo/api"
+	"github.com/Newton-School/gogo/api"
 )
 
 func RegisterAPI(router *api.Router) error {

@@ -14,7 +14,7 @@ Primary implementation plans live in `.plans/`. Current framework code is organi
 - Inspect the relevant code, tests, docs, and plan before editing.
 - Keep changes tightly scoped to the requested workflow.
 - Do not revert user changes or unrelated work.
-- Use public framework packages for generated client projects. Generated projects must not import `github.com/cybersaksham/gogo/internal`.
+- Use public framework packages for generated client projects. Generated projects must not import `github.com/Newton-School/gogo/internal`.
 - Keep `.env.example` and generated `internal/cli/templates/project/env.example.tmpl` synchronized when environment variables change.
 - Never commit `.env`, local databases, credentials, tokens, generated uploads, local media, or machine-specific paths.
 - Prefer standard library code unless an added dependency materially reduces risk. Document dependency intent when adding one.

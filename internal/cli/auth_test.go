@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/cybersaksham/gogo/auth"
+	"github.com/Newton-School/gogo/auth"
 )
 
 func TestCreateSuperuserNonInteractiveCreatesUser(t *testing.T) {

@@ -15,7 +15,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/cybersaksham/gogo/orm"
+	"github.com/Newton-School/gogo/orm"
 )
 
 var ErrInvalidFixture = errors.New("invalid fixture")

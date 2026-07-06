@@ -3,7 +3,7 @@ package blog
 import (
 	"fmt"
 
-	"github.com/cybersaksham/gogo/admin"
+	"github.com/Newton-School/gogo/admin"
 )
 
 func RegisterAdmin(registry *admin.Registry) error {

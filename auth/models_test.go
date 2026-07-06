@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cybersaksham/gogo/models"
+	"github.com/Newton-School/gogo/models"
 )
 
 type customUser struct {

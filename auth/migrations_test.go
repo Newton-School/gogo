@@ -5,10 +5,10 @@ import (
 	"strings"
 	"testing"
 
-	authmigrations "github.com/cybersaksham/gogo/auth/migrations"
-	"github.com/cybersaksham/gogo/migrations"
-	"github.com/cybersaksham/gogo/orm"
-	sqlitedialect "github.com/cybersaksham/gogo/orm/dialects/sqlite"
+	authmigrations "github.com/Newton-School/gogo/auth/migrations"
+	"github.com/Newton-School/gogo/migrations"
+	"github.com/Newton-School/gogo/orm"
+	sqlitedialect "github.com/Newton-School/gogo/orm/dialects/sqlite"
 	_ "modernc.org/sqlite"
 )
 

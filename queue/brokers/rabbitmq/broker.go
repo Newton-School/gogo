@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/cybersaksham/gogo/queue"
-	"github.com/cybersaksham/gogo/queue/brokers"
+	"github.com/Newton-School/gogo/queue"
+	"github.com/Newton-School/gogo/queue/brokers"
 )
 
 type Config struct {

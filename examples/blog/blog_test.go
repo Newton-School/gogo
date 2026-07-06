@@ -6,12 +6,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/cybersaksham/gogo/admin"
-	"github.com/cybersaksham/gogo/api"
-	"github.com/cybersaksham/gogo/auth"
-	"github.com/cybersaksham/gogo/migrations"
-	"github.com/cybersaksham/gogo/queue"
-	gogotest "github.com/cybersaksham/gogo/testing"
+	"github.com/Newton-School/gogo/admin"
+	"github.com/Newton-School/gogo/api"
+	"github.com/Newton-School/gogo/auth"
+	"github.com/Newton-School/gogo/migrations"
+	"github.com/Newton-School/gogo/queue"
+	gogotest "github.com/Newton-School/gogo/testing"
 )
 
 func TestBlogExampleExercisesFrameworkFeatures(t *testing.T) {

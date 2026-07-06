@@ -19,8 +19,8 @@ admin readiness.
 
 - Previous release: `v0.9.0`.
 - New release: `v0.10.0`.
-- Module path: `github.com/cybersaksham/gogo`.
-- CLI install path: `github.com/cybersaksham/gogo/cmd/gogo`.
+- Module path: `github.com/Newton-School/gogo`.
+- CLI install path: `github.com/Newton-School/gogo/cmd/gogo`.
 
 ### Added
 
@@ -86,7 +86,7 @@ admin readiness.
 ### Migration Notes
 
 - Existing generated projects should update their `go.mod` requirement to
-  `github.com/cybersaksham/gogo v0.10.0` and run `go mod tidy`.
+  `github.com/Newton-School/gogo v0.10.0` and run `go mod tidy`.
 - Projects that want durable admin history should configure
   `admin.NewSQLLogStore(database)` or adopt the updated generated project
   `admin.go`; the SQL log store creates the `gogo_admin_log` table and indexes
@@ -127,8 +127,8 @@ and existing-schema round-trip parity.
 
 - Previous release: `v0.8.0`.
 - New release: `v0.9.0`.
-- Module path: `github.com/cybersaksham/gogo`.
-- CLI install path: `github.com/cybersaksham/gogo/cmd/gogo`.
+- Module path: `github.com/Newton-School/gogo`.
+- CLI install path: `github.com/Newton-School/gogo/cmd/gogo`.
 
 ### Added
 
@@ -167,7 +167,7 @@ and existing-schema round-trip parity.
 ### Migration Notes
 
 - Existing generated projects should update their `go.mod` requirement to
-  `github.com/cybersaksham/gogo v0.9.0` and run `go mod tidy`.
+  `github.com/Newton-School/gogo v0.9.0` and run `go mod tidy`.
 - Projects using advanced unique constraints should expect expressions,
   predicates, included columns, and opclasses to migrate as unique indexes.
   Simple deferrable unique constraints remain table-level constraints.
@@ -209,8 +209,8 @@ and richer schema introspection.
 
 - Previous release: `v0.7.0`.
 - New release: `v0.8.0`.
-- Module path: `github.com/cybersaksham/gogo`.
-- CLI install path: `github.com/cybersaksham/gogo/cmd/gogo`.
+- Module path: `github.com/Newton-School/gogo`.
+- CLI install path: `github.com/Newton-School/gogo/cmd/gogo`.
 
 ### Added
 
@@ -260,7 +260,7 @@ and richer schema introspection.
 ### Migration Notes
 
 - Existing generated projects should update their `go.mod` requirement to
-  `github.com/cybersaksham/gogo v0.8.0` and run `go mod tidy`.
+  `github.com/Newton-School/gogo v0.8.0` and run `go mod tidy`.
 - Projects adopting existing databases should rerun `inspectdb` and
   `diffschema` before baselining; declared indexes and constraints are now part
   of the blocking schema comparison where introspection supports them.
@@ -300,8 +300,8 @@ adoption.
 
 - Previous release: `v0.6.0`.
 - New release: `v0.7.0`.
-- Module path: `github.com/cybersaksham/gogo`.
-- CLI install path: `github.com/cybersaksham/gogo/cmd/gogo`.
+- Module path: `github.com/Newton-School/gogo`.
+- CLI install path: `github.com/Newton-School/gogo/cmd/gogo`.
 
 ### Added
 
@@ -361,7 +361,7 @@ adoption.
 ### Migration Notes
 
 - Existing generated projects should update their `go.mod` requirement to
-  `github.com/cybersaksham/gogo v0.7.0` and run `go mod tidy`.
+  `github.com/Newton-School/gogo v0.7.0` and run `go mod tidy`.
 - Existing generated projects should regenerate or manually adopt the updated
   project lifecycle, app command/check, migration, queue, and `manage.go`
   templates if they want the new generated-project hooks and Redis queue
@@ -401,8 +401,8 @@ and generated-project admin readiness.
 
 - Previous release: `v0.5.1`.
 - New release: `v0.6.0`.
-- Module path: `github.com/cybersaksham/gogo`.
-- CLI install path: `github.com/cybersaksham/gogo/cmd/gogo`.
+- Module path: `github.com/Newton-School/gogo`.
+- CLI install path: `github.com/Newton-School/gogo/cmd/gogo`.
 
 ### Added
 
@@ -461,7 +461,7 @@ and generated-project admin readiness.
 ### Migration Notes
 
 - Existing generated projects should update their `go.mod` requirement to
-  `github.com/cybersaksham/gogo v0.6.0` and run `go mod tidy`.
+  `github.com/Newton-School/gogo v0.6.0` and run `go mod tidy`.
 - Existing generated projects should regenerate or manually adopt the updated
   project admin template if they want built-in auth models registered in admin
   automatically.
@@ -486,8 +486,8 @@ Patch release for installed CLI project delegation inside generated projects.
 
 - Previous release: `v0.5.0`.
 - New release: `v0.5.1`.
-- Module path: `github.com/cybersaksham/gogo`.
-- CLI install path: `github.com/cybersaksham/gogo/cmd/gogo`.
+- Module path: `github.com/Newton-School/gogo`.
+- CLI install path: `github.com/Newton-School/gogo/cmd/gogo`.
 
 ### Added
 
@@ -516,7 +516,7 @@ Patch release for installed CLI project delegation inside generated projects.
 ### Migration Notes
 
 - Existing generated projects do not need template changes for this fix. Update
-  their `go.mod` requirement to `github.com/cybersaksham/gogo v0.5.1` and run
+  their `go.mod` requirement to `github.com/Newton-School/gogo v0.5.1` and run
   `go mod tidy`.
 - Users can continue calling `go run manage.go <command>` directly. After
   installing `v0.5.1`, running `gogo <project-aware-command>` from a generated
@@ -542,8 +542,8 @@ coverage.
 
 - Previous release: `v0.4.0`.
 - New release: `v0.5.0`.
-- Module path: `github.com/cybersaksham/gogo`.
-- CLI install path: `github.com/cybersaksham/gogo/cmd/gogo`.
+- Module path: `github.com/Newton-School/gogo`.
+- CLI install path: `github.com/Newton-School/gogo/cmd/gogo`.
 
 ### Added
 
@@ -606,7 +606,7 @@ coverage.
 ### Migration Notes
 
 - Existing generated projects should update their `go.mod` requirement to
-  `github.com/cybersaksham/gogo v0.5.0` and run `go mod tidy`.
+  `github.com/Newton-School/gogo v0.5.0` and run `go mod tidy`.
 - Existing generated projects should regenerate or manually adopt the updated
   app API, project admin, project app metadata, and `manage.go` wiring if they
   want database-backed generated admin/API/fixture behavior.
@@ -640,8 +640,8 @@ readiness, and downstream smoke reliability.
 
 - Previous release: `v0.3.0`.
 - New release: `v0.4.0`.
-- Module path: `github.com/cybersaksham/gogo`.
-- CLI install path: `github.com/cybersaksham/gogo/cmd/gogo`.
+- Module path: `github.com/Newton-School/gogo`.
+- CLI install path: `github.com/Newton-School/gogo/cmd/gogo`.
 
 ### Added
 
@@ -690,7 +690,7 @@ readiness, and downstream smoke reliability.
 ### Migration Notes
 
 - Existing generated projects should update their `go.mod` requirement to
-  `github.com/cybersaksham/gogo v0.4.0` and run `go mod tidy`.
+  `github.com/Newton-School/gogo v0.4.0` and run `go mod tidy`.
 - Existing generated projects that already mount admin routes will get the new
   admin pages and `/admin/static/` assets after updating the framework version.
 - Required environment variables remain unchanged. Projects still need a valid
@@ -718,8 +718,8 @@ application, generated module version pinning, and client smoke reliability.
 
 - Previous release: `v0.2.0`.
 - New release: `v0.3.0`.
-- Module path: `github.com/cybersaksham/gogo`.
-- CLI install path: `github.com/cybersaksham/gogo/cmd/gogo`.
+- Module path: `github.com/Newton-School/gogo`.
+- CLI install path: `github.com/Newton-School/gogo/cmd/gogo`.
 
 ### Added
 
@@ -730,7 +730,7 @@ application, generated module version pinning, and client smoke reliability.
 - Added generated admin auth wiring: new projects use `.gogo/auth_users.json`
   for `createsuperuser` users and `.gogo/sessions` for admin sessions.
 - Added release-aware `go.mod` generation so projects created by a released
-  `gogo` CLI pin `github.com/cybersaksham/gogo` to the current module version.
+  `gogo` CLI pin `github.com/Newton-School/gogo` to the current module version.
 - Added a client smoke report covering generated-project command behavior and
   the fixes required after the `v0.2.0` smoke run.
 
@@ -779,7 +779,7 @@ application, generated module version pinning, and client smoke reliability.
 - Migration commands now require a valid `DATABASE_URL` when applying or reading
   recorded migration state. `migrate --plan` still renders a pending plan when
   database state is unavailable.
-- Existing generated projects can add a `require github.com/cybersaksham/gogo
+- Existing generated projects can add a `require github.com/Newton-School/gogo
   v0.3.0` line to `go.mod`, then run `go mod tidy`.
 
 ### Verification
@@ -804,8 +804,8 @@ admin usability, and management command output clarity.
 
 - Previous release: `v0.1.4`.
 - New release: `v0.2.0`.
-- Module path: `github.com/cybersaksham/gogo`.
-- CLI install path: `github.com/cybersaksham/gogo/cmd/gogo`.
+- Module path: `github.com/Newton-School/gogo`.
+- CLI install path: `github.com/Newton-School/gogo/cmd/gogo`.
 
 ### Added
 
@@ -879,15 +879,15 @@ Patch release for generated-project runtime parity and management UX improvement
 
 - Previous release: `v0.1.3`.
 - New release: `v0.1.4`.
-- Module path: `github.com/cybersaksham/gogo`.
-- CLI install path: `github.com/cybersaksham/gogo/cmd/gogo`.
+- Module path: `github.com/Newton-School/gogo`.
+- CLI install path: `github.com/Newton-School/gogo/cmd/gogo`.
 
 ### Added
 
 - Added a public management runner and project execution path (`go run manage.go`)
   so generated projects can execute all local workflow commands against project
   settings, app configs, router, and queue app without importing
-  `github.com/cybersaksham/gogo/internal`.
+  `github.com/Newton-School/gogo/internal`.
 - Added automatic generated-project app wiring during `startapp`, including
   generated app registration in project settings, routing/admin/task markers, and
   app config wiring in generated `app.go`.
@@ -933,8 +933,8 @@ Patch release for release readiness and agent guidance completeness.
 
 - Previous release: `v0.1.2`.
 - New release: `v0.1.3`.
-- Module path: `github.com/cybersaksham/gogo`.
-- CLI install path: `github.com/cybersaksham/gogo/cmd/gogo`.
+- Module path: `github.com/Newton-School/gogo`.
+- CLI install path: `github.com/Newton-School/gogo/cmd/gogo`.
 
 ### Added
 
@@ -969,8 +969,8 @@ publishing.
 
 - Previous release: `v0.1.1`.
 - New release: `v0.1.2`.
-- Module path: `github.com/cybersaksham/gogo`.
-- CLI install path: `github.com/cybersaksham/gogo/cmd/gogo`.
+- Module path: `github.com/Newton-School/gogo`.
+- CLI install path: `github.com/Newton-School/gogo/cmd/gogo`.
 
 ### Added
 
@@ -998,7 +998,7 @@ publishing.
 - Updated docs Makefile targets for public docs install, audit, check, and
   build workflows.
 - Configured the public docs site for the GitHub Pages project path
-  `https://cybersaksham.github.io/gogo/`.
+  `https://newton-school.github.io/gogo/`.
 
 ### Verification
 
@@ -1023,8 +1023,8 @@ documentation.
 
 - Previous release: `v0.1.0`.
 - New release: `v0.1.1`.
-- Module path: `github.com/cybersaksham/gogo`.
-- CLI install path: `github.com/cybersaksham/gogo/cmd/gogo`.
+- Module path: `github.com/Newton-School/gogo`.
+- CLI install path: `github.com/Newton-School/gogo/cmd/gogo`.
 
 ### Added
 
@@ -1049,7 +1049,7 @@ documentation.
 
 - Added `gogo --version`, `gogo -version`, `gogo --help`, and `gogo -h` root
   aliases.
-- Fixed source installs from `go install github.com/cybersaksham/gogo/cmd/gogo@vX.Y.Z`
+- Fixed source installs from `go install github.com/Newton-School/gogo/cmd/gogo@vX.Y.Z`
   so `gogo version` can report the Go module version when release linker flags
   are not present.
 - Moved environment-variable documentation coverage checks from `README.md` to
@@ -1076,8 +1076,8 @@ Initial pre-release of the app-structured Gogo framework.
 
 - Previous release: none. This is the first public release.
 - New release: `v0.1.0`.
-- Module path: `github.com/cybersaksham/gogo`.
-- CLI install path: `github.com/cybersaksham/gogo/cmd/gogo`.
+- Module path: `github.com/Newton-School/gogo`.
+- CLI install path: `github.com/Newton-School/gogo/cmd/gogo`.
 
 ### Added
 

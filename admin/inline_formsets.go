@@ -7,9 +7,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/cybersaksham/gogo/auth"
-	"github.com/cybersaksham/gogo/forms"
-	"github.com/cybersaksham/gogo/models"
+	"github.com/Newton-School/gogo/auth"
+	"github.com/Newton-School/gogo/forms"
+	"github.com/Newton-School/gogo/models"
 )
 
 // AdminInlineFormsetInput configures route-level inline formset building.

@@ -8,7 +8,7 @@ import (
 	"reflect"
 	"testing"
 
-	gogohttp "github.com/cybersaksham/gogo/http"
+	gogohttp "github.com/Newton-School/gogo/http"
 )
 
 func TestAPIRouterRegistersViewSetRoutesCustomActionsAndReverse(t *testing.T) {

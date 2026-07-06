@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/cybersaksham/gogo/api"
+	"github.com/Newton-School/gogo/api"
 )
 
 func AuthorSerializer() *api.Serializer {

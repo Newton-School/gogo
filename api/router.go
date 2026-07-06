@@ -7,7 +7,7 @@ import (
 	"sort"
 	"strings"
 
-	frameworkhttp "github.com/cybersaksham/gogo/http"
+	frameworkhttp "github.com/Newton-School/gogo/http"
 )
 
 // RouterOption configures an API router.

@@ -44,9 +44,9 @@ func TestNewPlanBuildsSupportedArtifactsAndLinkerFlags(t *testing.T) {
 	}
 	flags := strings.Join(plan.LinkerFlags, " ")
 	for _, want := range []string{
-		"github.com/cybersaksham/gogo/internal/version.Version=0.1.0",
-		"github.com/cybersaksham/gogo/internal/version.Commit=abc123",
-		"github.com/cybersaksham/gogo/internal/version.BuildDate=2026-06-28T00:00:00Z",
+		"github.com/Newton-School/gogo/internal/version.Version=0.1.0",
+		"github.com/Newton-School/gogo/internal/version.Commit=abc123",
+		"github.com/Newton-School/gogo/internal/version.BuildDate=2026-06-28T00:00:00Z",
 	} {
 		if !strings.Contains(flags, want) {
 			t.Fatalf("LinkerFlags = %q, want %q", flags, want)

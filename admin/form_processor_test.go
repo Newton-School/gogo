@@ -11,10 +11,10 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/cybersaksham/gogo/auth"
-	"github.com/cybersaksham/gogo/files"
-	"github.com/cybersaksham/gogo/forms"
-	"github.com/cybersaksham/gogo/models"
+	"github.com/Newton-School/gogo/auth"
+	"github.com/Newton-School/gogo/files"
+	"github.com/Newton-School/gogo/forms"
+	"github.com/Newton-School/gogo/models"
 )
 
 func TestAdminFormProcessorRunsAddLifecycleHooksTransactionAndResponse(t *testing.T) {

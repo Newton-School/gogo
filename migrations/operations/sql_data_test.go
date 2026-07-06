@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/cybersaksham/gogo/migrations"
+	"github.com/Newton-School/gogo/migrations"
 )
 
 func TestRunSQLReversibleAndIrreversible(t *testing.T) {

@@ -23,7 +23,7 @@ static assets.
 
 `gogo startproject My_Gogo /Users/cybersaksham/Desktop/ns/My_Gogo` generated:
 
-- `go.mod` requiring `github.com/cybersaksham/gogo v0.4.0`
+- `go.mod` requiring `github.com/Newton-School/gogo v0.4.0`
 - `go.sum`
 - project-local `manage.go`
 - project settings under `My_Gogo/settings`
@@ -112,7 +112,7 @@ ERROR config invalid settings: GOGO_SECRET_KEY is required; DATABASE_URL is requ
 | Admin history page | Passed render check for `/admin/notes/item/1/history/`. |
 | Admin password change page | Passed render check. |
 | Admin static assets | Passed; `/admin/static/admin.css` and `/admin/static/admin.js` returned 200. |
-| Forbidden imports | Passed; generated project does not import `github.com/cybersaksham/gogo/internal`. |
+| Forbidden imports | Passed; generated project does not import `github.com/Newton-School/gogo/internal`. |
 | Server shutdown | Passed; port `8099` was clear after stopping runserver. |
 
 ## Issues Found

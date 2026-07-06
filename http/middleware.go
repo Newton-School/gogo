@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cybersaksham/gogo/conf"
+	"github.com/Newton-School/gogo/conf"
 )
 
 const RequestIDHeader = "X-Request-ID"

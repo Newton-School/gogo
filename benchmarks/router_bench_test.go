@@ -7,7 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	gogohttp "github.com/cybersaksham/gogo/http"
+	gogohttp "github.com/Newton-School/gogo/http"
 )
 
 func BenchmarkRouterMatch(b *testing.B) {

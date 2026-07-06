@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/cybersaksham/gogo/auth"
-	gogohttp "github.com/cybersaksham/gogo/http"
+	"github.com/Newton-School/gogo/auth"
+	gogohttp "github.com/Newton-School/gogo/http"
 )
 
 // IndexContext is the render-ready admin index data.

@@ -14,7 +14,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cybersaksham/gogo/cache"
+	"github.com/Newton-School/gogo/cache"
 )
 
 var (

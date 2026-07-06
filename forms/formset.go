@@ -7,8 +7,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/cybersaksham/gogo/models"
-	modelfields "github.com/cybersaksham/gogo/models/fields"
+	"github.com/Newton-School/gogo/models"
+	modelfields "github.com/Newton-School/gogo/models/fields"
 )
 
 const (

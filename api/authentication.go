@@ -6,8 +6,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cybersaksham/gogo/auth"
-	"github.com/cybersaksham/gogo/models"
+	"github.com/Newton-School/gogo/auth"
+	"github.com/Newton-School/gogo/models"
 )
 
 // Token is the framework-owned API token model.

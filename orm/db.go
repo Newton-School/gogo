@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/cybersaksham/gogo/orm/dialects"
+	"github.com/Newton-School/gogo/orm/dialects"
 )
 
 const DefaultDatabase = "default"

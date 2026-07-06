@@ -4,10 +4,10 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/cybersaksham/gogo/migrations"
-	"github.com/cybersaksham/gogo/models"
-	"github.com/cybersaksham/gogo/orm/dialects/postgres"
-	"github.com/cybersaksham/gogo/orm/dialects/sqlite"
+	"github.com/Newton-School/gogo/migrations"
+	"github.com/Newton-School/gogo/models"
+	"github.com/Newton-School/gogo/orm/dialects/postgres"
+	"github.com/Newton-School/gogo/orm/dialects/sqlite"
 )
 
 func TestSchemaEditorPostgresGoldenSQL(t *testing.T) {

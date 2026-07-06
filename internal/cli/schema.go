@@ -8,9 +8,9 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/cybersaksham/gogo/migrations"
-	"github.com/cybersaksham/gogo/models"
-	"github.com/cybersaksham/gogo/orm"
+	"github.com/Newton-School/gogo/migrations"
+	"github.com/Newton-School/gogo/models"
+	"github.com/Newton-School/gogo/orm"
 )
 
 func NewInspectDBCommand() Command {

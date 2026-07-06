@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/cybersaksham/gogo/admin/parity"
+	"github.com/Newton-School/gogo/admin/parity"
 )
 
 func TestAdminDOMRegressionCoverage(t *testing.T) {

@@ -1,4 +1,4 @@
-module github.com/cybersaksham/gogo
+module github.com/Newton-School/gogo
 
 go 1.26.4
 

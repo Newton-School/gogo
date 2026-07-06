@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/cybersaksham/gogo/sessions"
+	"github.com/Newton-School/gogo/sessions"
 )
 
 type userContextKey struct{}

@@ -4,7 +4,7 @@ import (
 	"net"
 	"net/http"
 
-	"github.com/cybersaksham/gogo/auth"
+	"github.com/Newton-School/gogo/auth"
 )
 
 // Request wraps a standard HTTP request with API lifecycle metadata.

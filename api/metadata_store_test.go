@@ -5,9 +5,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/cybersaksham/gogo/models"
-	"github.com/cybersaksham/gogo/orm"
-	sqlitedialect "github.com/cybersaksham/gogo/orm/dialects/sqlite"
+	"github.com/Newton-School/gogo/models"
+	"github.com/Newton-School/gogo/orm"
+	sqlitedialect "github.com/Newton-School/gogo/orm/dialects/sqlite"
 
 	_ "modernc.org/sqlite"
 )

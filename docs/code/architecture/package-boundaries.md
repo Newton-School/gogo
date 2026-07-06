@@ -4,7 +4,7 @@ This document defines how packages depend on each other and where client project
 
 ## Client Import Rules
 
-Client applications may import public packages under `github.com/cybersaksham/gogo/...`. Client applications must not import packages under `internal/`.
+Client applications may import public packages under `github.com/Newton-School/gogo/...`. Client applications must not import packages under `internal/`.
 
 Allowed client-facing package groups:
 

@@ -4,7 +4,7 @@ import (
 	"reflect"
 	stdtesting "testing"
 
-	"github.com/cybersaksham/gogo/conf"
+	"github.com/Newton-School/gogo/conf"
 )
 
 func TestOverrideSettingsRestoresAppsMiddlewareDatabaseAndTemplates(t *stdtesting.T) {

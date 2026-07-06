@@ -3,7 +3,7 @@ package fields
 import (
 	"fmt"
 
-	"github.com/cybersaksham/gogo/models"
+	"github.com/Newton-School/gogo/models"
 )
 
 const Self = "self"

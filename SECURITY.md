@@ -3,7 +3,7 @@
 ## Supported Versions
 
 Gogo is pre-1.0 software until the first stable release is tagged in
-`github.com/cybersaksham/gogo`. Security fixes are made against the current
+`github.com/Newton-School/gogo`. Security fixes are made against the current
 development branch and included in the next available release.
 
 | Version | Security support |
@@ -20,7 +20,7 @@ without changing public APIs, generated project layout, or migration semantics.
 
 Report suspected vulnerabilities through GitHub Security Advisories:
 
-https://github.com/cybersaksham/gogo/security/advisories/new
+https://github.com/Newton-School/gogo/security/advisories/new
 
 Do not open a public issue, pull request, discussion, or chat thread for an
 unpatched vulnerability. Include:

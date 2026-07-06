@@ -1,8 +1,8 @@
 package migrations
 
 import (
-	coremigrations "github.com/cybersaksham/gogo/migrations"
-	"github.com/cybersaksham/gogo/migrations/operations"
+	coremigrations "github.com/Newton-School/gogo/migrations"
+	"github.com/Newton-School/gogo/migrations/operations"
 )
 
 // Initial returns the built-in auth and session initial migration.

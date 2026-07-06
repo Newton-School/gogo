@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/cybersaksham/gogo/admin"
-	"github.com/cybersaksham/gogo/models"
+	"github.com/Newton-School/gogo/admin"
+	"github.com/Newton-School/gogo/models"
 	"github.com/google/uuid"
 )
 

@@ -1,6 +1,6 @@
 package orm
 
-import "github.com/cybersaksham/gogo/models"
+import "github.com/Newton-School/gogo/models"
 
 // ManagerMethod transforms a queryset.
 type ManagerMethod func(QuerySet) QuerySet

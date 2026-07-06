@@ -1,6 +1,6 @@
 package flatpages
 
-import "github.com/cybersaksham/gogo/models"
+import "github.com/Newton-School/gogo/models"
 
 type FlatPage struct {
 	ID                   int

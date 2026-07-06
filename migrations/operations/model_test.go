@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/cybersaksham/gogo/migrations"
+	"github.com/Newton-School/gogo/migrations"
 )
 
 func TestModelOperationsMutateStateAndRenderSQL(t *testing.T) {

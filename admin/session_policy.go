@@ -4,8 +4,8 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/cybersaksham/gogo/auth"
-	"github.com/cybersaksham/gogo/sessions"
+	"github.com/Newton-School/gogo/auth"
+	"github.com/Newton-School/gogo/sessions"
 )
 
 // SessionPermissionPolicy authorizes admin requests from auth context or admin session cookies.

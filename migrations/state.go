@@ -6,8 +6,8 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/cybersaksham/gogo/models"
-	modelconstraints "github.com/cybersaksham/gogo/models/constraints"
+	"github.com/Newton-School/gogo/models"
+	modelconstraints "github.com/Newton-School/gogo/models/constraints"
 )
 
 // ProjectState stores historical migration state.

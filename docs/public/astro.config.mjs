@@ -2,7 +2,7 @@ import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
 
 export default defineConfig({
-  site: 'https://cybersaksham.github.io/gogo',
+  site: 'https://newton-school.github.io/gogo',
   base: '/gogo',
   integrations: [
     starlight({
@@ -17,7 +17,7 @@ export default defineConfig({
         {
           icon: 'github',
           label: 'GitHub',
-          href: 'https://github.com/cybersaksham/gogo',
+          href: 'https://github.com/Newton-School/gogo',
         },
       ],
       customCss: ['./src/styles/custom.css'],

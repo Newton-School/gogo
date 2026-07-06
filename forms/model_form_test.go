@@ -6,8 +6,8 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/cybersaksham/gogo/models"
-	modelfields "github.com/cybersaksham/gogo/models/fields"
+	"github.com/Newton-School/gogo/models"
+	modelfields "github.com/Newton-School/gogo/models/fields"
 )
 
 type modelFormArticle struct {

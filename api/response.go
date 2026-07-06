@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"os"
 
-	frameworkhttp "github.com/cybersaksham/gogo/http"
+	frameworkhttp "github.com/Newton-School/gogo/http"
 )
 
 // APIError is the normalized API error body.

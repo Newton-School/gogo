@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/cybersaksham/gogo/forms"
-	"github.com/cybersaksham/gogo/models"
+	"github.com/Newton-School/gogo/forms"
+	"github.com/Newton-School/gogo/models"
 )
 
 type adminRowModel struct {

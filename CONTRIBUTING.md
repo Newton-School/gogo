@@ -12,7 +12,7 @@ static files, contrib packages, and Celery-style queues.
 - Read the relevant `.plans/` file when implementing planned framework
   behavior.
 - Keep generated client projects on public framework packages. Generated
-  projects must not import `github.com/cybersaksham/gogo/internal`.
+  projects must not import `github.com/Newton-School/gogo/internal`.
 
 ## Development Setup
 
@@ -92,7 +92,7 @@ semantics, queue contracts, or CLI command behavior:
 
 Report vulnerabilities privately through GitHub Security Advisories:
 
-https://github.com/cybersaksham/gogo/security/advisories/new
+https://github.com/Newton-School/gogo/security/advisories/new
 
 Do not open public issues, pull requests, discussions, or chat threads for
 unpatched vulnerabilities. Follow `SECURITY.md` for required report content,

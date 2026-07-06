@@ -1,6 +1,6 @@
 package canvas
 
-import q "github.com/cybersaksham/gogo/queue"
+import q "github.com/Newton-School/gogo/queue"
 
 func NewChunks(taskName string, values []any, size int) Group {
 	if size < 1 {

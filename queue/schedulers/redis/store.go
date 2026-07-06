@@ -10,7 +10,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/cybersaksham/gogo/queue"
+	"github.com/Newton-School/gogo/queue"
 	"github.com/google/uuid"
 	redisclient "github.com/redis/go-redis/v9"
 )

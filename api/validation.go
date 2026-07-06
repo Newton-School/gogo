@@ -5,7 +5,7 @@ import (
 	"errors"
 	"sort"
 
-	modelvalidation "github.com/cybersaksham/gogo/models/validation"
+	modelvalidation "github.com/Newton-School/gogo/models/validation"
 )
 
 const NonFieldErrors = "__all__"

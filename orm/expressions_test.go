@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/cybersaksham/gogo/orm/dialects/postgres"
+	"github.com/Newton-School/gogo/orm/dialects/postgres"
 )
 
 func TestExpressionValuesAreParameterized(t *testing.T) {

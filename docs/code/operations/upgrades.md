@@ -26,7 +26,7 @@ upgrade in a staging environment with production-like settings and data volume.
 In a generated project, update the module requirement:
 
 ```bash
-go get github.com/cybersaksham/gogo@v0.1.0
+go get github.com/Newton-School/gogo@v0.1.0
 go mod tidy
 go test ./...
 ```
@@ -35,7 +35,7 @@ When testing an unreleased local framework checkout, use a temporary `replace`
 directive and remove it before publishing the application:
 
 ```bash
-go mod edit -replace github.com/cybersaksham/gogo=/absolute/path/to/gogo
+go mod edit -replace github.com/Newton-School/gogo=/absolute/path/to/gogo
 go mod tidy
 go test ./...
 ```

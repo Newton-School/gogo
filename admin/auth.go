@@ -3,8 +3,8 @@ package admin
 import (
 	"fmt"
 
-	"github.com/cybersaksham/gogo/auth"
-	"github.com/cybersaksham/gogo/models"
+	"github.com/Newton-School/gogo/auth"
+	"github.com/Newton-School/gogo/models"
 )
 
 // RegisterAuthModels registers the built-in auth models with Django-style admin

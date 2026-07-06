@@ -5,8 +5,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/cybersaksham/gogo/models"
-	"github.com/cybersaksham/gogo/orm/dialects"
+	"github.com/Newton-School/gogo/models"
+	"github.com/Newton-School/gogo/orm/dialects"
 )
 
 // CompiledSQL stores SQL text and bound args.

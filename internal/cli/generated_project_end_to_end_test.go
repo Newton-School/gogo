@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/cybersaksham/gogo/auth"
+	"github.com/Newton-School/gogo/auth"
 )
 
 func TestGeneratedProjectEndToEndVerification(t *testing.T) {
@@ -43,7 +43,7 @@ func TestGeneratedProjectEndToEndVerification(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolve repo root: %v", err)
 	}
-	runGeneratedCommand(t, target, "go", "mod", "edit", "-replace", "github.com/cybersaksham/gogo="+filepath.ToSlash(repoRoot))
+	runGeneratedCommand(t, target, "go", "mod", "edit", "-replace", "github.com/Newton-School/gogo="+filepath.ToSlash(repoRoot))
 	runGeneratedCommand(t, target, "go", "mod", "tidy")
 
 	withWorkingDirectory(t, filepath.Join(target, "apps"), func() {
@@ -148,7 +148,7 @@ GOGO_PASSWORD_RESET_ENABLED=true
 func generatedAccountsAuthorModelSource() string {
 	return `package accounts
 
-import "github.com/cybersaksham/gogo/models"
+import "github.com/Newton-School/gogo/models"
 
 type Author struct {
 	models.BaseModel
@@ -185,7 +185,7 @@ func (Author) ModelMeta() models.Metadata {
 func generatedBlogPostModelSource() string {
 	return `package blog
 
-import "github.com/cybersaksham/gogo/models"
+import "github.com/Newton-School/gogo/models"
 
 type Post struct {
 	models.BaseModel
@@ -240,16 +240,16 @@ import (
 	blog "sampleproject/apps/blog"
 	project "sampleproject/sampleproject"
 
-	"github.com/cybersaksham/gogo/admin"
-	"github.com/cybersaksham/gogo/api"
-	"github.com/cybersaksham/gogo/app"
-	"github.com/cybersaksham/gogo/models"
-	"github.com/cybersaksham/gogo/migrations"
-	"github.com/cybersaksham/gogo/queue"
-	"github.com/cybersaksham/gogo/queue/backends"
-	"github.com/cybersaksham/gogo/queue/brokers"
-	"github.com/cybersaksham/gogo/queue/canvas"
-	"github.com/cybersaksham/gogo/templates"
+	"github.com/Newton-School/gogo/admin"
+	"github.com/Newton-School/gogo/api"
+	"github.com/Newton-School/gogo/app"
+	"github.com/Newton-School/gogo/models"
+	"github.com/Newton-School/gogo/migrations"
+	"github.com/Newton-School/gogo/queue"
+	"github.com/Newton-School/gogo/queue/backends"
+	"github.com/Newton-School/gogo/queue/brokers"
+	"github.com/Newton-School/gogo/queue/canvas"
+	"github.com/Newton-School/gogo/templates"
 )
 
 func TestGeneratedEndToEndSurface(t *testing.T) {

@@ -117,8 +117,8 @@ package main
 import (
 	"context"
 
-	"github.com/cybersaksham/gogo/admin"
-	"github.com/cybersaksham/gogo/checks"
+	"github.com/Newton-School/gogo/admin"
+	"github.com/Newton-School/gogo/checks"
 )
 
 func main() {
