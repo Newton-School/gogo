@@ -9,6 +9,65 @@ versioning after the first stable release.
 
 No user-facing changes yet.
 
+## v0.11.0 - 2026-07-06
+
+Breaking module-path release for the Newton School repository transfer.
+
+### Release Metadata
+
+- Previous release: `v0.10.0`.
+- New release: `v0.11.0`.
+- Module path: `github.com/Newton-School/gogo`.
+- CLI install path: `github.com/Newton-School/gogo/cmd/gogo`.
+
+### Changed
+
+- Changed the canonical Go module path, import paths, generated project
+  templates, docs, examples, compatibility fixtures, release checks, and
+  version detection from `github.com/cybersaksham/gogo` to
+  `github.com/Newton-School/gogo`.
+- Changed public documentation metadata, GitHub links, GitHub Pages site
+  configuration, and docs package scope to the Newton School namespace.
+- Changed release workflow linker flags so published CLI artifacts stamp
+  version metadata through the new module path.
+- Changed the MIT license copyright holder to Newton School.
+
+### Removed
+
+- Removed generated client smoke reports from the source repository.
+
+### Breaking
+
+- Existing downstream projects that import `github.com/cybersaksham/gogo/...`
+  must update imports and module requirements to
+  `github.com/Newton-School/gogo/...`.
+
+### Migration Notes
+
+- Update `go.mod` requirements to `github.com/Newton-School/gogo v0.11.0`.
+- Replace imports from `github.com/cybersaksham/gogo/...` with
+  `github.com/Newton-School/gogo/...`.
+- Replace local `go.mod` `replace` directives that reference the old module
+  path, then run `go mod tidy`.
+- Install the CLI with
+  `go install github.com/Newton-School/gogo/cmd/gogo@v0.11.0`.
+
+### Verification
+
+- Passed `make ci`; local `govulncheck` was not installed, so the Makefile
+  skipped the local vulnerability scan.
+- Passed `go test -tags=integration ./...`.
+- Passed `go test -race ./queue/... ./orm/... ./http/...`.
+- Passed `make bench`.
+- Passed release dry run for `v0.11.0` before tagging.
+
+### Artifacts
+
+- The GitHub release workflow publishes CLI binaries for Linux, macOS, and
+  Windows on `amd64` and `arm64`.
+- The GitHub release workflow publishes `checksums.txt` with SHA256 checksums
+  for release artifacts.
+
 ## v0.10.0 - 2026-07-05
 
 Feature release for Django-style admin parity, metadata-backed admin forms,
