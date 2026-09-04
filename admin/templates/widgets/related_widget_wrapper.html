@@ -1,9 +1,0 @@
-{{define "widget-related-wrapper"}}
-<div class="related-widget-wrapper"{{if .RelatedModelName}} data-model-ref="{{.RelatedModelName}}"{{end}}>
-  {{.RenderedWidget}}
-  {{if .CanChangeRelated}}<a class="related-widget-wrapper-link change-related" id="change_id_{{.Name}}" data-href-template="{{.ChangeRelatedTemplateURL}}" data-popup="yes" title="Change selected {{.RelatedModelLabel}}"><img src="/admin/static/admin/img/icon-changelink.svg" alt="" width="24" height="24"></a>{{end}}
-  {{if .CanAddRelated}}<a class="related-widget-wrapper-link add-related" id="add_id_{{.Name}}" data-popup="yes" href="{{.AddRelatedURL}}" title="Add another {{.RelatedModelLabel}}"><img src="/admin/static/admin/img/icon-addlink.svg" alt="" width="24" height="24"></a>{{end}}
-  {{if .CanDeleteRelated}}<a class="related-widget-wrapper-link delete-related" id="delete_id_{{.Name}}" data-href-template="{{.DeleteRelatedTemplateURL}}" data-popup="yes" title="Delete selected {{.RelatedModelLabel}}"><img src="/admin/static/admin/img/icon-deletelink.svg" alt="" width="24" height="24"></a>{{end}}
-  {{if .CanViewRelated}}<a class="related-widget-wrapper-link view-related" id="view_id_{{.Name}}" data-href-template="{{.ViewRelatedTemplateURL}}" title="View selected {{.RelatedModelLabel}}"><img src="/admin/static/admin/img/icon-viewlink.svg" alt="" width="24" height="24"></a>{{end}}
-</div>
-{{end}}

@@ -1,9 +1,0 @@
-package {{.AppName}}
-
-import "strings"
-
-type ItemService struct{}
-
-func (ItemService) NormalizeSlug(value string) string {
-	return strings.Trim(strings.ToLower(strings.ReplaceAll(value, " ", "-")), "-")
-}

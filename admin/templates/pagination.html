@@ -1,6 +1,0 @@
-{{define "pagination"}}
-<nav class="paginator" aria-labelledby="pagination">
-  <h2 id="pagination" class="visually-hidden">Pagination</h2>
-  {{if .ChangeList.Total}}{{.ChangeList.Total}} {{.ModelVerboseNamePlural}}{{else}}0 {{.ModelVerboseNamePlural}}{{end}}
-</nav>
-{{end}}

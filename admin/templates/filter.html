@@ -1,8 +1,0 @@
-{{define "admin-filter"}}
-<details data-filter-title="{{.Label}}" open>
-  <summary>By {{.Label}}</summary>
-  <ul>
-    {{range .Choices}}<li{{if .Selected}} class="selected"{{end}}><a href="{{.QueryString}}">{{.Display}}</a></li>{{end}}
-  </ul>
-</details>
-{{end}}

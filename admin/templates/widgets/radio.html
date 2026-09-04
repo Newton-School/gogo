@@ -1,5 +1,0 @@
-{{define "widget-radio"}}
-<div id="{{.ID}}" class="radiolist{{if .Inline}} inline{{end}}">
-  {{range .Choices}}<div><label><input type="radio" name="{{$.Name}}" value="{{.Value}}"{{if .Selected}} checked{{end}}> {{.Label}}</label></div>{{end}}
-</div>
-{{end}}

@@ -1,9 +1,0 @@
-{{define "widget-clearable-file-input"}}
-{{if .Initial}}<p class="file-upload">Currently: <a href="{{.InitialURL}}">{{.InitialLabel}}</a>
-<span class="clearable-file-input">
-<input type="checkbox" name="{{.ClearName}}" id="{{.ClearID}}">
-<label for="{{.ClearID}}">Clear</label></span><br>
-Change:{{end}}
-{{.Input}}
-{{if .Initial}}</p>{{end}}
-{{end}}

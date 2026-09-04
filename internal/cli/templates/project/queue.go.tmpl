@@ -1,9 +1,0 @@
-package {{.ProjectName}}
-
-import "github.com/Newton-School/gogo/queue"
-
-func NewQueueApp() *queue.App {
-	app := queue.NewApp(queue.AppOptions{DefaultQueue: "default"})
-	// gogo:startapp-tasks
-	return app
-}

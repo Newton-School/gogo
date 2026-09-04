@@ -1,9 +1,0 @@
-{{ define "blog/comment_form.html" }}
-<form class="blog-comment-form" method="post" action="{{ .Action }}">
-  <label>Name <input type="text" name="name" value="{{ .Name }}"></label>
-  <label>Email <input type="email" name="email" value="{{ .Email }}"></label>
-  <label>Comment <textarea name="body">{{ .Body }}</textarea></label>
-  <label><input type="checkbox" name="consent" value="true"> I agree to moderation.</label>
-  <button type="submit">Submit</button>
-</form>
-{{ end }}
