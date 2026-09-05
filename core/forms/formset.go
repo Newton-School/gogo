@@ -84,11 +84,13 @@ func BindFormSet(ctx context.Context, fields []Field, values url.Values, options
 		return nil, errors.New("forms: existing IDs must match initial forms")
 	}
 	known := map[string]bool{}
-	for _, id := range options.ExistingIDs {
+	initialByID := map[string]map[string]any{}
+	for i, id := range options.ExistingIDs {
 		if id == "" || known[id] {
 			return nil, errors.New("forms: duplicate or missing configured row identity")
 		}
 		known[id] = true
+		initialByID[id] = options.Initial[i]
 	}
 	seen := map[string]bool{}
 	type ordering struct{ index, order int }
@@ -97,7 +99,7 @@ func BindFormSet(ctx context.Context, fields []Field, values url.Values, options
 	for i := 0; i < total; i++ {
 		prefix := fmt.Sprintf("%s-%d", options.Prefix, i)
 		id := values.Get(prefix + "-" + options.IdentityField)
-		if len(options.ExistingIDs) > 0 {
+		if options.ExistingIDs != nil {
 			if (i < initial && (!known[id] || seen[id])) || (i >= initial && id != "") {
 				return fail("identity", "An object is missing, duplicated, or outside this formset.")
 			}
@@ -108,6 +110,9 @@ func BindFormSet(ctx context.Context, fields []Field, values url.Values, options
 		var initialData map[string]any
 		if i < initial {
 			initialData = options.Initial[i]
+			if len(options.ExistingIDs) > 0 {
+				initialData = initialByID[id]
+			}
 		}
 		f, err := New(fields, WithData(values), WithInitial(initialData), WithPrefix(prefix), WithContext(ctx))
 		if err != nil {
