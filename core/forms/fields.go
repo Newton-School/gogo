@@ -315,6 +315,13 @@ func (f Field) toValue(ctx context.Context, raw any) (any, error) {
 		}
 		return s, nil
 	case JSON:
+		if _, ok := raw.(string); !ok {
+			encoded, err := json.Marshal(raw)
+			if err != nil {
+				return invalid()
+			}
+			s = string(encoded)
+		}
 		if len(s) > 1<<20 {
 			return nil, f.failure("max_length", "This value is too large.")
 		}
@@ -371,11 +378,21 @@ func (f Field) cleanComposite(ctx context.Context, raw any) (any, error) {
 		return v, nil
 	}
 	parts := stringValues(raw)
+	if value, ok := raw.(time.Time); ok && f.Kind == SplitDateTime {
+		parts = []string{value.Format("2006-01-02"), value.Format("15:04:05.999999999")}
+	}
 	fields := f.Fields
 	if f.Kind == SplitDateTime && len(fields) == 0 {
 		fields = []Field{NewField("date", Date), NewField("time", Time)}
 	}
-	if len(parts) == 0 {
+	allEmpty := true
+	for _, part := range parts {
+		if part != "" {
+			allEmpty = false
+			break
+		}
+	}
+	if len(parts) == 0 || allEmpty {
 		return nil, nil
 	}
 	values := make([]any, len(fields))
