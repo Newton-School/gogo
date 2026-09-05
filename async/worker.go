@@ -144,6 +144,22 @@ func (w *Worker) Run(ctx context.Context) error {
 	return ctx.Err()
 }
 
+// RunOnce reserves at most one task. An empty queue is a successful no-op,
+// useful for supervised batch jobs and deterministic management invocations.
+func (w *Worker) RunOnce(ctx context.Context) error {
+	if err := w.initialize(); err != nil {
+		return err
+	}
+	delivery, err := w.Broker.Consume(ctx, ConsumeOptions{Queues: w.Queues, Consumer: w.ID})
+	if errors.Is(err, ErrNotFound) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	return w.Process(ctx, delivery)
+}
+
 // Process handles a single reservation. Any uncertain result-store outcome leaves
 // the delivery pending; an old worker can never acknowledge uncommitted success.
 func (w *Worker) Process(ctx context.Context, delivery Delivery) error {
