@@ -57,6 +57,7 @@ type ModelAdmin struct {
 }
 type Config struct {
 	Name, Header, Title, IndexTitle, Prefix, SiteURL, LoginURL string
+	LogoutURL                                                  string
 	Store                                                      Store
 	Policy                                                     auth.Policy
 	Signer                                                     *security.Signer
@@ -81,6 +82,7 @@ type Site struct {
 }
 
 func NewSite(config Config) (*Site, error) {
+	config.CSRF.TrustedOrigins = slices.Clone(config.CSRF.TrustedOrigins)
 	if config.Name == "" {
 		config.Name = "admin"
 	}
@@ -105,8 +107,11 @@ func NewSite(config Config) (*Site, error) {
 	if config.CSRF.Exempt != nil {
 		return nil, errors.New("admin: CSRF exemptions are not allowed")
 	}
-	if config.LoginURL != "" && (!strings.HasPrefix(config.LoginURL, "/") || strings.HasPrefix(config.LoginURL, "//") || strings.ContainsAny(config.LoginURL, "\\\r\n")) {
+	if config.LoginURL != "" && security.SafeNext(config.LoginURL, "") == "" {
 		return nil, errors.New("admin: login URL must be local")
+	}
+	if config.LogoutURL != "" && security.SafeNext(config.LogoutURL, "") == "" {
+		return nil, errors.New("admin: logout URL must be local")
 	}
 	templatesFS, _ := fs.Sub(embedded, "internal/templates")
 	loaders := append([]templates.Loader(nil), config.TemplateLoaders...)

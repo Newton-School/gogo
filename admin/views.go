@@ -59,7 +59,11 @@ func (s *Site) serve(w http.ResponseWriter, r *http.Request) {
 	p := auth.FromContext(r.Context())
 	if !p.Authenticated {
 		if s.config.LoginURL != "" {
-			http.Redirect(w, r, s.config.LoginURL+"?next="+url.QueryEscape(r.URL.RequestURI()), http.StatusSeeOther)
+			login, _ := url.Parse(s.config.LoginURL)
+			query := login.Query()
+			query.Set("next", r.URL.RequestURI())
+			login.RawQuery = query.Encode()
+			http.Redirect(w, r, login.String(), http.StatusSeeOther)
 		} else {
 			http.Error(w, "Authentication required", http.StatusUnauthorized)
 		}
@@ -213,6 +217,7 @@ func (s *Site) render(w http.ResponseWriter, r *http.Request, p auth.Principal, 
 	data["actor"] = p.ID
 	data["csrf_token"] = security.CSRFToken(r)
 	data["site_url"] = s.config.SiteURL
+	data["logout_url"] = s.config.LogoutURL
 	if s.config.Messages {
 		items, err := messages.Consume(r)
 		if err != nil {
