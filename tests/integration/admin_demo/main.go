@@ -1,6 +1,5 @@
-// Command admin_demo is a loopback-only UI review fixture. It deliberately uses
-// a synthetic staff identity and refuses any database outside the test cluster.
-// Application projects must use the normal authentication/session middleware.
+// Command admin_demo is a loopback-only UI review fixture with persisted staff
+// accounts and Redis sessions. It refuses databases outside the test cluster.
 package main
 
 import (
@@ -21,12 +20,17 @@ import (
 
 	"github.com/Newton-School/gogo/admin"
 	"github.com/Newton-School/gogo/connectors/postgres"
+	connector "github.com/Newton-School/gogo/connectors/redis"
 	"github.com/Newton-School/gogo/core/auth"
+	authviews "github.com/Newton-School/gogo/core/auth/views"
+	"github.com/Newton-School/gogo/core/contrib/contenttypes"
 	"github.com/Newton-School/gogo/core/db"
 	"github.com/Newton-School/gogo/core/messages"
+	"github.com/Newton-School/gogo/core/migrations"
 	"github.com/Newton-School/gogo/core/models"
 	"github.com/Newton-School/gogo/core/orm"
 	"github.com/Newton-School/gogo/core/security"
+	"github.com/Newton-School/gogo/core/sessions"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -63,6 +67,14 @@ func run() error {
 	dsn := os.Getenv("GOGO_TEST_POSTGRES_DSN")
 	if dsn == "" {
 		return errors.New("GOGO_TEST_POSTGRES_DSN is required")
+	}
+	redisURL, password := os.Getenv("GOGO_ADMIN_DEMO_REDIS_URL"), os.Getenv("GOGO_ADMIN_DEMO_PASSWORD")
+	if redisURL == "" || password == "" {
+		return errors.New("GOGO_ADMIN_DEMO_REDIS_URL and GOGO_ADMIN_DEMO_PASSWORD are required")
+	}
+	identifier := os.Getenv("GOGO_ADMIN_DEMO_USERNAME")
+	if identifier == "" {
+		identifier = "staff-reviewer"
 	}
 	parsed, err := pgx.ParseConfig(dsn)
 	if err != nil || parsed.User != "gogo_test" || !(strings.HasPrefix(parsed.Host, "/") || parsed.Host == "127.0.0.1" || parsed.Host == "::1") {
@@ -107,32 +119,75 @@ func run() error {
 	}
 	defer backend.Close()
 	descriptors := []models.Schema{(&Product{}).Schema(), (&ProductNote{}).Schema(), admin.LogSchema()}
-	editor, err := backend.SchemaEditor().(db.SchemaResolverEditor).WithSchemas(descriptors)
-	if err != nil {
-		return err
-	}
 	registry := &models.Registry{}
-	for _, descriptor := range descriptors {
+	for _, descriptor := range append(append([]models.Schema{}, descriptors...), append(auth.Schemas(), (&contenttypes.ContentType{}).Schema())...) {
 		if err = registry.Register(descriptor); err != nil {
-			return err
-		}
-		if err = editor.CreateModel(ctx, backend, descriptor); err != nil {
 			return err
 		}
 	}
 	if err = registry.Freeze(); err != nil {
 		return err
 	}
+	editor, err := backend.SchemaEditor().(db.SchemaResolverEditor).WithSchemas(registry.All())
+	if err != nil {
+		return err
+	}
+	for _, descriptor := range descriptors {
+		if err = editor.CreateModel(ctx, backend, descriptor); err != nil {
+			return err
+		}
+	}
+	runner := migrations.Executor{Backend: backend, Editor: backend.SchemaEditor(), Migrations: append(contenttypes.Migrations(), auth.Migrations()...)}
+	if err := runner.Apply(ctx, ""); err != nil {
+		return err
+	}
 	store := orm.New(backend, registry)
+	if _, err := contenttypes.Sync(ctx, store, registry, nil); err != nil {
+		return err
+	}
+	if err := auth.SyncPermissions(ctx, store, registry, nil); err != nil {
+		return err
+	}
+	accounts, err := auth.NewAccounts(auth.AccountsConfig{Store: store, Authorize: func(ctx context.Context, _ auth.AccountChange) error {
+		if auth.FromContext(ctx).ID != "fixture-bootstrap" {
+			return auth.ErrPermissionDenied
+		}
+		return nil
+	}})
+	if err != nil {
+		return err
+	}
+	bootstrap := auth.WithPrincipal(ctx, auth.Principal{ID: "fixture-bootstrap", Authenticated: true, Active: true})
+	staff, err := accounts.CreateUser(bootstrap, identifier, password, auth.CreateUserOptions{Staff: true})
+	if err != nil {
+		return err
+	}
+	codenames := []string{}
+	for _, model := range []string{"product", "productnote"} {
+		for _, action := range []string{"view", "add", "change", "delete"} {
+			codenames = append(codenames, action+"_"+model)
+		}
+	}
+	permissions, err := orm.For(store, func() *auth.Permission { return &auth.Permission{} }).Filter(orm.Q("codename__in", codenames)).All(ctx)
+	if err != nil || len(permissions) != len(codenames) {
+		return errors.New("fixture model permission setup failed")
+	}
+	grantIDs := make([]int64, len(permissions))
+	for i, permission := range permissions {
+		grantIDs[i] = permission.ID
+	}
+	if err := accounts.SetUserPermissions(bootstrap, staff.ID, grantIDs); err != nil {
+		return err
+	}
 	rows := []Product{{Name: "Workspace notebook", Description: "Lay-flat pages for ideas, planning, and everyday notes.", Price: "18.00", SKU: "NOTE-001", Stock: 120, Published: true}, {Name: "Everyday tote", Description: "A sturdy carryall for daily essentials.", Price: "24.00", SKU: "BAG-002", Stock: 42, Published: true}, {Name: "Ceramic travel mug", Description: "Keep your morning coffee close.", Price: "32.00", SKU: "MUG-003", Stock: 86, Published: true}, {Name: "Desk organizer", Description: "A clear space for focused work.", Price: "46.00", SKU: "DESK-004", Stock: 18, Published: false}, {Name: "Weekly planner", Description: "Make room for what matters this week.", Price: "22.00", SKU: "PLAN-005", Stock: 64, Published: true}, {Name: "Reading lamp", Description: "Warm light for the end of a long day.", Price: "74.00", SKU: "LAMP-006", Stock: 12, Published: false}}
 	for i := range rows {
-		rows[i].Tenant = "review-workspace"
+		rows[i].Tenant = staff.ID
 		if err = store.Save(ctx, &rows[i], orm.SaveOptions{ForceInsert: true}); err != nil {
 			return err
 		}
 	}
 	for _, body := range []string{"Check stock before the autumn collection launch.", "Use recycled paper for the next production run."} {
-		if err = store.Save(ctx, &ProductNote{Tenant: "review-workspace", ProductID: rows[0].ID, Body: body}, orm.SaveOptions{}); err != nil {
+		if err = store.Save(ctx, &ProductNote{Tenant: staff.ID, ProductID: rows[0].ID, Body: body}, orm.SaveOptions{}); err != nil {
 			return err
 		}
 	}
@@ -168,7 +223,7 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	site, err := admin.NewSite(admin.Config{Store: adapter, Signer: signer, Policy: auth.ModelPolicy{AllowSuperuser: true}, Messages: true, CSRF: security.CSRFConfig{MaxBodyBytes: 10 << 20}})
+	site, err := admin.NewSite(admin.Config{Store: adapter, Signer: signer, Policy: auth.ModelPolicy{}, LoginURL: "/admin/login/", LogoutURL: "/admin/logout/", Messages: true, CSRF: security.CSRFConfig{MaxBodyBytes: 10 << 20}})
 	if err != nil {
 		return err
 	}
@@ -195,18 +250,44 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	flashSigner, err := security.NewSigner(security.SigningKey{ID: "fixture", Value: []byte(key)}, nil, "admin-review-messages")
+	connection, err := connector.Open(ctx, connector.Config{URL: redisURL, Namespace: schema, Role: connector.SessionRole, Development: true})
 	if err != nil {
 		return err
 	}
-	flash, err := messages.Middleware(messages.Config{Mode: messages.Cookie, Signer: flashSigner})
+	defer connection.Close()
+	sessionSigner, err := security.NewSigner(security.SigningKey{ID: "fixture", Value: []byte(key)}, nil, "admin-review-session")
 	if err != nil {
 		return err
 	}
-	handler := headers(flash(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		identity := auth.Principal{ID: "review-workspace", Authenticated: true, Active: true, Staff: true, Superuser: true}
-		site.ServeHTTP(w, r.WithContext(auth.WithPrincipal(r.Context(), identity)))
-	})))
+	sessionMiddleware, err := sessions.Middleware(sessions.MiddlewareConfig{Store: &connector.Sessions{Connection: connection}, Signer: sessionSigner, TTL: time.Hour})
+	if err != nil {
+		return err
+	}
+	identityMiddleware, err := auth.SessionMiddleware(accounts)
+	if err != nil {
+		return err
+	}
+	flash, err := messages.Middleware(messages.Config{Mode: messages.Session})
+	if err != nil {
+		return err
+	}
+	authenticator, err := auth.NewAuthenticator(accounts, 2)
+	if err != nil {
+		return err
+	}
+	login, err := site.LoginHandler(authviews.LoginConfig{Authenticator: authenticator, NormalizeIdentifier: accounts.NormalizeLoginIdentifier, Limiter: &connector.Limiter{Connection: connection}, RateSecret: []byte(key)})
+	if err != nil {
+		return err
+	}
+	logout, err := site.LogoutHandler(authviews.LogoutConfig{})
+	if err != nil {
+		return err
+	}
+	mux := http.NewServeMux()
+	mux.Handle("/admin/login/", login)
+	mux.Handle("/admin/logout/", logout)
+	mux.Handle("/admin/", site)
+	handler := headers(sessionMiddleware(identityMiddleware(flash(mux))))
 	server := &http.Server{Addr: "127.0.0.1:8099", Handler: handler, ReadHeaderTimeout: 5 * time.Second, IdleTimeout: 60 * time.Second}
 	done := make(chan error, 1)
 	go func() { done <- server.ListenAndServe() }()
