@@ -540,8 +540,8 @@ func (q Query[T]) Delete(ctx context.Context) (map[string]int64, error) {
 	if q.err != nil {
 		return nil, q.err
 	}
-	if q.selectAST.Limit != nil || q.selectAST.Offset != nil || len(q.selectAST.DistinctOn) > 0 {
-		return nil, errors.New("orm: delete requires an unsliced query without DISTINCT ON")
+	if q.selectAST.Limit != nil || q.selectAST.Offset != nil || len(q.selectAST.DistinctOn) > 0 || len(q.selectAST.GroupBy) > 0 {
+		return nil, errors.New("orm: delete requires an unsliced, ungrouped query without DISTINCT ON")
 	}
 	var counts map[string]int64
 	err := db.Atomic(ctx, q.store.Backend, db.AtomicOptions{}, func(ctx context.Context) error {

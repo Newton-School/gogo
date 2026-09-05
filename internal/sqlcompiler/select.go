@@ -349,8 +349,10 @@ func Select(dialect db.Dialect, schema models.Schema, query db.Select) (string, 
 		if err := ValidateOutputField(*alias.Output); err != nil {
 			return "", nil, err
 		}
-		if err := ValidateRowExpression(alias.Expression); err != nil {
-			return "", nil, err
+		if len(query.GroupBy) == 0 {
+			if err := ValidateRowExpression(alias.Expression); err != nil {
+				return "", nil, err
+			}
 		}
 		c.Aliases[alias.Alias] = alias
 	}
@@ -389,6 +391,11 @@ func Select(dialect db.Dialect, schema models.Schema, query db.Select) (string, 
 		}
 		c.Joins[join.Path] = join
 		aliases[join.Alias] = true
+	}
+	if len(query.GroupBy) > 0 {
+		if err := c.validateGrouped(query); err != nil {
+			return "", nil, err
+		}
 	}
 	fields := []string{}
 	selectedAliases := map[string]string{}

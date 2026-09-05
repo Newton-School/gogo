@@ -20,9 +20,9 @@ import (
 // paths. Output declares decoding, not a conversion: use Cast to convert a
 // nonliteral expression. Literal values are bound with their declared SQL type.
 //
-// Existing aliases cannot be redefined. Aggregate/window annotations require
-// a separate grouped execution path and are rejected by this row-expression
-// API. Query construction snapshots metadata/data and invokes no provider hook.
+// Existing aliases cannot be redefined. Aggregate annotations require explicit
+// GroupBy; window annotations require a separate window execution path. Query
+// construction snapshots metadata/data and invokes no provider hook.
 func (q Query[T]) Annotate(expressions map[string]ResultExpression) Query[T] {
 	q = q.clone()
 	if q.err != nil {
@@ -49,9 +49,11 @@ func (q Query[T]) Annotate(expressions map[string]ResultExpression) Query[T] {
 			q.err = err
 			return q
 		}
-		if err := sqlcompiler.ValidateRowExpression(expression); err != nil {
-			q.err = err
-			return q
+		if len(q.selectAST.GroupBy) == 0 {
+			if err := sqlcompiler.ValidateRowExpression(expression); err != nil {
+				q.err = err
+				return q
+			}
 		}
 		projection := db.Projection{Alias: name, Expression: expression, Output: &output}
 		q.selectAST.Aliases = append(q.selectAST.Aliases, projection)

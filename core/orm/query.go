@@ -207,6 +207,9 @@ func (q Query[T]) SQLContext(ctx context.Context) (string, []any, error) {
 	if err != nil {
 		return "", nil, err
 	}
+	if len(q.selectAST.GroupBy) > 0 {
+		q.selectAST.Fields = append([]string(nil), q.selectAST.GroupBy...)
+	}
 	statement, args, err := sqlcompiler.Select(q.store.Backend.Dialect(), q.schema, q.selectAST)
 	if canceled := ctx.Err(); canceled != nil {
 		return "", nil, canceled
@@ -219,6 +222,9 @@ func (q Query[T]) Iterator(ctx context.Context) (*Iterator[T], error) {
 	}
 	if q.err != nil {
 		return nil, q.err
+	}
+	if len(q.selectAST.GroupBy) > 0 {
+		return nil, errors.New("orm: grouped results require Values, not model instances")
 	}
 	if err := q.checkModelProjection(); err != nil {
 		return nil, err
@@ -428,6 +434,9 @@ func (q Query[T]) Values(ctx context.Context, fields ...string) ([]map[string]an
 	// Resolve explicit scoped joins before selecting Values columns. Eager
 	// hydration columns must not leak into the default root-values projection.
 	selected := append([]string(nil), q.selectAST.Fields...)
+	if len(q.selectAST.GroupBy) > 0 {
+		selected = append([]string(nil), q.selectAST.GroupBy...)
+	}
 	if len(fields) > 0 {
 		selected = append([]string(nil), fields...)
 	} else {
