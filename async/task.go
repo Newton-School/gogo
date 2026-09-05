@@ -48,23 +48,25 @@ type Hooks struct {
 }
 
 type TaskOptions struct {
-	Queue     string
-	Retry     RetryPolicy
-	SoftLimit time.Duration
-	HardLimit time.Duration
-	Hooks     Hooks
-	Authorize func(context.Context, TaskContext) error
+	Queue           string
+	Retry           RetryPolicy
+	SoftLimit       time.Duration
+	HardLimit       time.Duration
+	Hooks           Hooks
+	Authorize       func(context.Context, TaskContext) error
+	ValidatePayload func(json.RawMessage) error
 }
 
 type Handler[I, O any] func(context.Context, TaskContext, I) (O, error)
 
 type definition struct {
-	name          string
-	version       int
-	input, output reflect.Type
-	validate      func(json.RawMessage) error
-	call          func(context.Context, TaskContext, json.RawMessage) (json.RawMessage, error)
-	options       TaskOptions
+	name           string
+	version        int
+	input, output  reflect.Type
+	validate       func(json.RawMessage) error
+	validateOutput func(json.RawMessage) error
+	call           func(context.Context, TaskContext, json.RawMessage) (json.RawMessage, error)
+	options        TaskOptions
 }
 
 type Registry struct {
@@ -93,6 +95,11 @@ func Register[I, O any](r *Registry, name string, version int, handler Handler[I
 	options.Retry = policy
 	d := &definition{name: name, version: version, input: reflect.TypeFor[I](), output: reflect.TypeFor[O](), options: options}
 	d.validate = func(raw json.RawMessage) error {
+		if options.ValidatePayload != nil {
+			if err := options.ValidatePayload(raw); err != nil {
+				return err
+			}
+		}
 		var input I
 		if err := decodeJSON(raw, &input); err != nil {
 			return ErrInvalid
@@ -102,6 +109,19 @@ func Register[I, O any](r *Registry, name string, version int, handler Handler[I
 		}
 		if v, ok := any(&input).(interface{ Validate() error }); ok {
 			return v.Validate()
+		}
+		return nil
+	}
+	d.validateOutput = func(raw json.RawMessage) error {
+		var value O
+		if len(raw) > MaxPayloadBytes {
+			return ErrInvalid
+		}
+		if err := decodeJSON(raw, &value); err != nil {
+			return ErrInvalid
+		}
+		if validator, ok := any(value).(interface{ Validate() error }); ok {
+			return validator.Validate()
 		}
 		return nil
 	}
@@ -282,6 +302,19 @@ type Signature struct {
 	Options     DispatchOptions `json:"options"`
 	Immutable   bool            `json:"immutable,omitempty"`
 	ParentField string          `json:"parent_field,omitempty"`
+	Callbacks   []Signature     `json:"callbacks,omitempty"`
+	Errbacks    []Signature     `json:"errbacks,omitempty"`
+}
+
+func (s Signature) Link(callback Signature) Signature {
+	s = s.Clone()
+	s.Callbacks = append(s.Callbacks, callback.Clone())
+	return s
+}
+func (s Signature) LinkError(callback Signature) Signature {
+	s = s.Clone()
+	s.Errbacks = append(s.Errbacks, callback.Clone())
+	return s
 }
 
 func (s Signature) Clone() Signature { return cloneJSON(s) }

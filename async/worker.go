@@ -22,6 +22,17 @@ type Worker struct {
 	Clock       func() time.Time
 	Jitter      func() float64
 	OnError     func(error)
+	Executor    Executor
+	Events      EventSink
+	initOnce    sync.Once
+	initErr     error
+	activityMu  sync.Mutex
+	active      map[string]TaskActivity
+}
+
+func (w *Worker) initialize() error {
+	w.initOnce.Do(func() { w.initErr = w.defaults() })
+	return w.initErr
 }
 
 func (w *Worker) defaults() error {
@@ -59,6 +70,14 @@ func (w *Worker) defaults() error {
 	if len(w.Queues) == 0 {
 		w.Queues = []string{"default"}
 	}
+	w.Registry.mu.RLock()
+	for _, definition := range w.Registry.definitions {
+		if definition.options.HardLimit > 0 && w.Executor == nil {
+			w.Registry.mu.RUnlock()
+			return ErrInvalid
+		}
+	}
+	w.Registry.mu.RUnlock()
 	return w.Registry.Freeze(true)
 }
 
@@ -69,7 +88,7 @@ func (w *Worker) report(err error) {
 }
 
 func (w *Worker) Run(ctx context.Context) error {
-	if err := w.defaults(); err != nil {
+	if err := w.initialize(); err != nil {
 		return err
 	}
 	var wg sync.WaitGroup
@@ -77,7 +96,22 @@ func (w *Worker) Run(ctx context.Context) error {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
+			lastReclaim := w.Clock()
 			for ctx.Err() == nil {
+				if w.Clock().Sub(lastReclaim) >= w.Lease {
+					lastReclaim = w.Clock()
+					deliveries, err := w.Broker.Reclaim(ctx, ConsumeOptions{Queues: w.Queues, Consumer: w.ID}, w.Lease)
+					if err != nil {
+						w.report(err)
+					} else {
+						for _, delivery := range deliveries {
+							if ctx.Err() != nil {
+								break
+							}
+							w.report(w.Process(ctx, delivery))
+						}
+					}
+				}
 				d, err := w.Broker.Consume(ctx, ConsumeOptions{Queues: w.Queues, Consumer: w.ID, Wait: time.Second})
 				if err != nil {
 					if !errors.Is(err, ErrNotFound) && ctx.Err() == nil {
@@ -100,10 +134,8 @@ func (w *Worker) Run(ctx context.Context) error {
 // Process handles a single reservation. Any uncertain result-store outcome leaves
 // the delivery pending; an old worker can never acknowledge uncommitted success.
 func (w *Worker) Process(ctx context.Context, delivery Delivery) error {
-	if w.Clock == nil {
-		if err := w.defaults(); err != nil {
-			return err
-		}
+	if err := w.initialize(); err != nil {
+		return err
 	}
 	e, err := DecodeEnvelope(delivery.Body)
 	if err != nil {
@@ -114,6 +146,9 @@ func (w *Worker) Process(ctx context.Context, delivery Delivery) error {
 		return w.Broker.Reject(ctx, delivery, "unknown_task", false)
 	}
 	if err := d.validate(e.Args); err != nil {
+		return w.Broker.Reject(ctx, delivery, "invalid_arguments", false)
+	}
+	if err := w.Registry.validateLinks(Signature{Task: e.Task, Version: e.Version, Args: e.Args, Callbacks: e.Callbacks, Errbacks: e.Errbacks}, 0); err != nil {
 		return w.Broker.Reject(ctx, delivery, "invalid_arguments", false)
 	}
 	claim, err := w.Results.Claim(ctx, e, w.ID, w.Lease)
@@ -130,6 +165,9 @@ func (w *Worker) Process(ctx context.Context, delivery Delivery) error {
 		return nil
 	}
 	record := claim.Record
+	w.activity(e)
+	defer w.inactive(e.ID)
+	w.event(ctx, e, "task_started", Running)
 	tc := TaskContext{ID: e.ID, Retries: e.Retries, DeliveryCount: record.DeliveryCount, Fence: record.Fence, WorkerID: w.ID, WorkflowID: e.WorkflowID, ParentID: e.ParentID, RootID: e.RootID, Scope: e.Scope, Principal: e.Principal, Headers: cloneJSON(e.Headers), Stamps: cloneJSON(e.Stamps)}
 	tc.progress = func(ctx context.Context, b json.RawMessage) error {
 		return w.Results.RecordProgress(ctx, e.ID, tc.Fence, w.ID, b)
@@ -146,7 +184,7 @@ func (w *Worker) Process(ctx context.Context, delivery Delivery) error {
 	} else {
 		runCtx, cancel := context.WithCancel(context.WithValue(ctx, workerContextKey{}, true))
 		defer cancel()
-		if d.options.SoftLimit > 0 {
+		if d.options.SoftLimit > 0 && w.Executor == nil {
 			var deadlineCancel context.CancelFunc
 			runCtx, deadlineCancel = context.WithTimeout(runCtx, d.options.SoftLimit)
 			defer deadlineCancel()
@@ -216,11 +254,12 @@ func (w *Worker) Process(ctx context.Context, delivery Delivery) error {
 				if err := w.Results.Transition(ctx, transition); err != nil {
 					return err
 				}
+				w.event(ctx, e, "task_retry", RetryWait)
 				if d.options.Hooks.OnRetry != nil {
-					w.report(d.options.Hooks.OnRetry(ctx, tc, runErr))
+					w.observe(func() error { return d.options.Hooks.OnRetry(ctx, tc, runErr) })
 				}
 				if d.options.Hooks.AfterReturn != nil {
-					w.report(d.options.Hooks.AfterReturn(ctx, tc, RetryWait))
+					w.observe(func() error { return d.options.Hooks.AfterReturn(ctx, tc, RetryWait) })
 				}
 				return w.Broker.Ack(ctx, delivery)
 			}
@@ -230,17 +269,23 @@ func (w *Worker) Process(ctx context.Context, delivery Delivery) error {
 		transition.Failure = &Failure{Code: string(state), Message: "Task execution did not complete successfully"}
 	}
 	transition.Intents = CompletionIntents(e, transition.State, transition.Output, transition.Failure)
+	linked, err := w.linkedIntents(e, transition)
+	if err != nil {
+		return err
+	}
+	transition.Intents = append(transition.Intents, linked...)
 	if err := w.Results.Transition(ctx, transition); err != nil {
 		return err
 	}
+	w.event(ctx, e, "task_terminal", transition.State)
 	if runErr == nil && d.options.Hooks.OnSuccess != nil {
-		w.report(d.options.Hooks.OnSuccess(ctx, tc, output))
+		w.observe(func() error { return d.options.Hooks.OnSuccess(ctx, tc, output) })
 	}
 	if runErr != nil && d.options.Hooks.OnFailure != nil {
-		w.report(d.options.Hooks.OnFailure(ctx, tc, runErr))
+		w.observe(func() error { return d.options.Hooks.OnFailure(ctx, tc, runErr) })
 	}
 	if d.options.Hooks.AfterReturn != nil {
-		w.report(d.options.Hooks.AfterReturn(ctx, tc, transition.State))
+		w.observe(func() error { return d.options.Hooks.AfterReturn(ctx, tc, transition.State) })
 	}
 	return w.Broker.Ack(ctx, delivery)
 }
@@ -251,7 +296,7 @@ func (w *Worker) invoke(ctx context.Context, d *definition, tc TaskContext, args
 			err = Failure{Code: "PANIC", Message: "Task handler panicked"}
 		}
 	}()
-	if d.options.HardLimit > 0 {
+	if d.options.HardLimit > 0 && w.Executor == nil {
 		return nil, Failure{Code: "EXECUTOR_REQUIRED", Message: "A subprocess executor is required for a hard limit"}
 	}
 	if d.options.Authorize != nil {
@@ -264,14 +309,28 @@ func (w *Worker) invoke(ctx context.Context, d *definition, tc TaskContext, args
 			return nil, err
 		}
 	}
+	if w.Executor != nil {
+		if d.options.HardLimit > 0 {
+			var cancel context.CancelFunc
+			ctx, cancel = context.WithTimeout(ctx, d.options.HardLimit)
+			defer cancel()
+		}
+		e := Envelope{ProtocolVersion: ProtocolVersion, ID: tc.ID, Task: d.name, Version: d.version, Args: args, CreatedAt: w.Clock().UTC(), Queue: d.options.Queue, Retries: tc.Retries, MaxRetries: d.options.Retry.MaxRetries, Scope: tc.Scope, Principal: tc.Principal, WorkflowID: tc.WorkflowID, ParentID: tc.ParentID, RootID: tc.RootID, Headers: tc.Headers, Stamps: tc.Stamps}
+		output, err := w.Executor.Execute(ctx, Execution{Envelope: e, TaskContext: tc})
+		if err != nil {
+			return nil, err
+		}
+		if err := d.validateOutput(output); err != nil {
+			return nil, ErrInvalid
+		}
+		return output, nil
+	}
 	return d.call(ctx, tc, args)
 }
 
 func (w *Worker) Reclaim(ctx context.Context) error {
-	if w.Clock == nil {
-		if err := w.defaults(); err != nil {
-			return err
-		}
+	if err := w.initialize(); err != nil {
+		return err
 	}
 	deliveries, err := w.Broker.Reclaim(ctx, ConsumeOptions{Queues: w.Queues, Consumer: w.ID}, w.Lease)
 	if err != nil {
@@ -283,4 +342,13 @@ func (w *Worker) Reclaim(ctx context.Context) error {
 		}
 	}
 	return nil
+}
+
+func (w *Worker) observe(callback func() error) {
+	defer func() {
+		if recover() != nil {
+			w.report(Failure{Code: "OBSERVER_PANIC", Message: "Task observer failed after durable state transition"})
+		}
+	}()
+	w.report(callback())
 }

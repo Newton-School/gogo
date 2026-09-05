@@ -468,7 +468,7 @@ func (m *Memory) Schedule(ctx context.Context, e async.Envelope) error {
 	defer m.mu.Unlock()
 	key := fmt.Sprintf("%s:%d", e.ID, e.Retries)
 	if i, ok := m.delayed[key]; ok {
-		if i.Envelope.Digest() != e.Digest() {
+		if i.Envelope.DispatchDigest() != e.DispatchDigest() {
 			return async.ErrConflict
 		}
 		return nil

@@ -356,6 +356,22 @@ func (r *IntentRelay) Tick(ctx context.Context) error {
 				continue
 			}
 			switch intent.Kind {
+			case "fail":
+				if intent.Envelope == nil {
+					return ErrInvalid
+				}
+				e := *intent.Envelope
+				e.ETA = time.Time{}
+				if err = r.Client.config.Results.Register(ctx, e, Queued); err == nil {
+					var claim Claim
+					claim, err = r.Client.config.Results.Claim(ctx, e, r.ID, lease)
+					if err == nil && claim.Acquired {
+						failure := &Failure{Code: "CALLBACK_INPUT", Message: "Callback input validation failed"}
+						err = r.Client.config.Results.Transition(ctx, Transition{ID: e.ID, Fence: claim.Record.Fence, Owner: r.ID, State: Failed, Failure: failure, Intents: CompletionIntents(e, Failed, nil, failure)})
+					} else if err == nil && !claim.Duplicate {
+						err = ErrBusy
+					}
+				}
 			case "publish":
 				if intent.Envelope == nil {
 					return ErrInvalid

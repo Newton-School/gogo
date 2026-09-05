@@ -132,6 +132,14 @@ func (e Envelope) Digest() string {
 	return hex.EncodeToString(h[:])
 }
 
+// DispatchDigest additionally binds scheduling metadata within one application
+// retry. It prevents a same-ID/same-retry publication from changing its ETA.
+func (e Envelope) DispatchDigest() string {
+	b, _ := json.Marshal(e)
+	sum := sha256.Sum256(b)
+	return hex.EncodeToString(sum[:])
+}
+
 func NewID() (string, error) {
 	var b [16]byte
 	if _, err := rand.Read(b[:]); err != nil {

@@ -289,3 +289,61 @@ func TestResultWaitGuardAndSignatureIsolation(t *testing.T) {
 		t.Fatal(copy, s)
 	}
 }
+
+func TestUncertainAcceptanceReplaysExactEnvelope(t *testing.T) {
+	ctx := context.Background()
+	task, client, _, backend := setup(t, func(context.Context, async.TaskContext, int) (int, error) { return 1, nil }, async.TaskOptions{})
+	backend.Fail = func(operation string) error {
+		if operation == "publish" {
+			return async.ErrUnavailable
+		}
+		return nil
+	}
+	_, err := task.Delay(ctx, client, 1)
+	var acceptance *async.AcceptanceError
+	if !errors.As(err, &acceptance) || acceptance.ID == "" {
+		t.Fatal(err)
+	}
+	backend.Fail = nil
+	receipt, err := acceptance.Retry(ctx, client)
+	if err != nil || receipt.ID != acceptance.ID {
+		t.Fatal(receipt, err)
+	}
+}
+
+func TestWorkerRenewsLeaseAndCooperativelyRevokes(t *testing.T) {
+	ctx := context.Background()
+	started := make(chan struct{})
+	observed := make(chan struct{})
+	task, client, worker, backend := setup(t, func(ctx context.Context, _ async.TaskContext, n int) (int, error) {
+		close(started)
+		<-ctx.Done()
+		close(observed)
+		return 0, ctx.Err()
+	}, async.TaskOptions{})
+	worker.Lease = 100 * time.Millisecond
+	worker.Heartbeat = 10 * time.Millisecond
+	result, err := task.Delay(ctx, client, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	delivery := take(t, backend)
+	done := make(chan error, 1)
+	go func() { done <- worker.Process(ctx, delivery) }()
+	<-started
+	if err := result.Revoke(ctx); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-observed:
+	case <-time.After(time.Second):
+		t.Fatal("handler did not observe revocation")
+	}
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+	record, err := result.Snapshot(ctx)
+	if err != nil || record.State != async.Revoked {
+		t.Fatal(record, err)
+	}
+}

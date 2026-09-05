@@ -128,3 +128,70 @@ func TestWorkflowEmptyAndTypeMismatch(t *testing.T) {
 	}
 	drain(t, client, worker, backend)
 }
+
+func TestCallbackAndErrbackDurableLinks(t *testing.T) {
+	ctx := context.Background()
+	registry := async.NewRegistry()
+	successes, failures := 0, 0
+	parent, err := async.Register(registry, "test.parent", 1, func(_ context.Context, _ async.TaskContext, n int) (int, error) {
+		if n < 0 {
+			return 0, errors.New("private failure")
+		}
+		return n + 1, nil
+	}, async.TaskOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	callback, err := async.Register(registry, "test.callback", 1, func(_ context.Context, _ async.TaskContext, n int) (int, error) { successes++; return n, nil }, async.TaskOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	errback, err := async.Register(registry, "test.errback", 1, func(_ context.Context, _ async.TaskContext, f async.Failure) (int, error) {
+		failures++
+		if f.Message == "private failure" {
+			t.Fatal("unredacted failure")
+		}
+		return 0, nil
+	}, async.TaskOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	backend := fakes.NewMemory()
+	client, err := async.NewClient(async.ClientConfig{Registry: registry, Broker: backend, Results: backend})
+	if err != nil {
+		t.Fatal(err)
+	}
+	worker := &async.Worker{Registry: registry, Broker: backend, Results: backend, ID: "worker"}
+	good, _ := parent.Signature(1)
+	bad, _ := parent.Signature(-1)
+	link, _ := callback.Signature(0)
+	errorLink, _ := errback.Signature(async.Failure{})
+	if _, err := client.Enqueue(ctx, good.Link(link).LinkError(errorLink)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := client.Enqueue(ctx, bad.Link(link).LinkError(errorLink)); err != nil {
+		t.Fatal(err)
+	}
+	drain(t, client, worker, backend)
+	if successes != 1 || failures != 1 {
+		t.Fatal(successes, failures)
+	}
+}
+
+func TestObserverPanicDoesNotUndoCommittedResult(t *testing.T) {
+	ctx := context.Background()
+	task, client, worker, backend := setup(t, func(_ context.Context, _ async.TaskContext, n int) (int, error) { return n, nil }, async.TaskOptions{Hooks: async.Hooks{OnSuccess: func(context.Context, async.TaskContext, json.RawMessage) error { panic("observer") }}})
+	reported := 0
+	worker.OnError = func(error) { reported++ }
+	result, err := task.Delay(ctx, client, 5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := worker.Process(ctx, take(t, backend)); err != nil {
+		t.Fatal(err)
+	}
+	out, err := result.Get(ctx)
+	if err != nil || out != 5 || reported != 1 {
+		t.Fatal(out, reported, err)
+	}
+}

@@ -88,12 +88,35 @@ func (c *Client) authorize(ctx context.Context, operation, scope, id string) err
 }
 
 func (c *Client) prepare(s Signature) (Envelope, error) {
+	var normalizeErr error
+	s, normalizeErr = c.normalizeLinkOptions(s, s.Options.Scope, 0)
+	if normalizeErr != nil {
+		return Envelope{}, normalizeErr
+	}
 	d, err := c.config.Registry.lookup(s.Task, s.Version)
 	if err != nil {
 		return Envelope{}, err
 	}
+	if err := c.config.Registry.validateLinks(s, 0); err != nil {
+		return Envelope{}, err
+	}
 	if err := d.validate(s.Args); err != nil {
 		return Envelope{}, err
+	}
+	if len(s.Callbacks) > 32 || len(s.Errbacks) > 32 {
+		return Envelope{}, ErrInvalid
+	}
+	for _, link := range append(append([]Signature(nil), s.Callbacks...), s.Errbacks...) {
+		linked, err := c.config.Registry.lookup(link.Task, link.Version)
+		if err != nil {
+			return Envelope{}, err
+		}
+		if err := linked.validate(link.Args); err != nil {
+			return Envelope{}, err
+		}
+		if link.Options.Scope != "" && link.Options.Scope != s.Options.Scope {
+			return Envelope{}, ErrDenied
+		}
 	}
 	o := cloneJSON(s.Options)
 	if o.Countdown < 0 || (!o.ETA.IsZero() && o.Countdown != 0) {
@@ -143,7 +166,65 @@ func (c *Client) prepare(s Signature) (Envelope, error) {
 		return Envelope{}, ErrInvalid
 	}
 	e := Envelope{ProtocolVersion: ProtocolVersion, ID: id, Task: s.Task, Version: s.Version, Args: append(json.RawMessage(nil), s.Args...), CreatedAt: now, Queue: q, MaxRetries: d.options.Retry.MaxRetries, ETA: eta, ExpiresAt: o.ExpiresAt.UTC(), Priority: o.Priority, RootID: id, Scope: o.Scope, Principal: o.Principal, IdempotencyKey: o.IdempotencyKey, CorrelationID: o.CorrelationID, Headers: o.Headers, Stamps: o.Stamps}
+	e.Callbacks = cloneJSON(s.Callbacks)
+	e.Errbacks = cloneJSON(s.Errbacks)
 	return e, e.Validate()
+}
+
+func (c *Client) normalizeLinkOptions(s Signature, scope string, depth int) (Signature, error) {
+	if depth > 16 {
+		return Signature{}, ErrInvalid
+	}
+	s = s.Clone()
+	for kind, links := range [][]Signature{s.Callbacks, s.Errbacks} {
+		for i, link := range links {
+			if link.Options.Scope != "" && link.Options.Scope != scope {
+				return Signature{}, ErrDenied
+			}
+			link.Options.Scope = scope
+			d, err := c.config.Registry.lookup(link.Task, link.Version)
+			if err != nil {
+				return Signature{}, err
+			}
+			if link.Options.Queue == "" {
+				for _, route := range c.config.Routes {
+					if route.Pattern == link.Task {
+						link.Options.Queue = route.Queue
+						break
+					}
+				}
+				if link.Options.Queue == "" {
+					for _, route := range c.config.Routes {
+						if match, _ := path.Match(route.Pattern, link.Task); match {
+							link.Options.Queue = route.Queue
+							break
+						}
+					}
+				}
+				if link.Options.Queue == "" {
+					link.Options.Queue = d.options.Queue
+				}
+			}
+			if !c.queues[link.Options.Queue] || link.Options.Priority < 0 || link.Options.Priority > 9 || link.Options.Countdown < 0 {
+				return Signature{}, ErrInvalid
+			}
+			for key := range link.Options.Headers {
+				if !c.headers[key] {
+					return Signature{}, ErrInvalid
+				}
+			}
+			links[i], err = c.normalizeLinkOptions(link, scope, depth+1)
+			if err != nil {
+				return Signature{}, err
+			}
+		}
+		if kind == 0 {
+			s.Callbacks = links
+		} else {
+			s.Errbacks = links
+		}
+	}
+	return s, nil
 }
 
 // AcceptanceError preserves task identity when a network outcome is uncertain.
@@ -152,12 +233,27 @@ type AcceptanceError struct {
 	ID        string
 	Confirmed bool
 	Cause     error
+	envelope  Envelope
 }
 
 func (e *AcceptanceError) Error() string {
 	return fmt.Sprintf("async: acceptance could not be fully confirmed for task %s", e.ID)
 }
 func (e *AcceptanceError) Unwrap() error { return e.Cause }
+
+// Retry replays the exact accepted-or-uncertain envelope, including its original
+// creation time and converted countdown. Rebuilding a signature can change those
+// immutable dispatch inputs and is not equivalent to replaying the same request.
+func (e *AcceptanceError) Retry(ctx context.Context, c *Client) (Receipt, error) {
+	if c == nil || e.envelope.ID == "" {
+		return Receipt{}, ErrInvalid
+	}
+	envelope := cloneJSON(e.envelope)
+	if err := c.authorize(ctx, "enqueue", envelope.Scope, envelope.ID); err != nil {
+		return Receipt{}, err
+	}
+	return c.publish(ctx, envelope)
+}
 
 func (c *Client) Enqueue(ctx context.Context, s Signature) (Receipt, error) {
 	e, err := c.prepare(s)
@@ -178,13 +274,13 @@ func (c *Client) publish(ctx context.Context, e Envelope) (Receipt, error) {
 			return Receipt{}, ErrUnavailable
 		}
 		if err := c.config.Schedules.Schedule(ctx, e); err != nil {
-			return Receipt{}, &AcceptanceError{ID: e.ID, Cause: err}
+			return Receipt{}, &AcceptanceError{ID: e.ID, Cause: err, envelope: cloneJSON(e)}
 		}
 	} else if err := c.config.Broker.Publish(ctx, e); err != nil {
-		return Receipt{}, &AcceptanceError{ID: e.ID, Cause: err}
+		return Receipt{}, &AcceptanceError{ID: e.ID, Cause: err, envelope: cloneJSON(e)}
 	}
 	if err := c.config.Results.Register(ctx, e, state); err != nil {
-		return Receipt{}, &AcceptanceError{ID: e.ID, Confirmed: true, Cause: err}
+		return Receipt{}, &AcceptanceError{ID: e.ID, Confirmed: true, Cause: err, envelope: cloneJSON(e)}
 	}
 	return Receipt{ID: e.ID, State: state, AcceptedAt: c.config.Clock().UTC()}, nil
 }
