@@ -8,6 +8,26 @@ import (
 	"testing"
 )
 
+func TestPasswordValidatorsCannotMutatePrincipalGrants(t *testing.T) {
+	principal := Principal{ID: "fixture", Permissions: []string{"catalog.view_asset"}}
+	mutate := func(_ context.Context, _ string, p Principal) error {
+		p.Permissions[0] = "catalog.delete_asset"
+		return nil
+	}
+	observe := func(_ context.Context, _ string, p Principal) error {
+		if len(p.Permissions) != 1 || p.Permissions[0] != "catalog.view_asset" {
+			t.Fatal("validator changed a later validator's claims", p.Permissions)
+		}
+		return nil
+	}
+	if err := ValidatePassword(context.Background(), "fixture password", principal, mutate, observe); err != nil {
+		t.Fatal(err)
+	}
+	if principal.Permissions[0] != "catalog.view_asset" {
+		t.Fatal("validator changed caller's claims")
+	}
+}
+
 func TestPasswordHashAndBoundedParams(t *testing.T) {
 	p := PasswordParams{8192, 1, 1}
 	hash, e := HashPasswordWith("a reasonably long secret", p)

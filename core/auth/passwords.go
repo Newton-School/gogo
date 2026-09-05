@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"golang.org/x/crypto/argon2"
+	"slices"
 	"strconv"
 	"strings"
 	"unicode"
@@ -151,7 +152,9 @@ func ValidatePassword(ctx context.Context, password string, p Principal, validat
 			return err
 		}
 		if v != nil {
-			errs = append(errs, v(ctx, password, p))
+			candidate := p
+			candidate.Permissions = slices.Clone(p.Permissions)
+			errs = append(errs, v(ctx, password, candidate))
 		}
 	}
 	return errors.Join(errs...)

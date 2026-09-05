@@ -86,6 +86,13 @@ func (a *Accounts) withUser(ctx context.Context, change AccountChange, apply fun
 		if err := a.permit(ctx, change); err != nil {
 			return err
 		}
+		// A policy may invoke another account operation inside this same
+		// transaction. Refresh after that extension point rather than applying
+		// the requested change to a stale pre-policy user snapshot.
+		user, err = orm.For(a.store, func() *User { return &User{} }).Filter(orm.Q("id", change.UserID)).Get(ctx)
+		if err != nil {
+			return err
+		}
 		return apply(ctx, user)
 	})
 }
@@ -247,6 +254,24 @@ func (a *Accounts) SetUserPermissions(ctx context.Context, userID string, values
 func (a *Accounts) saveUser(ctx context.Context, user *User, options orm.SaveOptions) error {
 	id, identifier, encoded, version := user.ID, user.Identifier, storedHash(user), user.AuthVersion
 	active, staff, superuser := user.Active, user.Staff, user.Superuser
+	var previous *User
+	if !options.ForceInsert {
+		var err error
+		previous, err = orm.For(a.store, func() *User { return &User{} }).Filter(orm.Q("id", id)).Get(ctx)
+		if errors.Is(err, orm.ErrNotFound) {
+			return ErrAccountChanged
+		}
+		if err != nil {
+			return err
+		}
+		expectedVersion := version
+		if slices.Contains(options.UpdateFields, "auth_version") {
+			expectedVersion--
+		}
+		if previous.AuthVersion != expectedVersion {
+			return ErrAccountChanged
+		}
+	}
 	guard := options.Guard
 	options.Guard = func(ctx context.Context, record models.Record) error {
 		if guard != nil {
@@ -256,6 +281,18 @@ func (a *Accounts) saveUser(ctx context.Context, user *User, options orm.SaveOpt
 		}
 		if user.ID != id || user.Identifier != identifier || storedHash(user) != encoded || user.AuthVersion != version || user.Active != active || user.Staff != staff || user.Superuser != superuser {
 			return ErrPermissionDenied
+		}
+		if previous != nil {
+			current, err := orm.For(a.store, func() *User { return &User{} }).Filter(orm.Q("id", id)).Get(ctx)
+			if errors.Is(err, orm.ErrNotFound) {
+				return ErrAccountChanged
+			}
+			if err != nil {
+				return err
+			}
+			if current.AuthVersion != previous.AuthVersion || storedHash(current) != storedHash(previous) || current.Identifier != previous.Identifier || current.Active != previous.Active || current.Staff != previous.Staff || current.Superuser != previous.Superuser {
+				return ErrAccountChanged
+			}
 		}
 		return nil
 	}
