@@ -88,7 +88,10 @@ type Relation struct {
 	OnDelete         DeletePolicy
 	Through          string
 	ThroughFields    []string
-	NoConstraint     bool
+	// Symmetrical defaults to true for self many-to-many relations. A false
+	// pointer enables directed relationships and their reverse manager.
+	Symmetrical  *bool
+	NoConstraint bool
 }
 type Field struct {
 	Name                                                                    string
@@ -310,6 +313,10 @@ func (s Schema) Clone() Schema {
 			r := *f.Relation
 			r.TargetFields = append([]string(nil), r.TargetFields...)
 			r.ThroughFields = append([]string(nil), r.ThroughFields...)
+			if r.Symmetrical != nil {
+				value := *r.Symmetrical
+				r.Symmetrical = &value
+			}
 			f.Relation = &r
 		}
 		if f.Element != nil {

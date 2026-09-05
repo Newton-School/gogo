@@ -92,3 +92,42 @@ func TestRelationMutationsScopeAndHookRollback(t *testing.T) {
 		t.Fatal("failed relation operation did not rollback", loaded, err)
 	}
 }
+
+func TestScalarRelationHooksRecheckEveryEndpoint(t *testing.T) {
+	for _, reverse := range []bool{false, true} {
+		t.Run(map[bool]string{false: "forward target", true: "reverse source"}[reverse], func(t *testing.T) {
+			store, parent, child := setupRelations(t, models.Cascade, false)
+			ctx := context.Background()
+			parentRecord, _ := models.Bind(parent)
+			childRecord, _ := models.Bind(child)
+			manager := orm.RelationManager{Store: store, Source: childRecord, Name: "parent", Scope: func(context.Context, models.Schema) (db.Predicate, error) { return orm.Q("tenant", 1), nil }}
+			target := parentRecord
+			if reverse {
+				manager.Source = parentRecord
+				manager.Name = "child_set"
+				target = childRecord
+			}
+			manager.BeforeChange = []orm.RelationReceiver{func(ctx context.Context, _ orm.RelationChange) error {
+				table, err := store.Backend.Dialect().QuoteIdentifier(parent.Schema().DBTable())
+				if err != nil {
+					return err
+				}
+				_, err = db.ExecutorFor(ctx, store.Backend).Exec(ctx, "UPDATE "+table+" SET tenant=2 WHERE id=$1", parent.ID)
+				return err
+			}}
+			var err error
+			if reverse {
+				err = manager.Add(ctx, target)
+			} else {
+				err = manager.Set(ctx, target)
+			}
+			if !errors.Is(err, orm.ErrNotFound) {
+				t.Fatal("post-hook scope escape accepted", err)
+			}
+			visible, err := orm.For(store, func() *relationRow { return &relationRow{Definition: parent.Schema()} }).Filter(orm.Q("id", parent.ID), orm.Q("tenant", 1)).Exists(ctx)
+			if err != nil || !visible {
+				t.Fatal("hook did not rollback", visible, err)
+			}
+		})
+	}
+}

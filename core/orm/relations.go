@@ -16,18 +16,24 @@ type RelationChange struct {
 }
 type RelationReceiver func(context.Context, RelationChange) error
 type RelationManager struct {
-	Store                     *Store
-	Source                    models.Record
-	Name                      string
-	Scope                     func(context.Context, models.Schema) (db.Predicate, error)
+	Store  *Store
+	Source models.Record
+	Name   string
+	Scope  func(context.Context, models.Schema) (db.Predicate, error)
+	// Authorize is read-only and may run again after BeforeChange callbacks,
+	// against freshly scoped endpoints. It must be safe to call repeatedly.
 	Authorize                 RelationReceiver
 	BeforeChange, AfterChange []RelationReceiver
 	MaxObjects                int
+	// ThroughDefaults supplies creation-only values for explicit intermediaries.
+	// DefaultFactory values are evaluated once per relationship operation.
+	ThroughDefaults Defaults
 }
 type relationBinding struct {
 	field   models.Field
 	target  models.Schema
 	reverse bool
+	through *throughBinding
 }
 
 func (m RelationManager) resolve() (relationBinding, error) {
@@ -38,22 +44,29 @@ func (m RelationManager) resolve() (relationBinding, error) {
 		return relationBinding{}, errors.New("orm: cross-database relation rejected")
 	}
 	if field, ok := m.Source.Schema().Field(m.Name); ok && field.Relation != nil {
-		if field.Kind == models.ManyToMany {
-			return relationBinding{}, errors.New("orm: use a through relation manager for many-to-many operations")
-		}
 		target, ok := m.Store.Registry.Get(field.Relation.Target)
 		if !ok {
 			return relationBinding{}, errors.New("orm: unknown relation target")
 		}
-		return relationBinding{field: field, target: target}, nil
+		binding := relationBinding{field: field, target: target}
+		if field.Kind == models.ManyToMany {
+			return m.bindThrough(binding, m.Source.Schema())
+		}
+		return binding, nil
 	}
 	var found *relationBinding
 	for _, schema := range m.Store.Registry.All() {
 		for _, field := range schema.Fields {
-			if field.Relation == nil || field.Relation.Target != m.Source.Schema().Key() || !field.IsStored() {
+			if field.Relation == nil || field.Relation.Target != m.Source.Schema().Key() {
+				continue
+			}
+			if field.Kind == models.ManyToMany && schema.Key() == field.Relation.Target && (field.Relation.Symmetrical == nil || *field.Relation.Symmetrical) {
 				continue
 			}
 			name := field.Relation.RelatedName
+			if name == "+" {
+				continue
+			}
 			if name == "" {
 				name = strings.ToLower(schema.Name) + "_set"
 			}
@@ -62,6 +75,13 @@ func (m RelationManager) resolve() (relationBinding, error) {
 					return relationBinding{}, errors.New("orm: ambiguous reverse relation")
 				}
 				binding := relationBinding{field: field, target: schema, reverse: true}
+				if field.Kind == models.ManyToMany {
+					var err error
+					binding, err = m.bindThrough(binding, schema)
+					if err != nil {
+						return relationBinding{}, err
+					}
+				}
 				found = &binding
 			}
 		}
@@ -111,6 +131,10 @@ func relationTargetField(source models.Schema, field models.Field) (models.Field
 	return target, nil
 }
 func (m RelationManager) related(ctx context.Context, binding relationBinding, source models.Record, lock bool) ([]models.Record, error) {
+	if binding.through != nil {
+		rows, _, err := m.manyRelated(ctx, binding, source, lock)
+		return rows, err
+	}
 	var predicate db.Predicate
 	if binding.reverse {
 		key, err := relationTargetField(source.Schema(), binding.field)
@@ -195,6 +219,9 @@ func (m RelationManager) change(ctx context.Context, action string, targets []mo
 	if len(targets) > m.limit() {
 		return errors.New("orm: relation input exceeds configured bound")
 	}
+	if binding.through != nil {
+		return m.changeMany(ctx, binding, action, targets)
+	}
 	if !binding.reverse && (action == "add" || action == "remove" || len(targets) > 1) {
 		return errors.New("orm: scalar forward relation supports Set or Clear")
 	}
@@ -273,15 +300,13 @@ func (m RelationManager) change(ctx context.Context, action string, targets []mo
 				}
 			}
 		}
-		if m.Authorize != nil {
-			if err := m.Authorize(ctx, change); err != nil {
-				return err
-			}
+		change, err = m.checkChange(ctx, binding, change)
+		if err != nil {
+			return err
 		}
-		for _, receiver := range m.BeforeChange {
-			if err := receiver(ctx, change); err != nil {
-				return err
-			}
+		source = change.Source
+		if !binding.reverse {
+			requested = change.Added
 		}
 		if binding.reverse {
 			key, err := relationTargetField(source.Schema(), binding.field)
