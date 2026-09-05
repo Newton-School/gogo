@@ -433,6 +433,51 @@ func TestNestedCanvasRestartAndConcurrentRelays(t *testing.T) {
 	}
 }
 
+func TestRedisFutureWorkflowCancellationPersistsReplayHorizon(t *testing.T) {
+	ctx := context.Background()
+	broker, results := backends(t)
+	workflows := &adapter.Workflows{Connection: results.Connection}
+	schedules := &adapter.Schedules{Connection: results.Connection}
+	registry := async.NewRegistry()
+	task, err := async.Register(registry, "test.cancel_future", 1, func(context.Context, async.TaskContext, int) (int, error) {
+		t.Error("canceled task executed")
+		return 0, nil
+	}, async.TaskOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	client, err := async.NewClient(async.ClientConfig{Registry: registry, Broker: broker, Results: results, Workflows: workflows, Schedules: schedules})
+	if err != nil {
+		t.Fatal(err)
+	}
+	eta := time.Now().Add(365 * 24 * time.Hour)
+	s, _ := task.Signature(1)
+	group, err := client.ApplyCanvas(ctx, async.Group(s.Set(async.WithETA(eta))))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := group.Revoke(ctx); err != nil {
+		t.Fatal(err)
+	}
+	relay := &async.IntentRelay{Client: client, Sources: []async.IntentStore{results, workflows}, ID: "relay"}
+	for turn := 0; turn < 5; turn++ {
+		if err := relay.Tick(ctx); err != nil {
+			t.Fatal(err)
+		}
+	}
+	graph, err := group.Snapshot(ctx)
+	if err != nil || graph.State != async.Revoked {
+		t.Fatal(graph.State, err)
+	}
+	record, err := results.Lookup(ctx, graph.Children[0].ID)
+	if err != nil || record.Pinned || record.State != async.Revoked || record.TombstoneUntil.Before(eta.Add(7*24*time.Hour)) {
+		t.Fatal(record, err)
+	}
+	if _, err := broker.Consume(ctx, async.ConsumeOptions{Queues: []string{"default"}, Consumer: "worker"}); !errors.Is(err, async.ErrNotFound) {
+		t.Fatal(err)
+	}
+}
+
 func TestRealPeriodicBeatDurableOccurrence(t *testing.T) {
 	ctx := context.Background()
 	broker, results := backends(t)

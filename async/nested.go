@@ -83,7 +83,7 @@ func (b *canvasCompiler) compile(canvas Canvas, input *valueReference, depth int
 			previous = &value
 		}
 		if previous == nil {
-			return b.collect(nil), nil
+			return b.collect(nil, nil), nil
 		}
 		return *previous, nil
 	case "group", "chord":
@@ -98,7 +98,7 @@ func (b *canvasCompiler) compile(canvas Canvas, input *valueReference, depth int
 			}
 			values = append(values, value)
 		}
-		group := b.collect(values)
+		group := b.collect(values, input)
 		if canvas.Kind == "group" {
 			if canvas.Callback != nil {
 				return valueReference{}, ErrInvalid
@@ -123,7 +123,7 @@ func (b *canvasCompiler) compile(canvas Canvas, input *valueReference, depth int
 				previous = &value
 			}
 			if previous == nil {
-				return b.collect(nil), nil
+				return b.collect(nil, nil), nil
 			}
 			return *previous, nil
 		}
@@ -135,7 +135,7 @@ func (b *canvasCompiler) compile(canvas Canvas, input *valueReference, depth int
 			}
 			values = append(values, value)
 		}
-		return b.collect(values), nil
+		return b.collect(values, input), nil
 	default:
 		return valueReference{}, ErrInvalid
 	}
@@ -179,9 +179,14 @@ func (b *canvasCompiler) task(signature Signature, input *valueReference) (value
 	return valueReference{id: id, typ: d.output}, nil
 }
 
-func (b *canvasCompiler) collect(values []valueReference) valueReference {
+func (b *canvasCompiler) collect(values []valueReference, input *valueReference) valueReference {
 	id := StableID(b.graph.ID, fmt.Sprintf("collect-%d", len(b.graph.Plan)))
 	node := CanvasNode{ID: id, Kind: "collect"}
+	// Empty groups still have a control dependency on a preceding canvas.
+	// Their value is [], not [upstream], but upstream must settle successfully.
+	if len(values) == 0 && input != nil {
+		node.WaitFor = []string{input.id}
+	}
 	var element reflect.Type
 	homogeneous := true
 	for _, value := range values {
@@ -202,7 +207,7 @@ func (b *canvasCompiler) collect(values []valueReference) valueReference {
 
 func (c *Client) advanceNested(graph Graph) (Graph, []Intent, error) {
 	if graph.State.Terminal() {
-		return graph, nil, nil
+		return graph, graphUnpins(graph), nil
 	}
 	if len(graph.Plan) > 2000 || len(graph.Children) > 1000 || graph.RootNode == "" {
 		return graph, nil, ErrInvalid
@@ -212,6 +217,23 @@ func (c *Client) advanceNested(graph Graph) (Graph, []Intent, error) {
 		children[child.ID] = i
 	}
 	var intents []Intent
+	if graph.CancelRequested {
+		for i := range graph.Plan {
+			node := &graph.Plan[i]
+			if node.Kind != "task" {
+				continue
+			}
+			if _, done := graph.Members[node.ID]; done {
+				continue
+			}
+			index, ok := children[node.ID]
+			if !ok {
+				return graph, nil, ErrInvalid
+			}
+			intents = append(intents, cancellationIntent(graph.ID, graph.Children[index], node.Dispatched))
+			node.Dispatched = true
+		}
+	}
 	for turn := 0; turn <= len(graph.Plan); turn++ {
 		progress := false
 		for i := range graph.Plan {
@@ -229,6 +251,14 @@ func (c *Client) advanceNested(graph Graph) (Graph, []Intent, error) {
 				}
 				failed = failed || member.State != Succeeded
 				outputs = append(outputs, member.Output)
+			}
+			for _, id := range node.WaitFor {
+				member, exists := graph.Members[id]
+				if !exists {
+					ready = false
+					break
+				}
+				failed = failed || member.State != Succeeded
 			}
 			if !ready {
 				continue
@@ -292,6 +322,11 @@ func (c *Client) advanceNested(graph Graph) (Graph, []Intent, error) {
 		graph.State = root.State
 		graph.Output = root.Output
 		graph.Failure = root.Failure
+		if graph.CancelRequested {
+			graph.State = Revoked
+			graph.Output = nil
+			graph.Failure = &Failure{Code: "REVOKED", Message: "Workflow cancellation was recorded"}
+		}
 		for _, child := range graph.Children {
 			if _, complete := graph.Members[child.ID]; complete {
 				intents = append(intents, Intent{ID: StableID(graph.ID, "unpin-"+child.ID), SourceID: graph.ID, Kind: "unpin", TargetID: child.ID})

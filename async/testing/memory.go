@@ -457,6 +457,40 @@ func (m *Memory) RecordMember(ctx context.Context, id string, c async.Completion
 	}
 	return nil
 }
+func (m *Memory) CancelGraph(ctx context.Context, id, scope string, advance func(async.Graph) (async.Graph, []async.Intent, error)) error {
+	if err := m.check(ctx, "cancel_graph"); err != nil {
+		return err
+	}
+	if advance == nil {
+		return async.ErrInvalid
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	graph, ok := m.graphs[id]
+	if !ok {
+		return async.ErrNotFound
+	}
+	if graph.Scope != scope {
+		return async.ErrDenied
+	}
+	if graph.State.Terminal() {
+		return nil
+	}
+	graph = copyOf(graph)
+	graph.CancelRequested = true
+	graph, intents, err := advance(graph)
+	if err != nil {
+		return err
+	}
+	graph.Revision++
+	m.graphs[id] = copyOf(graph)
+	for _, intent := range intents {
+		if _, ok := m.intents[intent.ID]; !ok {
+			m.intents[intent.ID] = copyOf(intent)
+		}
+	}
+	return nil
+}
 func (m *Memory) Schedule(ctx context.Context, e async.Envelope) error {
 	if err := m.check(ctx, "schedule"); err != nil {
 		return err

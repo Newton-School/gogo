@@ -14,7 +14,14 @@ func InitialRecord(e Envelope, state State) (Record, error) {
 	if state != Queued && state != Scheduled {
 		return Record{}, ErrInvalid
 	}
-	return Record{Envelope: cloneJSON(e), Digest: e.Digest(), State: state, Revision: 1, Pinned: e.WorkflowID != ""}, nil
+	return Record{Envelope: cloneJSON(e), Digest: e.Digest(), State: state, Revision: 1, Pinned: e.WorkflowID != "", ReplayUntil: later(e.ETA, e.ExpiresAt)}, nil
+}
+
+func later(a, b time.Time) time.Time {
+	if a.After(b) {
+		return a
+	}
+	return b
 }
 
 // ClaimRecord is the backend-neutral state machine. Its caller must compare the
@@ -36,7 +43,7 @@ func ClaimRecord(record Record, e Envelope, owner string, now time.Time, lease t
 	if record.State == Running && record.LeaseUntil.After(now) {
 		return Claim{Record: record}, nil
 	}
-	if record.Envelope.ETA.After(now) {
+	if record.Envelope.ETA.After(now) && !record.CancelRequested {
 		return Claim{Record: record}, nil
 	}
 	record = cloneJSON(record)
@@ -86,11 +93,12 @@ func ApplyTransition(record Record, t Transition, now time.Time, resultTTL, tomb
 	record.LeaseUntil = time.Time{}
 	if t.Next != nil {
 		record.Envelope = cloneJSON(*t.Next)
+		record.ReplayUntil = later(record.ReplayUntil, later(t.Next.ETA, t.Next.ExpiresAt))
 	}
 	if t.State.Terminal() {
 		record.FinishedAt = now
 		record.PayloadExpiresAt = now.Add(resultTTL)
-		record.TombstoneUntil = now.Add(tombstoneTTL)
+		record.TombstoneUntil = later(now, record.ReplayUntil).Add(tombstoneTTL)
 	}
 	return record, nil
 }

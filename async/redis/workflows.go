@@ -109,6 +109,36 @@ func (w *Workflows) RecordMember(ctx context.Context, id string, c async.Complet
 	}
 	return async.ErrBusy
 }
+func (w *Workflows) CancelGraph(ctx context.Context, id, scope string, advance func(async.Graph) (async.Graph, []async.Intent, error)) error {
+	if advance == nil {
+		return async.ErrInvalid
+	}
+	for attempt := 0; attempt < 64; attempt++ {
+		graph, err := w.ReadGraph(ctx, id)
+		if err != nil {
+			return err
+		}
+		if graph.Scope != scope {
+			return async.ErrDenied
+		}
+		if graph.State.Terminal() {
+			return nil
+		}
+		revision := graph.Revision
+		graph.CancelRequested = true
+		graph, intents, err := advance(graph)
+		if err != nil {
+			return err
+		}
+		graph.Revision = revision + 1
+		err = w.write(ctx, revision, graph, intents)
+		if errors.Is(err, async.ErrConflict) {
+			continue
+		}
+		return err
+	}
+	return async.ErrBusy
+}
 func (w *Workflows) intentBackend() intentBackend { return intentBackend{w.Connection, "workflow"} }
 func (w *Workflows) ListIntents(ctx context.Context, limit int) ([]async.Intent, error) {
 	return w.intentBackend().list(ctx, limit)

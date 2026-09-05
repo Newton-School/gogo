@@ -55,6 +55,7 @@ type Record struct {
 	FinishedAt       time.Time       `json:"finished_at,omitempty"`
 	PayloadExpiresAt time.Time       `json:"payload_expires_at,omitempty"`
 	TombstoneUntil   time.Time       `json:"tombstone_until,omitempty"`
+	ReplayUntil      time.Time       `json:"replay_until,omitempty"`
 	Pinned           bool            `json:"pinned"`
 }
 
@@ -96,6 +97,7 @@ type Intent struct {
 	TargetID   string      `json:"target_id,omitempty"`
 	Completion *Completion `json:"completion,omitempty"`
 	Failure    *Failure    `json:"failure,omitempty"`
+	State      State       `json:"state,omitempty"`
 	Fence      uint64      `json:"fence"`
 	Owner      string      `json:"owner"`
 	LeaseUntil time.Time   `json:"lease_until"`
@@ -116,22 +118,24 @@ type Completion struct {
 }
 
 type Graph struct {
-	ID              string                `json:"id"`
-	Kind            string                `json:"kind"`
-	Scope           string                `json:"scope"`
-	Children        []Envelope            `json:"children"`
-	Signatures      []Signature           `json:"signatures"`
-	Callback        *Signature            `json:"callback,omitempty"`
-	CallbackID      string                `json:"callback_id,omitempty"`
-	Members         map[string]Completion `json:"members"`
-	State           State                 `json:"state"`
-	Output          json.RawMessage       `json:"output,omitempty"`
-	Failure         *Failure              `json:"failure,omitempty"`
-	Next            int                   `json:"next"`
-	Revision        uint64                `json:"revision"`
-	CallbackClaimed bool                  `json:"callback_claimed"`
-	Plan            []CanvasNode          `json:"plan,omitempty"`
-	RootNode        string                `json:"root_node,omitempty"`
+	ID               string                `json:"id"`
+	Kind             string                `json:"kind"`
+	Scope            string                `json:"scope"`
+	Children         []Envelope            `json:"children"`
+	Signatures       []Signature           `json:"signatures"`
+	Callback         *Signature            `json:"callback,omitempty"`
+	CallbackID       string                `json:"callback_id,omitempty"`
+	Members          map[string]Completion `json:"members"`
+	State            State                 `json:"state"`
+	Output           json.RawMessage       `json:"output,omitempty"`
+	Failure          *Failure              `json:"failure,omitempty"`
+	Next             int                   `json:"next"`
+	Revision         uint64                `json:"revision"`
+	CallbackClaimed  bool                  `json:"callback_claimed"`
+	CallbackEnvelope *Envelope             `json:"callback_envelope,omitempty"`
+	CancelRequested  bool                  `json:"cancel_requested"`
+	Plan             []CanvasNode          `json:"plan,omitempty"`
+	RootNode         string                `json:"root_node,omitempty"`
 }
 
 // CanvasNode is a portable compiled workflow node. Collect nodes execute no
@@ -140,6 +144,7 @@ type CanvasNode struct {
 	ID           string     `json:"id"`
 	Kind         string     `json:"kind"`
 	Dependencies []string   `json:"dependencies,omitempty"`
+	WaitFor      []string   `json:"wait_for,omitempty"`
 	Signature    *Signature `json:"signature,omitempty"`
 	Dispatched   bool       `json:"dispatched"`
 }
@@ -150,6 +155,7 @@ type WorkflowStore interface {
 	// RecordMember validates expected child identity and commits completion and
 	// successor intents together. A duplicate must not increment the barrier.
 	RecordMember(context.Context, string, Completion, func(Graph) (Graph, []Intent, error)) error
+	CancelGraph(context.Context, string, string, func(Graph) (Graph, []Intent, error)) error
 	IntentStore
 }
 

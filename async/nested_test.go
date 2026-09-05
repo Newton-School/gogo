@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/Newton-School/gogo/async"
 	fakes "github.com/Newton-School/gogo/async/testing"
@@ -153,5 +154,58 @@ func TestNestedTypeAndScopeValidationBeforeGraphCreation(t *testing.T) {
 	intents, err := backend.ListIntents(ctx, 100)
 	if err != nil || len(intents) != 0 {
 		t.Fatal(intents, err)
+	}
+}
+
+func TestEmptyDependentGroupsWaitForFailingPrerequisite(t *testing.T) {
+	ctx := context.Background()
+	task, client, worker, backend := setup(t, func(context.Context, async.TaskContext, int) (int, error) {
+		return 0, errors.New("private prerequisite failure")
+	}, async.TaskOptions{})
+	s, _ := task.Signature(1)
+	for _, empty := range []async.Canvas{async.Parallel(), async.Group(), async.Parallel(async.Parallel())} {
+		group, err := client.ApplyCanvas(ctx, s.Canvas().Then(empty))
+		if err != nil {
+			t.Fatal(err)
+		}
+		graph, err := group.Snapshot(ctx)
+		if err != nil || graph.State != async.Running {
+			t.Fatal("empty group completed before prerequisite", graph.State, err)
+		}
+		drain(t, client, worker, backend)
+		graph, err = group.Snapshot(ctx)
+		if err != nil || graph.State != async.Failed {
+			t.Fatal("empty group lost prerequisite failure", graph.State, err)
+		}
+	}
+}
+
+func TestEmptyDependentGroupWaitsForScheduledPrerequisite(t *testing.T) {
+	ctx := context.Background()
+	calls := 0
+	task, client, worker, backend := setup(t, func(context.Context, async.TaskContext, int) (int, error) { calls++; return 1, nil }, async.TaskOptions{})
+	eta := time.Now().Add(time.Hour)
+	s, _ := task.Signature(1)
+	group, err := client.ApplyCanvas(ctx, s.Set(async.WithETA(eta)).Canvas().Then(async.Parallel()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	drain(t, client, worker, backend)
+	graph, err := group.Snapshot(ctx)
+	if err != nil || graph.State != async.Running || calls != 0 {
+		t.Fatal(graph.State, calls, err)
+	}
+	backend.Clock = func() time.Time { return eta.Add(time.Second) }
+	if err := (&async.DelayedDispatcher{Client: client, ID: "delayed"}).Tick(ctx); err != nil {
+		t.Fatal(err)
+	}
+	drain(t, client, worker, backend)
+	graph, err = group.Snapshot(ctx)
+	if err != nil || graph.State != async.Succeeded || calls != 1 {
+		t.Fatal(graph.State, calls, err)
+	}
+	outputs, err := group.Join(ctx)
+	if err != nil || len(outputs) != 0 {
+		t.Fatal(outputs, err)
 	}
 }

@@ -178,10 +178,13 @@ func dispatchIntent(source string, e Envelope) Intent {
 
 func (c *Client) advance(graph Graph) (Graph, []Intent, error) {
 	if graph.State.Terminal() {
-		return graph, nil, nil
+		return graph, graphUnpins(graph), nil
 	}
 	if graph.Kind == "dag" {
 		return c.advanceNested(graph)
+	}
+	if graph.CancelRequested {
+		return c.advanceCanceled(graph)
 	}
 	var intents []Intent
 	finish := func(state State, output json.RawMessage) (Graph, []Intent, error) {
@@ -283,6 +286,7 @@ func (c *Client) advance(graph Graph) (Graph, []Intent, error) {
 		e.RootID = graph.ID
 		e.ParentID = graph.ID
 		graph.CallbackClaimed = true
+		graph.CallbackEnvelope = &e
 		return graph, []Intent{dispatchIntent(graph.ID, e)}, nil
 	}
 	return graph, nil, ErrInvalid
@@ -294,6 +298,16 @@ type GroupResult struct {
 }
 
 func RestoreGroup(c *Client, id string) *GroupResult { return &GroupResult{ID: id, client: c} }
+func (g *GroupResult) Revoke(ctx context.Context) error {
+	graph, err := g.Snapshot(ctx)
+	if err != nil {
+		return err
+	}
+	if err := g.client.authorize(ctx, "revoke", graph.Scope, g.ID); err != nil {
+		return err
+	}
+	return g.client.config.Workflows.CancelGraph(ctx, g.ID, graph.Scope, g.client.advance)
+}
 func (g *GroupResult) Snapshot(ctx context.Context) (Graph, error) {
 	if g.client.config.Workflows == nil {
 		return Graph{}, ErrUnavailable
@@ -384,6 +398,8 @@ func (r *IntentRelay) Tick(ctx context.Context) error {
 				continue
 			}
 			switch intent.Kind {
+			case "cancel":
+				err = r.cancelTask(ctx, intent, lease)
 			case "fail":
 				if intent.Envelope == nil {
 					return ErrInvalid
@@ -398,7 +414,14 @@ func (r *IntentRelay) Tick(ctx context.Context) error {
 						if failure == nil {
 							failure = &Failure{Code: "CALLBACK_INPUT", Message: "Callback input validation failed"}
 						}
-						err = r.Client.config.Results.Transition(ctx, Transition{ID: e.ID, Fence: claim.Record.Fence, Owner: r.ID, State: Failed, Failure: failure, Intents: CompletionIntents(e, Failed, nil, failure)})
+						state := intent.State
+						if state == "" {
+							state = Failed
+						}
+						if state != Failed && state != Revoked && state != Expired {
+							return ErrInvalid
+						}
+						err = r.Client.config.Results.Transition(ctx, Transition{ID: e.ID, Fence: claim.Record.Fence, Owner: r.ID, State: state, Failure: failure, Intents: CompletionIntents(e, state, nil, failure)})
 					} else if err == nil && !claim.Duplicate {
 						err = ErrBusy
 					}
