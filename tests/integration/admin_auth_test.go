@@ -18,6 +18,7 @@ import (
 	authviews "github.com/Newton-School/gogo/core/auth/views"
 	"github.com/Newton-School/gogo/core/contrib/contenttypes"
 	"github.com/Newton-School/gogo/core/db"
+	"github.com/Newton-School/gogo/core/messages"
 	"github.com/Newton-School/gogo/core/migrations"
 	"github.com/Newton-School/gogo/core/models"
 	"github.com/Newton-School/gogo/core/orm"
@@ -111,7 +112,7 @@ func TestAdminPostgresRedisStaffCredentialWorkflow(t *testing.T) {
 	defer connection.Close()
 	key, _ := security.RandomToken(32)
 	signer, _ := security.NewSigner(security.SigningKey{ID: "fixture", Value: []byte(key)}, nil, "admin-credential-integration")
-	site, err := admin.NewSite(admin.Config{Store: adapter, Signer: signer, Policy: auth.ModelPolicy{}, LoginURL: "/admin/login/", LogoutURL: "/admin/logout/", PasswordChangeURL: "/admin/password-change/"})
+	site, err := admin.NewSite(admin.Config{Store: adapter, Signer: signer, Policy: auth.ModelPolicy{}, LoginURL: "/admin/login/", LogoutURL: "/admin/logout/", PasswordChangeURL: "/admin/password-change/", Messages: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -151,7 +152,11 @@ func TestAdminPostgresRedisStaffCredentialWorkflow(t *testing.T) {
 	mux.Handle("/admin/logout/", logout)
 	mux.Handle("/admin/password-change/", passwordChange)
 	mux.Handle("/admin/", site)
-	handler := headers(sessionMiddleware(identityMiddleware(mux)))
+	messageMiddleware, err := messages.Middleware(messages.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	handler := headers(sessionMiddleware(identityMiddleware(messageMiddleware(mux))))
 	cookies := map[string]*http.Cookie{}
 	call := func(method, path string, values url.Values) *httptest.ResponseRecorder {
 		request := httptest.NewRequest(method, "http://example.test"+path, strings.NewReader(values.Encode()))
@@ -242,7 +247,7 @@ func TestAdminPostgresRedisStaffCredentialWorkflow(t *testing.T) {
 		t.Fatal("password change did not rotate confirmed session", response.Code, response.Header())
 	}
 	password = newPassword
-	if response := call("GET", "/admin/shop/product/", nil); response.Code != 200 {
+	if response := call("GET", "/admin/shop/product/", nil); response.Code != 200 || !strings.Contains(response.Body.String(), "Your password was changed.") {
 		t.Fatal("opted-in current login not preserved", response.Code)
 	}
 	retainedSession := cookies["gogo_session"]

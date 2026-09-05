@@ -11,6 +11,7 @@ import (
 
 	"github.com/Newton-School/gogo/core/auth"
 	authviews "github.com/Newton-School/gogo/core/auth/views"
+	"github.com/Newton-School/gogo/core/messages"
 	"github.com/Newton-School/gogo/core/ratelimit"
 	"github.com/Newton-School/gogo/core/security"
 	"github.com/Newton-School/gogo/core/sessions"
@@ -213,5 +214,39 @@ func TestAdminPasswordChangeLinkAndConfiguration(t *testing.T) {
 	}
 	if _, err := site.PasswordChangeHandler(authviews.PasswordChangeConfig{CSRF: security.CSRFConfig{Exempt: func(*http.Request) bool { return true }}}); err == nil {
 		t.Fatal("account CSRF exemption")
+	}
+}
+
+func TestAdminPasswordChangeNoticeRequiresConfirmedRetainedLogin(t *testing.T) {
+	site, _ := newTestSite(t)
+	site.config.Messages = true
+	protect, err := messages.Middleware(messages.Config{Mode: messages.Cookie, Signer: site.config.Signer})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, scenario := range []struct {
+		state        string
+		status, want int
+	}{{"changed", 303, 1}, {"unchanged", 303, 0}, {"unknown", 503, 0}, {"changed", 503, 0}, {"changed", 200, 0}} {
+		response := httptest.NewRecorder()
+		protect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			writer := &passwordChangeResponse{ResponseWriter: w, onChanged: func() { site.successMessage(r, "Your password was changed.") }}
+			writer.Header().Set("X-Gogo-Password-Change", scenario.state)
+			writer.WriteHeader(scenario.status)
+			writer.WriteHeader(scenario.status)
+		})).ServeHTTP(response, httptest.NewRequest("GET", "http://example.test/", nil))
+		request := httptest.NewRequest("GET", "http://example.test/", nil)
+		for _, cookie := range response.Result().Cookies() {
+			request.AddCookie(cookie)
+		}
+		protect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			items, err := messages.Consume(r)
+			if err != nil || len(items) != scenario.want {
+				t.Errorf("wrong outcome notice %s %d: %d %v", scenario.state, scenario.status, len(items), err)
+			}
+			if len(items) > 0 && items[0].Text != "Your password was changed." {
+				t.Error("private account details in notice")
+			}
+		})).ServeHTTP(httptest.NewRecorder(), request)
 	}
 }

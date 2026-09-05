@@ -139,8 +139,41 @@ func (s *Site) PasswordChangeHandler(config authviews.PasswordChangeConfig) (htt
 			http.Error(w, "Permission denied", http.StatusForbidden)
 			return
 		}
-		handler.ServeHTTP(w, r)
+		if config.PreserveSession && s.config.Messages {
+			handler.ServeHTTP(&passwordChangeResponse{ResponseWriter: w, onChanged: func() { s.successMessage(r, "Your password was changed.") }}, r)
+		} else {
+			handler.ServeHTTP(w, r)
+		}
 	}), nil
+}
+
+// A confirmed credential transition and successful retained-login redirect are
+// the only outcomes that enqueue a generic notice. Unknown/changed error states
+// must keep Core's recovery response and must never become a success toast.
+type passwordChangeResponse struct {
+	http.ResponseWriter
+	final     bool
+	onChanged func()
+}
+
+func (w *passwordChangeResponse) Unwrap() http.ResponseWriter { return w.ResponseWriter }
+func (w *passwordChangeResponse) WriteHeader(status int) {
+	if w.final {
+		return
+	}
+	if status >= 200 {
+		w.final = true
+		if status == http.StatusSeeOther && w.Header().Get("X-Gogo-Password-Change") == string(auth.PasswordChanged) {
+			w.onChanged()
+		}
+	}
+	w.ResponseWriter.WriteHeader(status)
+}
+func (w *passwordChangeResponse) Write(body []byte) (int, error) {
+	if !w.final {
+		w.WriteHeader(http.StatusOK)
+	}
+	return w.ResponseWriter.Write(body)
 }
 
 func (s *Site) renderPasswordChange(ctx context.Context, page authviews.PasswordChangePage) ([]byte, error) {
