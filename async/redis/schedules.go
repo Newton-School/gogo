@@ -38,12 +38,12 @@ func (s *Schedules) Schedule(ctx context.Context, e async.Envelope) error {
 	item := struct {
 		async.DelayedItem
 		Digest string `json:"digest"`
-	}{DelayedItem: async.DelayedItem{Envelope: e}, Digest: e.Digest()}
+	}{DelayedItem: async.DelayedItem{Envelope: e}, Digest: e.DispatchDigest()}
 	b, err := json.Marshal(item)
 	if err != nil {
 		return err
 	}
-	out, err := s.Connection.Atomic(ctx, schedulePut, s.keys(connector.Partition(e.ID)), delayedID(e), b, e.Digest(), e.ETA.UnixMilli())
+	out, err := s.Connection.Atomic(ctx, schedulePut, s.keys(connector.Partition(e.ID)), delayedID(e), b, e.DispatchDigest(), e.ETA.UnixMilli())
 	if err != nil {
 		return err
 	}
@@ -59,7 +59,7 @@ local ids=redis.call('ZRANGEBYSCORE',KEYS[1],'-inf',now,'LIMIT',0,ARGV[2]);local
 for _,id in ipairs(ids) do
  local raw=redis.call('HGET',KEYS[2],id);if not raw then return redis.error_reply('GOGO_MISSING_SCHEDULE') end
  local item=cjson.decode(raw)
- if (item.lease_millis or 0)<=now then item.owner=ARGV[1];item.fence=item.fence+1;item.lease_millis=now+tonumber(ARGV[3]);raw=cjson.encode(item);redis.call('HSET',KEYS[2],id,raw);table.insert(out,raw) end
+ if (item.lease_millis or 0)<=now then item.owner=ARGV[1];item.fence=item.fence+1;item.lease_millis=now+tonumber(ARGV[3]);raw=cjson.encode(item);redis.call('HSET',KEYS[2],id,raw);redis.call('ZADD',KEYS[1],item.lease_millis,id);table.insert(out,raw) end
 end;return out
 `)
 

@@ -305,3 +305,67 @@ func TestRealPeriodicBeatDurableOccurrence(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestRealScopedMonitorEventsAndDispatchConflicts(t *testing.T) {
+	ctx := context.Background()
+	broker, results := backends(t)
+	events := &adapter.Events{Connection: results.Connection}
+	event := async.Event{Kind: "task_started", TaskID: "id", Task: "test.task", Scope: "one", State: async.Running, At: time.Now().UTC()}
+	if err := events.PublishEvent(ctx, event); err != nil {
+		t.Fatal(err)
+	}
+	visible, cursor, err := events.Read(ctx, "one", "", 10)
+	if err != nil || len(visible) != 1 || cursor == "" {
+		t.Fatal(visible, cursor, err)
+	}
+	other, _, err := events.Read(ctx, "two", "", 10)
+	if err != nil || len(other) != 0 {
+		t.Fatal(other, err)
+	}
+	e := taskEnvelope(t)
+	if err := broker.Publish(ctx, e); err != nil {
+		t.Fatal(err)
+	}
+	e.ETA = time.Now().Add(time.Hour)
+	if err := broker.Publish(ctx, e); !errors.Is(err, async.ErrConflict) {
+		t.Fatal(err)
+	}
+}
+
+func TestRealResultCleanupPreservesTerminalTombstone(t *testing.T) {
+	ctx := context.Background()
+	_, results := backends(t)
+	results.ResultTTL = time.Millisecond
+	e := taskEnvelope(t)
+	claim, err := results.Claim(ctx, e, "worker", time.Minute)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := results.Transition(ctx, async.Transition{ID: e.ID, Fence: claim.Record.Fence, Owner: "worker", State: async.Succeeded, Output: json.RawMessage(`42`)}); err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(time.Second)
+	cleared := false
+	for time.Now().Before(deadline) {
+		_, report, err := results.Cleanup(ctx, adapter.Cursor{Partition: connector.Partition(e.ID)}, 100)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if report.PayloadsRemoved == 1 {
+			cleared = true
+			break
+		}
+		time.Sleep(time.Millisecond)
+	}
+	if !cleared {
+		t.Fatal("result payload not pruned")
+	}
+	record, err := results.Lookup(ctx, e.ID)
+	if err != nil || record.State != async.Succeeded || len(record.Output) != 0 {
+		t.Fatal(record, err)
+	}
+	duplicate, err := results.Claim(ctx, e, "redelivery", time.Minute)
+	if err != nil || !duplicate.Duplicate || duplicate.Acquired {
+		t.Fatal(duplicate, err)
+	}
+}

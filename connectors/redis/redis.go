@@ -51,6 +51,7 @@ type Config struct {
 	// Development permits nonpersistent loopback Redis for tests/development.
 	// It does not bypass version or noeviction validation for durable roles.
 	Development bool
+	Production  bool
 }
 
 type Connection struct {
@@ -61,6 +62,9 @@ type Connection struct {
 
 func Open(ctx context.Context, c Config) (*Connection, error) {
 	if !namespacePattern.MatchString(c.Namespace) || c.Database < 0 {
+		return nil, ErrInvalid
+	}
+	if c.Development && c.Production {
 		return nil, ErrInvalid
 	}
 	switch c.Role {
@@ -110,12 +114,18 @@ func Open(ctx context.Context, c Config) (*Connection, error) {
 		if opts.TLSConfig != nil && opts.TLSConfig.InsecureSkipVerify {
 			return nil, ErrInvalid
 		}
+		if c.Production && (opts.TLSConfig == nil || opts.Password == "") {
+			return nil, ErrInvalid
+		}
 		if c.Development && !loopbackAddress(opts.Addr) {
 			return nil, ErrInvalid
 		}
 		client = redigo.NewClient(opts)
 	} else {
 		if len(c.Addresses) == 0 {
+			return nil, ErrInvalid
+		}
+		if c.Production && (c.TLS == nil || c.Password == "") {
 			return nil, ErrInvalid
 		}
 		if c.Development {

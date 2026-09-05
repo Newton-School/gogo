@@ -68,6 +68,18 @@ func TestRealCacheAtomicAddIncrementExpiryIsolation(t *testing.T) {
 	if _, err := other.Get(ctx, "count"); !errors.Is(err, cache.ErrMiss) {
 		t.Fatal(err)
 	}
+	if err := other.Set(ctx, "kept", []byte("value"), time.Minute); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Clear(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Get(ctx, "count"); !errors.Is(err, cache.ErrMiss) {
+		t.Fatal(err)
+	}
+	if value, err := other.Get(ctx, "kept"); err != nil || string(value) != "value" {
+		t.Fatal(string(value), err)
+	}
 	if _, err := conn.Atomic(ctx, redigo.NewScript(`return 1`), []string{"test:{one}:a", "test:{two}:b"}); !errors.Is(err, connector.ErrInvalid) {
 		t.Fatal(err)
 	}
@@ -133,5 +145,9 @@ func TestRealRateLimitAndDurableReadiness(t *testing.T) {
 	cfg.Development = false
 	if _, err := connector.Open(ctx, cfg); !errors.Is(err, connector.ErrDurability) {
 		t.Fatal(err)
+	}
+	cfg.Production = true
+	if _, err := connector.Open(ctx, cfg); !errors.Is(err, connector.ErrInvalid) {
+		t.Fatal("production accepted plaintext unauthenticated Redis", err)
 	}
 }

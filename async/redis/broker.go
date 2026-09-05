@@ -79,7 +79,7 @@ func (b *Broker) Publish(ctx context.Context, e async.Envelope) error {
 	}
 	body, _ := json.Marshal(e)
 	key := b.queuePrefix(e.Queue) + ":published:" + e.ID + ":" + strconv.Itoa(e.Retries)
-	out, err := b.Connection.Atomic(ctx, publishScript, []string{b.stream(e.Queue, e.Priority), key}, body, e.Digest(), depth, ttl.Milliseconds())
+	out, err := b.Connection.Atomic(ctx, publishScript, []string{b.stream(e.Queue, e.Priority), key}, body, e.DispatchDigest(), depth, ttl.Milliseconds())
 	if err != nil {
 		return err
 	}

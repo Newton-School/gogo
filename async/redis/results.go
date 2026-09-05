@@ -25,11 +25,23 @@ func (r *Results) valid() error {
 	if r.Connection == nil || r.Connection.Role() == connector.CacheRole {
 		return async.ErrInvalid
 	}
+	resultTTL := r.ResultTTL
+	if resultTTL == 0 {
+		resultTTL = 24 * time.Hour
+	}
+	tombstoneTTL := r.TombstoneTTL
+	if tombstoneTTL == 0 {
+		tombstoneTTL = 7 * 24 * time.Hour
+	}
+	if resultTTL <= 0 || tombstoneTTL < 7*24*time.Hour || tombstoneTTL < resultTTL {
+		return async.ErrInvalid
+	}
 	return nil
 }
 func (r *Results) keys(id string) []string {
 	index, _ := r.Connection.PartitionIndex("task", connector.Partition(id), "pending-intents")
-	return []string{r.Connection.PartitionKey("task", id, "state"), r.Connection.PartitionKey("task", id, "intents"), index}
+	inventory, _ := r.Connection.PartitionIndex("task", connector.Partition(id), "records")
+	return []string{r.Connection.PartitionKey("task", id, "state"), r.Connection.PartitionKey("task", id, "intents"), index, inventory}
 }
 func (r *Results) read(ctx context.Context, id string) (async.Record, error) {
 	var record async.Record
@@ -88,6 +100,7 @@ if ARGV[6]=='live' then
 end
 local newlease=tonumber(ARGV[4]);if ARGV[5]~='0' then newlease=now+tonumber(ARGV[5]) end
 redis.call('HSET',KEYS[1],'record',ARGV[2],'revision',ARGV[3],'lease_millis',newlease,'owner',ARGV[9],'fence',ARGV[10])
+redis.call('SADD',KEYS[4],ARGV[12])
 local intents=cjson.decode(ARGV[11]);for _,intent in ipairs(intents) do
  if redis.call('HEXISTS',KEYS[2],intent.id)==0 then redis.call('HSET',KEYS[2],intent.id,cjson.encode(intent));redis.call('ZADD',KEYS[3],now,intent.source_id..':'..intent.id) end
 end
@@ -110,7 +123,7 @@ func (r *Results) cas(ctx context.Context, expected uint64, record async.Record,
 	if !record.LeaseUntil.IsZero() {
 		newLease = record.LeaseUntil.UnixMilli()
 	}
-	out, err := r.Connection.Atomic(ctx, recordCAS, r.keys(record.Envelope.ID), strconv.FormatUint(expected, 10), b, strconv.FormatUint(record.Revision, 10), newLease, lease.Milliseconds(), mode, oldOwner, strconv.FormatUint(oldFence, 10), record.Owner, strconv.FormatUint(record.Fence, 10), ib)
+	out, err := r.Connection.Atomic(ctx, recordCAS, r.keys(record.Envelope.ID), strconv.FormatUint(expected, 10), b, strconv.FormatUint(record.Revision, 10), newLease, lease.Milliseconds(), mode, oldOwner, strconv.FormatUint(oldFence, 10), record.Owner, strconv.FormatUint(record.Fence, 10), ib, record.Envelope.ID)
 	if err != nil {
 		return err
 	}
@@ -350,9 +363,13 @@ func (b intentBackend) list(ctx context.Context, limit int) ([]async.Intent, err
 		return nil, async.ErrInvalid
 	}
 	var out []async.Intent
+	now, err := connector.ServerTime(ctx, b.connection.Client())
+	if err != nil {
+		return nil, err
+	}
 	for p := 0; p < 64 && len(out) < limit; p++ {
 		index, _ := b.connection.PartitionIndex(b.family, p, "pending-intents")
-		ids, err := b.connection.Client().ZRange(ctx, index, 0, int64(limit-len(out)-1)).Result()
+		ids, err := b.connection.Client().ZRangeByScore(ctx, index, &redigo.ZRangeBy{Min: "-inf", Max: strconv.FormatInt(now.UnixMilli(), 10), Offset: 0, Count: int64(limit - len(out))}).Result()
 		if err != nil {
 			return nil, err
 		}
@@ -381,6 +398,7 @@ local item=cjson.decode(raw);if item.delivered then return raw end
 local tm=redis.call('TIME');local now=tonumber(tm[1])*1000+math.floor(tonumber(tm[2])/1000)
 if (item.lease_millis or 0)>now then return 'BUSY' end
 item.lease_millis=now+tonumber(ARGV[3]);item.fence=item.fence+1;item.owner=ARGV[2]
+redis.call('ZADD',KEYS[2],item.lease_millis,item.source_id..':'..item.id)
 raw=cjson.encode(item);redis.call('HSET',KEYS[1],ARGV[1],raw);return raw
 `)
 

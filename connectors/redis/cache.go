@@ -37,7 +37,58 @@ func (c *Cache) Get(ctx context.Context, key string) ([]byte, error) {
 	if errors.Is(err, redigo.Nil) {
 		return nil, cache.ErrMiss
 	}
+	if err == nil {
+		if err := c.validate(value, 0); err != nil {
+			return nil, err
+		}
+	}
 	return value, err
+}
+
+// Clear removes only this cache namespace/version. It never flushes a server or
+// deletes sessions, queue messages or keys belonging to another application.
+func (c *Cache) Clear(ctx context.Context) error {
+	if c.Connection == nil {
+		return ErrInvalid
+	}
+	prefix := c.Connection.namespace + ":cache:" + strconv.FormatUint(c.Version, 10) + ":*"
+	clear := func(ctx context.Context, client *redigo.Client) error {
+		var cursor uint64
+		for {
+			keys, next, err := client.Scan(ctx, cursor, prefix, 100).Result()
+			if err != nil {
+				return err
+			}
+			for _, key := range keys {
+				if err := client.Del(ctx, key).Err(); err != nil {
+					return err
+				}
+			}
+			if next == 0 {
+				return nil
+			}
+			cursor = next
+		}
+	}
+	if cluster, ok := c.Connection.client.(*redigo.ClusterClient); ok {
+		return cluster.ForEachMaster(ctx, clear)
+	}
+	var cursor uint64
+	for {
+		keys, next, err := c.Connection.client.Scan(ctx, cursor, prefix, 100).Result()
+		if err != nil {
+			return err
+		}
+		for _, key := range keys {
+			if err := c.Connection.client.Del(ctx, key).Err(); err != nil {
+				return err
+			}
+		}
+		if next == 0 {
+			return nil
+		}
+		cursor = next
+	}
 }
 func (c *Cache) Set(ctx context.Context, key string, value []byte, ttl time.Duration) error {
 	if err := c.validate(value, ttl); err != nil {
