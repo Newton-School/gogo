@@ -243,3 +243,65 @@ func TestRealRedisChordAndDelayedLease(t *testing.T) {
 		t.Fatal(items, err)
 	}
 }
+
+func TestRealPeriodicBeatDurableOccurrence(t *testing.T) {
+	ctx := context.Background()
+	broker, results := backends(t)
+	schedules := &adapter.Schedules{Connection: results.Connection}
+	registry := async.NewRegistry()
+	calls := 0
+	task, err := async.Register(registry, "test.periodic", 1, func(_ context.Context, _ async.TaskContext, n int) (int, error) { calls++; return n, nil }, async.TaskOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	client, err := async.NewClient(async.ClientConfig{Registry: registry, Broker: broker, Results: results, Schedules: schedules})
+	if err != nil {
+		t.Fatal(err)
+	}
+	signature, _ := task.Signature(1)
+	id, _ := async.NewID()
+	p := async.PeriodicSchedule{ID: id, Signature: signature, Rule: async.Every(time.Hour), Enabled: true, NextDue: time.Now().Add(-time.Minute), Misfire: "coalesce", CatchUpLimit: 1, Overlap: "allow", Revision: 1}
+	if err := schedules.UpsertSchedule(ctx, p, 0); err != nil {
+		t.Fatal(err)
+	}
+	beat := &async.Beat{Client: client, Store: schedules, ID: "beat"}
+	if err := beat.Tick(ctx); err != nil {
+		t.Fatal(err)
+	}
+	intents, err := schedules.ListIntents(ctx, 10)
+	if err != nil || len(intents) != 1 {
+		t.Fatal(intents, err)
+	}
+	// Restarting beat before publication discovers the existing durable intent;
+	// the advanced occurrence does not allocate a second logical task ID.
+	beat = &async.Beat{Client: client, Store: schedules, ID: "replacement"}
+	if err := beat.Tick(ctx); err != nil {
+		t.Fatal(err)
+	}
+	again, _ := schedules.ListIntents(ctx, 10)
+	if len(again) != 1 || again[0].ID != intents[0].ID {
+		t.Fatal(again)
+	}
+	relay := &async.IntentRelay{Client: client, Sources: []async.IntentStore{schedules}, ID: "relay"}
+	if err := relay.Tick(ctx); err != nil {
+		t.Fatal(err)
+	}
+	delivery, err := broker.Consume(ctx, async.ConsumeOptions{Queues: []string{"default"}, Consumer: "worker"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	worker := &async.Worker{ID: "worker", Registry: registry, Broker: broker, Results: results}
+	if err := worker.Process(ctx, delivery); err != nil {
+		t.Fatal(err)
+	}
+	if calls != 1 {
+		t.Fatal(calls)
+	}
+	list, err := schedules.List(ctx, 10)
+	if err != nil || len(list) != 1 || !list[0].NextDue.After(time.Now()) {
+		t.Fatal(list, err)
+	}
+	if err := schedules.Disable(ctx, list[0].ID, list[0].Revision); err != nil {
+		t.Fatal(err)
+	}
+}
