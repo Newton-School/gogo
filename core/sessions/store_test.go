@@ -154,3 +154,59 @@ func TestBrowserCloseSurvivesSubsequentMutation(t *testing.T) {
 		}
 	}
 }
+
+func TestFlushThenWriteCreatesFreshIdentityAndCookie(t *testing.T) {
+	ctx := context.Background()
+	store := &memoryStore{}
+	old := Record{ID: "previous-account", Version: 8, ExpiresAt: time.Now().Add(time.Minute), BrowserClose: true, Data: map[string]json.RawMessage{"private": json.RawMessage(`"old-secret"`)}}
+	if err := store.Create(ctx, old); err != nil {
+		t.Fatal(err)
+	}
+	signer, _ := security.NewSigner(security.SigningKey{ID: "test", Value: []byte(strings.Repeat("a", 32))}, nil, "sessions")
+	token, _ := signer.Sign([]byte(old.ID))
+	mw, _ := Middleware(MiddlewareConfig{Store: store, Signer: signer, TTL: time.Hour})
+	r := httptest.NewRequest("POST", "http://localhost/", nil)
+	r.AddCookie(&http.Cookie{Name: "gogo_session", Value: token})
+	w := httptest.NewRecorder()
+	mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		s, _ := FromContext(r.Context())
+		if err := s.Flush(); err != nil {
+			t.Fatal(err)
+		}
+		if err := s.Set("notice", "Signed out"); err != nil {
+			t.Fatal(err)
+		}
+		w.WriteHeader(200)
+	})).ServeHTTP(w, r)
+	if _, err := store.Load(ctx, old.ID); !errors.Is(err, ErrNotFound) {
+		t.Fatal("flushed identity survived", err)
+	}
+	cookies := w.Result().Cookies()
+	if len(cookies) != 1 || cookies[0].MaxAge <= 0 {
+		t.Fatal("new session cookie expired", cookies)
+	}
+	id, err := signer.Verify(cookies[0].Value, time.Hour)
+	if err != nil || string(id) == old.ID {
+		t.Fatal(err)
+	}
+	fresh, err := store.Load(ctx, string(id))
+	if err != nil || fresh.Version != 1 || fresh.BrowserClose || fresh.ExpiresAt.Before(time.Now().Add(50*time.Minute)) {
+		t.Fatal(fresh, err)
+	}
+	if _, ok := fresh.Data["private"]; ok {
+		t.Fatal("previous account data survived")
+	}
+}
+
+func TestFlushWithoutLaterWriteOnlyExpiresCookie(t *testing.T) {
+	store := &memoryStore{}
+	s := New(Record{ID: "old", Version: 1})
+	_ = store.Create(context.Background(), s.Snapshot())
+	_ = s.Flush()
+	if err := s.Persist(context.Background(), store, time.Now(), time.Hour); err != nil {
+		t.Fatal(err)
+	}
+	if len(store.records) != 0 || s.Snapshot().ID != "" {
+		t.Fatal("logout created an unused replacement session")
+	}
+}

@@ -100,6 +100,11 @@ func (s *Session) Flush() error {
 		return err
 	}
 	s.flushed = true
+	// A later write starts a new anonymous/authenticated session. Never retain
+	// the flushed identity, expiry policy or prior account's data.
+	s.record = Record{Data: map[string]json.RawMessage{}}
+	s.modified = false
+	s.rotate = false
 	return nil
 }
 func (s *Session) CycleKey() error {
@@ -142,9 +147,14 @@ func (s *Session) Persist(ctx context.Context, store Store, now time.Time, ttl t
 	}
 	if s.flushed {
 		if s.originalID != "" {
-			return store.Delete(ctx, s.originalID)
+			if err := store.Delete(ctx, s.originalID); err != nil {
+				return err
+			}
+			s.originalID = ""
 		}
-		return nil
+		if !s.modified {
+			return nil
+		}
 	}
 	if !s.modified {
 		return nil

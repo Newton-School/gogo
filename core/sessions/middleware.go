@@ -68,7 +68,7 @@ func Middleware(config MiddlewareConfig) (func(http.Handler) http.Handler, error
 				if session.modified || session.flushed || stale {
 					w.Header().Set("Cache-Control", "private, no-store")
 				}
-				if session.flushed || stale && !session.modified {
+				if session.flushed && session.record.ID == "" || stale && !session.modified {
 					http.SetCookie(w, &http.Cookie{Name: config.CookieName, Path: "/", MaxAge: -1, Expires: time.Unix(1, 0), Secure: config.Secure, HttpOnly: true, SameSite: http.SameSiteLaxMode})
 				} else if session.modified {
 					token, e := config.Signer.Sign([]byte(session.record.ID))
