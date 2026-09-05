@@ -207,3 +207,17 @@ func TestPasswordChangeAuthenticationRatesAndRendererFailures(t *testing.T) {
 		}
 	}
 }
+
+func TestPasswordChangeBackendPanicDoesNotClaimRollbackOrPreserveLogin(t *testing.T) {
+	config := passwordConfig()
+	config.Changer = passwordChangerFunc(func(context.Context, string, string) (auth.PasswordChangeResult, error) {
+		panic("private password backend details")
+	})
+	f := newPasswordFixture(t, config)
+	w := f.call("POST", "/password-change", passwordValues(), f.token)
+	var value string
+	found, _ := f.session.Get("private", &value)
+	if w.Code != 503 || found || w.Header().Get("X-Gogo-Password-Change") != "unknown" || strings.Contains(w.Body.String(), "private") {
+		t.Fatal(w.Code, found, w.Header(), w.Body.String())
+	}
+}

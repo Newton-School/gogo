@@ -136,7 +136,9 @@ func PasswordChange(config PasswordChangeConfig) (http.Handler, error) {
 			servePasswordChange(w, r, config.Render, page, http.StatusBadRequest)
 			return
 		}
-		result, changeErr := config.Changer.ChangeOwnPassword(r.Context(), old, password)
+		result, changeErr := invokeCredentialMutation(func() (auth.PasswordChangeResult, error) {
+			return config.Changer.ChangeOwnPassword(r.Context(), old, password)
+		})
 		// Unknown or contradictory provider responses never promote a session.
 		if result.State != auth.PasswordChanged && result.State != auth.PasswordUnchanged && result.State != auth.PasswordChangeUnknown || result.State == auth.PasswordUnchanged && changeErr == nil {
 			result.State = auth.PasswordChangeUnknown
@@ -183,6 +185,15 @@ func PasswordChange(config PasswordChangeConfig) (http.Handler, error) {
 			unavailable(w)
 		}
 	}))), nil
+}
+
+// A custom mutation backend may panic after committing. Never assume rollback,
+// expose its panic value, or promote an unverified session in that situation.
+func invokeCredentialMutation(action func() (auth.PasswordChangeResult, error)) (result auth.PasswordChangeResult, err error) {
+	result.State = auth.PasswordChangeUnknown
+	err = errors.New("auth views: credential mutation outcome unavailable")
+	defer func() { _ = recover() }()
+	return action()
 }
 
 func passwordChangeNeedsLogin(w http.ResponseWriter, r *http.Request, config PasswordChangeConfig, code string) {
