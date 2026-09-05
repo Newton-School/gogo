@@ -99,29 +99,53 @@ func (s *accountScoped) checkedUser(ctx context.Context, key string) (Object, er
 	if err != nil {
 		return Object{}, err
 	}
-	fingerprint, err := written.Record.Schema().Fingerprint()
+	if err := s.validateAccountProjection(ctx, written); err != nil {
+		return Object{}, err
+	}
+	// Validation is an application extension point. A nested domain mutation
+	// must not leave a stale approved projection while changing the database.
+	// This reread has no validation callback and retains the original scope.
+	current, err := s.Get(ctx, key, true)
+	if errors.Is(err, ErrNotFound) {
+		return Object{}, auth.ErrPermissionDenied
+	}
 	if err != nil {
 		return Object{}, err
 	}
+	if current.ID != written.ID || current.Version != written.Version {
+		return Object{}, ErrConflict
+	}
+	return written, ctx.Err()
+}
+
+func (s *accountScoped) validateAccountProjection(ctx context.Context, written Object) error {
+	fingerprint, err := written.Record.Schema().Fingerprint()
+	if err != nil {
+		return err
+	}
+	before, err := objectFromRecord(written.Record)
+	if err != nil {
+		return err
+	}
 	persisted, database := written.Record.State().Persisted, written.Record.State().Database
 	if err := s.owner.config.ValidateWrite(ctx, s.principal, written.Record); err != nil {
-		return Object{}, err
+		return err
 	}
 	// Scope validators are read-only. A callback must not substitute a hidden
 	// identity (or rewrite flags/version) in this hashless projection before
 	// the subsequent account operation extracts its authorized target.
 	checked, err := objectFromRecord(written.Record)
 	if err != nil {
-		return Object{}, err
+		return err
 	}
 	afterFingerprint, err := written.Record.Schema().Fingerprint()
 	if err != nil {
-		return Object{}, err
+		return err
 	}
-	if checked.ID != written.ID || checked.Version != written.Version || fingerprint != afterFingerprint || persisted != written.Record.State().Persisted || database != written.Record.State().Database {
-		return Object{}, auth.ErrPermissionDenied
+	if checked.ID != written.ID || checked.Version != before.Version || fingerprint != afterFingerprint || persisted != written.Record.State().Persisted || database != written.Record.State().Database {
+		return auth.ErrPermissionDenied
 	}
-	return written, ctx.Err()
+	return ctx.Err()
 }
 
 func (s *accountScoped) mutatePassword(ctx context.Context, object Object, change func(context.Context, string) error) (Object, error) {

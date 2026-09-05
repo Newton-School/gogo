@@ -229,12 +229,7 @@ func (s *Site) userPasswordForm(w http.ResponseWriter, r *http.Request, p auth.P
 		if state != auth.PasswordUnchanged {
 			var logoutErr error
 			if selfTarget {
-				if _, present := sessions.FromContext(r.Context()); present {
-					logoutErr = auth.Logout(w, r, s.config.CSRF)
-				} else {
-					logoutErr = security.RotateCSRFRequest(w, r, s.config.CSRF)
-				}
-				*r = *r.WithContext(auth.WithPrincipal(r.Context(), auth.Principal{}))
+				logoutErr = s.invalidateEditedIdentity(w, r)
 			}
 			if err != nil || logoutErr != nil {
 				http.Error(w, "Password change outcome requires a fresh login or account review. Do not repeat automatically.", http.StatusServiceUnavailable)
@@ -259,6 +254,17 @@ func (s *Site) userPasswordForm(w http.ResponseWriter, r *http.Request, p auth.P
 		}
 	}
 	s.renderCredentialForm(w, r, p, options, object, form, "password", "Change password: "+object.Label, "Save password settings", "This privileged action requires explicit account authority and invalidates previous sessions. Changing your own password here requires a fresh login.", s.modelURL(options)+url.PathEscape(id)+"/change/")
+}
+
+func (s *Site) invalidateEditedIdentity(w http.ResponseWriter, r *http.Request) error {
+	var err error
+	if _, present := sessions.FromContext(r.Context()); present {
+		err = auth.Logout(w, r, s.config.CSRF)
+	} else {
+		err = security.RotateCSRFRequest(w, r, s.config.CSRF)
+	}
+	*r = *r.WithContext(auth.WithPrincipal(r.Context(), auth.Principal{}))
+	return err
 }
 
 func accountOutcome(err error) auth.PasswordChangeState {

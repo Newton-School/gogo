@@ -447,6 +447,16 @@ func (s *Site) form(w http.ResponseWriter, r *http.Request, p auth.Principal, op
 		return
 	}
 	action := "change"
+	originalVersion := object.Version
+	selfAccount := false
+	if options.userForms && id != "" {
+		accountID, err := object.Record.Get("id")
+		if err != nil {
+			s.failure(w, r, err)
+			return
+		}
+		selfAccount = accountID == p.ID
+	}
 	if id == "" {
 		action = "add"
 	}
@@ -523,6 +533,9 @@ func (s *Site) form(w http.ResponseWriter, r *http.Request, p auth.Principal, op
 	var inlines []*inlineState
 	invalidForm := false
 	if r.Method == "POST" {
+		if options.userForms {
+			w.Header().Set("X-Gogo-Account-Change", string(auth.PasswordUnchanged))
+		}
 		if !canChange {
 			s.failure(w, r, auth.ErrPermissionDenied)
 			return
@@ -538,89 +551,119 @@ func (s *Site) form(w http.ResponseWriter, r *http.Request, p auth.Principal, op
 			s.failure(w, r, auth.ErrPermissionDenied)
 			return
 		}
-		err = store.Atomic(r.Context(), func(ctx context.Context) error {
-			if id != "" {
+		save := func() error {
+			return store.Atomic(r.Context(), func(ctx context.Context) error {
+				if id != "" {
+					var err error
+					object, err = store.Get(ctx, id, true)
+					if err != nil {
+						return err
+					}
+				}
+				if err := s.allowed(ctx, p, action, options, object); err != nil {
+					return err
+				}
+				if err := s.checkToken(r.PostForm.Get("_edit_token"), p, options, object, action); err != nil {
+					return err
+				}
+				currentReadonly := append([]string(nil), options.ReadonlyFields...)
+				if options.GetReadonlyFields != nil {
+					currentReadonly = append(currentReadonly, options.GetReadonlyFields(ctx, object)...)
+				}
+				relationInitial, err = s.formRelations(ctx, p, options, object, store, currentReadonly)
+				if err != nil {
+					return err
+				}
+				if len(relationInitial) > 0 {
+					relationObject, err := relationVersion(object, relationInitial)
+					if err != nil {
+						return err
+					}
+					if err := s.checkToken(r.PostForm.Get("_relation_token"), p, options, relationObject, "relations:"+action); err != nil {
+						return err
+					}
+				}
+				before, snapshotErr := snapshot(options, object)
+				if snapshotErr != nil {
+					return snapshotErr
+				}
+				if err := addRelationSnapshot(before, options, relationInitial); err != nil {
+					return err
+				}
 				var err error
-				object, err = store.Get(ctx, id, true)
+				modelForm, err = makeForm(ctx, object, true)
 				if err != nil {
 					return err
 				}
-			}
-			if err := s.allowed(ctx, p, action, options, object); err != nil {
-				return err
-			}
-			if err := s.checkToken(r.PostForm.Get("_edit_token"), p, options, object, action); err != nil {
-				return err
-			}
-			currentReadonly := append([]string(nil), options.ReadonlyFields...)
-			if options.GetReadonlyFields != nil {
-				currentReadonly = append(currentReadonly, options.GetReadonlyFields(ctx, object)...)
-			}
-			relationInitial, err = s.formRelations(ctx, p, options, object, store, currentReadonly)
-			if err != nil {
-				return err
-			}
-			if len(relationInitial) > 0 {
-				relationObject, err := relationVersion(object, relationInitial)
+				parentValid := modelForm.IsValid()
+				inlines, err = s.loadInlines(ctx, r, p, options, object, true)
 				if err != nil {
 					return err
 				}
-				if err := s.checkToken(r.PostForm.Get("_relation_token"), p, options, relationObject, "relations:"+action); err != nil {
+				if !parentValid || !validInlines(inlines) {
+					return errInvalidForm
+				}
+				if options.SaveModel != nil {
+					object, err = options.SaveModel(ctx, store, object)
+				} else {
+					object, err = store.Save(ctx, object)
+				}
+				if err != nil {
 					return err
 				}
-			}
-			before, snapshotErr := snapshot(options, object)
-			if snapshotErr != nil {
-				return snapshotErr
-			}
-			if err := addRelationSnapshot(before, options, relationInitial); err != nil {
-				return err
-			}
-			var err error
-			modelForm, err = makeForm(ctx, object, true)
-			if err != nil {
-				return err
-			}
-			parentValid := modelForm.IsValid()
-			inlines, err = s.loadInlines(ctx, r, p, options, object, true)
-			if err != nil {
-				return err
-			}
-			if !parentValid || !validInlines(inlines) {
-				return errInvalidForm
-			}
-			if options.SaveModel != nil {
-				object, err = options.SaveModel(ctx, store, object)
-			} else {
-				object, err = store.Save(ctx, object)
-			}
-			if err != nil {
-				return err
-			}
-			if err = s.saveFormRelations(ctx, p, options, store, object, action, modelForm); err != nil {
-				return err
-			}
-			if err = s.saveInlines(ctx, p, object, inlines); err != nil {
-				return err
-			}
-			if options.SaveRelated != nil {
-				if err = options.SaveRelated(ctx, store, object, r); err != nil {
+				if err = s.saveFormRelations(ctx, p, options, store, object, action, modelForm); err != nil {
 					return err
 				}
+				if err = s.saveInlines(ctx, p, object, inlines); err != nil {
+					return err
+				}
+				if options.SaveRelated != nil {
+					if err = options.SaveRelated(ctx, store, object, r); err != nil {
+						return err
+					}
+				}
+				after, snapshotErr := snapshot(options, object)
+				if snapshotErr != nil {
+					return snapshotErr
+				}
+				relationAfter, err := s.formRelations(ctx, p, options, object, store, currentReadonly)
+				if err != nil {
+					return err
+				}
+				if err = addRelationSnapshot(after, options, relationAfter); err != nil {
+					return err
+				}
+				return store.Audit(ctx, LogEntry{ActorID: p.ID, Site: s.config.Name, Model: options.Schema.Key(), ObjectID: object.ID, ObjectLabel: object.Label, Action: action, Changes: diff(before, after), At: time.Now().UTC()})
+			})
+		}
+		if options.userForms {
+			err = invokeAccountMutation(save)
+			state := accountOutcome(err)
+			if err == nil && object.Version == originalVersion {
+				state = auth.PasswordUnchanged
 			}
-			after, snapshotErr := snapshot(options, object)
-			if snapshotErr != nil {
-				return snapshotErr
+			w.Header().Set("X-Gogo-Account-Change", string(state))
+			if selfAccount && state != auth.PasswordUnchanged {
+				logoutErr := s.invalidateEditedIdentity(w, r)
+				if err != nil || logoutErr != nil {
+					http.Error(w, "Account change outcome requires a fresh login or account review. Do not repeat automatically.", http.StatusServiceUnavailable)
+					return
+				}
+				s.successMessage(r, "The account was changed. Sign in again to continue.")
+				target := s.config.LoginURL
+				if target == "" {
+					target = s.config.Prefix
+				}
+				http.Redirect(w, r, target, http.StatusSeeOther)
+				return
 			}
-			relationAfter, err := s.formRelations(ctx, p, options, object, store, currentReadonly)
-			if err != nil {
-				return err
+			if err != nil && state != auth.PasswordUnchanged {
+				http.Error(w, "Account change outcome requires review. Do not repeat automatically.", http.StatusServiceUnavailable)
+				return
 			}
-			if err = addRelationSnapshot(after, options, relationAfter); err != nil {
-				return err
-			}
-			return store.Audit(ctx, LogEntry{ActorID: p.ID, Site: s.config.Name, Model: options.Schema.Key(), ObjectID: object.ID, ObjectLabel: object.Label, Action: action, Changes: diff(before, after), At: time.Now().UTC()})
-		})
+		} else {
+			err = save()
+		}
 		if err == nil {
 			s.successMessage(r, "The record was saved successfully.")
 			target := s.modelURL(options)

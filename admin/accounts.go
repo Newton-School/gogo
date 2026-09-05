@@ -3,11 +3,9 @@ package admin
 import (
 	"context"
 	"errors"
-	"reflect"
 	"slices"
 
 	"github.com/Newton-School/gogo/core/auth"
-	"github.com/Newton-School/gogo/core/db"
 	"github.com/Newton-School/gogo/core/models"
 )
 
@@ -61,19 +59,19 @@ func (s *AccountStore) Accounts() *auth.Accounts { return s.accounts }
 
 // UserAdmin returns stock options for default users, including separate
 // creation and privileged password forms.
-// Identifier and account metadata are readonly; hashes never enter display
+// Account metadata is readonly; hashes never enter display
 // records. Global Site policy must still allow view/change, while the Accounts
-// authority independently approves the exact submitted flag effect at save.
+// authority independently approves each actual identifier or flag delta.
 func (s *AccountStore) UserAdmin() ModelAdmin {
 	return ModelAdmin{
 		Schema:    (&auth.User{}).Schema(),
 		userForms: true,
 		Fieldsets: []Fieldset{
-			{Name: "Identity", Fields: []string{"identifier"}},
+			{Name: "Identity", Fields: []string{"identifier"}, Description: "Changing the identifier requires explicit account-management authority and a fresh login for this account."},
 			{Name: "Account status", Fields: []string{"active", "staff", "superuser"}, Description: "Changing account status requires explicit account-management authority."},
 			{Name: "Activity", Fields: []string{"last_login", "created_at", "updated_at", "auth_version"}},
 		},
-		ReadonlyFields:    []string{"identifier", "last_login", "created_at", "updated_at", "auth_version"},
+		ReadonlyFields:    []string{"last_login", "created_at", "updated_at", "auth_version"},
 		SensitiveFields:   []string{"password_hash"},
 		ListDisplay:       []string{"identifier", "active", "staff", "superuser"},
 		ListDisplayLinks:  []string{"identifier"},
@@ -190,65 +188,7 @@ func (s *accountScoped) Save(ctx context.Context, object Object) (Object, error)
 	if !accountModel(s.schema) {
 		return s.ormScoped.Save(ctx, object)
 	}
-	if s.schema.Key() != (&auth.User{}).Schema().Key() || object.Record == nil || object.Record.Schema().Key() != s.schema.Key() || !object.Record.State().Persisted || !db.InTransaction(ctx, s.owner.config.Store.Backend.Alias()) {
-		return Object{}, auth.ErrPermissionDenied
-	}
-	current, err := s.Get(ctx, object.ID, true)
-	if err != nil {
-		return Object{}, err
-	}
-	if current.Version != object.Version {
-		return Object{}, ErrConflict
-	}
-	for _, field := range current.Record.Schema().Fields {
-		if slices.Contains([]string{"active", "staff", "superuser"}, field.Name) {
-			continue
-		}
-		before, err := current.Record.Get(field.Name)
-		if err != nil {
-			return Object{}, err
-		}
-		after, err := object.Record.Get(field.Name)
-		if err != nil || !reflect.DeepEqual(before, after) {
-			return Object{}, auth.ErrPermissionDenied
-		}
-	}
-	if err := s.owner.config.ValidateWrite(ctx, s.principal, object.Record); err != nil {
-		return Object{}, err
-	}
-	flags := [3]bool{}
-	for index, name := range []string{"active", "staff", "superuser"} {
-		value, err := object.Record.Get(name)
-		if err != nil {
-			return Object{}, err
-		}
-		flag, ok := value.(bool)
-		if !ok {
-			return Object{}, auth.ErrPermissionDenied
-		}
-		flags[index] = flag
-	}
-	id, err := current.Record.Get("id")
-	if err != nil {
-		return Object{}, err
-	}
-	// The principal that established this scoped store also establishes the
-	// account authority. Do not combine one actor's row scope with a different
-	// caller context's privileges; retain any private token ceiling verbatim.
-	if err := s.accounts.SetAccountFlags(auth.WithPrincipal(ctx, s.principal), id.(string), flags[0], flags[1], flags[2]); err != nil {
-		return Object{}, err
-	}
-	written, err := s.Get(ctx, object.ID, true)
-	if errors.Is(err, ErrNotFound) {
-		return Object{}, auth.ErrPermissionDenied
-	}
-	if err != nil {
-		return Object{}, err
-	}
-	if err := s.owner.config.ValidateWrite(ctx, s.principal, written.Record); err != nil {
-		return Object{}, err
-	}
-	return written, nil
+	return s.saveUserFields(ctx, object)
 }
 
 func (s *accountScoped) Delete(ctx context.Context, object Object) error {

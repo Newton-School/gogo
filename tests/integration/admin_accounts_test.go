@@ -88,7 +88,11 @@ func TestAdminAccountFlagsRequireExactAuthorityAndAtomicAudit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := site.Register(adapter.UserAdmin()); err != nil {
+	options := adapter.UserAdmin()
+	// Applications may keep identity read-only independently of the stock
+	// editor. Forged values still must not reach the domain or audit.
+	options.ReadonlyFields = append(options.ReadonlyFields, "identifier")
+	if err := site.Register(options); err != nil {
 		t.Fatal(err)
 	}
 	manager := auth.Principal{ID: "flag-manager", Authenticated: true, Active: true, Staff: true, Permissions: []string{"gogo_auth.view_user", "gogo_auth.change_user", "gogo_auth.add_user", "gogo_auth.delete_user"}}
