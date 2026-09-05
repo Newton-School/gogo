@@ -1,0 +1,55 @@
+# Durable idempotent operations
+
+`Idempotency` is opt-in. Apply `IdempotencyMigrations()` explicitly before use;
+imports never create tables. Configure a transactional backend, current
+`Authorize` and `Redact` policies, then call `Execute` with a verified active
+principal in its context. PostgreSQL is the current supported connector.
+
+An `Operation` contains a stable tenant/resource `Scope`, versioned `Action`,
+client `Key` (1–255 printable ASCII characters) and JSON `Input`. Include every
+mutation argument in Input: body, route identity, method and conditional
+headers. Exact numeric canonicalization makes 1 and 1.0 equivalent without
+rounding large integers. Key/request digests, not plaintext keys or request
+bodies, are persisted. The same user/scope/action/key refers to the same
+operation after permission/auth-version changes; current authority is checked
+again, not used to silently create another operation.
+
+Execute owns the outer transaction and rejects nesting on that database alias.
+Its mutation callback must use the supplied transaction context and backend
+alias for the business write, audit and outbox. It must not perform direct
+external effects. The receipt is claimed and row-locked, the callback runs at
+most once for a committed unexpired identity, and its sealed response commits
+with the business mutation. A different input for an existing key returns 409.
+Concurrent claim/row-lock waits are bounded by the operation Timeout (30s
+default, 5m maximum); callbacks must honor context cancellation.
+
+Authorization runs with no object key before lookup and with the stored/new
+object key before disclosure. The policy must enforce current object scope,
+including how a deleted object's tombstone is authorized. Redaction runs on
+an isolated copy on first response and every replay. It may remove object
+fields, including fields inside array elements, but cannot replace values,
+reorder arrays or add fields. Both policies are read-only. Only explicitly
+public data belongs in the response; there is no automatic secret detector.
+
+Responses are JSON objects with status 200/201, or an empty object for 204.
+Only JSON Content-Type, a relative Location and a strong ASCII ETag can be
+retained. Cookies and other headers are rejected. Responses and inputs are
+bounded to 1 MiB, 32 nesting levels and 65,536 ordinary JSON nodes; number
+tokens are bounded to 1,024 bytes. Numeric response formatting is canonical on
+both first response and replay, independent of JSON database formatting.
+
+Inspect `IdempotencyResult.Outcome` **and** the returned error. Committed
+after-commit callback failures retain the sealed result with `committed`;
+confirmation comes from this outer transaction's own commit marker, not merely
+a callback's error type. Unknown commit acknowledgements return no response
+and `unknown`: retry the same operation identity to reconcile. A failed
+callback/serialization rolls back both mutation and receipt. The service never
+retries mutation callbacks itself. A panic without commit confirmation is
+conservatively unknown and its value is not disclosed.
+
+Retention defaults to 24h and cannot be shorter than Timeout. An expired key
+may perform a new mutation; replay is only guaranteed inside retention. Expiry
+is checked under the same row lock. Administrative physical receipt cleanup
+and Resource HTTP write integration are not provided by this service yet.
+Do not expose `IdempotencyRecord` through generic Admin/resources or logs;
+direct JSON serialization and routine formatting are deliberately restricted.
