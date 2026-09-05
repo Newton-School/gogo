@@ -428,6 +428,7 @@ func (r *IntentRelay) Tick(ctx context.Context) error {
 			if intent.Delivered {
 				continue
 			}
+			var accepted Receipt
 			switch intent.Kind {
 			case "replace":
 				err = r.createReplacement(ctx, intent)
@@ -470,7 +471,7 @@ func (r *IntentRelay) Tick(ctx context.Context) error {
 				if intent.Envelope == nil {
 					return ErrInvalid
 				}
-				_, err = r.Client.publish(ctx, *intent.Envelope)
+				accepted, err = r.Client.publish(ctx, *intent.Envelope)
 			case "completion":
 				if intent.Completion == nil || r.Client.config.Workflows == nil {
 					return ErrInvalid
@@ -491,6 +492,9 @@ func (r *IntentRelay) Tick(ctx context.Context) error {
 			}
 			if err := source.MarkIntentDelivered(ctx, intent.SourceID, intent.ID, intent.Fence, r.ID); err != nil {
 				return err
+			}
+			if accepted.ID != "" {
+				r.Client.observeAccepted(ctx, *intent.Envelope, accepted.State)
 			}
 		}
 	}
@@ -535,6 +539,7 @@ func (d *DelayedDispatcher) Tick(ctx context.Context) error {
 		return err
 	}
 	for _, item := range items {
+		published := false
 		record, err := d.Client.config.Results.Lookup(ctx, item.Envelope.ID)
 		if errors.Is(err, ErrNotFound) {
 			if err := d.Client.config.Results.Register(ctx, item.Envelope, Scheduled); err != nil {
@@ -569,9 +574,13 @@ func (d *DelayedDispatcher) Tick(ctx context.Context) error {
 			if err := d.Client.config.Broker.Publish(ctx, item.Envelope); err != nil {
 				return err
 			}
+			published = true
 		}
 		if err := d.Client.config.Schedules.CommitFire(ctx, item); err != nil {
 			return err
+		}
+		if published {
+			d.Client.observeAccepted(ctx, item.Envelope, Queued)
 		}
 	}
 	return nil

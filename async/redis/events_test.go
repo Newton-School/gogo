@@ -41,7 +41,7 @@ func TestRealRedisEventsObserveWorkerLifecycleWithoutArgumentsOrResults(t *testi
 	if err != nil {
 		t.Fatal(err)
 	}
-	client, err := async.NewClient(async.ClientConfig{Registry: registry, Broker: broker, Results: results, Authorize: func(context.Context, string, string, string) error { return nil }})
+	client, err := async.NewClient(async.ClientConfig{Registry: registry, Broker: broker, Results: results, Events: events, Authorize: func(context.Context, string, string, string) error { return nil }})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -72,7 +72,7 @@ func TestRealRedisEventsObserveWorkerLifecycleWithoutArgumentsOrResults(t *testi
 			t.Fatal(err)
 		}
 	}
-	if !reflect.DeepEqual(kinds, []string{"task_started", "task_terminal"}) {
+	if !reflect.DeepEqual(kinds, []string{"task_queued", "task_started", "task_progress", "task_terminal"}) {
 		t.Fatal(kinds)
 	}
 	raw, err := connection.Client().XRange(ctx, events.key("tenant"), "-", "+").Result()

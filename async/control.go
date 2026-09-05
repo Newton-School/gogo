@@ -19,6 +19,8 @@ type Event struct {
 	At       time.Time `json:"at"`
 }
 type EventSink interface {
+	// PublishEvent must honor context cancellation. Event delivery is lossy
+	// observation and cannot change durable task/acceptance outcomes.
 	PublishEvent(context.Context, Event) error
 }
 
@@ -69,7 +71,7 @@ func (w *Worker) inactive(id string) {
 }
 func (w *Worker) event(ctx context.Context, e Envelope, kind string, state State) {
 	if w.Events != nil {
-		w.observe(func() error {
+		observeEvent(ctx, time.Second, w.report, func(ctx context.Context) error {
 			return w.Events.PublishEvent(ctx, Event{Kind: kind, TaskID: e.ID, Task: e.Task, WorkerID: w.ID, Scope: e.Scope, State: state, Retries: e.Retries, At: w.Clock().UTC()})
 		})
 	}

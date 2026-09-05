@@ -270,7 +270,11 @@ func (w *Worker) Process(ctx context.Context, delivery Delivery) error {
 	w.event(ctx, e, "task_started", Running)
 	tc := TaskContext{ID: e.ID, Retries: e.Retries, DeliveryCount: record.DeliveryCount, Fence: record.Fence, WorkerID: w.ID, WorkflowID: e.WorkflowID, ParentID: e.ParentID, RootID: e.RootID, Scope: e.Scope, Principal: e.Principal, Headers: cloneJSON(e.Headers), Stamps: cloneJSON(e.Stamps), ReplacementDepth: e.ReplacementDepth}
 	tc.progress = func(ctx context.Context, b json.RawMessage) error {
-		return w.Results.RecordProgress(ctx, e.ID, tc.Fence, w.ID, b)
+		if err := w.Results.RecordProgress(ctx, e.ID, tc.Fence, w.ID, b); err != nil {
+			return err
+		}
+		w.event(ctx, e, "task_progress", Running)
+		return nil
 	}
 	state := Succeeded
 	var output json.RawMessage

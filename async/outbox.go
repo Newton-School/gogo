@@ -111,8 +111,9 @@ func (o *Outbox) Tick(ctx context.Context) error {
 	for _, item := range items {
 		e, decodeErr := DecodeEnvelope(item.payload)
 		var publishErr error
+		var accepted Receipt
 		if decodeErr == nil {
-			_, publishErr = o.Client.publish(ctx, e)
+			accepted, publishErr = o.Client.publish(ctx, e)
 		}
 		if decodeErr == nil && publishErr == nil {
 			result, err := o.Backend.Exec(ctx, `UPDATE gogo_outbox SET state='published',published_at=CURRENT_TIMESTAMP,lease_token=NULL,lease_until=NULL,last_error_code=NULL WHERE id=$1 AND lease_token=$2 AND lease_until>CURRENT_TIMESTAMP`, item.id, token)
@@ -126,6 +127,7 @@ func (o *Outbox) Tick(ctx context.Context) error {
 			if n != 1 {
 				return ErrLeaseLost
 			}
+			o.Client.observeAccepted(ctx, e, accepted.State)
 			continue
 		}
 		state := "pending"

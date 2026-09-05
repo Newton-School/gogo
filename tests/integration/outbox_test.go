@@ -6,14 +6,20 @@ import (
 	"testing"
 	"time"
 
+	"example.com/gogo-integration/internal/testservice"
 	"github.com/Newton-School/gogo/async"
 	adapter "github.com/Newton-School/gogo/async/redis"
 	connector "github.com/Newton-School/gogo/connectors/redis"
 	fixture "github.com/Newton-School/gogo/connectors/redis/testing"
 	"github.com/Newton-School/gogo/core/db"
 	"github.com/Newton-School/gogo/core/migrations"
-	"example.com/gogo-integration/internal/testservice"
 )
+
+type outboxEventSink func(context.Context, async.Event) error
+
+func (f outboxEventSink) PublishEvent(ctx context.Context, event async.Event) error {
+	return f(ctx, event)
+}
 
 func TestPostgresOutboxRollbackCommitRedis(t *testing.T) {
 	ctx := context.Background()
@@ -46,7 +52,15 @@ func TestPostgresOutboxRollbackCommitRedis(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	client, err := async.NewClient(async.ClientConfig{Registry: registry, Broker: broker, Results: results})
+	eventCalls := 0
+	client, err := async.NewClient(async.ClientConfig{Registry: registry, Broker: broker, Results: results, Events: outboxEventSink(func(_ context.Context, event async.Event) error {
+		var state string
+		if err := db.QueryRow(context.Background(), backend, "SELECT state FROM gogo_outbox WHERE task_id=$1", []any{event.TaskID}, &state); err != nil || state != "published" {
+			t.Error("observer preceded durable outbox acknowledgement", state, err)
+		}
+		eventCalls++
+		return errors.New("private event backend")
+	})})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -75,6 +89,9 @@ func TestPostgresOutboxRollbackCommitRedis(t *testing.T) {
 	if err := db.QueryRow(ctx, backend, "SELECT count(*) FROM outbox_business", nil, &count); err != nil || count != 0 {
 		t.Fatal(count, err)
 	}
+	if eventCalls != 0 {
+		t.Fatal("rollback produced a queue event", eventCalls)
+	}
 	var id string
 	err = db.Atomic(ctx, backend, db.AtomicOptions{}, func(tx context.Context) error {
 		if _, err := db.ExecutorFor(tx, backend).Exec(tx, "INSERT INTO outbox_business VALUES (1)"); err != nil {
@@ -89,6 +106,9 @@ func TestPostgresOutboxRollbackCommitRedis(t *testing.T) {
 	}
 	if err := outbox.Tick(ctx); err != nil {
 		t.Fatal(err)
+	}
+	if eventCalls != 1 {
+		t.Fatal("confirmed dispatch observation missing", eventCalls)
 	}
 	delivery, err := broker.Consume(ctx, async.ConsumeOptions{Queues: []string{"default"}, Consumer: "worker", Wait: time.Second})
 	if err != nil {

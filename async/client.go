@@ -14,13 +14,18 @@ type Route struct {
 	Queue   string
 }
 type ClientConfig struct {
-	Registry       *Registry
-	Broker         Broker
-	Results        ResultStore
-	Workflows      WorkflowStore
-	Schedules      ScheduleStore
-	Presence       WorkerPresenceStore
-	Controls       WorkerControlStore
+	Registry  *Registry
+	Broker    Broker
+	Results   ResultStore
+	Workflows WorkflowStore
+	Schedules ScheduleStore
+	Presence  WorkerPresenceStore
+	Controls  WorkerControlStore
+	// Events observes confirmed queue/schedule acceptance, never execution
+	// authority. OnEventError receives safe errors and must return promptly.
+	Events         EventSink
+	OnEventError   func(error)
+	EventTimeout   time.Duration
 	Queues         []string
 	Routes         []Route
 	AllowedHeaders []string
@@ -37,6 +42,12 @@ type Client struct {
 
 func NewClient(config ClientConfig) (*Client, error) {
 	if config.Registry == nil || config.Broker == nil || config.Results == nil {
+		return nil, ErrInvalid
+	}
+	if config.EventTimeout == 0 {
+		config.EventTimeout = time.Second
+	}
+	if config.EventTimeout < time.Millisecond || config.EventTimeout > 30*time.Second {
 		return nil, ErrInvalid
 	}
 	// Freeze routing and metadata allowlists at construction. The caller may
@@ -259,7 +270,11 @@ func (e *AcceptanceError) Retry(ctx context.Context, c *Client) (Receipt, error)
 	if err := c.authorize(ctx, "enqueue", envelope.Scope, envelope.ID); err != nil {
 		return Receipt{}, err
 	}
-	return c.publish(ctx, envelope)
+	receipt, err := c.publish(ctx, envelope)
+	if err == nil {
+		c.observeAccepted(ctx, envelope, receipt.State)
+	}
+	return receipt, err
 }
 
 func (c *Client) Enqueue(ctx context.Context, s Signature) (Receipt, error) {
@@ -270,7 +285,11 @@ func (c *Client) Enqueue(ctx context.Context, s Signature) (Receipt, error) {
 	if err := c.authorize(ctx, "enqueue", e.Scope, e.ID); err != nil {
 		return Receipt{}, err
 	}
-	return c.publish(ctx, e)
+	receipt, err := c.publish(ctx, e)
+	if err == nil {
+		c.observeAccepted(ctx, e, receipt.State)
+	}
+	return receipt, err
 }
 
 func (c *Client) publish(ctx context.Context, e Envelope) (Receipt, error) {
