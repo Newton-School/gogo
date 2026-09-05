@@ -22,6 +22,10 @@ func (f Field) Clone() Field {
 		value := *f.MaxValue
 		f.MaxValue = &value
 	}
+	if f.Strip != nil {
+		value := *f.Strip
+		f.Strip = &value
+	}
 	if f.Pattern != nil {
 		f.Pattern = f.Pattern.Copy()
 	}

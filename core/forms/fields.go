@@ -71,10 +71,13 @@ type Coercer func(string) (any, error)
 // Field is a declaration. Use NewField for required-by-default Django form semantics.
 // A raw Field value intentionally leaves Required false.
 type Field struct {
-	Name          string
-	Kind          Kind
-	Required      bool
-	Disabled      bool
+	Name     string
+	Kind     Kind
+	Required bool
+	Disabled bool
+	// Strip controls whitespace trimming for Char fields. Nil preserves the
+	// default of trimming; false preserves significant whitespace, e.g. passwords.
+	Strip         *bool
 	Initial       any
 	Label         string
 	HelpText      string
@@ -225,6 +228,9 @@ func (f Field) toValue(ctx context.Context, raw any) (any, error) {
 	}
 	switch f.Kind {
 	case Char, FilePath:
+		if f.Kind == Char && f.Strip != nil && !*f.Strip {
+			return s, nil
+		}
 		return strings.TrimSpace(s), nil
 	case Integer:
 		x, err := strconv.ParseInt(s, 10, 64)
