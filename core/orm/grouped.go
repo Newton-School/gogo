@@ -18,17 +18,18 @@ func (q Query[T]) GroupBy(fields ...string) Query[T] {
 		return q
 	}
 	q.selectAST.GroupBy = append([]string(nil), fields...)
+	q.modelGrouping = false
 	q.selectAST.Order = nil
 	return q
 }
 
-// Having filters groups after aggregation. Filter remains a pre-group row
-// predicate and cannot contain aggregate references; it is never silently
-// moved across the grouping boundary.
+// Having filters explicit or implicit model groups after aggregation. Filter
+// remains a pre-group row predicate and cannot contain aggregate references;
+// it is never silently moved across the grouping boundary.
 func (q Query[T]) Having(predicates ...db.Predicate) Query[T] {
 	q = q.clone()
-	if len(q.selectAST.GroupBy) == 0 {
-		q.err = errors.New("orm: Having requires explicit GroupBy keys")
+	if len(q.selectAST.GroupBy) == 0 && !q.modelGrouping {
+		q.err = errors.New("orm: Having requires GroupBy keys or aggregate annotations")
 		return q
 	}
 	children := append([]db.Predicate{q.selectAST.Having}, predicates...)
@@ -37,4 +38,32 @@ func (q Query[T]) Having(predicates ...db.Predicate) Query[T] {
 	}
 	q.selectAST.Having = db.Predicate{Connector: "AND", Children: children}
 	return q
+}
+
+// prepareModelGrouping runs after scoped eager planning, before projection
+// selection. Values after Annotate retains per-model cardinality even if it
+// omits the PK from the returned map. Only/Defer never change grouping identity.
+func (q Query[T]) prepareModelGrouping() (Query[T], error) {
+	if !q.modelGrouping {
+		return q, nil
+	}
+	q = q.clone()
+	keys := []string{}
+	for _, field := range q.schema.Fields {
+		if field.IsStored() {
+			keys = append(keys, field.Name)
+		}
+	}
+	for _, join := range q.selectAST.Joins {
+		for _, field := range join.Schema.Fields {
+			if field.IsStored() {
+				keys = append(keys, join.Path+"__"+field.Name)
+			}
+		}
+	}
+	if len(keys) == 0 || len(keys) > 64 {
+		return q, errors.New("orm: model aggregate grouping requires between one and 64 stored root/join fields")
+	}
+	q.selectAST.GroupBy = keys
+	return q, nil
 }

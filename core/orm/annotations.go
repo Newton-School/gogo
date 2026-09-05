@@ -20,9 +20,12 @@ import (
 // paths. Output declares decoding, not a conversion: use Cast to convert a
 // nonliteral expression. Literal values are bound with their declared SQL type.
 //
-// Existing aliases cannot be redefined. Aggregate annotations require explicit
-// GroupBy; window annotations require a separate window execution path. Query
-// construction snapshots metadata/data and invokes no provider hook.
+// Existing aliases cannot be redefined. Aggregate annotations implicitly group
+// by each root model's stored fields and explicitly selected to-one joins, so
+// model identity and hydration are preserved. GroupBy instead requests grouped
+// Values, not model instances. Having is the explicit aggregate filter; Filter
+// remains pre-group in this path. Window annotations require a separate window
+// execution path. Construction snapshots data and invokes no provider hook.
 func (q Query[T]) Annotate(expressions map[string]ResultExpression) Query[T] {
 	q = q.clone()
 	if q.err != nil {
@@ -37,6 +40,16 @@ func (q Query[T]) Annotate(expressions map[string]ResultExpression) Query[T] {
 		names = append(names, name)
 	}
 	sort.Strings(names)
+	if len(q.selectAST.GroupBy) == 0 && !q.modelGrouping {
+		for _, name := range names {
+			found, err := sqlcompiler.ContainsAggregate(cloneExpression(expressions[name].Expression))
+			if err != nil {
+				q.err = err
+				return q
+			}
+			q.modelGrouping = q.modelGrouping || found
+		}
+	}
 	for _, name := range names {
 		if !models.ValidIdentifier(name) || strings.Contains(name, "__") || q.annotationCollision(name) {
 			q.err = errors.New("orm: invalid, duplicate or colliding annotation name")
@@ -49,7 +62,7 @@ func (q Query[T]) Annotate(expressions map[string]ResultExpression) Query[T] {
 			q.err = err
 			return q
 		}
-		if len(q.selectAST.GroupBy) == 0 {
+		if len(q.selectAST.GroupBy) == 0 && !q.modelGrouping {
 			if err := sqlcompiler.ValidateRowExpression(expression); err != nil {
 				q.err = err
 				return q

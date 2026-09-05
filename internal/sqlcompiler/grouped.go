@@ -48,8 +48,8 @@ func (c *Compiler) validateGrouped(query db.Select) error {
 		state.keys[name] = true
 	}
 	for _, field := range query.Fields {
-		if !state.keys[field] {
-			return errors.New("orm: selected value is not a grouping key")
+		if err := state.expression(db.Expression{Kind: "field", Name: field}, false, false, 0); err != nil {
+			return err
 		}
 	}
 	for _, alias := range query.Aliases {
@@ -101,7 +101,11 @@ func (s *groupedTree) expression(expression db.Expression, rowsOnly, insideAggre
 		if reference.expression != nil {
 			return s.expression(*reference.expression, rowsOnly, insideAggregate, depth+1)
 		}
-		if !rowsOnly && !insideAggregate && !s.keys[expression.Name] {
+		key := expression.Name
+		if len(reference.path) > 0 {
+			key = strings.TrimSuffix(key, "__"+strings.Join(reference.path, "__"))
+		}
+		if !rowsOnly && !insideAggregate && !s.keys[key] {
 			return errors.New("orm: ungrouped field outside aggregate")
 		}
 		return nil

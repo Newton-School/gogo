@@ -248,7 +248,7 @@ func TestRowAnnotationsTypedSnapshotsFiltersValuesAndSaveIsolation(t *testing.T)
 	if _, err := base.Annotate(map[string]orm.ResultExpression{"nonnull": orm.Typed(orm.Value(nil), integer)}).All(ctx); err == nil {
 		t.Fatal("NULL annotation silently coerced")
 	}
-	for _, invalid := range []orm.Query[*annotatedRow]{query.Only("plus"), query.Defer("plus"), base.Annotate(map[string]orm.ResultExpression{"loop": orm.Typed(orm.F("loop"), integer)}), base.Annotate(map[string]orm.ResultExpression{"sum": orm.Typed(orm.Sum(orm.F("score")), integer)})} {
+	for _, invalid := range []orm.Query[*annotatedRow]{query.Only("plus"), query.Defer("plus"), base.Annotate(map[string]orm.ResultExpression{"loop": orm.Typed(orm.F("loop"), integer)}), base.Annotate(map[string]orm.ResultExpression{"sum": orm.Typed(orm.Sum(orm.Sum(orm.F("score"))), integer)})} {
 		counted.queries.Store(0)
 		if _, err := invalid.All(ctx); err == nil || counted.queries.Load() != 0 {
 			t.Fatal("invalid annotation reached DB", err)

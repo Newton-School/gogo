@@ -35,17 +35,18 @@ func New(backend db.Backend, registry *models.Registry) *Store {
 // must not be mutated while a query using them can execute. They are never
 // evaluated while building a query or copied by inspecting private state.
 type Query[T models.Model] struct {
-	store        *Store
-	factory      func() T
-	schema       models.Schema
-	selectAST    db.Select
-	err          error
-	relatedPaths []string
-	joined       []joinedRelation
-	scope        QueryScope
-	prepared     bool
-	prefetches   []Prefetch
-	eagerLimit   int
+	store         *Store
+	factory       func() T
+	schema        models.Schema
+	selectAST     db.Select
+	err           error
+	relatedPaths  []string
+	joined        []joinedRelation
+	scope         QueryScope
+	prepared      bool
+	prefetches    []Prefetch
+	eagerLimit    int
+	modelGrouping bool
 }
 
 func For[T models.Model](store *Store, factory func() T) Query[T] {
@@ -207,7 +208,11 @@ func (q Query[T]) SQLContext(ctx context.Context) (string, []any, error) {
 	if err != nil {
 		return "", nil, err
 	}
-	if len(q.selectAST.GroupBy) > 0 {
+	q, err = q.prepareModelGrouping()
+	if err != nil {
+		return "", nil, err
+	}
+	if len(q.selectAST.GroupBy) > 0 && !q.modelGrouping {
 		q.selectAST.Fields = append([]string(nil), q.selectAST.GroupBy...)
 	}
 	statement, args, err := sqlcompiler.Select(q.store.Backend.Dialect(), q.schema, q.selectAST)
@@ -223,7 +228,7 @@ func (q Query[T]) Iterator(ctx context.Context) (*Iterator[T], error) {
 	if q.err != nil {
 		return nil, q.err
 	}
-	if len(q.selectAST.GroupBy) > 0 {
+	if len(q.selectAST.GroupBy) > 0 && !q.modelGrouping {
 		return nil, errors.New("orm: grouped results require Values, not model instances")
 	}
 	if err := q.checkModelProjection(); err != nil {
@@ -240,6 +245,10 @@ func (q Query[T]) Iterator(ctx context.Context) (*Iterator[T], error) {
 		return nil, err
 	}
 	q, err = q.prepareAnnotations(ctx)
+	if err != nil {
+		return nil, err
+	}
+	q, err = q.prepareModelGrouping()
 	if err != nil {
 		return nil, err
 	}
@@ -434,7 +443,7 @@ func (q Query[T]) Values(ctx context.Context, fields ...string) ([]map[string]an
 	// Resolve explicit scoped joins before selecting Values columns. Eager
 	// hydration columns must not leak into the default root-values projection.
 	selected := append([]string(nil), q.selectAST.Fields...)
-	if len(q.selectAST.GroupBy) > 0 {
+	if len(q.selectAST.GroupBy) > 0 && !q.modelGrouping {
 		selected = append([]string(nil), q.selectAST.GroupBy...)
 	}
 	if len(fields) > 0 {
@@ -449,6 +458,10 @@ func (q Query[T]) Values(ctx context.Context, fields ...string) ([]map[string]an
 		return nil, err
 	}
 	q, err = q.prepareAnnotations(ctx)
+	if err != nil {
+		return nil, err
+	}
+	q, err = q.prepareModelGrouping()
 	if err != nil {
 		return nil, err
 	}
