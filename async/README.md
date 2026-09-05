@@ -17,4 +17,10 @@ For PostgreSQL transaction coupling, register `OutboxMigration` explicitly, then
 
 Task results and control calls enforce the configured scope policy. Goroutines use cooperative cancellation; hard deadlines require `ProcessExecutor` plus a client command that calls `Registry.ServeChild`. Use `async/testing` only when a process-local test simulator is intended.
 
+`async/management.Commands` registers only explicitly supplied worker, beat, task/queue control and subprocess-child factories. The worker role supervises its configured relay, delayed dispatcher and outbox. Invalid flags fail before resources open. Status does not print arguments or result data; `tasks result` is an explicit separately scoped operation.
+
+`TaskOptions.PerWorkerConcurrency` limits one task type within each worker; `TaskOptions.Rate` explicitly chooses a local or distributed budget. Distributed mode requires the configured `Worker.RateLimiter`. Rate waiting retains a bounded worker slot and recoverable broker reservation without consuming execution retries. It is not a separate durable rate scheduler.
+
+Management shutdown respects `GOGO_SHUTDOWN_GRACE`. `ErrShutdownTimeout` means non-cooperative handlers may still run; it never means Go goroutines were killed. When management is called as a library, core resources may close while those handlers remain active. Use subprocess isolation plus an external process supervisor when forced termination is required, and keep external effects idempotent.
+
 This implementation is under active conformance work. Nested canvases, replacement/ignore task controls, remote worker administration, autoscaling/recycling and some advanced calendar/retention features are not complete. Passing the included tests is not a claim of full Celery compatibility or production release readiness.

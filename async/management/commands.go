@@ -127,7 +127,7 @@ func Commands(f Factories) []core.Command {
 				for _, tick := range ticks {
 					runners = append(runners, poll(tick))
 				}
-				return supervise(ctx, runners)
+				return supervise(ctx, runners, invocation.Settings.Duration("GOGO_SHUTDOWN_GRACE"))
 			}
 		}})
 	}
@@ -155,7 +155,7 @@ func Commands(f Factories) []core.Command {
 				if runtime.Relay != nil {
 					runners = append(runners, runtime.Relay.Run)
 				}
-				return supervise(ctx, runners)
+				return supervise(ctx, runners, invocation.Settings.Duration("GOGO_SHUTDOWN_GRACE"))
 			}
 		}})
 	}
@@ -176,6 +176,11 @@ func Commands(f Factories) []core.Command {
 				}
 				result := async.RestoreResult[json.RawMessage](client, args[1])
 				if args[0] == "revoke" {
+					// This command returns current state as well as the mutation
+					// receipt; require its read grant before making any change.
+					if _, err := result.Snapshot(ctx); err != nil {
+						return err
+					}
 					if err := result.Revoke(ctx); err != nil {
 						return err
 					}
@@ -258,7 +263,12 @@ func poll(tick func(context.Context) error) func(context.Context) error {
 	}
 }
 
-func supervise(ctx context.Context, runners []func(context.Context) error) error {
+var ErrShutdownTimeout = errors.New("async: shutdown deadline elapsed; some handlers may still be running")
+
+func supervise(ctx context.Context, runners []func(context.Context) error, grace time.Duration) error {
+	if len(runners) == 0 || grace <= 0 {
+		return async.ErrInvalid
+	}
 	child, cancel := context.WithCancel(ctx)
 	defer cancel()
 	results := make(chan error, len(runners))
@@ -266,9 +276,22 @@ func supervise(ctx context.Context, runners []func(context.Context) error) error
 	for _, runner := range runners {
 		wg.Go(func() { results <- runner(child) })
 	}
-	err := <-results
+	var err error
+	select {
+	case err = <-results:
+	case <-ctx.Done():
+		err = ctx.Err()
+	}
 	cancel()
-	wg.Wait()
+	done := make(chan struct{})
+	go func() { wg.Wait(); close(done) }()
+	timer := time.NewTimer(grace)
+	defer timer.Stop()
+	select {
+	case <-done:
+	case <-timer.C:
+		return errors.Join(err, ErrShutdownTimeout)
+	}
 	if errors.Is(err, context.Canceled) && ctx.Err() != nil {
 		return nil
 	}

@@ -112,3 +112,35 @@ func TestManagementChildUsesSameDeclaredRegistry(t *testing.T) {
 		t.Fatal(output.String(), err)
 	}
 }
+
+func TestRevokeCommandRequiresReadGrantBeforeMutation(t *testing.T) {
+	ctx := context.Background()
+	registry := async.NewRegistry()
+	task, err := async.Register(registry, "test.revoke_only", 1, func(_ context.Context, _ async.TaskContext, n int) (int, error) { return n, nil }, async.TaskOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	backend := fakes.NewMemory()
+	client, err := async.NewClient(async.ClientConfig{Registry: registry, Broker: backend, Results: backend, Authorize: func(_ context.Context, operation, _, _ string) error {
+		if operation == "read" {
+			return async.ErrDenied
+		}
+		return nil
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := task.Delay(ctx, client, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	project := core.Project{Root: t.TempDir(), Commands: commands.Commands(commands.Factories{Client: func(context.Context, *core.Invocation) (*async.Client, error) { return client, nil }})}
+	var output bytes.Buffer
+	if err := core.Call(ctx, project, []string{"tasks", "revoke", result.Receipt.ID}, core.Options{Stdout: &output, Stderr: &output}); !errors.Is(err, async.ErrDenied) {
+		t.Fatal(err)
+	}
+	record, err := backend.Lookup(ctx, result.Receipt.ID)
+	if err != nil || record.CancelRequested || output.Len() != 0 {
+		t.Fatal("failed command changed cancellation", record, output.String(), err)
+	}
+}

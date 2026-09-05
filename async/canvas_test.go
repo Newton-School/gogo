@@ -196,6 +196,22 @@ func TestObserverPanicDoesNotUndoCommittedResult(t *testing.T) {
 	}
 }
 
+func TestErrorObserverPanicIsContainedAfterDurableSuccess(t *testing.T) {
+	ctx := context.Background()
+	task, client, worker, backend := setup(t, func(_ context.Context, _ async.TaskContext, n int) (int, error) { return n, nil }, async.TaskOptions{Hooks: async.Hooks{OnSuccess: func(context.Context, async.TaskContext, json.RawMessage) error { return errors.New("observer failed") }}})
+	worker.OnError = func(error) { panic("error observer failed") }
+	result, err := task.Delay(ctx, client, 7)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := worker.Process(ctx, take(t, backend)); err != nil {
+		t.Fatal(err)
+	}
+	if value, err := result.Get(ctx); err != nil || value != 7 {
+		t.Fatal(value, err)
+	}
+}
+
 func TestWorkflowInputRejectionFinishesWithoutPoisoningRelay(t *testing.T) {
 	ctx := context.Background()
 	registry := async.NewRegistry()

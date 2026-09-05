@@ -96,6 +96,9 @@ func (w *Worker) defaults() error {
 
 func (w *Worker) report(err error) {
 	if err != nil && w.OnError != nil {
+		// An error observer is not execution authority. Do not recursively
+		// report an observer panic through the same failing callback.
+		defer func() { _ = recover() }()
 		w.OnError(err)
 	}
 }
