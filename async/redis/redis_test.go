@@ -544,7 +544,7 @@ func TestRealScopedMonitorEventsAndDispatchConflicts(t *testing.T) {
 	ctx := context.Background()
 	broker, results := backends(t)
 	events := &adapter.Events{Connection: results.Connection}
-	event := async.Event{Kind: "task_started", TaskID: "id", Task: "test.task", Scope: "one", State: async.Running, At: time.Now().UTC()}
+	event := async.Event{Kind: "task_started", TaskID: async.StableID("events", "task"), Task: "test.task", Scope: "one", State: async.Running, At: time.Now().UTC()}
 	if err := events.PublishEvent(ctx, event); err != nil {
 		t.Fatal(err)
 	}

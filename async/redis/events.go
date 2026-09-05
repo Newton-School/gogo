@@ -3,7 +3,8 @@ package redis
 import (
 	"context"
 	"encoding/json"
-	"fmt"
+	"strconv"
+	"strings"
 
 	"github.com/Newton-School/gogo/async"
 	connector "github.com/Newton-School/gogo/connectors/redis"
@@ -22,12 +23,7 @@ func (e *Events) key(scope string) string {
 	return e.Connection.Namespace() + ":events:{" + connector.Digest(scope) + "}"
 }
 func (e *Events) PublishEvent(ctx context.Context, event async.Event) error {
-	if e.Connection == nil || event.At.IsZero() {
-		return async.ErrInvalid
-	}
-	switch event.Kind {
-	case "task_started", "task_retry", "task_terminal", "worker_heartbeat", "worker_offline", "task_progress":
-	default:
+	if ctx == nil || e == nil || e.Connection == nil || async.ValidateEvent(event) != nil {
 		return async.ErrInvalid
 	}
 	maxLength := e.MaxLength
@@ -43,9 +39,31 @@ func (e *Events) PublishEvent(ctx context.Context, event async.Event) error {
 	}
 	return e.Connection.Client().XAdd(ctx, &redigo.XAddArgs{Stream: e.key(event.Scope), MaxLen: maxLength, Approx: true, Values: map[string]any{"event": raw}}).Err()
 }
-func (e *Events) Read(ctx context.Context, scope, after string, limit int) ([]async.Event, string, error) {
-	if e.Connection == nil || limit < 1 || limit > 1000 {
-		return nil, "", async.ErrInvalid
+func validStreamCursor(cursor string) bool {
+	if cursor == "" {
+		return true
+	}
+	if len(cursor) > 41 {
+		return false
+	}
+	parts := strings.Split(cursor, "-")
+	if len(parts) != 2 {
+		return false
+	}
+	for _, part := range parts {
+		value, err := strconv.ParseUint(part, 10, 64)
+		if err != nil || strconv.FormatUint(value, 10) != part {
+			return false
+		}
+	}
+	return true
+}
+
+// ReadEvents is a trusted raw adapter. Use async.Control.ReadEvents or
+// ObserveEvents for application-facing current authorization and filtering.
+func (e *Events) ReadEvents(ctx context.Context, scope, after string, limit int) (async.EventPage, error) {
+	if ctx == nil || e == nil || e.Connection == nil || limit < 1 || limit > 1000 || len(scope) > 256 || !async.ValidEventCursor(scope) || !validStreamCursor(after) {
+		return async.EventPage{}, async.ErrInvalid
 	}
 	start := "-"
 	if after != "" {
@@ -53,23 +71,38 @@ func (e *Events) Read(ctx context.Context, scope, after string, limit int) ([]as
 	}
 	messages, err := e.Connection.Client().XRangeN(ctx, e.key(scope), start, "+", int64(limit)).Result()
 	if err != nil {
-		return nil, "", err
+		return async.EventPage{}, err
 	}
-	events := make([]async.Event, 0, len(messages))
+	entries := make([]async.EventEntry, 0, len(messages))
 	cursor := after
 	for _, message := range messages {
 		raw, ok := message.Values["event"].(string)
-		if !ok {
-			return nil, "", fmt.Errorf("%w: malformed monitor event", async.ErrUnavailable)
+		if !ok || len(raw) > 16<<10 || !validStreamCursor(message.ID) || message.ID == "" {
+			return async.EventPage{}, async.ErrUnavailable
 		}
 		var event async.Event
-		if err := json.Unmarshal([]byte(raw), &event); err != nil {
-			return nil, "", async.ErrUnavailable
+		if err := json.Unmarshal([]byte(raw), &event); err != nil || async.ValidateEvent(event) != nil || event.Scope != scope {
+			return async.EventPage{}, async.ErrUnavailable
 		}
-		events = append(events, event)
+		entries = append(entries, async.EventEntry{Cursor: message.ID, Event: event})
 		cursor = message.ID
 	}
-	return events, cursor, nil
+	return async.EventPage{Entries: entries, NextCursor: cursor}, nil
+}
+
+// Read retains the original trusted adapter convenience API. It has no caller
+// authorization; application entry points must use async.Control instead.
+func (e *Events) Read(ctx context.Context, scope, after string, limit int) ([]async.Event, string, error) {
+	page, err := e.ReadEvents(ctx, scope, after, limit)
+	if err != nil {
+		return nil, "", err
+	}
+	events := make([]async.Event, len(page.Entries))
+	for i, entry := range page.Entries {
+		events[i] = entry.Event
+	}
+	return events, page.NextCursor, nil
 }
 
 var _ async.EventSink = (*Events)(nil)
+var _ async.EventReader = (*Events)(nil)

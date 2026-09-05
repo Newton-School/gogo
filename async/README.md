@@ -23,6 +23,22 @@ The built-in subprocess executor supports Linux and macOS. After leader exit it 
 
 Set `Worker.Presence` and `ClientConfig.Presence` to an `async/redis.Workers` adapter for remote heartbeat snapshots. `Worker.Run/RunOnce` claim instance ownership before reserving work and refresh using the worker heartbeat interval; direct `Process` calls do not advertise a runner. Startup collisions fail, while later monitoring outages are reported without rewriting task results or canceling handlers. `Control.InspectWorkers` and `tasks inspect workers <id>...` require worker, queue and active-task scope grants. They return online/lost/offline/unknown status and partial errors, never task arguments or ownership tokens. A lost heartbeat or offline runner does not prove its tasks stopped. Snapshots expire after 24 hours without a write; Redis time controls liveness. Unknown claim acknowledgements may require waiting for the previous monitoring lease to expire before a new runner starts.
 
+`async/redis.Events` is an optional lossy observer, configured explicitly on workers/relays. Use `Control.ReadEvents` for one bounded page or `Control.ObserveEvents` for synchronous iteration. Both require an explicit `inspect_events` grant for the exact scope and current `inspect` authority for each task/worker; iteration rechecks before every yield. Explicit object denial hides that event, but cancellation, policy/provider outages and malformed pages fail visibly without returning that page's data. A page cursor advances past denied events in its authorized scope. Redis stores each scope in a separate stream, so other scopes do not contribute cursor gaps.
+
+```go
+events := &asyncredis.Events{Connection: monitorConnection}
+control := async.Control{Client: client}
+for entry, err := range control.ObserveEvents(ctx, events, scope, async.EventStreamOptions{
+    After: savedCursor, BatchSize: 100, PollInterval: time.Second,
+}) {
+    if err != nil { return err }
+    // Process this redacted event, then retain its cursor for resumption.
+    if err := consume(entry); err != nil { return err }
+}
+```
+
+Observation starts only when consumed, has no background subscription, and stops on `break` or context cancellation without stopping tasks. Pages contain at most 1,000 raw events; polling waits after every page, including all-denied pages. Retain the last consumed event cursor, not an unread page's end. Default Redis retention is approximately 10,000 events per scope; events can be trimmed, duplicated or missed, and resumption does not detect every gap. Task results remain authoritative. Event data never includes task arguments/results; do not encode credentials in names or scopes. Existing workers emit start/retry/replacement/terminal events and configured presence emits heartbeat/offline events. Producer queued-event emission, worker progress-event emission and a bundled dashboard are not yet implemented. Direct `Events.Read`, `ReadEvents` and `PublishEvent` are trusted infrastructure ports without caller authorization.
+
 Each advertised runner has a fresh public `WorkerSnapshot.InstanceID`, independent of its secret lease token. The instance remains attached to its final offline snapshot; a restarted runner uses a new instance. Renew/release and same-owner claim cannot change that identity. Concurrent `Run/RunOnce` calls on the same advertised Worker are rejected before making another presence claim. Custom presence writers may omit the instance for observation-only snapshots; these cannot be exact-instance control targets. Instance addressing alone does not dispatch a shutdown or prove execution stopped.
 
 Remote graceful shutdown is explicit: configure `Worker.Controls` and `ClientConfig.Controls` with the same trusted `async/redis.Workers` authority used for presence. Worker control remains disabled when `Worker.Controls` is nil. The client must have an explicit `Authorize` callback granting `shutdown` for every worker and queue; task enqueue and inspection grants do not imply this permission. Requests carry no executable code or task arguments. Direct adapter access is trusted infrastructure, so protect Redis credentials/ACLs and do not expose backend methods to untrusted HTTP callers.
