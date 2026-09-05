@@ -28,7 +28,7 @@ func (s *Site) renderModelForm(ctx context.Context, options ModelAdmin, object O
 				if err != nil {
 					return "", err
 				}
-				rows = append(rows, templates.Context{"label": label, "id": bound.ID, "widget": widget, "help": metadata.HelpText, "errors": bound.Errors})
+				rows = append(rows, templates.Context{"label": label, "id": bound.ID, "widget": widget, "help": metadata.HelpText, "errors": bound.Errors, "grouped": bound.Grouped()})
 			} else if slices.Contains(readonly, name) || !metadata.IsEditable() {
 				value, err := object.Record.Get(name)
 				if err != nil {

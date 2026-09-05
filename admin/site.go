@@ -187,6 +187,11 @@ func (s *Site) Register(options ModelAdmin) error {
 		}
 	}
 	displays := map[string]bool{}
+	for _, name := range options.ListDisplayLinks {
+		if !slices.Contains(options.ListDisplay, name) {
+			return errors.New("admin: list links must be displayed columns")
+		}
+	}
 	for _, column := range options.Columns {
 		if column.Name == "" || column.Value == nil || displays[column.Name] {
 			return errors.New("admin: invalid display column")

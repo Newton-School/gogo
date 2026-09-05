@@ -1,1 +1,32 @@
-{% extends "base.html" %}{% block content %}<div class="page-heading"><div><p class="eyebrow">RECORDS</p><h1>{{ title }}</h1><p class="muted">{{ count }} records in your scope</p></div>{% if can_add %}<a class="button" href="{{ add_url }}">+ Add {{ title }}</a>{% endif %}</div><section class="panel"><form method="get" class="search-bar"><label for="search">Search records</label><div class="search-input"><input id="search" type="search" name="q" value="{{ search }}" maxlength="256" placeholder="Search…"><button type="submit">Search</button></div></form><form method="post">{% csrf_token %}{% if actions %}<div class="action-bar"><label for="action">Action</label><select id="action" name="action"><option value="">Choose an action</option>{% for action in actions %}<option value="{{ action.name }}">{{ action.label }}</option>{% endfor %}</select><button type="submit">Run on selected</button></div>{% endif %}<div class="table-scroll"><table><thead><tr>{% if actions %}<th scope="col">Select</th>{% endif %}{% for column in columns %}<th scope="col">{{ column }}</th>{% endfor %}</tr></thead><tbody>{% for row in rows %}<tr>{% if actions %}<td><input type="checkbox" name="_selected" value="{{ row.id }}" aria-label="Select {{ row.id }}"></td>{% endif %}{% for cell in row.cells %}<td>{% if forloop.first %}<a href="{{ row.url }}">{{ cell|default_if_none:"—" }}</a>{% else %}{{ cell|default_if_none:"—" }}{% endif %}</td>{% endfor %}</tr>{% empty %}<tr><td class="empty-state" colspan="100">No matching records.</td></tr>{% endfor %}</tbody></table></div></form><nav class="pagination" aria-label="Pagination"><span>Page {{ page }}</span><div>{% if has_previous %}<a href="{{ previous }}">← Previous</a>{% endif %}{% if has_next %}<a href="{{ next }}">Next →</a>{% endif %}</div></nav></section>{% endblock %}
+{% extends "base.html" %}
+{% block content %}
+<div class="page-heading">
+  <div><p class="eyebrow">RECORDS</p><h1>{{ title }}</h1><p class="muted">{{ count }} records in your scope</p></div>
+  {% if can_add %}<a class="button" href="{{ add_url }}">+ Add {{ title }}</a>{% endif %}
+</div>
+<section class="panel">
+  {% if has_search or filters %}
+  <form method="get" class="search-bar">
+    {% if order %}<input type="hidden" name="o" value="{{ order }}">{% endif %}
+    {% if has_search %}<label for="search">Search records</label><div class="search-input"><input id="search" type="search" name="q" value="{{ search }}" maxlength="256" placeholder="Search…"><button type="submit">Search</button></div>{% endif %}
+    {% if filters %}<div class="list-filters">
+      {% for filter in filters %}<div><label for="filter_{{ filter.name }}">{{ filter.label }}</label>
+        {% if filter.choices %}<select id="filter_{{ filter.name }}" name="{{ filter.name }}"><option value="">All</option>{% for choice in filter.choices %}<option value="{{ choice.value }}"{% if choice.selected %} selected{% endif %}>{{ choice.label }}</option>{% endfor %}</select>
+        {% else %}<input id="filter_{{ filter.name }}" name="{{ filter.name }}" value="{{ filter.value }}" maxlength="256">{% endif %}
+      </div>{% endfor %}<button class="secondary" type="submit">Apply filters</button>
+    </div>{% endif %}
+  </form>
+  {% endif %}
+  <form method="post">{% csrf_token %}
+    {% if actions %}<div class="action-bar"><label for="action">Action</label><select id="action" name="action"><option value="">Choose an action</option>{% for action in actions %}<option value="{{ action.name }}">{{ action.label }}</option>{% endfor %}</select><button type="submit">Run on selected</button></div>{% endif %}
+    <div class="table-scroll"><table>
+      <thead><tr>{% if actions %}<th scope="col">Select</th>{% endif %}{% for column in columns %}<th scope="col" aria-sort="{{ column.direction }}">{% if column.url %}<a href="{{ column.url }}">{{ column.label }}</a>{% else %}{{ column.label }}{% endif %}</th>{% endfor %}</tr></thead>
+      <tbody>{% for row in rows %}<tr>
+        {% if actions %}<td><input type="checkbox" name="_selected" value="{{ row.id }}" aria-label="Select {{ row.id }}"></td>{% endif %}
+        {% for cell in row.cells %}<td>{% if cell.url %}<a href="{{ cell.url }}">{{ cell.value|default_if_none:"—" }}</a>{% else %}{{ cell.value|default_if_none:"—" }}{% endif %}</td>{% endfor %}
+      </tr>{% empty %}<tr><td class="empty-state" colspan="100">No matching records.</td></tr>{% endfor %}</tbody>
+    </table></div>
+  </form>
+  <nav class="pagination" aria-label="Pagination"><span>Page {{ page }}</span><div>{% if has_previous %}<a href="{{ previous }}">← Previous</a>{% endif %}{% if has_next %}<a href="{{ next }}">Next →</a>{% endif %}</div></nav>
+</section>
+{% endblock %}

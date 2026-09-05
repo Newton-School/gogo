@@ -36,6 +36,7 @@ type testDB struct {
 	failAudit     bool
 	foreignDelete bool
 	sequence      int64
+	lastQuery     ListQuery
 }
 
 func (d *testDB) Scope(_ context.Context, p auth.Principal, site string, schema models.Schema) (ScopedStore, error) {
@@ -53,6 +54,7 @@ func (s *testScope) object(value testRecord) Object {
 	return Object{Record: record, ID: strconv.FormatInt(value.ID, 10), Version: value.Name, Label: value.Name}
 }
 func (s *testScope) List(_ context.Context, q ListQuery) (Page, error) {
+	s.db.lastQuery = q
 	result := Page{}
 	for _, v := range s.db.records {
 		if v.Tenant == s.tenant && (q.Search == "" || strings.Contains(v.Name, q.Search)) {
@@ -250,6 +252,40 @@ func TestAdminScopeAndNoAnonymousMetadata(t *testing.T) {
 	w = perform(site, "GET", "/admin/shop/product/2/change/", principal(), nil, nil)
 	if w.Code != 404 {
 		t.Fatal(w.Code)
+	}
+}
+
+func TestListLinksSortingAndConfiguredFilters(t *testing.T) {
+	site, database := newTestSite(t)
+	options := site.models["shop.Product"]
+	options.ListDisplayLinks = []string{"Name"}
+	options.ListFilter = []string{"Name"}
+	site.models["shop.Product"] = options
+	response := perform(site, "GET", "/admin/shop/product/?q=Public&Name=&o=Name", principal(), nil, nil)
+	body := response.Body.String()
+	if response.Code != 200 || !strings.Contains(body, `name="Name"`) || !strings.Contains(body, `aria-sort="ascending"`) || !strings.Contains(body, `o=-Name`) {
+		t.Fatal(response.Code, body)
+	}
+	if !strings.Contains(body, `href="/admin/shop/product/1/change/">Public record</a>`) || strings.Contains(body, `href="/admin/shop/product/1/change/">1</a>`) {
+		t.Fatal("wrong list link column", body)
+	}
+	if len(database.lastQuery.Filters) != 0 || database.lastQuery.Search != "Public" || database.lastQuery.Ordering[0] != "Name" {
+		t.Fatal(database.lastQuery)
+	}
+	response = perform(site, "GET", "/admin/shop/product/?Unlisted=value", principal(), nil, nil)
+	if response.Code != 400 {
+		t.Fatal("unconfigured filter accepted", response.Code)
+	}
+}
+
+func TestEmptyListDisplayLinksDisablesObjectLinks(t *testing.T) {
+	site, _ := newTestSite(t)
+	options := site.models["shop.Product"]
+	options.ListDisplayLinks = []string{}
+	site.models["shop.Product"] = options
+	response := perform(site, "GET", "/admin/shop/product/", principal(), nil, nil)
+	if response.Code != 200 || strings.Contains(response.Body.String(), `href="/admin/shop/product/1/change/"`) {
+		t.Fatal(response.Code, response.Body.String())
 	}
 }
 

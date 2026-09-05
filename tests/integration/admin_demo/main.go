@@ -42,6 +42,17 @@ func (*Product) Schema() models.Schema {
 	return models.Schema{AppLabel: "catalog", Name: "Product", LabelPlural: "Products", Fields: []models.Field{models.BigAutoField("id", models.WithStructField("ID")), models.CharField("tenant", models.WithStructField("Tenant"), models.WithMaxLength(128), models.ReadOnly), models.CharField("name", models.WithStructField("Name"), models.WithMaxLength(120), models.WithLabel("Product name")), models.TextField("description", models.WithStructField("Description"), models.Optional, models.WithHelpText("A concise description shown to customers.")), models.DecimalField("price", 12, 2, models.WithStructField("Price"), models.WithLabel("Price")), models.CharField("sku", models.WithStructField("SKU"), models.WithMaxLength(50), models.WithLabel("SKU")), models.IntegerField("stock", models.WithStructField("Stock"), models.WithLabel("Available stock")), models.BooleanField("published", models.WithStructField("Published"), models.WithLabel("Published")), models.DateTimeField("created_at", models.WithStructField("CreatedAt"), models.WithLabel("Created at"), func(f *models.Field) { f.AutoNowAdd = true })}, Ordering: []string{"name"}}
 }
 
+type ProductNote struct {
+	models.Base
+	ID, ProductID int64
+	Tenant, Body  string
+	CreatedAt     time.Time
+}
+
+func (*ProductNote) Schema() models.Schema {
+	return models.Schema{AppLabel: "catalog", Name: "ProductNote", LabelPlural: "Product notes", Fields: []models.Field{models.BigAutoField("id", models.WithStructField("ID")), models.CharField("tenant", models.WithStructField("Tenant"), models.WithMaxLength(128), models.ReadOnly), models.ForeignKeyField("product", models.Relation{Target: "catalog.Product", OnDelete: models.Cascade}, models.WithStructField("ProductID")), models.TextField("body", models.WithStructField("Body"), models.WithLabel("Note"), models.WithHelpText("Internal note stored together with the product.")), models.DateTimeField("created_at", models.WithStructField("CreatedAt"), models.WithLabel("Created at"), func(f *models.Field) { f.AutoNowAdd = true })}}
+}
+
 func main() {
 	if err := run(); err != nil {
 		log.Fatal("Admin review fixture could not start: ", err)
@@ -94,12 +105,24 @@ func run() error {
 		return err
 	}
 	defer backend.Close()
-	for _, descriptor := range []models.Schema{(&Product{}).Schema(), admin.LogSchema()} {
-		if err = backend.SchemaEditor().CreateModel(ctx, backend, descriptor); err != nil {
+	descriptors := []models.Schema{(&Product{}).Schema(), (&ProductNote{}).Schema(), admin.LogSchema()}
+	editor, err := backend.SchemaEditor().(db.SchemaResolverEditor).WithSchemas(descriptors)
+	if err != nil {
+		return err
+	}
+	registry := &models.Registry{}
+	for _, descriptor := range descriptors {
+		if err = registry.Register(descriptor); err != nil {
+			return err
+		}
+		if err = editor.CreateModel(ctx, backend, descriptor); err != nil {
 			return err
 		}
 	}
-	store := orm.New(backend, nil)
+	if err = registry.Freeze(); err != nil {
+		return err
+	}
+	store := orm.New(backend, registry)
 	rows := []Product{{Name: "Workspace notebook", Description: "Lay-flat pages for ideas, planning, and everyday notes.", Price: "18.00", SKU: "NOTE-001", Stock: 120, Published: true}, {Name: "Everyday tote", Description: "A sturdy carryall for daily essentials.", Price: "24.00", SKU: "BAG-002", Stock: 42, Published: true}, {Name: "Ceramic travel mug", Description: "Keep your morning coffee close.", Price: "32.00", SKU: "MUG-003", Stock: 86, Published: true}, {Name: "Desk organizer", Description: "A clear space for focused work.", Price: "46.00", SKU: "DESK-004", Stock: 18, Published: false}, {Name: "Weekly planner", Description: "Make room for what matters this week.", Price: "22.00", SKU: "PLAN-005", Stock: 64, Published: true}, {Name: "Reading lamp", Description: "Warm light for the end of a long day.", Price: "74.00", SKU: "LAMP-006", Stock: 12, Published: false}}
 	for i := range rows {
 		rows[i].Tenant = "review-workspace"
@@ -107,7 +130,12 @@ func run() error {
 			return err
 		}
 	}
-	adapter, err := admin.NewORMStore(admin.ORMConfig{Store: store, Factories: map[string]func() models.Model{"catalog.Product": func() models.Model { return &Product{} }}, QueryScope: func(_ context.Context, p auth.Principal, _ models.Schema) (admin.QueryScope, error) {
+	for _, body := range []string{"Check stock before the autumn collection launch.", "Use recycled paper for the next production run."} {
+		if err = store.Save(ctx, &ProductNote{Tenant: "review-workspace", ProductID: rows[0].ID, Body: body}, orm.SaveOptions{}); err != nil {
+			return err
+		}
+	}
+	adapter, err := admin.NewORMStore(admin.ORMConfig{Store: store, Factories: map[string]func() models.Model{"catalog.Product": func() models.Model { return &Product{} }, "catalog.ProductNote": func() models.Model { return &ProductNote{} }}, QueryScope: func(_ context.Context, p auth.Principal, _ models.Schema) (admin.QueryScope, error) {
 		return admin.QueryScope{Predicate: orm.Q("tenant", p.ID), Identity: p.ID}, nil
 	}, ValidateWrite: func(_ context.Context, p auth.Principal, r models.Record) error {
 		tenant, err := r.Get("tenant")
@@ -118,6 +146,9 @@ func run() error {
 	}, Initialize: func(_ context.Context, p auth.Principal, r models.Record) error {
 		if err := r.Set("tenant", p.ID); err != nil {
 			return err
+		}
+		if r.Schema().Key() != "catalog.Product" {
+			return nil
 		}
 		token, err := security.RandomToken(16)
 		if err != nil {
@@ -140,7 +171,7 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	if err = site.Register(admin.ModelAdmin{Schema: (&Product{}).Schema(), Fields: []string{"name", "description", "price", "stock", "published", "sku", "created_at"}, ReadonlyFields: []string{"sku", "created_at"}, ListDisplay: []string{"name", "sku", "price", "stock", "published"}, ListFilter: []string{"published"}, SearchFields: []string{"name", "sku"}, Ordering: []string{"name"}, ConstraintChecker: store}); err != nil {
+	if err = site.Register(admin.ModelAdmin{Schema: (&Product{}).Schema(), Fieldsets: []admin.Fieldset{{Name: "Product details", Fields: []string{"name", "description"}}, {Name: "Availability", Fields: []string{"price", "stock", "published"}}, {Name: "Record information", Fields: []string{"sku", "created_at"}, Classes: []string{"collapse"}}}, ReadonlyFields: []string{"sku", "created_at"}, ListDisplay: []string{"name", "sku", "price", "stock", "published"}, ListFilter: []string{"published"}, SearchFields: []string{"name", "sku"}, Ordering: []string{"name"}, ConstraintChecker: store, Inlines: []admin.Inline{{Name: "notes", Schema: (&ProductNote{}).Schema(), FKName: "product", Fields: []string{"body", "created_at"}, Readonly: []string{"created_at"}, Extra: 1, Maximum: 20, CanDelete: true, ConstraintChecker: store}}}); err != nil {
 		return err
 	}
 	headers, err := security.Headers(security.HeadersConfig{AllowedHosts: []string{"127.0.0.1", "localhost"}})

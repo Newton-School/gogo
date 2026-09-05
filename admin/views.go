@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/url"
 	"reflect"
@@ -16,6 +17,7 @@ import (
 	"github.com/Newton-School/gogo/core/auth"
 	"github.com/Newton-School/gogo/core/forms"
 	"github.com/Newton-School/gogo/core/messages"
+	"github.com/Newton-School/gogo/core/models"
 	"github.com/Newton-School/gogo/core/security"
 	"github.com/Newton-School/gogo/core/templates"
 )
@@ -231,7 +233,7 @@ func (s *Site) index(w http.ResponseWriter, r *http.Request, p auth.Principal) {
 
 func (s *Site) list(w http.ResponseWriter, r *http.Request, p auth.Principal, options ModelAdmin, store ScopedStore) {
 	query := ListQuery{Search: r.URL.Query().Get("q"), SearchFields: options.SearchFields, Filters: map[string]string{}, Ordering: options.Ordering, Limit: options.ListPerPage}
-	if len(query.Search) > 256 {
+	if len(query.Search) > 256 || query.Search != "" && len(options.SearchFields) == 0 {
 		http.Error(w, "Search is too long", 400)
 		return
 	}
@@ -251,7 +253,7 @@ func (s *Site) list(w http.ResponseWriter, r *http.Request, p auth.Principal, op
 			http.Error(w, "Invalid ordering", 400)
 			return
 		}
-		if _, ok := options.Schema.Field(field); !ok {
+		if metadata, ok := options.Schema.Field(field); !ok || !metadata.IsStored() {
 			http.Error(w, "Invalid ordering", 400)
 			return
 		}
@@ -264,6 +266,9 @@ func (s *Site) list(w http.ResponseWriter, r *http.Request, p auth.Principal, op
 		if !slices.Contains(options.ListFilter, name) || len(values) != 1 || len(values[0]) > 256 {
 			http.Error(w, "Invalid filter", 400)
 			return
+		}
+		if values[0] == "" {
+			continue
 		}
 		query.Filters[name] = values[0]
 	}
@@ -288,7 +293,7 @@ func (s *Site) list(w http.ResponseWriter, r *http.Request, p auth.Principal, op
 			return
 		}
 		cells := []any{}
-		for _, name := range options.ListDisplay {
+		for index, name := range options.ListDisplay {
 			var value any
 			found := false
 			for _, column := range options.Columns {
@@ -305,7 +310,11 @@ func (s *Site) list(w http.ResponseWriter, r *http.Request, p auth.Principal, op
 				s.failure(w, r, err)
 				return
 			}
-			cells = append(cells, value)
+			link := ""
+			if options.ListDisplayLinks == nil && index == 0 || slices.Contains(options.ListDisplayLinks, name) {
+				link = s.modelURL(options) + url.PathEscape(object.ID) + "/change/"
+			}
+			cells = append(cells, templates.Context{"value": value, "url": link})
 		}
 		rows = append(rows, templates.Context{"id": object.ID, "url": s.modelURL(options) + url.PathEscape(object.ID) + "/change/", "cells": cells})
 	}
@@ -320,7 +329,45 @@ func (s *Site) list(w http.ResponseWriter, r *http.Request, p auth.Principal, op
 				label = column.Label
 			}
 		}
-		columns = append(columns, label)
+		sortURL := ""
+		if field, ok := options.Schema.Field(name); ok && field.IsStored() {
+			values := r.URL.Query()
+			order := name
+			if len(query.Ordering) > 0 && query.Ordering[0] == name {
+				order = "-" + name
+			}
+			values.Set("o", order)
+			values.Del("p")
+			sortURL = "?" + values.Encode()
+		}
+		direction := "none"
+		if len(query.Ordering) > 0 {
+			if query.Ordering[0] == name {
+				direction = "ascending"
+			} else if query.Ordering[0] == "-"+name {
+				direction = "descending"
+			}
+		}
+		columns = append(columns, templates.Context{"label": label, "url": sortURL, "direction": direction})
+	}
+	filters := []any{}
+	for _, name := range options.ListFilter {
+		field, _ := options.Schema.Field(name)
+		label := field.Label
+		if label == "" {
+			label = name
+		}
+		choices := []any{}
+		for _, choice := range field.Choices {
+			value := fmt.Sprint(choice.Value)
+			choices = append(choices, templates.Context{"value": value, "label": choice.Label, "selected": query.Filters[name] == value})
+		}
+		if field.Kind == models.Boolean {
+			for _, choice := range []struct{ value, label string }{{"true", "Yes"}, {"false", "No"}} {
+				choices = append(choices, templates.Context{"value": choice.value, "label": choice.label, "selected": query.Filters[name] == choice.value})
+			}
+		}
+		filters = append(filters, templates.Context{"name": name, "label": label, "value": query.Filters[name], "choices": choices})
 	}
 	actions := []any{}
 	for _, action := range options.Actions {
@@ -333,7 +380,7 @@ func (s *Site) list(w http.ResponseWriter, r *http.Request, p auth.Principal, op
 		values.Set("p", strconv.Itoa(next))
 		return "?" + values.Encode()
 	}
-	s.render(w, r, p, "list.html", templates.Context{"title": options.Schema.Name, "columns": columns, "rows": rows, "count": result.Count, "search": query.Search, "page": page, "previous": pageURL(max(1, page-1)), "next": pageURL(page + 1), "has_previous": page > 1, "has_next": int64(query.Offset+len(rows)) < result.Count, "can_add": s.allowed(r.Context(), p, "add", options, Object{}) == nil, "add_url": s.modelURL(options) + "add/", "actions": actions}, 200)
+	s.render(w, r, p, "list.html", templates.Context{"title": options.Schema.Name, "columns": columns, "rows": rows, "count": result.Count, "search": query.Search, "has_search": len(options.SearchFields) > 0, "filters": filters, "order": r.URL.Query().Get("o"), "page": page, "previous": pageURL(max(1, page-1)), "next": pageURL(page + 1), "has_previous": page > 1, "has_next": int64(query.Offset+len(rows)) < result.Count, "can_add": s.allowed(r.Context(), p, "add", options, Object{}) == nil, "add_url": s.modelURL(options) + "add/", "actions": actions}, 200)
 }
 
 type editToken struct{ Actor, Site, Model, ID, Version, Action string }
