@@ -90,7 +90,7 @@ func (w *Worker) prepareReplacement(ctx context.Context, original Envelope, defi
 	// The same payload is stored as a result-local dispatch intent. Reject
 	// oversized graphs before yielding, not later in the recovery relay.
 	b, err := json.Marshal(compiler.graph)
-	if err != nil || len(b) > 4<<20 {
+	if err != nil || len(b) > MaxWorkflowInitialBytes {
 		return Graph{}, ErrInvalid
 	}
 	return compiler.graph, nil

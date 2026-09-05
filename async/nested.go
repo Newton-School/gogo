@@ -50,8 +50,11 @@ func (c *Client) applyNested(ctx context.Context, canvas Canvas) (*GroupResult, 
 	if err := c.authorize(ctx, "enqueue", compiler.graph.Scope, id); err != nil {
 		return nil, err
 	}
-	graph, intents, err := c.advanceNested(compiler.graph)
+	graph, intents, err := c.advance(compiler.graph)
 	if err != nil {
+		return nil, err
+	}
+	if err := validateGraphAcceptance(graph, intents); err != nil {
 		return nil, err
 	}
 	if err := c.config.Workflows.CreateGraph(ctx, graph, intents); err != nil {
@@ -213,8 +216,10 @@ func (c *Client) advanceNested(graph Graph) (Graph, []Intent, error) {
 		return graph, nil, ErrInvalid
 	}
 	children := map[string]int{}
+	argumentBytes := 0
 	for i, child := range graph.Children {
 		children[child.ID] = i
+		argumentBytes += len(child.Args)
 	}
 	var intents []Intent
 	if graph.CancelRequested {
@@ -295,8 +300,12 @@ func (c *Client) advanceNested(graph Graph) (Graph, []Intent, error) {
 				if err == nil {
 					candidate := envelope
 					candidate.Args = bound.Args
+					if argumentBytes-len(envelope.Args)+len(candidate.Args) > MaxWorkflowWorkingBytes {
+						return graph, nil, errWorkflowSize
+					}
 					err = candidate.Validate()
 					if err == nil {
+						argumentBytes += len(candidate.Args) - len(envelope.Args)
 						envelope = candidate
 					}
 				}

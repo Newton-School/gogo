@@ -53,11 +53,11 @@ func (w *Workflows) write(ctx context.Context, expected uint64, g async.Graph, i
 		intents = []async.Intent{}
 	}
 	gb, err := json.Marshal(g)
-	if err != nil || len(gb) > 8<<20 {
+	if err != nil || len(gb) > async.MaxWorkflowDurableBytes {
 		return async.ErrInvalid
 	}
 	ib, err := json.Marshal(intents)
-	if err != nil || len(ib) > 8<<20 {
+	if err != nil || len(ib) > async.MaxWorkflowDurableBytes {
 		return async.ErrInvalid
 	}
 	out, err := w.Connection.Atomic(ctx, graphCAS, w.keys(g.ID), strconv.FormatUint(expected, 10), strconv.FormatUint(g.Revision, 10), gb, ib)

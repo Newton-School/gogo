@@ -167,6 +167,9 @@ func (c *Client) ApplyCanvas(ctx context.Context, canvas Canvas) (*GroupResult, 
 			return nil, err
 		}
 	}
+	if err := validateGraphAcceptance(graph, intents); err != nil {
+		return nil, err
+	}
 	if err := c.config.Workflows.CreateGraph(ctx, graph, intents); err != nil {
 		return nil, err
 	}
@@ -182,7 +185,21 @@ func (c *Client) advance(graph Graph) (next Graph, intents []Intent, err error) 
 			intents = append(intents, replacementCompletionIntents(next)...)
 		}
 	}()
-	return c.advanceGraph(graph)
+	if graph.AbortFailure != nil && !graph.CancelRequested {
+		return advanceAbortedGraph(graph)
+	}
+	// advanceGraph builds a candidate; keep the previous durable envelopes and
+	// dispatch claims intact if expanding a continuation exceeds the budget.
+	next, intents, err = c.advanceGraph(cloneJSON(graph))
+	limit := MaxWorkflowWorkingBytes
+	if graph.CancelRequested {
+		limit = MaxWorkflowDurableBytes
+	}
+	if errors.Is(err, errWorkflowSize) || err == nil && !withinGraphBudget(next, intents, limit) {
+		graph.AbortFailure = &Failure{Code: "WORKFLOW_SIZE", Message: "Workflow coordination exceeded its bounded payload budget"}
+		return advanceAbortedGraph(graph)
+	}
+	return next, intents, err
 }
 
 func (c *Client) advanceGraph(graph Graph) (Graph, []Intent, error) {

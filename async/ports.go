@@ -150,6 +150,7 @@ type Graph struct {
 	RootNode         string                `json:"root_node,omitempty"`
 	OriginTaskID     string                `json:"origin_task_id,omitempty"`
 	OriginDigest     string                `json:"origin_digest,omitempty"`
+	AbortFailure     *Failure              `json:"abort_failure,omitempty"`
 }
 
 // CanvasNode is a portable compiled workflow node. Collect nodes execute no
