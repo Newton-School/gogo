@@ -88,6 +88,7 @@ func (s *Site) renderLogin(ctx context.Context, page authviews.LoginPage) ([]byt
 		"title": page.Title, "header": s.config.Header, "site_title": s.config.Title,
 		"prefix": s.config.Prefix, "css_url": s.config.Prefix + "assets/admin." + s.cssVersion + ".css",
 		"identifier": page.Identifier, "next": page.Next, "csrf_token": page.CSRFToken, "error": page.Error,
+		"password_reset_url": s.config.PasswordResetURL,
 	})
 	return []byte(body), err
 }

@@ -9,4 +9,4 @@
 <form method="post"><input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}"><input type="hidden" name="next" value="{{ next }}">
 <div class="form-row"><label for="id_identifier">Identifier</label><input id="id_identifier" name="identifier" autocomplete="username" maxlength="255" required value="{{ identifier }}"{% if error %} aria-describedby="login_error"{% endif %}></div>
 <div class="form-row"><label for="id_password">Password</label><input id="id_password" name="password" type="password" autocomplete="current-password" required{% if error %} aria-describedby="login_error"{% endif %}></div>
-<div class="submit-row"><button type="submit">Sign in</button></div></form></section><footer>Gogo administration</footer></main></body></html>
+<div class="submit-row"><button type="submit">Sign in</button>{% if password_reset_url %}<a href="{{ password_reset_url }}">Forgot your password?</a>{% endif %}</div></form></section><footer>Gogo administration</footer></main></body></html>
