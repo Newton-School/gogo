@@ -48,6 +48,7 @@ func TestAdminUserIdentifierUsesExactDeltaAuthorityAndAtomicAudit(t *testing.T) 
 	}
 	var targetID, hiddenID string
 	deny, mutateProjection, failAudit, nestedProjection := false, false, false, false
+	proposedProjection := false
 	identityCalls, flagCalls := 0, 0
 	var adapter *admin.AccountStore
 	var err error
@@ -73,6 +74,10 @@ func TestAdminUserIdentifierUsesExactDeltaAuthorityAndAtomicAudit(t *testing.T) 
 				}
 				if nestedProjection && identifier == "namespace-late-policy" {
 					nestedProjection = false
+					return adapter.Accounts().ChangeIdentifier(ctx, targetID, "nested-policy")
+				}
+				if proposedProjection && identifier == "early-policy" {
+					proposedProjection = false
 					return adapter.Accounts().ChangeIdentifier(ctx, targetID, "nested-policy")
 				}
 				return nil
@@ -246,6 +251,14 @@ func TestAdminUserIdentifierUsesExactDeltaAuthorityAndAtomicAudit(t *testing.T) 
 	response = request(actor, "POST", path, values, w.Result().Cookies())
 	if response.Code != 409 || nestedProjection {
 		t.Fatal("scope callback nested mutation returned stale success", response.Code)
+	}
+	check("namespace-renamed", 2, 2)
+	proposedProjection = true
+	w, values = form(actor)
+	values.Set("identifier", "early-policy")
+	response = request(actor, "POST", path, values, w.Result().Cookies())
+	if response.Code != 409 || proposedProjection {
+		t.Fatal("proposed-state callback replaced prior account snapshot", response.Code)
 	}
 	check("namespace-renamed", 2, 2)
 	row, err := orm.For(store, func() *auth.User { return &auth.User{} }).Filter(orm.Q("id", hiddenID)).Get(ctx)

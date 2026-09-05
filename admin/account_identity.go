@@ -22,7 +22,7 @@ func (s *accountScoped) saveUserFields(ctx context.Context, object Object) (Obje
 	}
 	var written Object
 	err = s.Atomic(ctx, func(ctx context.Context) error {
-		current, err := s.checkedUser(ctx, object.ID)
+		current, err := s.checkedAccount(ctx, object.ID)
 		if err != nil {
 			return err
 		}
@@ -43,6 +43,9 @@ func (s *accountScoped) saveUserFields(ctx context.Context, object Object) (Obje
 			}
 		}
 		if err := s.validateAccountProjection(ctx, object); err != nil {
+			return err
+		}
+		if err := s.recheckAccount(ctx, current); err != nil {
 			return err
 		}
 		id, err := current.Record.Get("id")
@@ -90,7 +93,7 @@ func (s *accountScoped) saveUserFields(ctx context.Context, object Object) (Obje
 				return err
 			}
 		}
-		written, err = s.checkedUser(ctx, object.ID)
+		written, err = s.checkedAccount(ctx, object.ID)
 		return err
 	})
 	if err != nil {

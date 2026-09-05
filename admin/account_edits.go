@@ -82,7 +82,7 @@ func (s *accountScoped) createUser(ctx context.Context, identifier, password str
 		if err != nil {
 			return err
 		}
-		written, err = s.checkedUser(ctx, created.ID)
+		written, err = s.checkedAccount(ctx, created.ID)
 		return err
 	})
 	if err != nil {
@@ -91,7 +91,7 @@ func (s *accountScoped) createUser(ctx context.Context, identifier, password str
 	return written, nil
 }
 
-func (s *accountScoped) checkedUser(ctx context.Context, key string) (Object, error) {
+func (s *accountScoped) checkedAccount(ctx context.Context, key string) (Object, error) {
 	written, err := s.Get(ctx, key, true)
 	if errors.Is(err, ErrNotFound) {
 		return Object{}, auth.ErrPermissionDenied
@@ -105,17 +105,24 @@ func (s *accountScoped) checkedUser(ctx context.Context, key string) (Object, er
 	// Validation is an application extension point. A nested domain mutation
 	// must not leave a stale approved projection while changing the database.
 	// This reread has no validation callback and retains the original scope.
-	current, err := s.Get(ctx, key, true)
-	if errors.Is(err, ErrNotFound) {
-		return Object{}, auth.ErrPermissionDenied
-	}
-	if err != nil {
+	if err := s.recheckAccount(ctx, written); err != nil {
 		return Object{}, err
 	}
-	if current.ID != written.ID || current.Version != written.Version {
-		return Object{}, ErrConflict
-	}
 	return written, ctx.Err()
+}
+
+func (s *accountScoped) recheckAccount(ctx context.Context, expected Object) error {
+	current, err := s.Get(ctx, expected.ID, true)
+	if errors.Is(err, ErrNotFound) {
+		return auth.ErrPermissionDenied
+	}
+	if err != nil {
+		return err
+	}
+	if current.ID != expected.ID || current.Version != expected.Version {
+		return ErrConflict
+	}
+	return ctx.Err()
 }
 
 func (s *accountScoped) validateAccountProjection(ctx context.Context, written Object) error {
@@ -158,7 +165,7 @@ func (s *accountScoped) mutatePassword(ctx context.Context, object Object, chang
 	}
 	var written Object
 	err = s.Atomic(ctx, func(ctx context.Context) error {
-		current, err := s.checkedUser(ctx, object.ID)
+		current, err := s.checkedAccount(ctx, object.ID)
 		if err != nil {
 			return err
 		}
@@ -172,7 +179,7 @@ func (s *accountScoped) mutatePassword(ctx context.Context, object Object, chang
 		if err := change(ctx, id.(string)); err != nil {
 			return err
 		}
-		written, err = s.checkedUser(ctx, object.ID)
+		written, err = s.checkedAccount(ctx, object.ID)
 		return err
 	})
 	if err != nil {

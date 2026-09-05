@@ -533,7 +533,7 @@ func (s *Site) form(w http.ResponseWriter, r *http.Request, p auth.Principal, op
 	var inlines []*inlineState
 	invalidForm := false
 	if r.Method == "POST" {
-		if options.userForms {
+		if options.userForms || options.groupForms {
 			w.Header().Set("X-Gogo-Account-Change", string(auth.PasswordUnchanged))
 		}
 		if !canChange {
@@ -636,7 +636,7 @@ func (s *Site) form(w http.ResponseWriter, r *http.Request, p auth.Principal, op
 				return store.Audit(ctx, LogEntry{ActorID: p.ID, Site: s.config.Name, Model: options.Schema.Key(), ObjectID: object.ID, ObjectLabel: object.Label, Action: action, Changes: diff(before, after), At: time.Now().UTC()})
 			})
 		}
-		if options.userForms {
+		if options.userForms || options.groupForms {
 			err = invokeAccountMutation(save)
 			state := accountOutcome(err)
 			if err == nil && object.Version == originalVersion {

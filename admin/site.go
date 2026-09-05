@@ -58,6 +58,7 @@ type ModelAdmin struct {
 	SaveModel         func(context.Context, ScopedStore, Object) (Object, error)
 	SaveRelated       func(context.Context, ScopedStore, Object, *http.Request) error
 	userForms         bool
+	groupForms        bool
 }
 type Config struct {
 	Name, Header, Title, IndexTitle, Prefix, SiteURL, LoginURL string

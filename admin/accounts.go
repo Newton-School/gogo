@@ -45,6 +45,7 @@ func NewAccountStore(config AccountStoreConfig) (*AccountStore, error) {
 		factories[key] = factory
 	}
 	factories[(&auth.User{}).Schema().Key()] = func() models.Model { return &auth.User{} }
+	factories[(&auth.Group{}).Schema().Key()] = func() models.Model { return &auth.Group{} }
 	config.ORM.Factories = factories
 	base, err := NewORMStore(config.ORM)
 	if err != nil {
@@ -178,6 +179,12 @@ func (s *accountScoped) ReadRelations(ctx context.Context, object Object, fields
 }
 
 func (s *accountScoped) New(ctx context.Context) (Object, error) {
+	if err := ctx.Err(); err != nil {
+		return Object{}, err
+	}
+	if s.schema.Key() == (&auth.Group{}).Schema().Key() {
+		return s.newGroup()
+	}
 	if accountModel(s.schema) {
 		return Object{}, auth.ErrPermissionDenied
 	}
@@ -187,6 +194,9 @@ func (s *accountScoped) New(ctx context.Context) (Object, error) {
 func (s *accountScoped) Save(ctx context.Context, object Object) (Object, error) {
 	if !accountModel(s.schema) {
 		return s.ormScoped.Save(ctx, object)
+	}
+	if s.schema.Key() == (&auth.Group{}).Schema().Key() {
+		return s.saveGroupFields(ctx, object)
 	}
 	return s.saveUserFields(ctx, object)
 }
