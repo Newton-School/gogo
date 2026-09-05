@@ -349,3 +349,86 @@ func TestWorkerControlInvalidRequestsNeverPanicOrTouchProvider(t *testing.T) {
 		})
 	}
 }
+
+func TestWorkerControlRequiresOptInAndRejectsStaleQueueDeclaration(t *testing.T) {
+	for _, enabled := range []bool{false, true} {
+		t.Run(map[bool]string{false: "disabled by default", true: "queue mismatch rejected"}[enabled], func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			defer cancel()
+			task, client, worker, store := setup(t, func(_ context.Context, _ async.TaskContext, n int) (int, error) { return n, nil }, async.TaskOptions{})
+			worker.Presence = store
+			worker.Concurrency = 1
+			worker.Lease = time.Second
+			worker.Heartbeat = 10 * time.Millisecond
+			if enabled {
+				worker.Controls = store
+			}
+			done := make(chan error, 1)
+			go func() { done <- worker.Run(ctx) }()
+			var presence async.WorkerPresence
+			for {
+				var err error
+				presence, err = store.LookupWorker(ctx, "worker")
+				if err == nil {
+					break
+				}
+				if !errors.Is(err, async.ErrNotFound) {
+					t.Fatal(err)
+				}
+				select {
+				case <-ctx.Done():
+					t.Fatal("presence not claimed")
+				case <-time.After(time.Millisecond):
+				}
+			}
+			request := controlRequest(t, presence.Snapshot, time.Now().UTC())
+			if enabled {
+				request.Queues = []string{"forged"}
+			}
+			// Direct port injection models trusted transport corruption; ordinary
+			// Control clients reject this stale declaration before submission.
+			if err := store.SubmitWorkerControl(ctx, request); err != nil {
+				t.Fatal(err)
+			}
+			if enabled {
+				for {
+					reply, err := store.LookupWorkerControl(ctx, request)
+					if err == nil {
+						if reply.Outcome != async.ControlQueueChanged {
+							t.Fatal(reply)
+						}
+						break
+					}
+					if !errors.Is(err, async.ErrNotFound) {
+						t.Fatal(err)
+					}
+					select {
+					case <-ctx.Done():
+						t.Fatal("rejection missing")
+					case <-time.After(time.Millisecond):
+					}
+				}
+			} else {
+				select {
+				case <-done:
+					t.Fatal("presence implicitly enabled shutdown")
+				case <-time.After(30 * time.Millisecond):
+				}
+				if reply, err := store.LookupWorkerControl(ctx, request); !errors.Is(err, async.ErrNotFound) || reply.RequestID != "" {
+					t.Fatal("disabled runner acknowledged control", err)
+				}
+			}
+			result, err := task.Delay(ctx, client, 42)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if value, err := result.Get(ctx); err != nil || value != 42 {
+				t.Fatal("rejected/disabled control stopped task execution", value, err)
+			}
+			cancel()
+			if err := <-done; !errors.Is(err, context.Canceled) {
+				t.Fatal(err)
+			}
+		})
+	}
+}
