@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"math"
 	"strconv"
 	"time"
 
@@ -28,7 +29,7 @@ local revision=redis.call('HGET',KEYS[1],'revision');if not revision then return
 if revision~=ARGV[1] then return 'CONFLICT' end
 if ARGV[2]=='delete' then
  if redis.call('HLEN',KEYS[2])>1000 then return 'PINNED' end
- local intents=redis.call('HVALS',KEYS[2]);for _,raw in ipairs(intents) do if not cjson.decode(raw).delivered then return 'PINNED' end end
+ local intents=redis.call('HVALS',KEYS[2]);for _,raw in ipairs(intents) do local item=cjson.decode(raw);if item.format~=1 or not item.delivered then return 'PINNED' end end
  redis.call('DEL',KEYS[1],KEYS[2]);redis.call('SREM',KEYS[4],ARGV[4]);return 'DELETED'
 end
 redis.call('HSET',KEYS[1],'record',ARGV[3],'revision',ARGV[5]);return 'CLEARED'
@@ -74,6 +75,9 @@ func (r *Results) Cleanup(ctx context.Context, cursor Cursor, count int) (Cursor
 			continue
 		}
 		expected := record.Revision
+		if expected == math.MaxUint64 {
+			return cursor, report, async.ErrUnavailable
+		}
 		record.Output = nil
 		record.Progress = nil
 		record.Revision++

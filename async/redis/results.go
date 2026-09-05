@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"math"
 	"strconv"
 	"strings"
 	"time"
@@ -108,6 +109,9 @@ return 'OK'
 `)
 
 func (r *Results) cas(ctx context.Context, expected uint64, record async.Record, mode string, oldFence uint64, oldOwner string, lease time.Duration, intents []async.Intent) error {
+	if expected == math.MaxUint64 || record.Revision == 0 {
+		return async.ErrUnavailable
+	}
 	b, err := json.Marshal(record)
 	if err != nil {
 		return err
@@ -115,7 +119,7 @@ func (r *Results) cas(ctx context.Context, expected uint64, record async.Record,
 	if intents == nil {
 		intents = []async.Intent{}
 	}
-	ib, err := json.Marshal(intents)
+	ib, err := marshalIntents(intents)
 	if err != nil {
 		return err
 	}
@@ -428,9 +432,9 @@ func (b intentBackend) list(ctx context.Context, limit int) ([]async.Intent, err
 			if err != nil {
 				return nil, err
 			}
-			var intent async.Intent
-			if err := json.Unmarshal([]byte(raw), &intent); err != nil {
-				return nil, async.ErrUnavailable
+			intent, err := unmarshalIntent([]byte(raw))
+			if err != nil {
+				return nil, err
 			}
 			out = append(out, intent)
 		}
@@ -438,18 +442,20 @@ func (b intentBackend) list(ctx context.Context, limit int) ([]async.Intent, err
 	return out, nil
 }
 
-var intentClaim = redigo.NewScript(`
+var intentClaim = redigo.NewScript(incrementCounterLua + `
 local raw=redis.call('HGET',KEYS[1],ARGV[1]);if not raw then return 'MISSING' end
-local item=cjson.decode(raw);if item.delivered then return raw end
+local item=cjson.decode(raw)
+if item.format~=1 then return redis.error_reply('GOGO_INVALID_INTENT_METADATA') end
+if item.delivered then return raw end
 local tm=redis.call('TIME');local now=tonumber(tm[1])*1000+math.floor(tonumber(tm[2])/1000)
 if (item.lease_millis or 0)>now then return 'BUSY' end
-item.lease_millis=now+tonumber(ARGV[3]);item.fence=item.fence+1;item.owner=ARGV[2]
+item.lease_millis=now+tonumber(ARGV[3]);item.fence=incrementCounter(item.fence);item.owner=ARGV[2]
 redis.call('ZADD',KEYS[2],item.lease_millis,item.source_id..':'..item.id)
 raw=cjson.encode(item);redis.call('HSET',KEYS[1],ARGV[1],raw);return raw
 `)
 
 func (b intentBackend) claim(ctx context.Context, source, id, owner string, lease time.Duration) (async.Intent, error) {
-	if owner == "" || lease <= 0 {
+	if owner == "" || lease < time.Millisecond {
 		return async.Intent{}, async.ErrInvalid
 	}
 	out, err := b.connection.Atomic(ctx, intentClaim, b.keys(source), id, owner, lease.Milliseconds())
@@ -463,20 +469,12 @@ func (b intentBackend) claim(ctx context.Context, source, id, owner string, leas
 	if raw == "MISSING" {
 		return async.Intent{}, async.ErrNotFound
 	}
-	var item struct {
-		async.Intent
-		LeaseMillis int64 `json:"lease_millis"`
-	}
-	if err := json.Unmarshal([]byte(raw), &item); err != nil {
-		return async.Intent{}, async.ErrUnavailable
-	}
-	item.LeaseUntil = time.UnixMilli(item.LeaseMillis)
-	return item.Intent, nil
+	return unmarshalIntent([]byte(raw))
 }
 
 var intentMark = redigo.NewScript(`
 local raw=redis.call('HGET',KEYS[1],ARGV[1]);if not raw then return 'MISSING' end
-local item=cjson.decode(raw);if item.delivered then return 'OK' end
+local item=cjson.decode(raw);if item.format~=1 then return redis.error_reply('GOGO_INVALID_INTENT_METADATA') end;if item.delivered then return 'OK' end
 local tm=redis.call('TIME');local now=tonumber(tm[1])*1000+math.floor(tonumber(tm[2])/1000)
 if item.owner~=ARGV[3] or tostring(item.fence)~=ARGV[2] or (item.lease_millis or 0)<=now then return 'LEASE' end
 item.delivered=true;redis.call('HSET',KEYS[1],ARGV[1],cjson.encode(item));redis.call('ZREM',KEYS[2],item.source_id..':'..item.id);return 'OK'

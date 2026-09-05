@@ -109,7 +109,7 @@ func (c *Cache) Delete(ctx context.Context, key string) error {
 	return c.Connection.client.Del(ctx, c.key(key)).Err()
 }
 
-var incrementScript = redigo.NewScript(`if redis.call('EXISTS',KEYS[1])==0 then return {0,0} end; return {1,redis.call('INCRBY',KEYS[1],ARGV[1])}`)
+var incrementScript = redigo.NewScript(`if redis.call('EXISTS',KEYS[1])==0 then return {0,'0'} end; redis.call('INCRBY',KEYS[1],ARGV[1]);return {1,redis.call('GET',KEYS[1])}`)
 
 func (c *Cache) Increment(ctx context.Context, key string, delta int64) (int64, error) {
 	if c.Connection == nil {
@@ -123,7 +123,7 @@ func (c *Cache) Increment(ctx context.Context, key string, delta int64) (int64, 
 	if values[0].(int64) == 0 {
 		return 0, cache.ErrMiss
 	}
-	return values[1].(int64), nil
+	return strconv.ParseInt(values[1].(string), 10, 64)
 }
 func (c *Cache) Touch(ctx context.Context, key string, ttl time.Duration) (bool, error) {
 	if c.Connection == nil || ttl <= 0 {

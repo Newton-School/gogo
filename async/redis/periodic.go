@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"strconv"
 	"time"
 
@@ -18,7 +19,7 @@ func (s *Schedules) periodicKeys(partition int) []string {
 }
 
 var periodicUpsert = redigo.NewScript(`
-local raw=redis.call('HGET',KEYS[2],ARGV[1]);local revision=0;if raw then revision=cjson.decode(raw).revision end
+local raw=redis.call('HGET',KEYS[2],ARGV[1]);local revision='0';if raw then local old=cjson.decode(raw);if old.format~=1 then return redis.error_reply('GOGO_INVALID_PERIODIC_METADATA') end;revision=old.revision end
 if tostring(revision)~=ARGV[2] then return 0 end
 redis.call('HSET',KEYS[2],ARGV[1],ARGV[3]);if ARGV[5]=='1' then redis.call('ZADD',KEYS[1],ARGV[4],ARGV[1]) else redis.call('ZREM',KEYS[1],ARGV[1]) end;return 1
 `)
@@ -30,14 +31,18 @@ func (s *Schedules) UpsertSchedule(ctx context.Context, p async.PeriodicSchedule
 	if err := p.Validate(); err != nil {
 		return err
 	}
-	if p.Revision != expected+1 {
+	if expected == math.MaxUint64 || p.Revision != expected+1 {
 		return async.ErrInvalid
 	}
 	p.Owner = ""
 	p.LeaseUntil = time.Time{}
-	b, err := json.Marshal(p)
-	if err != nil || len(b) > async.MaxPayloadBytes {
+	payload, err := json.Marshal(p)
+	if err != nil || len(payload) > async.MaxPayloadBytes {
 		return async.ErrInvalid
+	}
+	b, err := marshalPeriodic(p)
+	if err != nil {
+		return err
 	}
 	enabled := "0"
 	if p.Enabled {
@@ -53,18 +58,21 @@ func (s *Schedules) UpsertSchedule(ctx context.Context, p async.PeriodicSchedule
 	return nil
 }
 
-var periodicLease = redigo.NewScript(`
+var periodicLease = redigo.NewScript(incrementCounterLua + `
 local tm=redis.call('TIME');local now=tonumber(tm[1])*1000+math.floor(tonumber(tm[2])/1000)
-local ids=redis.call('ZRANGEBYSCORE',KEYS[1],'-inf',now,'LIMIT',0,ARGV[2]);local out={}
+local ids=redis.call('ZRANGEBYSCORE',KEYS[1],'-inf',now,'LIMIT',0,ARGV[2]);local out={};local updates={}
 for _,id in ipairs(ids) do
  local raw=redis.call('HGET',KEYS[2],id);if not raw then return redis.error_reply('GOGO_MISSING_SCHEDULE') end
  local item=cjson.decode(raw)
- if item.enabled and (item.lease_millis or 0)<=now then item.owner=ARGV[1];item.fence=item.fence+1;item.revision=item.revision+1;item.lease_millis=now+tonumber(ARGV[3]);item.observed_millis=now;raw=cjson.encode(item);redis.call('HSET',KEYS[2],id,raw);redis.call('ZADD',KEYS[1],item.lease_millis,id);table.insert(out,raw) end
-end;return out
+ if item.format~=1 then return redis.error_reply('GOGO_INVALID_PERIODIC_METADATA') end
+ if item.enabled and (item.lease_millis or 0)<=now then item.owner=ARGV[1];item.fence=incrementCounter(item.fence);item.revision=incrementCounter(item.revision);item.lease_millis=now+tonumber(ARGV[3]);item.observed_millis=now;raw=cjson.encode(item);table.insert(updates,{id=id,raw=raw,lease=item.lease_millis});table.insert(out,raw) end
+end
+for _,item in ipairs(updates) do redis.call('HSET',KEYS[2],item.id,item.raw);redis.call('ZADD',KEYS[1],item.lease,item.id) end
+return out
 `)
 
 func (s *Schedules) LeaseSchedules(ctx context.Context, owner string, limit int, lease time.Duration) ([]async.PeriodicSchedule, error) {
-	if s.Connection == nil || owner == "" || limit < 1 || limit > 1000 || lease <= 0 {
+	if s.Connection == nil || owner == "" || limit < 1 || limit > 1000 || lease < time.Millisecond {
 		return nil, async.ErrInvalid
 	}
 	var out []async.PeriodicSchedule
@@ -74,17 +82,11 @@ func (s *Schedules) LeaseSchedules(ctx context.Context, owner string, limit int,
 			return nil, err
 		}
 		for _, value := range values.([]any) {
-			var item struct {
-				async.PeriodicSchedule
-				LeaseMillis    int64 `json:"lease_millis"`
-				ObservedMillis int64 `json:"observed_millis"`
+			item, err := unmarshalPeriodic([]byte(value.(string)))
+			if err != nil {
+				return nil, err
 			}
-			if err := json.Unmarshal([]byte(value.(string)), &item); err != nil {
-				return nil, async.ErrUnavailable
-			}
-			item.LeaseUntil = time.UnixMilli(item.LeaseMillis)
-			item.ObservedAt = time.UnixMilli(item.ObservedMillis)
-			out = append(out, item.PeriodicSchedule)
+			out = append(out, item)
 		}
 	}
 	return out, nil
@@ -93,6 +95,7 @@ func (s *Schedules) LeaseSchedules(ctx context.Context, owner string, limit int,
 var periodicCommit = redigo.NewScript(`
 local raw=redis.call('HGET',KEYS[2],ARGV[1]);if not raw then return 'MISSING' end
 local old=cjson.decode(raw);local tm=redis.call('TIME');local now=tonumber(tm[1])*1000+math.floor(tonumber(tm[2])/1000)
+if old.format~=1 then return redis.error_reply('GOGO_INVALID_PERIODIC_METADATA') end
 if tostring(old.revision)~=ARGV[2] or tostring(old.fence)~=ARGV[3] or old.owner~=ARGV[4] or (old.lease_millis or 0)<=now then return 'LEASE' end
 redis.call('HSET',KEYS[2],ARGV[1],ARGV[5]);if ARGV[8]=='1' then redis.call('ZADD',KEYS[1],ARGV[6],ARGV[1]) else redis.call('ZREM',KEYS[1],ARGV[1]) end
 local intents=cjson.decode(ARGV[7]);for _,intent in ipairs(intents) do
@@ -101,7 +104,7 @@ end;return 'OK'
 `)
 
 func (s *Schedules) CommitOccurrence(ctx context.Context, p async.PeriodicSchedule, next time.Time, lastID string, intents []async.Intent) error {
-	if next.IsZero() || !next.After(p.NextDue) {
+	if next.IsZero() || !next.After(p.NextDue) || p.Revision == math.MaxUint64 {
 		return async.ErrInvalid
 	}
 	original := p
@@ -116,11 +119,11 @@ func (s *Schedules) CommitOccurrence(ctx context.Context, p async.PeriodicSchedu
 	if intents == nil {
 		intents = []async.Intent{}
 	}
-	pb, err := json.Marshal(p)
+	pb, err := marshalPeriodic(p)
 	if err != nil {
 		return err
 	}
-	ib, err := json.Marshal(intents)
+	ib, err := marshalIntents(intents)
 	if err != nil {
 		return err
 	}
@@ -153,9 +156,9 @@ func (s *Schedules) List(ctx context.Context, limit int) ([]async.PeriodicSchedu
 				return nil, err
 			}
 			for i := 1; i < len(values) && len(out) < limit; i += 2 {
-				var p async.PeriodicSchedule
-				if err := json.Unmarshal([]byte(values[i]), &p); err != nil {
-					return nil, async.ErrUnavailable
+				p, err := unmarshalPeriodic([]byte(values[i]))
+				if err != nil {
+					return nil, err
 				}
 				out = append(out, p)
 			}
@@ -175,9 +178,9 @@ func (s *Schedules) Disable(ctx context.Context, id string, expected uint64) err
 	if err != nil {
 		return err
 	}
-	var p async.PeriodicSchedule
-	if err := json.Unmarshal(raw, &p); err != nil {
-		return async.ErrUnavailable
+	p, err := unmarshalPeriodic(raw)
+	if err != nil {
+		return err
 	}
 	if p.Revision != expected {
 		return async.ErrConflict

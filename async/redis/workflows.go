@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"math"
 	"strconv"
 	"time"
 
@@ -46,7 +47,7 @@ end;return 1
 `)
 
 func (w *Workflows) write(ctx context.Context, expected uint64, g async.Graph, intents []async.Intent) error {
-	if w.Connection == nil || w.Connection.Role() == connector.CacheRole {
+	if w.Connection == nil || w.Connection.Role() == connector.CacheRole || expected == math.MaxUint64 || g.Revision == 0 {
 		return async.ErrInvalid
 	}
 	if intents == nil {
@@ -56,9 +57,15 @@ func (w *Workflows) write(ctx context.Context, expected uint64, g async.Graph, i
 	if err != nil || len(gb) > async.MaxWorkflowDurableBytes {
 		return async.ErrInvalid
 	}
-	ib, err := json.Marshal(intents)
-	if err != nil || len(ib) > async.MaxWorkflowDurableBytes {
+	// The public durable limit bounds logical JSON, not the adapter's base64
+	// wrapper. Reserve encoding overhead so recovery cannot be stranded.
+	plainIntents, err := json.Marshal(intents)
+	if err != nil || len(plainIntents) > async.MaxWorkflowDurableBytes {
 		return async.ErrInvalid
+	}
+	ib, err := marshalIntents(intents)
+	if err != nil {
+		return err
 	}
 	out, err := w.Connection.Atomic(ctx, graphCAS, w.keys(g.ID), strconv.FormatUint(expected, 10), strconv.FormatUint(g.Revision, 10), gb, ib)
 	if err != nil {

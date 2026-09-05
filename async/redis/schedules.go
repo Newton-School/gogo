@@ -21,7 +21,7 @@ func (s *Schedules) keys(partition int) []string {
 func delayedID(e async.Envelope) string { return e.ID + ":" + strconv.Itoa(e.Retries) }
 
 var schedulePut = redigo.NewScript(`
-local old=redis.call('HGET',KEYS[2],ARGV[1]);if old then if cjson.decode(old).digest~=ARGV[3] then return 0 end;return 1 end
+local old=redis.call('HGET',KEYS[2],ARGV[1]);if old then local item=cjson.decode(old);if item.format~=1 then return redis.error_reply('GOGO_INVALID_SCHEDULE_METADATA') end;if item.digest~=ARGV[3] then return 0 end;return 1 end
 redis.call('HSET',KEYS[2],ARGV[1],ARGV[2]);redis.call('ZADD',KEYS[1],ARGV[4],ARGV[1]);return 1
 `)
 
@@ -35,11 +35,7 @@ func (s *Schedules) Schedule(ctx context.Context, e async.Envelope) error {
 	if e.ETA.IsZero() {
 		return async.ErrInvalid
 	}
-	item := struct {
-		async.DelayedItem
-		Digest string `json:"digest"`
-	}{DelayedItem: async.DelayedItem{Envelope: e}, Digest: e.DispatchDigest()}
-	b, err := json.Marshal(item)
+	b, err := marshalDocument(opaqueDocument{ID: delayedID(e), Digest: e.DispatchDigest()}, e)
 	if err != nil {
 		return err
 	}
@@ -53,18 +49,21 @@ func (s *Schedules) Schedule(ctx context.Context, e async.Envelope) error {
 	return nil
 }
 
-var scheduleLease = redigo.NewScript(`
+var scheduleLease = redigo.NewScript(incrementCounterLua + `
 local tm=redis.call('TIME');local now=tonumber(tm[1])*1000+math.floor(tonumber(tm[2])/1000)
-local ids=redis.call('ZRANGEBYSCORE',KEYS[1],'-inf',now,'LIMIT',0,ARGV[2]);local out={}
+local ids=redis.call('ZRANGEBYSCORE',KEYS[1],'-inf',now,'LIMIT',0,ARGV[2]);local out={};local updates={}
 for _,id in ipairs(ids) do
  local raw=redis.call('HGET',KEYS[2],id);if not raw then return redis.error_reply('GOGO_MISSING_SCHEDULE') end
  local item=cjson.decode(raw)
- if (item.lease_millis or 0)<=now then item.owner=ARGV[1];item.fence=item.fence+1;item.lease_millis=now+tonumber(ARGV[3]);raw=cjson.encode(item);redis.call('HSET',KEYS[2],id,raw);redis.call('ZADD',KEYS[1],item.lease_millis,id);table.insert(out,raw) end
-end;return out
+ if item.format~=1 then return redis.error_reply('GOGO_INVALID_SCHEDULE_METADATA') end
+ if (item.lease_millis or 0)<=now then item.owner=ARGV[1];item.fence=incrementCounter(item.fence);item.lease_millis=now+tonumber(ARGV[3]);raw=cjson.encode(item);table.insert(updates,{id=id,raw=raw,lease=item.lease_millis});table.insert(out,raw) end
+end
+for _,item in ipairs(updates) do redis.call('HSET',KEYS[2],item.id,item.raw);redis.call('ZADD',KEYS[1],item.lease,item.id) end
+return out
 `)
 
 func (s *Schedules) LeaseDue(ctx context.Context, owner string, limit int, lease time.Duration) ([]async.DelayedItem, error) {
-	if s.Connection == nil || owner == "" || limit < 1 || limit > 1000 || lease <= 0 {
+	if s.Connection == nil || owner == "" || limit < 1 || limit > 1000 || lease < time.Millisecond {
 		return nil, async.ErrInvalid
 	}
 	var out []async.DelayedItem
@@ -74,15 +73,16 @@ func (s *Schedules) LeaseDue(ctx context.Context, owner string, limit int, lease
 			return nil, err
 		}
 		for _, value := range values.([]any) {
-			var item struct {
-				async.DelayedItem
-				LeaseMillis int64 `json:"lease_millis"`
+			document, err := unmarshalDocument([]byte(value.(string)))
+			if err != nil {
+				return nil, err
 			}
-			if err := json.Unmarshal([]byte(value.(string)), &item); err != nil {
+			var envelope async.Envelope
+			if err := json.Unmarshal(document.Payload, &envelope); err != nil || document.ID != delayedID(envelope) || document.Digest != envelope.DispatchDigest() {
 				return nil, async.ErrUnavailable
 			}
-			item.LeaseUntil = time.UnixMilli(item.LeaseMillis)
-			out = append(out, item.DelayedItem)
+			fence, _ := strconv.ParseUint(document.Fence, 10, 64)
+			out = append(out, async.DelayedItem{Envelope: envelope, Owner: document.Owner, Fence: fence, LeaseUntil: time.UnixMilli(document.LeaseMillis)})
 		}
 	}
 	return out, nil
@@ -91,6 +91,7 @@ func (s *Schedules) LeaseDue(ctx context.Context, owner string, limit int, lease
 var scheduleCommit = redigo.NewScript(`
 local raw=redis.call('HGET',KEYS[2],ARGV[1]);if not raw then return 1 end
 local item=cjson.decode(raw);local tm=redis.call('TIME');local now=tonumber(tm[1])*1000+math.floor(tonumber(tm[2])/1000)
+if item.format~=1 then return redis.error_reply('GOGO_INVALID_SCHEDULE_METADATA') end
 if item.owner~=ARGV[2] or tostring(item.fence)~=ARGV[3] or (item.lease_millis or 0)<=now then return 0 end
 redis.call('ZREM',KEYS[1],ARGV[1]);redis.call('HDEL',KEYS[2],ARGV[1]);return 1
 `)

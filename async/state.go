@@ -2,6 +2,7 @@ package async
 
 import (
 	"encoding/json"
+	"math"
 	"time"
 )
 
@@ -46,6 +47,9 @@ func ClaimRecord(record Record, e Envelope, owner string, now time.Time, lease t
 	if record.Envelope.ETA.After(now) && !record.CancelRequested {
 		return Claim{Record: record}, nil
 	}
+	if record.Fence == math.MaxUint64 || record.Revision == math.MaxUint64 {
+		return Claim{}, ErrUnavailable
+	}
 	record = cloneJSON(record)
 	record.State = Running
 	record.Owner = owner
@@ -66,6 +70,9 @@ func ValidateLease(record Record, fence uint64, owner string, now time.Time) err
 func ApplyTransition(record Record, t Transition, now time.Time, resultTTL, tombstoneTTL time.Duration) (Record, error) {
 	if err := ValidateLease(record, t.Fence, t.Owner, now); err != nil {
 		return Record{}, err
+	}
+	if record.Revision == math.MaxUint64 {
+		return Record{}, ErrUnavailable
 	}
 	if t.ReplacementID != "" {
 		if t.ID != record.Envelope.ID || t.State != Running || len(t.Intents) != 1 || t.Intents[0].Kind != "replace" || t.Intents[0].Graph == nil || t.Intents[0].Graph.ID != t.ReplacementID || t.Intents[0].Graph.OriginTaskID != t.ID || t.Intents[0].Graph.OriginDigest != record.Digest || len(t.Output) != 0 || t.Next != nil || t.Failure != nil {
@@ -92,6 +99,9 @@ func ApplyTransition(record Record, t Transition, now time.Time, resultTTL, tomb
 }
 
 func applyOutcome(record Record, t Transition, now time.Time, resultTTL, tombstoneTTL time.Duration) (Record, error) {
+	if record.Revision == math.MaxUint64 {
+		return Record{}, ErrUnavailable
+	}
 	if t.ID != record.Envelope.ID || (!t.State.Terminal() && t.State != RetryWait) {
 		return Record{}, ErrInvalid
 	}
