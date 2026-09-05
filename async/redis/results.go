@@ -422,6 +422,14 @@ type intentBackend struct {
 	family     string
 }
 
+func (b intentBackend) valid() bool {
+	return b.connection != nil && b.connection.Role() != connector.CacheRole && (b.family == "task" || b.family == "workflow" || b.family == "schedule")
+}
+
+func validIntentIDs(source, id string) bool {
+	return (async.WorkflowInventoryPage{IDs: []string{source}}).Validate(1) == nil && (async.WorkflowInventoryPage{IDs: []string{id}}).Validate(1) == nil
+}
+
 func (r *Results) intentBackend() intentBackend { return intentBackend{r.Connection, "task"} }
 func (r *Results) ListIntents(ctx context.Context, limit int) ([]async.Intent, error) {
 	return r.intentBackend().list(ctx, limit)
@@ -437,7 +445,7 @@ func (b intentBackend) keys(source string) []string {
 	return []string{b.connection.PartitionKey(b.family, source, "intents"), index}
 }
 func (b intentBackend) list(ctx context.Context, limit int) ([]async.Intent, error) {
-	if limit < 1 || limit > 1000 {
+	if ctx == nil || !b.valid() || limit < 1 || limit > 1000 {
 		return nil, async.ErrInvalid
 	}
 	var out []async.Intent
@@ -453,7 +461,7 @@ func (b intentBackend) list(ctx context.Context, limit int) ([]async.Intent, err
 		}
 		for _, reference := range ids {
 			source, id, ok := strings.Cut(reference, ":")
-			if !ok {
+			if !ok || !validIntentIDs(source, id) || connector.Partition(source) != p {
 				return nil, async.ErrUnavailable
 			}
 			raw, err := b.connection.Client().HGet(ctx, b.keys(source)[0], id).Result()
@@ -464,29 +472,33 @@ func (b intentBackend) list(ctx context.Context, limit int) ([]async.Intent, err
 			if err != nil {
 				return nil, err
 			}
+			if intent.ID != id || intent.SourceID != source {
+				return nil, async.ErrUnavailable
+			}
 			out = append(out, intent)
 		}
 	}
 	return out, nil
 }
 
-var intentClaim = redigo.NewScript(incrementCounterLua + `
+var intentClaim = redigo.NewScript(intentMetadataLua + incrementCounterLua + `
 local raw=redis.call('HGET',KEYS[1],ARGV[1]);if not raw then return 'MISSING' end
-local item=cjson.decode(raw)
-if item.format~=1 then return redis.error_reply('GOGO_INVALID_INTENT_METADATA') end
+local item=readIntent(raw,ARGV[1],ARGV[4])
 if item.delivered then return raw end
 local tm=redis.call('TIME');local now=tonumber(tm[1])*1000+math.floor(tonumber(tm[2])/1000)
-if (item.lease_millis or 0)>now then return 'BUSY' end
-item.lease_millis=now+tonumber(ARGV[3]);item.fence=incrementCounter(item.fence);item.owner=ARGV[2]
+if item.lease_millis>now then return 'BUSY' end
+local duration=tonumber(ARGV[3]);if not duration or duration<1 or duration~=math.floor(duration) or now+duration>9007199254740991 then error('invalid intent lease') end
+item.lease_millis=now+duration;item.fence=incrementCounter(item.fence);item.owner=ARGV[2]
+raw=cjson.encode(item)
 redis.call('ZADD',KEYS[2],item.lease_millis,item.source_id..':'..item.id)
-raw=cjson.encode(item);redis.call('HSET',KEYS[1],ARGV[1],raw);return raw
+redis.call('HSET',KEYS[1],ARGV[1],raw);return raw
 `)
 
 func (b intentBackend) claim(ctx context.Context, source, id, owner string, lease time.Duration) (async.Intent, error) {
-	if owner == "" || lease < time.Millisecond {
+	if ctx == nil || !b.valid() || !validIntentIDs(source, id) || owner == "" || lease < time.Millisecond {
 		return async.Intent{}, async.ErrInvalid
 	}
-	out, err := b.connection.Atomic(ctx, intentClaim, b.keys(source), id, owner, lease.Milliseconds())
+	out, err := b.connection.Atomic(ctx, intentClaim, b.keys(source), id, owner, lease.Milliseconds(), source)
 	if err != nil {
 		return async.Intent{}, err
 	}
@@ -500,16 +512,20 @@ func (b intentBackend) claim(ctx context.Context, source, id, owner string, leas
 	return unmarshalIntent([]byte(raw))
 }
 
-var intentMark = redigo.NewScript(`
+var intentMark = redigo.NewScript(intentMetadataLua + `
 local raw=redis.call('HGET',KEYS[1],ARGV[1]);if not raw then return 'MISSING' end
-local item=cjson.decode(raw);if item.format~=1 then return redis.error_reply('GOGO_INVALID_INTENT_METADATA') end;if item.delivered then return 'OK' end
+local item=readIntent(raw,ARGV[1],ARGV[4]);if item.delivered then return 'OK' end
 local tm=redis.call('TIME');local now=tonumber(tm[1])*1000+math.floor(tonumber(tm[2])/1000)
-if item.owner~=ARGV[3] or tostring(item.fence)~=ARGV[2] or (item.lease_millis or 0)<=now then return 'LEASE' end
-item.delivered=true;redis.call('HSET',KEYS[1],ARGV[1],cjson.encode(item));redis.call('ZREM',KEYS[2],item.source_id..':'..item.id);return 'OK'
+if item.owner~=ARGV[3] or item.fence~=ARGV[2] or item.lease_millis<=now then return 'LEASE' end
+item.delivered=true;raw=cjson.encode(item)
+redis.call('HSET',KEYS[1],ARGV[1],raw);redis.call('ZREM',KEYS[2],item.source_id..':'..item.id);return 'OK'
 `)
 
 func (b intentBackend) mark(ctx context.Context, source, id string, fence uint64, owner string) error {
-	out, err := b.connection.Atomic(ctx, intentMark, b.keys(source), id, strconv.FormatUint(fence, 10), owner)
+	if ctx == nil || !b.valid() || !validIntentIDs(source, id) || owner == "" {
+		return async.ErrInvalid
+	}
+	out, err := b.connection.Atomic(ctx, intentMark, b.keys(source), id, strconv.FormatUint(fence, 10), owner, source)
 	if err != nil {
 		return err
 	}
