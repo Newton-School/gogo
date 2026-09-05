@@ -1,0 +1,311 @@
+{
+  "details": [
+    {
+      "id": "owner",
+      "label": "Proposed code owner",
+      "value": "core/orm.GetOrCreate; UpdateOrCreate"
+    },
+    {
+      "id": "status",
+      "label": "Implementation status",
+      "value": "No Go implementation exists. Names, limits and behavior are submitted design choices requiring review."
+    },
+    {
+      "id": "features",
+      "label": "Included features",
+      "value": "get_or_create; update_or_create; upsert; unique-key concurrency"
+    }
+  ],
+  "edges": [
+    {
+      "from": "entry",
+      "id": "edge-1",
+      "to": "unique"
+    },
+    {
+      "from": "unique",
+      "id": "edge-2",
+      "label": "No",
+      "to": "invalid"
+    },
+    {
+      "from": "unique",
+      "id": "edge-3",
+      "label": "Yes",
+      "to": "begin"
+    },
+    {
+      "from": "begin",
+      "id": "edge-4",
+      "to": "select"
+    },
+    {
+      "from": "select",
+      "id": "edge-5",
+      "to": "exists"
+    },
+    {
+      "from": "exists",
+      "id": "edge-6",
+      "label": "Existing",
+      "to": "update"
+    },
+    {
+      "from": "exists",
+      "id": "edge-7",
+      "label": "Missing",
+      "to": "defaults"
+    },
+    {
+      "from": "defaults",
+      "id": "edge-8",
+      "to": "insert"
+    },
+    {
+      "from": "insert",
+      "id": "edge-9",
+      "to": "inserted"
+    },
+    {
+      "from": "inserted",
+      "id": "edge-10",
+      "label": "Inserted",
+      "to": "commit"
+    },
+    {
+      "from": "inserted",
+      "id": "edge-11",
+      "label": "Expected unique race",
+      "to": "rewind"
+    },
+    {
+      "from": "inserted",
+      "id": "edge-12",
+      "label": "Other error",
+      "style": "error",
+      "to": "rollback"
+    },
+    {
+      "from": "rewind",
+      "id": "edge-13",
+      "to": "reload"
+    },
+    {
+      "from": "reload",
+      "id": "edge-14",
+      "to": "update"
+    },
+    {
+      "from": "update",
+      "id": "edge-15",
+      "label": "UpdateOrCreate",
+      "to": "updates"
+    },
+    {
+      "from": "update",
+      "id": "edge-16",
+      "label": "GetOrCreate",
+      "to": "commit"
+    },
+    {
+      "from": "updates",
+      "id": "edge-17",
+      "to": "write"
+    },
+    {
+      "from": "write",
+      "id": "edge-18",
+      "to": "commit"
+    },
+    {
+      "from": "commit",
+      "id": "edge-19",
+      "label": "Boundary succeeded",
+      "to": "done"
+    },
+    {
+      "from": "commit",
+      "id": "edge-20",
+      "label": "Commit/release failed",
+      "style": "error",
+      "to": "error-commit"
+    },
+    {
+      "from": "begin",
+      "id": "edge-21",
+      "label": "Begin failed",
+      "style": "error",
+      "to": "error-begin"
+    },
+    {
+      "from": "select",
+      "id": "edge-22",
+      "label": "Read failed",
+      "style": "error",
+      "to": "rollback"
+    },
+    {
+      "from": "defaults",
+      "id": "edge-23",
+      "label": "Validation failed",
+      "style": "error",
+      "to": "rollback"
+    },
+    {
+      "from": "reload",
+      "id": "edge-24",
+      "label": "Missing/denied/error",
+      "style": "error",
+      "to": "rollback"
+    },
+    {
+      "from": "updates",
+      "id": "edge-25",
+      "label": "Validation failed",
+      "style": "error",
+      "to": "rollback"
+    },
+    {
+      "from": "write",
+      "id": "edge-26",
+      "label": "Write failed",
+      "style": "error",
+      "to": "rollback"
+    },
+    {
+      "from": "rollback",
+      "id": "edge-27",
+      "to": "error-rollback"
+    }
+  ],
+  "id": "orm.upsert",
+  "layout": {
+    "direction": "down"
+  },
+  "nodes": [
+    {
+      "id": "entry",
+      "subtitle": "Scoped lookup must name an exact unique database constraint",
+      "title": "GetOrCreate or UpdateOrCreate",
+      "type": "api"
+    },
+    {
+      "id": "unique",
+      "subtitle": "Preflight query alone cannot prevent duplicate creation",
+      "title": "Lookup has database-enforced uniqueness?",
+      "type": "decision"
+    },
+    {
+      "id": "invalid",
+      "subtitle": "Add matching constraint or use non-atomic explicit query/create",
+      "title": "Reject unconstrained atomic operation",
+      "type": "error"
+    },
+    {
+      "id": "begin",
+      "subtitle": "Existing row is locked for UpdateOrCreate",
+      "title": "Begin operation transaction/savepoint",
+      "type": "database"
+    },
+    {
+      "id": "select",
+      "subtitle": "GetOrCreate ordinary read; UpdateOrCreate FOR UPDATE",
+      "title": "Select scoped row by unique key",
+      "type": "database"
+    },
+    {
+      "id": "exists",
+      "subtitle": "Zero or one; multiple rows indicate invalid contract",
+      "title": "Did a row match?",
+      "type": "decision"
+    },
+    {
+      "id": "defaults",
+      "subtitle": "Evaluate callable defaults once; database preparation only, no implicit FullClean",
+      "title": "Prepare creation defaults",
+      "type": "action"
+    },
+    {
+      "id": "insert",
+      "subtitle": "Do not abort outer operation on expected unique conflict",
+      "title": "Attempt INSERT inside race savepoint",
+      "type": "database"
+    },
+    {
+      "id": "inserted",
+      "subtitle": "Only exact named unique constraint is a recoverable race",
+      "title": "Did the insert succeed?",
+      "type": "decision"
+    },
+    {
+      "id": "rewind",
+      "subtitle": "PostgreSQL aborted statement state cleared before reload",
+      "title": "Roll back race savepoint",
+      "type": "database"
+    },
+    {
+      "id": "reload",
+      "subtitle": "If winner is outside scope, deny without exposing it",
+      "title": "Reload winning row with required lock",
+      "type": "database"
+    },
+    {
+      "id": "update",
+      "subtitle": "Creation path skips update defaults",
+      "title": "Is this UpdateOrCreate on an existing row?",
+      "type": "decision"
+    },
+    {
+      "id": "updates",
+      "subtitle": "Use locked row and explicit update fields; custom model validation only if caller requested it",
+      "title": "Prepare existing-row update defaults",
+      "type": "action"
+    },
+    {
+      "id": "write",
+      "subtitle": "Current row locked; constraints rechecked",
+      "title": "Apply scoped update and transactional hooks",
+      "type": "database"
+    },
+    {
+      "id": "commit",
+      "subtitle": "Owned commit runs OnCommit; nested result remains pending caller commit",
+      "title": "Commit owned boundary or release caller savepoint",
+      "type": "database"
+    },
+    {
+      "id": "done",
+      "subtitle": "created=true only if this invocation inserted the row",
+      "title": "Return instance and created flag",
+      "type": "terminal"
+    },
+    {
+      "id": "rollback",
+      "subtitle": "Unrelated integrity errors must propagate",
+      "title": "Roll back owned boundary",
+      "type": "database"
+    },
+    {
+      "id": "error-commit",
+      "subtitle": "Do not retry arbitrary failures as unique races",
+      "title": "Return typed error or uncertain commit",
+      "type": "error"
+    },
+    {
+      "id": "error-begin",
+      "subtitle": "Do not retry arbitrary failures as unique races",
+      "title": "Return typed error or uncertain commit",
+      "type": "error"
+    },
+    {
+      "id": "error-rollback",
+      "subtitle": "Do not retry arbitrary failures as unique races",
+      "title": "Return typed error or uncertain commit",
+      "type": "error"
+    }
+  ],
+  "schemaVersion": 3,
+  "summary": "Proposed behavior. Expected uniqueness races use a savepoint before reloading; update and get paths are distinct. Retry after serialization failure is an explicit caller policy, not hidden replay.",
+  "title": "Resolve create-or-update races safely",
+  "type": "flow"
+}

@@ -1,0 +1,98 @@
+{
+  "columns": [
+    {
+      "format": "text",
+      "id": "op",
+      "label": "Operations"
+    },
+    {
+      "format": "text",
+      "id": "contract",
+      "label": "State / DB effect"
+    },
+    {
+      "format": "text",
+      "id": "flow",
+      "label": "Flow"
+    }
+  ],
+  "id": "migrations.operations",
+  "rows": [
+    {
+      "cells": {
+        "contract": "Historical state updated independently of live Go type; DB-owning changes use SchemaEditor; deleted data is not recoverable by reverse CREATE.",
+        "flow": "migrations.detect; migrations.apply; migrations.reverse",
+        "op": "CreateModel, DeleteModel, RenameModel, AlterModelTable, AlterModelTableComment, AlterModelOptions, AlterModelManagers"
+      },
+      "id": "model"
+    },
+    {
+      "cells": {
+        "contract": "Null/default/backfill requirement checked before populated-table DDL; rename intent explicit, no heuristic data loss.",
+        "flow": "migrations.detect; migrations.online",
+        "op": "AddField, RemoveField, AlterField, RenameField, AlterOrderWithRespectTo"
+      },
+      "id": "field"
+    },
+    {
+      "cells": {
+        "contract": "Transactional capability checked; invalid concurrent indexes discovered and resumed/rebuilt with operator-visible state.",
+        "flow": "postgres.schema; migrations.online",
+        "op": "AddIndex, RemoveIndex, RenameIndex; concurrent PostgreSQL variants"
+      },
+      "id": "index"
+    },
+    {
+      "cells": {
+        "contract": "State-only alteration distinguished from DB enforcement; deferral and NOT VALID limited to supported constraint types.",
+        "flow": "postgres.schema",
+        "op": "AddConstraint, RemoveConstraint, AlterConstraint, ValidateConstraint"
+      },
+      "id": "constraint"
+    },
+    {
+      "cells": {
+        "contract": "Normalize legacy metadata into explicit named constraints; unsafe through/key conversion requires staged migration.",
+        "flow": "migrations.detect; migrations.online",
+        "op": "AlterUniqueTogether; tablespace changes; relation-through changes"
+      },
+      "id": "legacy"
+    },
+    {
+      "cells": {
+        "contract": "Historical registry and selected alias; irreversible marker when reverse absent; raw SQL explicit and parameterized.",
+        "flow": "migrations.data; orm.native",
+        "op": "RunData(forward, reverse); RunSQL(sql, params, reverse, state_operations)"
+      },
+      "id": "data"
+    },
+    {
+      "cells": {
+        "contract": "Operation declares state effect, database effect, reversibility, atomicity and reduction rules; test fresh and upgrade paths.",
+        "flow": "migrations.squash; connectors.extend",
+        "op": "SeparateDatabaseAndState; custom Operation; elidable/category metadata"
+      },
+      "id": "state"
+    },
+    {
+      "cells": {
+        "contract": "Migration role must have permission; runtime never installs extensions; extension upgrade explicit and version-checked.",
+        "flow": "postgres.extensions; postgres.schema",
+        "op": "CreateExtension; collation creation/removal; PostgreSQL HStore/Trigram/Unaccent/BtreeGin/BtreeGist/PostGIS"
+      },
+      "id": "extensions"
+    },
+    {
+      "cells": {
+        "contract": "Checksum/history authority; fake initial requires full schema evidence, not table-name existence alone; pruning operator-only.",
+        "flow": "migrations.detect; migrations.apply; migrations.reverse; migrations.squash",
+        "op": "Dependencies, run_before, replacements, merge, initial, fake/fake-initial, prune/optimize"
+      },
+      "id": "graph"
+    }
+  ],
+  "schemaVersion": 3,
+  "summary": "Proposed contract for architecture review; not implemented.",
+  "title": "Migration operation catalog",
+  "type": "table"
+}

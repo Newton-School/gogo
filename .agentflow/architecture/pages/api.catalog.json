@@ -1,0 +1,112 @@
+{
+  "columns": [
+    {
+      "format": "text",
+      "id": "family",
+      "label": "Family"
+    },
+    {
+      "format": "text",
+      "id": "items",
+      "label": "Included features"
+    },
+    {
+      "format": "text",
+      "id": "rule",
+      "label": "Contract"
+    },
+    {
+      "format": "text",
+      "id": "flow",
+      "label": "Flow"
+    }
+  ],
+  "id": "api.catalog",
+  "rows": [
+    {
+      "cells": {
+        "family": "Serializer fields",
+        "flow": "api.serializers",
+        "items": "Scalar/numeric/string/UUID/URL/email/IP/date/time/duration/choice/list/dict/JSON/file/image; model relation and hyperlink; computed field",
+        "rule": "Required/default/null/blank/source/label/help, min/max/length/precision; read-only/write-only/hidden; unknown fields rejected by default."
+      },
+      "id": "fields"
+    },
+    {
+      "cells": {
+        "family": "Serializer composition",
+        "flow": "api.serializers; api.write",
+        "items": "Serializer, ModelSerializer, ListSerializer, nested values/relations, explicit Create/Update, partial updates",
+        "rule": "Nested writes require declared policy and transaction; no automatic cascading assignment of writable relation IDs."
+      },
+      "id": "compose"
+    },
+    {
+      "cells": {
+        "family": "Resource views",
+        "flow": "api.read; api.write",
+        "items": "Function handler, APIView, generic CRUD, ResourceSet, ReadOnlyResourceSet, router actions and custom route registration",
+        "rule": "Resource supplies QueryScope and permission policy; field projection allowlist; read and mutation checks independent."
+      },
+      "id": "resources"
+    },
+    {
+      "cells": {
+        "family": "Parsers/renderers and negotiation",
+        "flow": "http.request; api.serializers; http.responses",
+        "items": "JSON, multipart, URL form, text, streaming JSON; extension codecs; Accept/Content-Type; versioned resources",
+        "rule": "415 for unsupported input; 406 for unacceptable output; body bounded; browser documentation view opt-in and access-controlled."
+      },
+      "id": "media"
+    },
+    {
+      "cells": {
+        "family": "API policy",
+        "flow": "auth.tokens; auth.permissions; ratelimit.consume; api.read",
+        "items": "Session/token/basic authentication adapters; resource/object permissions; action policies; throttling; filtering/search/ordering",
+        "rule": "Basic over TLS only and disabled by default; throttle not authorization; all filter fields/operators allowlisted."
+      },
+      "id": "policy"
+    },
+    {
+      "cells": {
+        "family": "Pagination",
+        "flow": "api.pagination",
+        "items": "Page number, limit/offset, signed cursor; count; empty page; orphans and elided ranges for HTML",
+        "rule": "Stable unique tiebreaker; cursor bound to query/scope/version; enforce max size; invalid cursor 400."
+      },
+      "id": "pages"
+    },
+    {
+      "cells": {
+        "family": "Contracts and clients",
+        "flow": "api.schema; release.modules",
+        "items": "OpenAPI document, schema validation, versioning, route naming, browsable docs, generated client interface hooks",
+        "rule": "Schema derived from same serializer/resource metadata; hide private endpoints; contract changes reviewed before release."
+      },
+      "id": "schema"
+    },
+    {
+      "cells": {
+        "family": "Validation and exception rendering",
+        "flow": "core.typed-errors",
+        "items": "Field/nonfield errors, stable code/status, request ID, conflict and retry headers",
+        "rule": "No stack traces/SQL/secrets in production; input values redacted in diagnostics."
+      },
+      "id": "errors"
+    },
+    {
+      "cells": {
+        "family": "API testing",
+        "flow": "testing.suite",
+        "items": "Request factory/client, forced test identity, auth/session/token tests, schema checks, content negotiation cases",
+        "rule": "Testing bypasses available only through testing package; production handlers never infer test privileges."
+      },
+      "id": "testing"
+    }
+  ],
+  "schemaVersion": 3,
+  "summary": "Proposed contract for architecture review; not implemented.",
+  "title": "REST API feature and serializer catalog",
+  "type": "table"
+}

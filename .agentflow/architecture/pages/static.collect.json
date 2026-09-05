@@ -1,0 +1,116 @@
+{
+  "details": [
+    {
+      "id": "owner",
+      "label": "Proposed code owner",
+      "value": "core/static"
+    },
+    {
+      "id": "status",
+      "label": "Implementation status",
+      "value": "No Go implementation exists. Names, limits and behavior are submitted design choices requiring review."
+    },
+    {
+      "id": "features",
+      "label": "Included features",
+      "value": "collectstatic; findstatic; manifest storage; hashed assets; template static tag; deployment"
+    }
+  ],
+  "edges": [
+    {
+      "from": "entry",
+      "id": "entry-to-discover",
+      "to": "discover"
+    },
+    {
+      "from": "discover",
+      "id": "discover-to-validate",
+      "to": "validate"
+    },
+    {
+      "from": "validate",
+      "id": "validate-to-hash",
+      "to": "hash"
+    },
+    {
+      "from": "hash",
+      "id": "hash-to-write",
+      "to": "write"
+    },
+    {
+      "from": "write",
+      "id": "write-to-manifest",
+      "to": "manifest"
+    },
+    {
+      "from": "manifest",
+      "id": "manifest-to-done",
+      "to": "done"
+    },
+    {
+      "from": "write",
+      "id": "write-to-backend-failed",
+      "label": "Operation fails",
+      "style": "error",
+      "to": "backend-failed"
+    }
+  ],
+  "id": "static.collect",
+  "layout": {
+    "direction": "down"
+  },
+  "nodes": [
+    {
+      "id": "entry",
+      "subtitle": "manage.go collectstatic [--dry-run]",
+      "title": "Collect static assets",
+      "type": "api"
+    },
+    {
+      "id": "discover",
+      "subtitle": "Deterministic precedence; duplicate paths reported with owner",
+      "title": "Find project and installed-app assets",
+      "type": "action"
+    },
+    {
+      "id": "validate",
+      "subtitle": "No traversal/symlink escape; distinguish public static from private uploads",
+      "title": "Validate paths and file types",
+      "type": "action"
+    },
+    {
+      "id": "hash",
+      "subtitle": "CSS URL dependencies resolved before final manifest",
+      "title": "Fingerprint content and rewrite asset references",
+      "type": "action"
+    },
+    {
+      "id": "write",
+      "subtitle": "Local backend initially; future object-storage adapter explicit",
+      "title": "Write versioned asset set to selected storage",
+      "type": "external"
+    },
+    {
+      "id": "manifest",
+      "subtitle": "Atomic manifest swap; old immutable assets retained for rolling clients",
+      "title": "Publish manifest after all assets succeed",
+      "type": "action"
+    },
+    {
+      "id": "done",
+      "subtitle": "Dev server allowed only in DEBUG; findstatic explains origin",
+      "title": "Serve hashed URLs via web server/CDN",
+      "type": "terminal"
+    },
+    {
+      "id": "backend-failed",
+      "subtitle": "Failed collect must not publish a partial release",
+      "title": "Keep previous asset manifest active",
+      "type": "error"
+    }
+  ],
+  "schemaVersion": 3,
+  "summary": "Proposed behavior. Owned by core/static; select nodes for technical details.",
+  "title": "Collect, fingerprint and serve static assets",
+  "type": "flow"
+}

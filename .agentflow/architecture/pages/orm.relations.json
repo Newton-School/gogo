@@ -1,0 +1,167 @@
+{
+  "details": [
+    {
+      "id": "owner",
+      "label": "Proposed code owner",
+      "value": "core/orm.RelationManager"
+    },
+    {
+      "id": "status",
+      "label": "Implementation status",
+      "value": "No Go implementation exists. Names, limits and behavior are submitted design choices requiring review."
+    },
+    {
+      "id": "features",
+      "label": "Included features",
+      "value": "foreign keys; one-to-one; many-to-many; through models; reverse managers; relation cache"
+    }
+  ],
+  "edges": [
+    {
+      "from": "entry",
+      "id": "entry-to-resolve",
+      "to": "resolve"
+    },
+    {
+      "from": "resolve",
+      "id": "resolve-to-valid",
+      "to": "valid"
+    },
+    {
+      "from": "valid",
+      "id": "valid-to-valid-rejected",
+      "label": "No",
+      "style": "error",
+      "to": "valid-rejected"
+    },
+    {
+      "from": "valid",
+      "id": "valid-to-lock",
+      "label": "Yes",
+      "to": "lock"
+    },
+    {
+      "from": "lock",
+      "id": "lock-to-change",
+      "to": "change"
+    },
+    {
+      "from": "change",
+      "id": "change-to-hooks",
+      "to": "hooks"
+    },
+    {
+      "from": "hooks",
+      "id": "hooks-to-commit",
+      "to": "commit"
+    },
+    {
+      "from": "commit",
+      "id": "commit-to-done",
+      "to": "done"
+    },
+    {
+      "from": "change",
+      "id": "change-to-backend-failed",
+      "label": "Operation fails",
+      "style": "error",
+      "to": "backend-failed-change"
+    },
+    {
+      "from": "hooks",
+      "id": "hooks-to-backend-failed",
+      "label": "Operation fails",
+      "style": "error",
+      "to": "backend-failed-hooks"
+    },
+    {
+      "from": "commit",
+      "id": "commit-to-backend-failed",
+      "label": "Operation fails",
+      "style": "error",
+      "to": "backend-failed-commit"
+    }
+  ],
+  "id": "orm.relations",
+  "layout": {
+    "direction": "down"
+  },
+  "nodes": [
+    {
+      "id": "entry",
+      "subtitle": "FK, one-to-one, reverse FK, many-to-many and explicit through model",
+      "title": "Access a related manager",
+      "type": "api"
+    },
+    {
+      "id": "resolve",
+      "subtitle": "Source PK required; cross-database relation rejected by router",
+      "title": "Resolve relation metadata and scope",
+      "type": "action"
+    },
+    {
+      "id": "valid",
+      "subtitle": "add/remove/clear/set; through-required fields validated",
+      "title": "Requested relation mutation allowed?",
+      "type": "decision"
+    },
+    {
+      "id": "valid-rejected",
+      "subtitle": "RelationError; no join-table change",
+      "title": "Reject relation operation",
+      "type": "error"
+    },
+    {
+      "id": "lock",
+      "subtitle": "Set compares current and desired IDs in one transaction",
+      "title": "Lock source for replacement mutations",
+      "type": "database"
+    },
+    {
+      "id": "change",
+      "subtitle": "Unique join constraints prevent duplicate membership; enforce FK ownership",
+      "title": "Insert/delete relation or update FK",
+      "type": "database"
+    },
+    {
+      "id": "hooks",
+      "subtitle": "Before/after add/remove/clear; hook failure rolls back",
+      "title": "Run relation-change hooks",
+      "type": "event"
+    },
+    {
+      "id": "commit",
+      "subtitle": "Invalidate instance prefetch cache; no global stale cache reuse",
+      "title": "Commit relation mutation",
+      "type": "database"
+    },
+    {
+      "id": "done",
+      "subtitle": "Relation reads remain scoped queries",
+      "title": "Return related result or affected count",
+      "type": "terminal"
+    },
+    {
+      "id": "backend-failed-change",
+      "subtitle": "No partial Set result; return typed constraint or availability error",
+      "title": "Rollback relation changes",
+      "type": "error"
+    },
+    {
+      "id": "backend-failed-hooks",
+      "subtitle": "No partial Set result; return typed constraint or availability error",
+      "title": "Rollback relation changes",
+      "type": "error"
+    },
+    {
+      "id": "backend-failed-commit",
+      "subtitle": "No partial Set result; return typed constraint or availability error",
+      "title": "Rollback relation changes",
+      "type": "error"
+    }
+  ],
+  "schemaVersion": 3,
+  "summary": "Proposed behavior. Owned by core/orm.RelationManager; select nodes for technical details.",
+  "title": "Read and mutate related objects",
+  "type": "flow"
+}

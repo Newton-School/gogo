@@ -1,0 +1,118 @@
+{
+  "details": [
+    {
+      "id": "owner",
+      "label": "Proposed code owner",
+      "value": "core/http.Response"
+    },
+    {
+      "id": "status",
+      "label": "Implementation status",
+      "value": "No Go implementation exists. Names, limits and behavior are submitted design choices requiring review."
+    },
+    {
+      "id": "features",
+      "label": "Included features",
+      "value": "JsonResponse; redirects; cookies; TemplateResponse; conditional GET; HEAD; file response; content negotiation"
+    }
+  ],
+  "edges": [
+    {
+      "from": "entry",
+      "id": "entry-to-validate",
+      "to": "validate"
+    },
+    {
+      "from": "validate",
+      "id": "validate-to-conditional",
+      "to": "conditional"
+    },
+    {
+      "from": "conditional",
+      "id": "conditional-to-modified",
+      "to": "modified"
+    },
+    {
+      "from": "modified",
+      "id": "modified-to-modified-rejected",
+      "label": "No",
+      "to": "modified-rejected"
+    },
+    {
+      "from": "modified",
+      "id": "modified-to-render",
+      "label": "Yes",
+      "to": "render"
+    },
+    {
+      "from": "render",
+      "id": "render-to-done",
+      "to": "done"
+    },
+    {
+      "from": "render",
+      "id": "render-to-backend-failed",
+      "label": "Operation fails",
+      "style": "error",
+      "to": "backend-failed"
+    }
+  ],
+  "id": "http.responses",
+  "layout": {
+    "direction": "down"
+  },
+  "nodes": [
+    {
+      "id": "entry",
+      "subtitle": "Text, HTML, JSON, redirect, file or deferred template response",
+      "title": "Return response from a view",
+      "type": "api"
+    },
+    {
+      "id": "validate",
+      "subtitle": "Reject CRLF; secure cookie defaults; JSON encoding failure caught before commit",
+      "title": "Validate status, headers and cookies",
+      "type": "action"
+    },
+    {
+      "id": "conditional",
+      "subtitle": "Compare If-None-Match / If-Modified-Since for safe methods",
+      "title": "Compute ETag and modification metadata",
+      "type": "action"
+    },
+    {
+      "id": "modified",
+      "subtitle": "Validator calculated with permission-sensitive scope",
+      "title": "Representation changed?",
+      "type": "decision"
+    },
+    {
+      "id": "modified-rejected",
+      "subtitle": "Preserve cache/security headers",
+      "title": "Return 304 without response body",
+      "type": "terminal"
+    },
+    {
+      "id": "render",
+      "subtitle": "HEAD suppresses body; redirect target validated; files support bounded ranges",
+      "title": "Render selected representation",
+      "type": "action"
+    },
+    {
+      "id": "done",
+      "subtitle": "Response middleware gets final status; no second write allowed",
+      "title": "Write one finalized response",
+      "type": "terminal"
+    },
+    {
+      "id": "backend-failed",
+      "subtitle": "After headers, abort transfer and record failed response",
+      "title": "Return rendering error before headers",
+      "type": "error"
+    }
+  ],
+  "schemaVersion": 3,
+  "summary": "Proposed behavior. Owned by core/http.Response; select nodes for technical details.",
+  "title": "Construct JSON, redirects, files and conditional responses",
+  "type": "flow"
+}

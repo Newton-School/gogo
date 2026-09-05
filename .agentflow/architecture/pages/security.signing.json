@@ -1,0 +1,95 @@
+{
+  "details": [
+    {
+      "id": "owner",
+      "label": "Proposed code owner",
+      "value": "core/security.Signer"
+    },
+    {
+      "id": "status",
+      "label": "Implementation status",
+      "value": "No Go implementation exists. Names, limits and behavior are submitted design choices requiring review."
+    },
+    {
+      "id": "features",
+      "label": "Included features",
+      "value": "cryptographic signing; timestamp signer; key rotation; constant-time compare; safe serialization"
+    }
+  ],
+  "edges": [
+    {
+      "from": "entry",
+      "id": "entry-to-encode",
+      "to": "encode"
+    },
+    {
+      "from": "encode",
+      "id": "encode-to-mac",
+      "to": "mac"
+    },
+    {
+      "from": "mac",
+      "id": "mac-to-valid",
+      "to": "valid"
+    },
+    {
+      "from": "valid",
+      "id": "valid-to-valid-rejected",
+      "label": "No",
+      "style": "error",
+      "to": "valid-rejected"
+    },
+    {
+      "from": "valid",
+      "id": "valid-to-done",
+      "label": "Yes",
+      "to": "done"
+    }
+  ],
+  "id": "security.signing",
+  "layout": {
+    "direction": "down"
+  },
+  "nodes": [
+    {
+      "id": "entry",
+      "subtitle": "Purpose-scoped signing salt; separate key identity",
+      "title": "Sign or verify a value",
+      "type": "api"
+    },
+    {
+      "id": "encode",
+      "subtitle": "Bound input size; deterministic encoding; no ambiguous concatenation",
+      "title": "Canonicalize payload and timestamp",
+      "type": "action"
+    },
+    {
+      "id": "mac",
+      "subtitle": "HMAC with configured key; constant-time validation",
+      "title": "Compute or compare authentication tag",
+      "type": "action"
+    },
+    {
+      "id": "valid",
+      "subtitle": "Fallback keys accepted only during rotation window",
+      "title": "Signature, purpose and age valid?",
+      "type": "decision"
+    },
+    {
+      "id": "valid-rejected",
+      "subtitle": "No trusted payload returned",
+      "title": "Return BadSignature or ExpiredSignature",
+      "type": "error"
+    },
+    {
+      "id": "done",
+      "subtitle": "Signing provides integrity, not encryption; no arbitrary object deserialization",
+      "title": "Return verified payload",
+      "type": "terminal"
+    }
+  ],
+  "schemaVersion": 3,
+  "summary": "Proposed behavior. Owned by core/security.Signer; select nodes for technical details.",
+  "title": "Sign and verify time-bounded values",
+  "type": "flow"
+}

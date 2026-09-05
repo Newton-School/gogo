@@ -1,0 +1,154 @@
+{
+  "details": [
+    {
+      "id": "owner",
+      "label": "Proposed code owner",
+      "value": "core/orm.Query; internal/sqlcompiler; core/db"
+    },
+    {
+      "id": "status",
+      "label": "Implementation status",
+      "value": "No Go implementation exists. Names, limits and behavior are submitted design choices requiring review."
+    },
+    {
+      "id": "features",
+      "label": "Included features",
+      "value": "filter; exclude; Q AND/OR/NOT; ordering; distinct; values; defer/only; union/intersection/difference; iterator; explain"
+    }
+  ],
+  "edges": [
+    {
+      "from": "entry",
+      "id": "entry-to-resolve",
+      "to": "resolve"
+    },
+    {
+      "from": "resolve",
+      "id": "resolve-to-scope",
+      "to": "scope"
+    },
+    {
+      "from": "scope",
+      "id": "scope-to-capability",
+      "to": "capability"
+    },
+    {
+      "from": "capability",
+      "id": "capability-to-capability-rejected",
+      "label": "No",
+      "style": "error",
+      "to": "capability-rejected"
+    },
+    {
+      "from": "capability",
+      "id": "capability-to-compile",
+      "label": "Yes",
+      "to": "compile"
+    },
+    {
+      "from": "compile",
+      "id": "compile-to-execute",
+      "to": "execute"
+    },
+    {
+      "from": "execute",
+      "id": "execute-to-scan",
+      "to": "scan"
+    },
+    {
+      "from": "scan",
+      "id": "scan-to-done",
+      "to": "done"
+    },
+    {
+      "from": "execute",
+      "id": "execute-to-backend-failed",
+      "label": "Operation fails",
+      "style": "error",
+      "to": "backend-failed-execute"
+    },
+    {
+      "from": "scan",
+      "id": "scan-to-backend-failed",
+      "label": "Operation fails",
+      "style": "error",
+      "to": "backend-failed-scan"
+    }
+  ],
+  "id": "orm.select",
+  "layout": {
+    "direction": "down"
+  },
+  "nodes": [
+    {
+      "id": "entry",
+      "subtitle": "Query[Product].Filter(...).OrderBy(...).Limit(...)",
+      "title": "Build an immutable query",
+      "type": "api"
+    },
+    {
+      "id": "resolve",
+      "subtitle": "Unknown field/lookup rejected; Query construction does no I/O",
+      "title": "Resolve typed fields and lookup operators",
+      "type": "action"
+    },
+    {
+      "id": "scope",
+      "subtitle": "Admin/API inject scope before counts/aggregation; raw ORM has no inferred permissions",
+      "title": "Apply caller-supplied resource scope",
+      "type": "action"
+    },
+    {
+      "id": "capability",
+      "subtitle": "Dialect capability set; no silent vendor fallback",
+      "title": "Backend supports all query operations?",
+      "type": "decision"
+    },
+    {
+      "id": "capability-rejected",
+      "subtitle": "No SQL sent",
+      "title": "Return UnsupportedFeature",
+      "type": "error"
+    },
+    {
+      "id": "compile",
+      "subtitle": "Quoted identifiers from metadata; user values bound separately",
+      "title": "Compile AST to parameterized SQL",
+      "type": "action"
+    },
+    {
+      "id": "execute",
+      "subtitle": "context timeout; bounded pool; transaction connection if bound",
+      "title": "Execute on selected database alias",
+      "type": "database"
+    },
+    {
+      "id": "scan",
+      "subtitle": "NULL and decoder errors surfaced; close rows on every exit",
+      "title": "Map typed rows and relations",
+      "type": "action"
+    },
+    {
+      "id": "done",
+      "subtitle": "Query clones do not share mutable result caches; iterator owns close",
+      "title": "Return typed result or iterator",
+      "type": "terminal"
+    },
+    {
+      "id": "backend-failed-execute",
+      "subtitle": "Canceled, unavailable and decoding errors remain distinguishable",
+      "title": "Close rows and return QueryError",
+      "type": "error"
+    },
+    {
+      "id": "backend-failed-scan",
+      "subtitle": "Canceled, unavailable and decoding errors remain distinguishable",
+      "title": "Close rows and return QueryError",
+      "type": "error"
+    }
+  ],
+  "schemaVersion": 3,
+  "summary": "Proposed behavior. Owned by core/orm.Query; internal/sqlcompiler; core/db; select nodes for technical details.",
+  "title": "Build, execute and materialize a query",
+  "type": "flow"
+}

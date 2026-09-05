@@ -1,0 +1,106 @@
+{
+  "details": [
+    {
+      "id": "owner",
+      "label": "Proposed code owner",
+      "value": "core/forms.Form"
+    },
+    {
+      "id": "status",
+      "label": "Implementation status",
+      "value": "No Go implementation exists. Names, limits and behavior are submitted design choices requiring review."
+    },
+    {
+      "id": "features",
+      "label": "Included features",
+      "value": "forms; bound/unbound; widgets; prefixes; initial data; changed fields; disabled fields; accessibility"
+    }
+  ],
+  "edges": [
+    {
+      "from": "entry",
+      "id": "entry-to-widgets",
+      "to": "widgets"
+    },
+    {
+      "from": "widgets",
+      "id": "widgets-to-clean",
+      "to": "clean"
+    },
+    {
+      "from": "clean",
+      "id": "clean-to-cross",
+      "to": "cross"
+    },
+    {
+      "from": "cross",
+      "id": "cross-to-valid",
+      "to": "valid"
+    },
+    {
+      "from": "valid",
+      "id": "valid-to-valid-rejected",
+      "label": "No",
+      "style": "error",
+      "to": "valid-rejected"
+    },
+    {
+      "from": "valid",
+      "id": "valid-to-done",
+      "label": "Yes",
+      "to": "done"
+    }
+  ],
+  "id": "forms.bind",
+  "layout": {
+    "direction": "down"
+  },
+  "nodes": [
+    {
+      "id": "entry",
+      "subtitle": "Request values, files, initial values and field prefixes",
+      "title": "Create bound or unbound form",
+      "type": "api"
+    },
+    {
+      "id": "widgets",
+      "subtitle": "Checkbox/multiselect/date/file behavior; missing vs empty preserved",
+      "title": "Extract widget values and normalize presence",
+      "type": "action"
+    },
+    {
+      "id": "clean",
+      "subtitle": "Required, choice, format and custom CleanField hooks",
+      "title": "Run typed field cleaning and validators",
+      "type": "action"
+    },
+    {
+      "id": "cross",
+      "subtitle": "Cross-field errors; changed_data comparison; disabled fields use trusted initial data",
+      "title": "Run form-wide validation",
+      "type": "action"
+    },
+    {
+      "id": "valid",
+      "subtitle": "Preserve submitted safe values for redisplay",
+      "title": "No field or form errors?",
+      "type": "decision"
+    },
+    {
+      "id": "valid-rejected",
+      "subtitle": "Labels, descriptions, aria-invalid and error summary; no persistence",
+      "title": "Render bound form with errors",
+      "type": "error"
+    },
+    {
+      "id": "done",
+      "subtitle": "Validation alone has no DB mutation",
+      "title": "Expose cleaned data",
+      "type": "terminal"
+    }
+  ],
+  "schemaVersion": 3,
+  "summary": "Proposed behavior. Owned by core/forms.Form; select nodes for technical details.",
+  "title": "Bind and validate a form",
+  "type": "flow"
+}

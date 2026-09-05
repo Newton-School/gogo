@@ -1,0 +1,196 @@
+{
+  "details": [
+    {
+      "id": "owner",
+      "label": "Proposed code owner",
+      "value": "admin.SaveModel; SaveRelated"
+    },
+    {
+      "id": "status",
+      "label": "Implementation status",
+      "value": "No Go implementation exists. Names, limits and behavior are submitted design choices requiring review."
+    },
+    {
+      "id": "features",
+      "label": "Included features",
+      "value": "save_model; save_related; inlines; atomic edit; audit; save_as; save_on_top; optimistic conflict"
+    },
+    {
+      "id": "parity-reference",
+      "label": "Reference behavior checked in semantic preflight",
+      "value": "https://docs.djangoproject.com/en/6.0/ref/contrib/admin/#django.contrib.admin.ModelAdmin.readonly_fields"
+    }
+  ],
+  "edges": [
+    {
+      "from": "entry",
+      "id": "entry-to-bind",
+      "to": "bind"
+    },
+    {
+      "from": "bind",
+      "id": "bind-to-lock",
+      "to": "lock"
+    },
+    {
+      "from": "lock",
+      "id": "lock-to-valid",
+      "to": "valid"
+    },
+    {
+      "from": "valid",
+      "id": "valid-to-valid-rejected",
+      "label": "No",
+      "style": "error",
+      "to": "valid-rejected"
+    },
+    {
+      "from": "valid",
+      "id": "valid-to-parent",
+      "label": "Yes",
+      "to": "parent"
+    },
+    {
+      "from": "parent",
+      "id": "parent-to-children",
+      "to": "children"
+    },
+    {
+      "from": "children",
+      "id": "children-to-audit",
+      "to": "audit"
+    },
+    {
+      "from": "audit",
+      "id": "audit-to-commit",
+      "to": "commit"
+    },
+    {
+      "from": "commit",
+      "id": "commit-to-done",
+      "to": "done"
+    },
+    {
+      "from": "parent",
+      "id": "parent-to-backend-failed",
+      "label": "Operation fails",
+      "style": "error",
+      "to": "backend-failed-parent"
+    },
+    {
+      "from": "children",
+      "id": "children-to-backend-failed",
+      "label": "Operation fails",
+      "style": "error",
+      "to": "backend-failed-children"
+    },
+    {
+      "from": "audit",
+      "id": "audit-to-backend-failed",
+      "label": "Operation fails",
+      "style": "error",
+      "to": "backend-failed-audit"
+    },
+    {
+      "from": "commit",
+      "id": "commit-to-backend-failed",
+      "label": "Operation fails",
+      "style": "error",
+      "to": "backend-failed-commit"
+    }
+  ],
+  "id": "admin.save",
+  "layout": {
+    "direction": "down"
+  },
+  "nodes": [
+    {
+      "id": "entry",
+      "subtitle": "POST /admin/{app}/{model}/add or /{pk}/change; CSRF validated",
+      "title": "Submit Admin create/change form",
+      "type": "api"
+    },
+    {
+      "id": "bind",
+      "subtitle": "Bind only declared editable fields; ignore extra readonly values; posted object/inline IDs still require independent scope checks",
+      "title": "Bind allowed fields and inline management data",
+      "type": "action"
+    },
+    {
+      "id": "lock",
+      "subtitle": "Recheck action/object policy and optimistic version",
+      "title": "Begin transaction and lock scoped object",
+      "type": "database"
+    },
+    {
+      "id": "valid",
+      "subtitle": "Model validators, relation IDs, inline permissions and max/min counts",
+      "title": "Parent and all inline forms valid?",
+      "type": "decision"
+    },
+    {
+      "id": "valid-rejected",
+      "subtitle": "No saved parent with failed inlines",
+      "title": "Rollback and redisplay complete form errors",
+      "type": "error"
+    },
+    {
+      "id": "parent",
+      "subtitle": "SaveModel hook; identity available for new inline rows",
+      "title": "Save validated parent model",
+      "type": "database"
+    },
+    {
+      "id": "children",
+      "subtitle": "SaveRelated hook; deletion policy applied; all within parent transaction",
+      "title": "Save inline and many-to-many changes",
+      "type": "database"
+    },
+    {
+      "id": "audit",
+      "subtitle": "Actor/site/model/object/action/request ID; no password/token values",
+      "title": "Insert AdminLog with redacted field diff",
+      "type": "database"
+    },
+    {
+      "id": "commit",
+      "subtitle": "OnCommit actions run only after outer transaction succeeds",
+      "title": "Commit parent, children and history",
+      "type": "database"
+    },
+    {
+      "id": "done",
+      "subtitle": "Save, save-and-continue, save-and-add-another, save-as-new each permission-checked",
+      "title": "Redirect using selected save action",
+      "type": "terminal"
+    },
+    {
+      "id": "backend-failed-parent",
+      "subtitle": "Uncertain commit resolved by operation ID; no duplicate create",
+      "title": "Rollback edits and show safe save error",
+      "type": "error"
+    },
+    {
+      "id": "backend-failed-children",
+      "subtitle": "Uncertain commit resolved by operation ID; no duplicate create",
+      "title": "Rollback edits and show safe save error",
+      "type": "error"
+    },
+    {
+      "id": "backend-failed-audit",
+      "subtitle": "Uncertain commit resolved by operation ID; no duplicate create",
+      "title": "Rollback edits and show safe save error",
+      "type": "error"
+    },
+    {
+      "id": "backend-failed-commit",
+      "subtitle": "Uncertain commit resolved by operation ID; no duplicate create",
+      "title": "Rollback edits and show safe save error",
+      "type": "error"
+    }
+  ],
+  "schemaVersion": 3,
+  "summary": "Proposed behavior. Owned by admin.SaveModel; SaveRelated; select nodes for technical details.",
+  "title": "Save parent, inlines and audit in one transaction",
+  "type": "flow"
+}

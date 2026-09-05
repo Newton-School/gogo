@@ -1,0 +1,198 @@
+{
+  "details": [
+    {
+      "id": "owner",
+      "label": "Proposed code owner",
+      "value": "async/canvas.Group"
+    },
+    {
+      "id": "status",
+      "label": "Implementation status",
+      "value": "No Go implementation exists. Names, limits and behavior are submitted design choices requiring review."
+    },
+    {
+      "id": "features",
+      "label": "Included features",
+      "value": "group; parallel fanout; GroupResult; join; ordered results; empty group; partial failures"
+    }
+  ],
+  "edges": [
+    {
+      "from": "entry",
+      "id": "edge-1",
+      "to": "register"
+    },
+    {
+      "from": "register",
+      "id": "edge-2",
+      "to": "empty"
+    },
+    {
+      "from": "empty",
+      "id": "edge-3",
+      "label": "Zero",
+      "to": "finish"
+    },
+    {
+      "from": "empty",
+      "id": "edge-4",
+      "label": "Nonempty",
+      "to": "fanout"
+    },
+    {
+      "from": "fanout",
+      "id": "edge-5",
+      "style": "async",
+      "to": "completion"
+    },
+    {
+      "from": "completion",
+      "id": "edge-6",
+      "to": "record"
+    },
+    {
+      "from": "record",
+      "id": "edge-7",
+      "to": "all"
+    },
+    {
+      "from": "all",
+      "id": "edge-8",
+      "label": "Still waiting",
+      "to": "wait-more"
+    },
+    {
+      "from": "all",
+      "id": "edge-9",
+      "label": "All terminal",
+      "to": "finish"
+    },
+    {
+      "from": "finish",
+      "id": "edge-10",
+      "to": "done"
+    },
+    {
+      "from": "register",
+      "id": "edge-11",
+      "label": "Store failed",
+      "style": "error",
+      "to": "error-register"
+    },
+    {
+      "from": "fanout",
+      "id": "edge-12",
+      "label": "Partial publish failure",
+      "style": "error",
+      "to": "error-fanout"
+    },
+    {
+      "from": "record",
+      "id": "edge-13",
+      "label": "Store failed",
+      "style": "error",
+      "to": "error-record"
+    },
+    {
+      "from": "finish",
+      "id": "edge-14",
+      "label": "Store failed",
+      "style": "error",
+      "to": "error-finish"
+    }
+  ],
+  "id": "async.group",
+  "layout": {
+    "direction": "down"
+  },
+  "nodes": [
+    {
+      "id": "entry",
+      "subtitle": "Bound member count and payload; preserve input order",
+      "title": "Submit independent typed task signatures",
+      "type": "api"
+    },
+    {
+      "id": "register",
+      "subtitle": "Each member has stable unique task ID; group result stores original indexes",
+      "title": "Persist expected IDs and dispatch intents",
+      "type": "cache"
+    },
+    {
+      "id": "empty",
+      "subtitle": "Empty group has a defined success result",
+      "title": "Does group have zero members?",
+      "type": "decision"
+    },
+    {
+      "id": "fanout",
+      "subtitle": "Bound publisher concurrency; partial dispatch resumes from stored intents",
+      "title": "Relay all pending member intents independently",
+      "type": "queue"
+    },
+    {
+      "id": "completion",
+      "subtitle": "Result-local intent relay; ignore intermediate retry/progress events",
+      "title": "Receive durable terminal member completion",
+      "type": "event"
+    },
+    {
+      "id": "record",
+      "subtitle": "Unknown child rejected; duplicate does not increase count",
+      "title": "CAS record one outcome per expected child ID",
+      "type": "cache"
+    },
+    {
+      "id": "all",
+      "subtitle": "Failures retained while remaining members continue",
+      "title": "Every expected member terminal?",
+      "type": "decision"
+    },
+    {
+      "id": "finish",
+      "subtitle": "Terminal group can contain failed outcomes; not automatically success",
+      "title": "Persist ordered GroupResult and completion intent",
+      "type": "cache"
+    },
+    {
+      "id": "done",
+      "subtitle": "Join raises/returns failures according to explicit caller policy",
+      "title": "Return ordered outcomes or empty list",
+      "type": "terminal"
+    },
+    {
+      "id": "wait-more",
+      "subtitle": "Next event resumes at Receive durable terminal member completion; active group state retained until all expected IDs settle",
+      "title": "Await another terminal child event",
+      "type": "terminal"
+    },
+    {
+      "id": "error-register",
+      "subtitle": "Do not lose partially dispatched children or fabricate completion",
+      "title": "Retain member state and pending intents for repair",
+      "type": "error"
+    },
+    {
+      "id": "error-fanout",
+      "subtitle": "Do not lose partially dispatched children or fabricate completion",
+      "title": "Retain member state and pending intents for repair",
+      "type": "error"
+    },
+    {
+      "id": "error-record",
+      "subtitle": "Do not lose partially dispatched children or fabricate completion",
+      "title": "Retain member state and pending intents for repair",
+      "type": "error"
+    },
+    {
+      "id": "error-finish",
+      "subtitle": "Do not lose partially dispatched children or fabricate completion",
+      "title": "Retain member state and pending intents for repair",
+      "type": "error"
+    }
+  ],
+  "schemaVersion": 3,
+  "summary": "Proposed behavior. All expected child outcomes are persisted once by child identity, not arrival order. Fanout and collection recover independently across process failures.",
+  "title": "Fan out a group and collect ordered outcomes",
+  "type": "flow"
+}

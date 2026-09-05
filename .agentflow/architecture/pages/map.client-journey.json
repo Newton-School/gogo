@@ -1,0 +1,176 @@
+{
+  "details": [
+    {
+      "id": "owner",
+      "label": "Proposed code owner",
+      "value": "Generated client project using public Gogo APIs"
+    },
+    {
+      "id": "status",
+      "label": "Implementation status",
+      "value": "No Go implementation exists. Names, limits and behavior are submitted design choices requiring review."
+    },
+    {
+      "id": "features",
+      "label": "Included features",
+      "value": "client usage; project structure; app creation; models/views/serializers; optional Admin; optional Async"
+    }
+  ],
+  "edges": [
+    {
+      "from": "entry",
+      "id": "entry-to-app",
+      "to": "app"
+    },
+    {
+      "from": "app",
+      "id": "app-to-generate",
+      "to": "generate"
+    },
+    {
+      "from": "generate",
+      "id": "generate-to-migrate",
+      "to": "migrate"
+    },
+    {
+      "from": "migrate",
+      "id": "migrate-to-api",
+      "to": "api"
+    },
+    {
+      "from": "api",
+      "id": "api-to-admin",
+      "to": "admin"
+    },
+    {
+      "from": "admin",
+      "id": "admin-to-task",
+      "to": "task"
+    },
+    {
+      "from": "task",
+      "id": "task-to-outbox",
+      "to": "outbox"
+    },
+    {
+      "from": "outbox",
+      "id": "outbox-to-worker",
+      "style": "async",
+      "to": "worker"
+    },
+    {
+      "from": "worker",
+      "id": "worker-to-done",
+      "to": "done"
+    },
+    {
+      "from": "generate",
+      "id": "generate-to-backend-failed",
+      "label": "Operation fails",
+      "style": "error",
+      "to": "backend-failed-generate"
+    },
+    {
+      "from": "migrate",
+      "id": "migrate-to-backend-failed",
+      "label": "Operation fails",
+      "style": "error",
+      "to": "backend-failed-migrate"
+    },
+    {
+      "from": "outbox",
+      "id": "outbox-to-backend-failed",
+      "label": "Operation fails",
+      "style": "error",
+      "to": "backend-failed-outbox"
+    }
+  ],
+  "id": "map.client-journey",
+  "layout": {
+    "direction": "down"
+  },
+  "nodes": [
+    {
+      "id": "entry",
+      "subtitle": "gogo startproject storefront --module example.com/storefront; proposed command",
+      "title": "Create storefront with Core and PostgreSQL",
+      "type": "actor"
+    },
+    {
+      "id": "app",
+      "subtitle": "go run manage.go startapp catalog; Product has ID, Name, Price and Stock descriptors",
+      "title": "Create catalog app and model schema",
+      "type": "action"
+    },
+    {
+      "id": "generate",
+      "subtitle": "go run manage.go generate; makemigrations catalog; review generated operations",
+      "title": "Generate typed model references and migration",
+      "type": "action"
+    },
+    {
+      "id": "migrate",
+      "subtitle": "go run manage.go migrate; explicit operator command, never automatic at web startup",
+      "title": "Apply catalog migration to configured PostgreSQL",
+      "type": "database"
+    },
+    {
+      "id": "api",
+      "subtitle": "List/detail read scoped queryset; create/update writable Name/Price only; Stock mutated by domain service",
+      "title": "Register product resource and serializer",
+      "type": "action"
+    },
+    {
+      "id": "admin",
+      "subtitle": "admin.ModelAdmin Product with ListDisplay and ReadonlyFields ID; fieldsets and scoped inlines",
+      "title": "Optionally install and register Admin",
+      "type": "action"
+    },
+    {
+      "id": "task",
+      "subtitle": "Register typed ReindexProduct task; declare queues and worker policies; not imported by Core",
+      "title": "Optionally install Async and Async Redis adapter",
+      "type": "action"
+    },
+    {
+      "id": "outbox",
+      "subtitle": "Application service uses db.Atomic and Async outbox; task gets product ID/version, not credentials",
+      "title": "Update product and write task intent atomically",
+      "type": "database"
+    },
+    {
+      "id": "worker",
+      "subtitle": "Compiled manage worker / beat; web process independently serves API/Admin",
+      "title": "Run worker and optional beat separately",
+      "type": "job"
+    },
+    {
+      "id": "done",
+      "subtitle": "Every named capability has detailed branch/failure diagrams in its owning feature tree",
+      "title": "Use one structured project across runtime roles",
+      "type": "terminal"
+    },
+    {
+      "id": "backend-failed-generate",
+      "subtitle": "Generation, migration and runtime startup checks report explicit failures; existing committed data preserved",
+      "title": "Stop failing operation without claiming completion",
+      "type": "error"
+    },
+    {
+      "id": "backend-failed-migrate",
+      "subtitle": "Generation, migration and runtime startup checks report explicit failures; existing committed data preserved",
+      "title": "Stop failing operation without claiming completion",
+      "type": "error"
+    },
+    {
+      "id": "backend-failed-outbox",
+      "subtitle": "Generation, migration and runtime startup checks report explicit failures; existing committed data preserved",
+      "title": "Stop failing operation without claiming completion",
+      "type": "error"
+    }
+  ],
+  "schemaVersion": 3,
+  "summary": "Proposed behavior. Owned by Generated client project using public Gogo APIs; select nodes for technical details.",
+  "title": "Developer journey: app, API, Admin and background workflow",
+  "type": "flow"
+}

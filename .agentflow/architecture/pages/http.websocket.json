@@ -1,0 +1,131 @@
+{
+  "details": [
+    {
+      "id": "owner",
+      "label": "Proposed code owner",
+      "value": "core/http.WebSocket"
+    },
+    {
+      "id": "status",
+      "label": "Implementation status",
+      "value": "No Go implementation exists. Names, limits and behavior are submitted design choices requiring review."
+    },
+    {
+      "id": "features",
+      "label": "Included features",
+      "value": "WebSockets; origin checks; message schemas; backpressure; connection cancellation"
+    }
+  ],
+  "edges": [
+    {
+      "from": "entry",
+      "id": "entry-to-permit",
+      "to": "permit"
+    },
+    {
+      "from": "permit",
+      "id": "permit-to-permit-rejected",
+      "label": "No",
+      "style": "error",
+      "to": "permit-rejected"
+    },
+    {
+      "from": "permit",
+      "id": "permit-to-upgrade",
+      "label": "Yes",
+      "to": "upgrade"
+    },
+    {
+      "from": "upgrade",
+      "id": "upgrade-to-decode",
+      "to": "decode"
+    },
+    {
+      "from": "decode",
+      "id": "decode-to-valid",
+      "to": "valid"
+    },
+    {
+      "from": "valid",
+      "id": "valid-to-valid-rejected",
+      "label": "No",
+      "style": "error",
+      "to": "valid-rejected"
+    },
+    {
+      "from": "valid",
+      "id": "valid-to-handle",
+      "label": "Yes",
+      "to": "handle"
+    },
+    {
+      "from": "handle",
+      "id": "handle-to-done",
+      "to": "done"
+    }
+  ],
+  "id": "http.websocket",
+  "layout": {
+    "direction": "down"
+  },
+  "nodes": [
+    {
+      "id": "entry",
+      "subtitle": "Registered route; origin and authentication checked before upgrade",
+      "title": "Request WebSocket upgrade",
+      "type": "api"
+    },
+    {
+      "id": "permit",
+      "subtitle": "No wildcard credentialed origins; session validity current",
+      "title": "Origin, identity and scope allowed?",
+      "type": "decision"
+    },
+    {
+      "id": "permit-rejected",
+      "subtitle": "401/403; no socket accepted",
+      "title": "Reject upgrade with HTTP error",
+      "type": "error"
+    },
+    {
+      "id": "upgrade",
+      "subtitle": "Max frame 1MiB default; read/write deadlines and ping/pong",
+      "title": "Switch to framed connection",
+      "type": "action"
+    },
+    {
+      "id": "decode",
+      "subtitle": "Reject unknown type/payload fields; per-connection rate limits",
+      "title": "Decode one versioned message",
+      "type": "action"
+    },
+    {
+      "id": "valid",
+      "subtitle": "Recheck action permission, not only handshake permission",
+      "title": "Message and permissions valid?",
+      "type": "decision"
+    },
+    {
+      "id": "valid-rejected",
+      "subtitle": "Malformed/oversize/unauthorized policy explicit; no action executed",
+      "title": "Close or return typed message error",
+      "type": "error"
+    },
+    {
+      "id": "handle",
+      "subtitle": "Bounded outbound queue; disconnect cancels handler; durable events use explicit broker",
+      "title": "Invoke app message handler with context",
+      "type": "action"
+    },
+    {
+      "id": "done",
+      "subtitle": "No cross-process channel layer implied by an in-memory socket registry",
+      "title": "Send reply or close normally",
+      "type": "terminal"
+    }
+  ],
+  "schemaVersion": 3,
+  "summary": "Proposed behavior. Owned by core/http.WebSocket; select nodes for technical details.",
+  "title": "Authorize and process WebSocket messages",
+  "type": "flow"
+}

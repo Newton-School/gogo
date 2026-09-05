@@ -1,0 +1,175 @@
+{
+  "columns": [
+    {
+      "format": "text",
+      "id": "family",
+      "label": "Family"
+    },
+    {
+      "format": "text",
+      "id": "items",
+      "label": "Options / hooks"
+    },
+    {
+      "format": "text",
+      "id": "behavior",
+      "label": "Server-side contract"
+    },
+    {
+      "format": "text",
+      "id": "flow",
+      "label": "Flow"
+    }
+  ],
+  "id": "admin.options",
+  "rows": [
+    {
+      "cells": {
+        "behavior": "Multiple named sites independent; explicit registration, no import side effects; unknown model registration fails checks.",
+        "family": "Site registry",
+        "flow": "admin.register",
+        "items": "Name, Header, Title, IndexTitle, SiteURL, LoginTemplate, LoginForm, LogoutTemplate, IndexTemplate, AppIndexTemplate, EmptyValueDisplay, FinalCatchAll, NavSidebar; Register/Unregister/IsRegistered"
+      },
+      "id": "site"
+    },
+    {
+      "cells": {
+        "behavior": "Custom admin views pass same staff/active/CSRF/permission wrappers; no unguarded custom route convenience.",
+        "family": "Site hooks",
+        "flow": "admin.access",
+        "items": "GetURLs, AdminView, EachContext, HasPermission, GetAppList, Index/AppIndex, Login/Logout/PasswordChange; extra site views"
+      },
+      "id": "site-hooks"
+    },
+    {
+      "cells": {
+        "behavior": "Display callable escaped by default; sort expressions allowlisted; list counts always actor-scoped.",
+        "family": "List presentation",
+        "flow": "admin.list",
+        "items": "ListDisplay, ListDisplayLinks, ListPerPage, ListMaxShowAll, ListSelectRelated, EmptyValueDisplay, GetListDisplay/GetListDisplayLinks/GetListSelectRelated/GetPaginator"
+      },
+      "id": "columns"
+    },
+    {
+      "cells": {
+        "behavior": "GetQueryset/GetSearchResults/GetOrdering/GetListFilter/GetSortables; validate lookup and ordering input; facets obey same permissions.",
+        "family": "List query and filters",
+        "flow": "admin.list",
+        "items": "ListFilter/SimpleListFilter/FieldListFilter, SearchFields/SearchHelpText, Ordering, SortableBy, DateHierarchy, ShowFullResultCount, ShowFacets, PreserveFilters"
+      },
+      "id": "query"
+    },
+    {
+      "cells": {
+        "behavior": "Validate all rows before transaction; repeated/missing/out-of-scope IDs fail; read-only policy applied per row.",
+        "family": "List editing",
+        "flow": "admin.save",
+        "items": "ListEditable, ChangelistForm, ChangelistFormSet, GetChangeList/GetChangeListForm/GetChangeListFormSet"
+      },
+      "id": "edit-list"
+    },
+    {
+      "cells": {
+        "behavior": "Exclude readonly fields from the generated ModelForm. Extra readonly POST values are ignored, never persisted; declared editable fields still validate. Identity/inline ownership checks remain mandatory.",
+        "family": "Form layout",
+        "flow": "admin.form; admin.save",
+        "items": "Fields, Exclude, Fieldsets/classes/descriptions, ReadonlyFields, Form, FormfieldOverrides, GetFields/GetExclude/GetFieldsets/GetReadonlyFields/GetForm"
+      },
+      "id": "layout"
+    },
+    {
+      "cells": {
+        "behavior": "Autocomplete/raw lookup/relation widgets each require target permission and scoped relation eligibility; JS convenience never authority.",
+        "family": "Relation controls",
+        "flow": "admin.autocomplete; admin.form",
+        "items": "AutocompleteFields, RawIDFields, RadioFields, FilterHorizontal/Vertical, PrepopulatedFields, GetAutocompleteFields/GetPrepopulatedFields, FormfieldForDBField/ForeignKey/ManyToMany/ChoiceField"
+      },
+      "id": "relations"
+    },
+    {
+      "cells": {
+        "behavior": "Parent + inlines + M2M + log transaction; side effects after commit/outbox; response target safe; optimistic edit token.",
+        "family": "Save behavior and hooks",
+        "flow": "admin.save",
+        "items": "SaveAs, SaveAsContinue, SaveOnTop; SaveForm/SaveModel/SaveRelated; GetChangeFormInitialData; ResponseAdd/Change/Delete; construct change message"
+      },
+      "id": "save"
+    },
+    {
+      "cells": {
+        "behavior": "Server recomputes deletion graph at confirmation; audit tombstone same transaction; no silent cascade beyond reviewed scope.",
+        "family": "Delete behavior and hooks",
+        "flow": "admin.delete",
+        "items": "DeleteModel/DeleteQueryset; GetDeletedObjects; GetObject; protected objects and permissions per affected model"
+      },
+      "id": "delete"
+    },
+    {
+      "cells": {
+        "behavior": "Parent FK not taken from arbitrary submitted ID; minimum/maximum enforced; generic inline checks content type and object key.",
+        "family": "Inline admin",
+        "flow": "admin.form; admin.save; forms.formsets",
+        "items": "Tabular/Stacked/Generic Inline; Model, FKName, Form/FormSet, Fields/Exclude/Readonly, Extra/Min/Max, CanDelete, ShowChangeLink, Template, Classes; GetInlineInstances/GetInlines/GetFormsetsWithInlines"
+      },
+      "id": "inlines"
+    },
+    {
+      "cells": {
+        "behavior": "Snapshot selected scope; explicit select-all filtered set; maximum size; per-object recheck; dangerous/export operations require named permission.",
+        "family": "Actions",
+        "flow": "admin.actions",
+        "items": "Actions/GetActions, ActionForm, Description, AllowedPermissions, ActionsOnTop/Bottom, ActionsSelectionCounter, DeleteSelected; custom intermediate confirmation/export/download/async actions"
+      },
+      "id": "actions"
+    },
+    {
+      "cells": {
+        "behavior": "Menu hiding separate from trusted request enforcement; every count/related lookup/history/export checked; no ID enumeration.",
+        "family": "Permissions",
+        "flow": "admin.access; admin.list; admin.history",
+        "items": "HasModule/View/Add/Change/DeletePermission; object policy; GetModelPerms; ToFieldAllowed; LookupAllowed; ViewOnSite"
+      },
+      "id": "permissions"
+    },
+    {
+      "cells": {
+        "behavior": "Embedded defaults; app overrides; CSP-compatible assets; translated labels, keyboard navigation, focus restoration, ARIA errors and contrast checks.",
+        "family": "Customization and media",
+        "flow": "admin.form; templates.render; testing.suite",
+        "items": "ChangeForm/List, AddForm, DeleteConfirmation/SelectedConfirmation, ObjectHistory, PopupResponse templates; custom CSS/JS media; app/model/site template overrides"
+      },
+      "id": "templates"
+    },
+    {
+      "cells": {
+        "behavior": "Append-only redacted field diff; no passwords/tokens; actor snapshot retained under user deletion; log failure rolls back mutation.",
+        "family": "History and messages",
+        "flow": "admin.history; admin.save",
+        "items": "LogAddition/Change/Deletion, LogEntry query, ObjectHistory view, MessageUser, EachContext"
+      },
+      "id": "history"
+    },
+    {
+      "cells": {
+        "behavior": "Privileged flag/permission changes require explicit grant authority, not ordinary user-change permission; invalidates auth versions.",
+        "family": "Auth Admin integration",
+        "flow": "admin.save; auth.permissions",
+        "items": "UserAdmin/GroupAdmin, user creation/change/password forms, permission selector, per-site registration"
+      },
+      "id": "auth-admin"
+    },
+    {
+      "cells": {
+        "behavior": "Documentation access-controlled; map provider opt-in and CSP-scoped; map geometry still server-validated.",
+        "family": "Optional Admin integrations",
+        "flow": "contrib.admindocs; contrib.gis-query",
+        "items": "Admin documentation, GIS map widget, model display/action decorators as Go descriptors"
+      },
+      "id": "docs-gis"
+    }
+  ],
+  "schemaVersion": 3,
+  "summary": "Proposed contract for architecture review; not implemented.",
+  "title": "Admin configuration and hook inventory",
+  "type": "table"
+}

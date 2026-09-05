@@ -1,0 +1,107 @@
+{
+  "details": [
+    {
+      "id": "owner",
+      "label": "Proposed code owner",
+      "value": "core/contrib/syndication"
+    },
+    {
+      "id": "status",
+      "label": "Implementation status",
+      "value": "No Go implementation exists. Names, limits and behavior are submitted design choices requiring review."
+    },
+    {
+      "id": "features",
+      "label": "Included features",
+      "value": "RSS; Atom; feed classes; enclosures; item metadata; custom feed formats"
+    }
+  ],
+  "edges": [
+    {
+      "from": "entry",
+      "id": "entry-to-items",
+      "to": "items"
+    },
+    {
+      "from": "items",
+      "id": "items-to-fields",
+      "to": "fields"
+    },
+    {
+      "from": "fields",
+      "id": "fields-to-format",
+      "to": "format"
+    },
+    {
+      "from": "format",
+      "id": "format-to-done",
+      "to": "done"
+    },
+    {
+      "from": "items",
+      "id": "items-to-backend-failed",
+      "label": "Operation fails",
+      "style": "error",
+      "to": "backend-failed-items"
+    },
+    {
+      "from": "format",
+      "id": "format-to-backend-failed",
+      "label": "Operation fails",
+      "style": "error",
+      "to": "backend-failed-format"
+    }
+  ],
+  "id": "contrib.feeds",
+  "layout": {
+    "direction": "down"
+  },
+  "nodes": [
+    {
+      "id": "entry",
+      "subtitle": "Feed provider supplies title/link/description and scoped items",
+      "title": "Request registered feed",
+      "type": "api"
+    },
+    {
+      "id": "items",
+      "subtitle": "Stable published ordering; item visibility policy before serialization",
+      "title": "Read bounded public feed items",
+      "type": "database"
+    },
+    {
+      "id": "fields",
+      "subtitle": "Enclosure access policy; no private signed URL persistence in public feed",
+      "title": "Resolve IDs, authors, dates and enclosures",
+      "type": "action"
+    },
+    {
+      "id": "format",
+      "subtitle": "XML escaping and explicit safe content; absolute URLs from validated site",
+      "title": "Serialize selected RSS/Atom format",
+      "type": "action"
+    },
+    {
+      "id": "done",
+      "subtitle": "No direct browser HTML trust from feed fields",
+      "title": "Return feed with conditional cache headers",
+      "type": "terminal"
+    },
+    {
+      "id": "backend-failed-items",
+      "subtitle": "No partial malformed feed published",
+      "title": "Return feed generation error",
+      "type": "error"
+    },
+    {
+      "id": "backend-failed-format",
+      "subtitle": "No partial malformed feed published",
+      "title": "Return feed generation error",
+      "type": "error"
+    }
+  ],
+  "schemaVersion": 3,
+  "summary": "Proposed behavior. Owned by core/contrib/syndication; select nodes for technical details.",
+  "title": "Generate RSS or Atom syndication feeds",
+  "type": "flow"
+}

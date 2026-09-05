@@ -1,0 +1,144 @@
+{
+  "details": [
+    {
+      "id": "owner",
+      "label": "Proposed code owner",
+      "value": "core/forms.FormSet; InlineFormSet"
+    },
+    {
+      "id": "status",
+      "label": "Implementation status",
+      "value": "No Go implementation exists. Names, limits and behavior are submitted design choices requiring review."
+    },
+    {
+      "id": "features",
+      "label": "Included features",
+      "value": "formsets; model formsets; inline formsets; ordering/deletion; management form; row ownership"
+    }
+  ],
+  "edges": [
+    {
+      "from": "entry",
+      "id": "entry-to-counts",
+      "to": "counts"
+    },
+    {
+      "from": "counts",
+      "id": "counts-to-counts-rejected",
+      "label": "No",
+      "style": "error",
+      "to": "counts-rejected"
+    },
+    {
+      "from": "counts",
+      "id": "counts-to-scope",
+      "label": "Yes",
+      "to": "scope"
+    },
+    {
+      "from": "scope",
+      "id": "scope-to-validate",
+      "to": "validate"
+    },
+    {
+      "from": "validate",
+      "id": "validate-to-valid",
+      "to": "valid"
+    },
+    {
+      "from": "valid",
+      "id": "valid-to-valid-rejected",
+      "label": "No",
+      "style": "error",
+      "to": "valid-rejected"
+    },
+    {
+      "from": "valid",
+      "id": "valid-to-save",
+      "label": "Yes",
+      "to": "save"
+    },
+    {
+      "from": "save",
+      "id": "save-to-done",
+      "to": "done"
+    },
+    {
+      "from": "save",
+      "id": "save-to-backend-failed",
+      "label": "Operation fails",
+      "style": "error",
+      "to": "backend-failed"
+    }
+  ],
+  "id": "forms.formsets",
+  "layout": {
+    "direction": "down"
+  },
+  "nodes": [
+    {
+      "id": "entry",
+      "subtitle": "Management counts, row IDs, ordering and deletion markers",
+      "title": "Submit prefixed form collection",
+      "type": "api"
+    },
+    {
+      "id": "counts",
+      "subtitle": "Absolute max 1000 forms; configured max lower; reject tampered counts",
+      "title": "Management fields and limits valid?",
+      "type": "decision"
+    },
+    {
+      "id": "counts-rejected",
+      "subtitle": "Do not allocate attacker-supplied unbounded form count",
+      "title": "Return management-form error",
+      "type": "error"
+    },
+    {
+      "id": "scope",
+      "subtitle": "Foreign parent or unknown row ID rejected",
+      "title": "Bind existing rows only through parent scope",
+      "type": "action"
+    },
+    {
+      "id": "validate",
+      "subtitle": "Cross-row uniqueness; min/max remaining rows; empty extra forms ignored",
+      "title": "Validate each row and whole set",
+      "type": "action"
+    },
+    {
+      "id": "valid",
+      "subtitle": "Deletion permissions verified independently",
+      "title": "All retained forms valid?",
+      "type": "decision"
+    },
+    {
+      "id": "valid-rejected",
+      "subtitle": "No partial save",
+      "title": "Render complete set of indexed errors",
+      "type": "error"
+    },
+    {
+      "id": "save",
+      "subtitle": "Parent locked when needed; relation ownership cannot change through hidden field",
+      "title": "Create/update/delete rows atomically",
+      "type": "database"
+    },
+    {
+      "id": "done",
+      "subtitle": "Error redisplay preserves prefixes and safe values",
+      "title": "Return ordered saved rows",
+      "type": "terminal"
+    },
+    {
+      "id": "backend-failed",
+      "subtitle": "No partially changed inline collection",
+      "title": "Rollback entire formset",
+      "type": "error"
+    }
+  ],
+  "schemaVersion": 3,
+  "summary": "Proposed behavior. Owned by core/forms.FormSet; InlineFormSet; select nodes for technical details.",
+  "title": "Validate and save a formset or inline formset",
+  "type": "flow"
+}

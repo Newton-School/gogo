@@ -1,0 +1,178 @@
+{
+  "columns": [
+    {
+      "format": "text",
+      "id": "item",
+      "label": "Decision"
+    },
+    {
+      "format": "text",
+      "id": "behavior",
+      "label": "Proposed behavior"
+    },
+    {
+      "format": "text",
+      "id": "status",
+      "label": "Source / status"
+    }
+  ],
+  "id": "map.scope",
+  "rows": [
+    {
+      "cells": {
+        "behavior": "PostgreSQL and Redis only, including integration tests; SQLite, MySQL, Oracle and RabbitMQ remain future connectors.",
+        "item": "Initial backends",
+        "status": "Owner requirement"
+      },
+      "id": "backend"
+    },
+    {
+      "cells": {
+        "behavior": "Root/Core, Admin, Async, PostgreSQL connector, Redis connector and Async Redis integration are six Go modules.",
+        "item": "Installation boundaries",
+        "status": "Proposed module design"
+      },
+      "id": "products"
+    },
+    {
+      "cells": {
+        "behavior": "Root gogo facade plus core/, admin/, async/, connectors/; private implementation under internal/.",
+        "item": "Public root",
+        "status": "Owner layout preference; proposed exact paths"
+      },
+      "id": "layout"
+    },
+    {
+      "cells": {
+        "behavior": "Versioned Django 6.0 documented feature families; REST functionality inspired by DRF; task workflows inspired by Celery 5.6. Go-native APIs, no Python wire/API compatibility promise.",
+        "item": "Feature comparison baseline",
+        "status": "Proposed comparison baseline"
+      },
+      "id": "baseline"
+    },
+    {
+      "cells": {
+        "behavior": "Every page describes target behavior. Symbols are proposed exported APIs and private owners. The repository has no Go implementation.",
+        "item": "Architecture status",
+        "status": "Inspected repository"
+      },
+      "id": "proposal"
+    },
+    {
+      "cells": {
+        "behavior": "Go structs + Schema() descriptors; generated typed query fields and registry code; frozen runtime metadata. No duplicate handwritten schema files.",
+        "item": "Model declaration",
+        "status": "Proposed"
+      },
+      "id": "model"
+    },
+    {
+      "cells": {
+        "behavior": "Gogo template engine with Django-style inheritance, filters, tags and partials; escaped HTML by default. Custom engine contract remains public.",
+        "item": "Template language",
+        "status": "Proposed"
+      },
+      "id": "templates"
+    },
+    {
+      "cells": {
+        "behavior": "Server-rendered HTML with embedded CSS/JS and progressive enhancement; no client application build required.",
+        "item": "Admin frontend",
+        "status": "Proposed"
+      },
+      "id": "admin"
+    },
+    {
+      "cells": {
+        "behavior": "pgx via database/sql for common relational execution; go-redis for Redis. Gogo owns query/schema/task behavior above maintained drivers.",
+        "item": "Network drivers",
+        "status": "Proposed"
+      },
+      "id": "drivers"
+    },
+    {
+      "cells": {
+        "behavior": "Local filesystem storage shipped with Core; object-storage/direct-multipart contracts and flows defined; S3/GCS adapters are future integrations.",
+        "item": "File connectors",
+        "status": "Initial external connectors limited to PG/Redis"
+      },
+      "id": "storage"
+    },
+    {
+      "cells": {
+        "behavior": "PostGIS extension on the PostgreSQL connector; geometry/geography, spatial lookups, aggregates, imports and maps. Native GIS adapters are capability-gated.",
+        "item": "GeoDjango family",
+        "status": "Optional contrib capability; no second DB connector"
+      },
+      "id": "gis"
+    },
+    {
+      "cells": {
+        "behavior": "Go net/http handlers and context cancellation; no Python sync/async function split. Task workers are separate from request goroutines.",
+        "item": "Request concurrency",
+        "status": "Go adaptation"
+      },
+      "id": "parallel"
+    },
+    {
+      "cells": {
+        "behavior": "At-least-once attempts with acknowledgement after terminal persistence; task effects need idempotency. No universal exactly-once side-effect claim.",
+        "item": "Task delivery",
+        "status": "Proposed"
+      },
+      "id": "delivery"
+    },
+    {
+      "cells": {
+        "behavior": "Cooperative cancellation in goroutine workers; isolated subprocess mode for killable hard limits. Arbitrary goroutines cannot safely be killed.",
+        "item": "Hard task timeouts",
+        "status": "Go adaptation"
+      },
+      "id": "limits"
+    },
+    {
+      "cells": {
+        "behavior": "Resource layer explicitly supplies scope; ORM does not infer actor permission. Admin/API apply scope before counts, pagination and serialization.",
+        "item": "Authorization",
+        "status": "Proposed security boundary"
+      },
+      "id": "security"
+    },
+    {
+      "cells": {
+        "behavior": "Common operations portable; vendor features explicit and checked. Future connector cannot silently reinterpret unsupported model fields or migration operations.",
+        "item": "Database portability",
+        "status": "Owner extensibility requirement"
+      },
+      "id": "migration"
+    },
+    {
+      "cells": {
+        "behavior": "OAuth/OIDC, MFA, object storage and third-party monitoring use public extension contracts; no unselected hosted provider is assumed configured.",
+        "item": "Optional integrations",
+        "status": "Future adapter surface"
+      },
+      "id": "contrib"
+    },
+    {
+      "cells": {
+        "behavior": "AgentFlow alone owns architecture state and review. This is a new product; prior framework code and specification workflows are not inputs.",
+        "item": "Architecture authority",
+        "status": "Owner AgentFlow selection"
+      },
+      "id": "authority"
+    },
+    {
+      "cells": {
+        "behavior": "Submit proposed diagrams for explicit review. No architecture approval or framework implementation is performed by this task.",
+        "item": "Approval",
+        "status": "AgentFlow lifecycle"
+      },
+      "id": "review"
+    }
+  ],
+  "schemaVersion": 3,
+  "summary": "Proposed contract for architecture review; not implemented.",
+  "title": "Scope, compatibility and design decisions",
+  "type": "table"
+}

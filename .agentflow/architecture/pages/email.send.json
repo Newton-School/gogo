@@ -1,0 +1,150 @@
+{
+  "details": [
+    {
+      "id": "owner",
+      "label": "Proposed code owner",
+      "value": "core/mail.Message; Backend"
+    },
+    {
+      "id": "status",
+      "label": "Implementation status",
+      "value": "No Go implementation exists. Names, limits and behavior are submitted design choices requiring review."
+    },
+    {
+      "id": "features",
+      "label": "Included features",
+      "value": "SMTP; multipart mail; attachments; bulk mail; mail admins/managers; test outbox; backend extension"
+    }
+  ],
+  "edges": [
+    {
+      "from": "entry",
+      "id": "entry-to-validate",
+      "to": "validate"
+    },
+    {
+      "from": "validate",
+      "id": "validate-to-render",
+      "to": "render"
+    },
+    {
+      "from": "render",
+      "id": "render-to-async",
+      "to": "async"
+    },
+    {
+      "from": "async",
+      "id": "async-to-async-rejected",
+      "label": "Queue selected",
+      "to": "async-rejected"
+    },
+    {
+      "from": "async",
+      "id": "async-to-transport",
+      "label": "Yes",
+      "to": "transport"
+    },
+    {
+      "from": "transport",
+      "id": "transport-to-accepted",
+      "to": "accepted"
+    },
+    {
+      "from": "accepted",
+      "id": "accepted-to-accepted-rejected",
+      "label": "No",
+      "style": "error",
+      "to": "accepted-rejected"
+    },
+    {
+      "from": "accepted",
+      "id": "accepted-to-done",
+      "label": "Yes",
+      "to": "done"
+    },
+    {
+      "from": "transport",
+      "id": "transport-to-backend-failed",
+      "label": "Operation fails",
+      "style": "error",
+      "to": "backend-failed"
+    }
+  ],
+  "id": "email.send",
+  "layout": {
+    "direction": "down"
+  },
+  "nodes": [
+    {
+      "id": "entry",
+      "subtitle": "Send / SendMassMail / MailAdmins; SMTP, console, memory or dummy backend",
+      "title": "Send email or bulk messages",
+      "type": "api"
+    },
+    {
+      "id": "validate",
+      "subtitle": "Reject CRLF header injection; bounded recipients/attachment sizes",
+      "title": "Validate addresses and headers",
+      "type": "action"
+    },
+    {
+      "id": "render",
+      "subtitle": "Explicit template context; secrets/tokens redacted in logs",
+      "title": "Render text/HTML alternatives and attachments",
+      "type": "action"
+    },
+    {
+      "id": "async",
+      "subtitle": "Async delivery requires separately installed module and explicit task",
+      "title": "Send synchronously?",
+      "type": "decision"
+    },
+    {
+      "details": [
+        {
+          "id": "related-flows",
+          "label": "Related flow pages",
+          "value": "async.outbox"
+        }
+      ],
+      "id": "async-rejected",
+      "subtitle": "Follow async.outbox; no false delivered state on enqueue",
+      "title": "Persist durable dispatch intent",
+      "type": "terminal"
+    },
+    {
+      "id": "transport",
+      "subtitle": "TLS policy, connection reuse, timeout; unknown acceptance outcome preserved",
+      "title": "Connect, authenticate and send through SMTP",
+      "type": "external"
+    },
+    {
+      "id": "accepted",
+      "subtitle": "Partial acceptance tracked per recipient",
+      "title": "Transport accepted all required recipients?",
+      "type": "decision"
+    },
+    {
+      "id": "accepted-rejected",
+      "subtitle": "Retry only unaccepted/unknown recipients with application duplicate policy",
+      "title": "Return delivery acceptance failure",
+      "type": "error"
+    },
+    {
+      "id": "done",
+      "subtitle": "Accepted is not proof of inbox delivery; console/dummy never claim real delivery",
+      "title": "Return transport acceptance receipt",
+      "type": "terminal"
+    },
+    {
+      "id": "backend-failed",
+      "subtitle": "Do not retry ambiguous SMTP acceptance invisibly",
+      "title": "Return typed mail transport error",
+      "type": "error"
+    }
+  ],
+  "schemaVersion": 3,
+  "summary": "Proposed behavior. Owned by core/mail.Message; Backend; select nodes for technical details.",
+  "title": "Build and send a validated email",
+  "type": "flow"
+}

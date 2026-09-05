@@ -1,0 +1,149 @@
+{
+  "details": [
+    {
+      "id": "owner",
+      "label": "Proposed code owner",
+      "value": "gogo.go; core/; admin/; async/; connectors/"
+    },
+    {
+      "id": "status",
+      "label": "Implementation status",
+      "value": "Proposed only; no framework code implemented."
+    }
+  ],
+  "edges": [
+    {
+      "from": "dev",
+      "id": "edge-1",
+      "to": "entry"
+    },
+    {
+      "from": "entry",
+      "id": "edge-2",
+      "label": "Core",
+      "to": "core"
+    },
+    {
+      "from": "entry",
+      "id": "edge-3",
+      "label": "Admin installed",
+      "to": "admin"
+    },
+    {
+      "from": "entry",
+      "id": "edge-4",
+      "label": "Async installed",
+      "to": "async"
+    },
+    {
+      "from": "core",
+      "id": "edge-5",
+      "label": "ORM / migrations",
+      "to": "pg"
+    },
+    {
+      "from": "core",
+      "id": "edge-6",
+      "label": "Cache / sessions",
+      "to": "redis"
+    },
+    {
+      "from": "admin",
+      "id": "edge-7",
+      "label": "Model operations",
+      "to": "pg"
+    },
+    {
+      "from": "async",
+      "id": "edge-8",
+      "label": "Dispatch / consume",
+      "style": "async",
+      "to": "worker"
+    },
+    {
+      "from": "pg",
+      "id": "edge-9",
+      "to": "httpdone"
+    },
+    {
+      "from": "redis",
+      "id": "edge-10",
+      "to": "httpdone"
+    },
+    {
+      "from": "worker",
+      "id": "edge-11",
+      "to": "jobsdone"
+    }
+  ],
+  "id": "map.products",
+  "layout": {
+    "direction": "down"
+  },
+  "nodes": [
+    {
+      "id": "dev",
+      "subtitle": "Install Core; opt into Admin, Async and connectors",
+      "title": "Application developer",
+      "type": "actor"
+    },
+    {
+      "id": "entry",
+      "subtitle": "manage.go \u2192 gogo.New(config.Project)",
+      "title": "Compose the project",
+      "type": "api"
+    },
+    {
+      "id": "core",
+      "subtitle": "core/models, orm, http, api, auth, forms and services",
+      "title": "Use public framework packages",
+      "type": "action"
+    },
+    {
+      "id": "admin",
+      "subtitle": "admin.Site; consumes public Core APIs only",
+      "title": "Register the Admin site",
+      "type": "action"
+    },
+    {
+      "id": "async",
+      "subtitle": "async.Registry; Redis integration is a separate module",
+      "title": "Register tasks and schedules",
+      "type": "action"
+    },
+    {
+      "id": "pg",
+      "subtitle": "connectors/postgres \u2192 PostgreSQL",
+      "title": "Persist application records",
+      "type": "database"
+    },
+    {
+      "id": "redis",
+      "subtitle": "connectors/redis; role-specific pools and namespaces",
+      "title": "Use Redis for state and coordination",
+      "type": "cache"
+    },
+    {
+      "id": "worker",
+      "subtitle": "async/redis \u2192 broker, results and scheduler contracts",
+      "title": "Execute background work",
+      "type": "job"
+    },
+    {
+      "id": "httpdone",
+      "subtitle": "Application web process; optional Admin routes",
+      "title": "Serve HTTP and Admin",
+      "type": "terminal"
+    },
+    {
+      "id": "jobsdone",
+      "subtitle": "Same compiled project; independent processes",
+      "title": "Run worker and scheduler roles",
+      "type": "terminal"
+    }
+  ],
+  "schemaVersion": 3,
+  "summary": "Proposed behavior. Product dependency overview. Detailed execution, errors and storage semantics live under each product feature tree.",
+  "title": "Products, packages and runtime roles",
+  "type": "flow"
+}

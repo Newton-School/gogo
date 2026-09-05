@@ -1,0 +1,168 @@
+{
+  "details": [
+    {
+      "id": "owner",
+      "label": "Proposed code owner",
+      "value": "core/auth.SensitiveMailRelay; core/mail"
+    },
+    {
+      "id": "status",
+      "label": "Implementation status",
+      "value": "No Go implementation exists. Names, limits and behavior are submitted design choices requiring review."
+    },
+    {
+      "id": "features",
+      "label": "Included features",
+      "value": "secret-bearing mail; encrypted durable intent; SMTP ambiguity; token expiry; delivery key rotation"
+    }
+  ],
+  "edges": [
+    {
+      "from": "entry",
+      "id": "entry-to-lease",
+      "to": "lease"
+    },
+    {
+      "from": "lease",
+      "id": "lease-to-eligible",
+      "to": "eligible"
+    },
+    {
+      "from": "eligible",
+      "id": "eligible-to-eligible-rejected",
+      "label": "No",
+      "to": "eligible-rejected"
+    },
+    {
+      "from": "eligible",
+      "id": "eligible-to-decrypt",
+      "label": "Yes",
+      "to": "decrypt"
+    },
+    {
+      "from": "decrypt",
+      "id": "decrypt-to-send",
+      "to": "send"
+    },
+    {
+      "from": "send",
+      "id": "send-to-record",
+      "to": "record"
+    },
+    {
+      "from": "record",
+      "id": "record-to-done",
+      "to": "done"
+    },
+    {
+      "from": "lease",
+      "id": "lease-to-backend-failed",
+      "label": "Operation fails",
+      "style": "error",
+      "to": "backend-failed-lease"
+    },
+    {
+      "from": "decrypt",
+      "id": "decrypt-to-backend-failed",
+      "label": "Operation fails",
+      "style": "error",
+      "to": "backend-failed-decrypt"
+    },
+    {
+      "from": "send",
+      "id": "send-to-backend-failed",
+      "label": "Operation fails",
+      "style": "error",
+      "to": "backend-failed-send"
+    },
+    {
+      "from": "record",
+      "id": "record-to-backend-failed",
+      "label": "Operation fails",
+      "style": "error",
+      "to": "backend-failed-record"
+    }
+  ],
+  "id": "email.sensitive-delivery",
+  "layout": {
+    "direction": "down"
+  },
+  "nodes": [
+    {
+      "id": "entry",
+      "subtitle": "Enabled only when durable reset delivery selected",
+      "title": "Poll committed sensitive-mail records",
+      "type": "job"
+    },
+    {
+      "id": "lease",
+      "subtitle": "SKIP LOCKED; token and mail intent already committed together",
+      "title": "Claim eligible record with lease/fence",
+      "type": "database"
+    },
+    {
+      "id": "eligible",
+      "subtitle": "No send for used/replaced/inactive account token",
+      "title": "Reset token still valid and delivery not expired?",
+      "type": "decision"
+    },
+    {
+      "id": "eligible-rejected",
+      "subtitle": "Retain only safe delivery metadata",
+      "title": "Mark expired and purge encrypted payload",
+      "type": "terminal"
+    },
+    {
+      "id": "decrypt",
+      "subtitle": "Additional data binds reset ID, purpose and expiry; no plaintext logs or queue payload",
+      "title": "Resolve key and AEAD-decrypt in memory",
+      "type": "action"
+    },
+    {
+      "id": "send",
+      "subtitle": "TLS and bounded timeouts; duplicate acceptance possible on retry after unknown outcome",
+      "title": "Submit validated reset email to SMTP",
+      "type": "external"
+    },
+    {
+      "id": "record",
+      "subtitle": "Matching lease fence; purge ciphertext after accepted/expired retention policy",
+      "title": "Record accepted or retryable/terminal delivery outcome",
+      "type": "database"
+    },
+    {
+      "id": "done",
+      "subtitle": "HTTP reset acknowledgement already returned; SMTP accepted is not inbox delivery",
+      "title": "Release lease and expose safe internal delivery status",
+      "type": "terminal"
+    },
+    {
+      "id": "backend-failed-lease",
+      "subtitle": "Failed key/SMTP/record operation never reveals account existence; retries bounded by token lifetime",
+      "title": "Retain encrypted intent until retry or expiry",
+      "type": "error"
+    },
+    {
+      "id": "backend-failed-decrypt",
+      "subtitle": "Failed key/SMTP/record operation never reveals account existence; retries bounded by token lifetime",
+      "title": "Retain encrypted intent until retry or expiry",
+      "type": "error"
+    },
+    {
+      "id": "backend-failed-send",
+      "subtitle": "Failed key/SMTP/record operation never reveals account existence; retries bounded by token lifetime",
+      "title": "Retain encrypted intent until retry or expiry",
+      "type": "error"
+    },
+    {
+      "id": "backend-failed-record",
+      "subtitle": "Failed key/SMTP/record operation never reveals account existence; retries bounded by token lifetime",
+      "title": "Retain encrypted intent until retry or expiry",
+      "type": "error"
+    }
+  ],
+  "schemaVersion": 3,
+  "summary": "Proposed behavior. Owned by core/auth.SensitiveMailRelay; core/mail; select nodes for technical details.",
+  "title": "Deliver encrypted single-use reset mail",
+  "type": "flow"
+}

@@ -1,0 +1,143 @@
+{
+  "details": [
+    {
+      "id": "owner",
+      "label": "Proposed code owner",
+      "value": "core/testing; module test suites"
+    },
+    {
+      "id": "status",
+      "label": "Implementation status",
+      "value": "No Go implementation exists. Names, limits and behavior are submitted design choices requiring review."
+    },
+    {
+      "id": "features",
+      "label": "Included features",
+      "value": "test runner; request client/factory; fixtures/factories; test DB; parallel tests; query assertions; race/fuzz; connector conformance"
+    }
+  ],
+  "edges": [
+    {
+      "from": "entry",
+      "id": "entry-to-isolate",
+      "to": "isolate"
+    },
+    {
+      "from": "isolate",
+      "id": "isolate-to-database",
+      "to": "database"
+    },
+    {
+      "from": "database",
+      "id": "database-to-redis",
+      "to": "redis"
+    },
+    {
+      "from": "redis",
+      "id": "redis-to-exercise",
+      "to": "exercise"
+    },
+    {
+      "from": "exercise",
+      "id": "exercise-to-passed",
+      "to": "passed"
+    },
+    {
+      "from": "passed",
+      "id": "passed-to-passed-rejected",
+      "label": "No",
+      "style": "error",
+      "to": "passed-rejected"
+    },
+    {
+      "from": "passed",
+      "id": "passed-to-done",
+      "label": "Yes",
+      "to": "done"
+    },
+    {
+      "from": "database",
+      "id": "database-to-backend-failed",
+      "label": "Operation fails",
+      "style": "error",
+      "to": "backend-failed-database"
+    },
+    {
+      "from": "redis",
+      "id": "redis-to-backend-failed",
+      "label": "Operation fails",
+      "style": "error",
+      "to": "backend-failed-redis"
+    }
+  ],
+  "id": "testing.suite",
+  "layout": {
+    "direction": "down"
+  },
+  "nodes": [
+    {
+      "id": "entry",
+      "subtitle": "go test; test runner; per-module GOWORK=off validation",
+      "title": "Run module or framework verification",
+      "type": "actor"
+    },
+    {
+      "id": "isolate",
+      "subtitle": "Fake clock/mail/cache; test-only credentials; no production alias accepted",
+      "title": "Create independent app registry and test resources",
+      "type": "action"
+    },
+    {
+      "id": "database",
+      "subtitle": "Migrate fresh database; transaction rollback or isolated schema cleanup; parallel worker isolation",
+      "title": "Prepare real PostgreSQL test schema",
+      "type": "database"
+    },
+    {
+      "id": "redis",
+      "subtitle": "Actual scripts/streams/TTL/reclaim tests; never flush shared Redis",
+      "title": "Prepare namespaced Redis integration state",
+      "type": "external"
+    },
+    {
+      "id": "exercise",
+      "subtitle": "Request factories, forced auth, CSRF, files, query-count assertions, task fakes and failures",
+      "title": "Run test client and contract cases",
+      "type": "action"
+    },
+    {
+      "id": "passed",
+      "subtitle": "Unit, race, fuzz, migration, generated-client and compatibility cases",
+      "title": "All required checks passed?",
+      "type": "decision"
+    },
+    {
+      "id": "passed-rejected",
+      "subtitle": "Do not mark unrun integration checks as passing",
+      "title": "Fail gate with exact failed case",
+      "type": "error"
+    },
+    {
+      "id": "done",
+      "subtitle": "Generated sample app installs released modules without local replace directives",
+      "title": "Clean only owned test state and report evidence",
+      "type": "terminal"
+    },
+    {
+      "id": "backend-failed-database",
+      "subtitle": "No fallback from real integration test to mock",
+      "title": "Abort setup and report unavailable dependency",
+      "type": "error"
+    },
+    {
+      "id": "backend-failed-redis",
+      "subtitle": "No fallback from real integration test to mock",
+      "title": "Abort setup and report unavailable dependency",
+      "type": "error"
+    }
+  ],
+  "schemaVersion": 3,
+  "summary": "Proposed behavior. Owned by core/testing; module test suites; select nodes for technical details.",
+  "title": "Run unit, integration and generated-client tests",
+  "type": "flow"
+}

@@ -1,0 +1,121 @@
+{
+  "columns": [
+    {
+      "format": "text",
+      "id": "family",
+      "label": "Family"
+    },
+    {
+      "format": "text",
+      "id": "api",
+      "label": "Methods/options"
+    },
+    {
+      "format": "text",
+      "id": "behavior",
+      "label": "Contract"
+    },
+    {
+      "format": "text",
+      "id": "flow",
+      "label": "Flow"
+    }
+  ],
+  "id": "services.catalog",
+  "rows": [
+    {
+      "cells": {
+        "api": "Get/Set/Add/GetOrSet/Delete/ClearNamespace/Touch/Incr/Decr; GetMany/SetMany/DeleteMany; key prefix/version; TTL; compression codec",
+        "behavior": "Default Redis; local/dummy test doubles not production connectors. Clear never FLUSHALL. Increment and Add atomic; cache misses distinguished from outages.",
+        "family": "Cache",
+        "flow": "cache.access; redis.atomic"
+      },
+      "id": "cache"
+    },
+    {
+      "cells": {
+        "api": "Per-site, per-view and template-fragment; Vary cookies/headers/language/site/auth scope; ETag/LastModified; Cache-Control",
+        "behavior": "Shared cache off for private authenticated content unless explicit identity-safe key policy; stale serve only opt-in with maximum age.",
+        "family": "HTTP/fragment cache",
+        "flow": "cache.access; http.responses"
+      },
+      "id": "http-cache"
+    },
+    {
+      "cells": {
+        "api": "Open/Save/Delete/Exists/List/Size/URL/ModifiedTime; collision strategy; upload chunk hooks; memory-to-temp-file threshold; file permissions and filename rules",
+        "behavior": "Local storage initial, streaming bound; private URL resolves via authenticated download; public files marked explicitly; orphan cleanup two-phase.",
+        "family": "Storage and upload",
+        "flow": "files.upload; files.download; files.direct"
+      },
+      "id": "files"
+    },
+    {
+      "cells": {
+        "api": "SendMail/SendMassMail/MailAdmins/MailManagers; EmailMessage/Alternatives/attachments/CC/BCC/reply-to; SMTP connection pooling; console/file/in-memory/dummy for tests",
+        "behavior": "SMTP TLS verified, header injection rejected; accepted by SMTP is not delivery guarantee; error mode explicit; enqueue optional Async outbox.",
+        "family": "Email",
+        "flow": "email.send; async.outbox"
+      },
+      "id": "mail"
+    },
+    {
+      "cells": {
+        "api": "Debug/Info/Success/Warning/Error/custom levels; tags; minimum level; consume once; session/cookie/fallback storage",
+        "behavior": "Cookie size cap with session fallback; private content not placed in readable signed cookie; no cross-user shared cache.",
+        "family": "Flash messages",
+        "flow": "messages.flash"
+      },
+      "id": "messages"
+    },
+    {
+      "cells": {
+        "api": "Message extraction/compile; gettext/pgettext/ngettext/lazy/context/plurals; translation override; language cookie and Accept-Language; JS catalog",
+        "behavior": "PO/MO-compatible catalog contract; source locale fallback; JavaScript catalog public strings only; formatting separate from parsing.",
+        "family": "Translations",
+        "flow": "i18n.locale"
+      },
+      "id": "i18n"
+    },
+    {
+      "cells": {
+        "api": "Localized number/date formatting; aware instants, request timezone, UTC persistence; DST invalid/ambiguous input errors",
+        "behavior": "No process-global timezone mutation; clock injection for deterministic tests; display locale never changes stored values.",
+        "family": "Localization and timezones",
+        "flow": "i18n.locale"
+      },
+      "id": "timezone"
+    },
+    {
+      "cells": {
+        "api": "JSON/JSONL/XML and registered safe codecs; natural keys; dependency order; dump/load; exclusions; streams; test fixtures",
+        "behavior": "Deserializers cannot instantiate arbitrary classes; explicit target alias and dry-run; IDs and permissions validated; destructive flush separate command.",
+        "family": "Fixtures and serialization",
+        "flow": "fixtures.data"
+      },
+      "id": "fixtures"
+    },
+    {
+      "cells": {
+        "api": "AppReady; model init/pre/post save/delete; m2m change; pre/post migrate; request start/finish/error; connection created; auth login/logout/failure; setting/test template signals; task lifecycle",
+        "behavior": "Typed event payloads; same-process only; stable receiver IDs; synchronous vs after-commit boundary explicit; no promise of durable event bus.",
+        "family": "Signals",
+        "flow": "core.signals"
+      },
+      "id": "signals"
+    },
+    {
+      "cells": {
+        "api": "Core dispatch port supports Enqueue and result handle; optional Async adapter provides full runtime; no backend enabled by default",
+        "behavior": "Includes Django6 task-family role without forcing Async dependency into Core; dummy/immediate backend only testing mode.",
+        "family": "Minimal task interface",
+        "flow": "async.register; async.publish; async.results"
+      },
+      "id": "tasks"
+    }
+  ],
+  "schemaVersion": 3,
+  "summary": "Proposed contract for architecture review; not implemented.",
+  "title": "Shared service methods and provider contracts",
+  "type": "table"
+}

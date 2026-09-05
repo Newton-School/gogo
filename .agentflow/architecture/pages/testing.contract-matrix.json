@@ -1,0 +1,139 @@
+{
+  "columns": [
+    {
+      "format": "text",
+      "id": "area",
+      "label": "Area"
+    },
+    {
+      "format": "text",
+      "id": "success",
+      "label": "Success proof"
+    },
+    {
+      "format": "text",
+      "id": "failure",
+      "label": "Denial / failure / recovery proof"
+    },
+    {
+      "format": "text",
+      "id": "evidence",
+      "label": "Required evidence"
+    }
+  ],
+  "id": "testing.contract-matrix",
+  "rows": [
+    {
+      "cells": {
+        "area": "Module boundaries",
+        "evidence": "Per-module Go test/build matrix, public import graph and released module resolution.",
+        "failure": "No optional module or concrete driver imported by root; no private package imports or local replaces; version mismatch fails clearly",
+        "success": "Install/compile root alone then each optional module in fresh external example with GOWORK=off"
+      },
+      "id": "modules"
+    },
+    {
+      "cells": {
+        "area": "ORM/schema",
+        "evidence": "Tests for each operation catalog row; query count/assertion helper; race detector.",
+        "failure": "Force-update without PK; force-update precedence over new default-PK shortcut; empty update_fields no-op; update-to-insert auto_now_add preparation; commit failure leaves adding state unchanged; codecs, unique races, stale version, cancellation and SQL injection",
+        "success": "Real PostgreSQL field/query roundtrips plus explicit FullClean error aggregation, Save without Clean, existing-PK update, missing-row insert fallback, new-default-PK insert and correct pre/post-save timing"
+      },
+      "id": "orm"
+    },
+    {
+      "cells": {
+        "area": "Migrations",
+        "evidence": "Migration history and catalog diff; exact checkpoint restoration.",
+        "failure": "Concurrent operators, unknown commit, partial non-atomic DDL, interrupted backfill, rollback/irreversible/fake safeguards",
+        "success": "Fresh vs incremental vs squashed schema fingerprint identical"
+      },
+      "id": "migration"
+    },
+    {
+      "cells": {
+        "area": "HTTP/API",
+        "evidence": "Request-level tests not just helper unit tests; privacy assertions on counts/fields/errors.",
+        "failure": "Every permission denial, unknown/readonly field, object ID escape, CSRF/CORS/host/header injection, body limit, bad cursor, canceled stream",
+        "success": "Full route/auth/serializer/scope/form/template response and OpenAPI agreement"
+      },
+      "id": "http"
+    },
+    {
+      "cells": {
+        "area": "Admin",
+        "evidence": "Atomic DB snapshot before/after; accessibility and frontend interaction test evidence when implementation exists.",
+        "failure": "Verify extra readonly POST fields are ignored without mutation; reject foreign inline IDs, stale edit, invalid management counts, privilege escalation and forbidden cascade; audit failure rolls back edits",
+        "success": "List/add/change/delete/inlines/actions/history and customization on browser-independent handler tests"
+      },
+      "id": "admin"
+    },
+    {
+      "cells": {
+        "area": "Task attempts",
+        "evidence": "Fault-injection event trace, broker pending entries and authoritative result state.",
+        "failure": "Unhandled error without AutoRetryFor is terminal; exhaustion, explicit unlimited policy with deadline, poison envelope, lease loss, stale worker, duplicate/redelivered messages and crash boundaries",
+        "success": "Compare ordinary Retry and AutoRetryFor with Celery: initial retries=0, default three retries, fixed 180s delay, opt-in backoff/jitter; dispatch/claim/result/canvas outcomes"
+      },
+      "id": "async"
+    },
+    {
+      "cells": {
+        "area": "Chord/group/chain",
+        "evidence": "No early callback, no lost durable intent within stated persistence assumptions; duplicate effect caveat tested.",
+        "failure": "Duplicate child, missing/failed/expired member, callback-intent relay crash, cross-slot Redis cluster, retention pressure",
+        "success": "Expected IDs counted once, callback logical claim once, callback side effects idempotent"
+      },
+      "id": "chord"
+    },
+    {
+      "cells": {
+        "area": "Scheduler",
+        "evidence": "Fake clock unit tests plus real Redis multi-scheduler fence/replay tests.",
+        "failure": "Leader loss, clock skew, DST gap/fold, overlapping schedule, backlog misfire, expired ETA",
+        "success": "Interval/crontab/solar calculation; occurrence dedupe; due dispatch"
+      },
+      "id": "schedule"
+    },
+    {
+      "cells": {
+        "area": "PostgreSQL/Redis",
+        "evidence": "Conformance report explicitly separates guaranteed behavior from backend persistence limits.",
+        "failure": "Network timeout, partial response, MOVED/ASK/NOSCRIPT, pool exhaustion, PG failover/unknown commit, Redis unreplicated loss",
+        "success": "TLS, auth, pooling, topology failover, capability and codec checks"
+      },
+      "id": "connectors"
+    },
+    {
+      "cells": {
+        "area": "Service safety",
+        "evidence": "Clock/transport fixtures plus actual PG/Redis integration; no production credentials.",
+        "failure": "Logout race resurrection, cache authorization leak, path/symlink traversal, orphan cleanup, mail unknown outcome, receiver errors",
+        "success": "Session rotation, cache partition, files finalization, SMTP accept, locale catalog and signals"
+      },
+      "id": "services"
+    },
+    {
+      "cells": {
+        "area": "Operational release",
+        "evidence": "SBOM/license/vulnerability checks, rollback rehearsal, measurable SLO/load profile and restore record.",
+        "failure": "Dependency outage, overload, disk full, corrupt migration checksum, old task payload, task retention/restore replay",
+        "success": "Health/readiness/drain, safe logs, metrics, backup restore, upgrade compatibility"
+      },
+      "id": "ops"
+    },
+    {
+      "cells": {
+        "area": "Coverage reconciliation",
+        "evidence": "AgentFlow approved/current/implemented states kept distinct; no passing empty suite as product proof.",
+        "failure": "Missing test/owner/unsupported capability leaves feature unimplemented; architecture changes reopen review",
+        "success": "Every feature-index row maps to code owner and success tests before claiming implemented"
+      },
+      "id": "coverage"
+    }
+  ],
+  "schemaVersion": 3,
+  "summary": "Proposed contract for architecture review; not implemented.",
+  "title": "Required verification before any release claim",
+  "type": "table"
+}

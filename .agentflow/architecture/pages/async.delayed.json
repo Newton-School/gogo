@@ -1,0 +1,164 @@
+{
+  "details": [
+    {
+      "id": "owner",
+      "label": "Proposed code owner",
+      "value": "async/redis/scheduler.Delayed"
+    },
+    {
+      "id": "status",
+      "label": "Implementation status",
+      "value": "No Go implementation exists. Names, limits and behavior are submitted design choices requiring review."
+    },
+    {
+      "id": "features",
+      "label": "Included features",
+      "value": "ETA; countdown; delayed retry; expiration; scheduler storage; recovery"
+    }
+  ],
+  "edges": [
+    {
+      "from": "entry",
+      "id": "edge-1",
+      "to": "claim"
+    },
+    {
+      "from": "claim",
+      "id": "edge-2",
+      "to": "active"
+    },
+    {
+      "from": "active",
+      "id": "edge-3",
+      "label": "Runnable",
+      "to": "publish"
+    },
+    {
+      "from": "active",
+      "id": "edge-4",
+      "label": "Expired/revoked",
+      "to": "terminal"
+    },
+    {
+      "from": "terminal",
+      "id": "edge-5",
+      "label": "Persisted",
+      "to": "mark"
+    },
+    {
+      "from": "publish",
+      "id": "edge-6",
+      "label": "Accepted",
+      "to": "mark"
+    },
+    {
+      "from": "mark",
+      "id": "edge-7",
+      "to": "done"
+    },
+    {
+      "from": "claim",
+      "id": "edge-8",
+      "label": "Claim failed",
+      "style": "error",
+      "to": "error-claim"
+    },
+    {
+      "from": "terminal",
+      "id": "edge-9",
+      "label": "Terminal write failed",
+      "style": "error",
+      "to": "error-terminal"
+    },
+    {
+      "from": "publish",
+      "id": "edge-10",
+      "label": "Publish uncertain/failed",
+      "style": "error",
+      "to": "error-publish"
+    },
+    {
+      "from": "mark",
+      "id": "edge-11",
+      "label": "Mark failed",
+      "style": "error",
+      "to": "error-mark"
+    }
+  ],
+  "id": "async.delayed",
+  "layout": {
+    "direction": "down"
+  },
+  "nodes": [
+    {
+      "id": "entry",
+      "subtitle": "Redis server time and configured partition inventory",
+      "title": "Poll due sorted-set partitions",
+      "type": "job"
+    },
+    {
+      "id": "claim",
+      "subtitle": "Task ID/attempt, expiry, cancellation marker and dispatch lease",
+      "title": "Lease bounded due items with fence",
+      "type": "cache"
+    },
+    {
+      "id": "active",
+      "subtitle": "Inspect authoritative task state before enqueue",
+      "title": "Task still runnable and not expired/revoked?",
+      "type": "decision"
+    },
+    {
+      "id": "terminal",
+      "subtitle": "No runnable publication for terminal item",
+      "title": "Persist EXPIRED/REVOKED and child completion intent",
+      "type": "cache"
+    },
+    {
+      "id": "publish",
+      "subtitle": "Priority and payload digest unchanged",
+      "title": "Publish same task ID and attempt to target queue",
+      "type": "queue"
+    },
+    {
+      "id": "mark",
+      "subtitle": "Only after publish or terminal persistence confirmed",
+      "title": "Mark delayed intent delivered and remove due member",
+      "type": "cache"
+    },
+    {
+      "id": "done",
+      "subtitle": "Crash before mark replays same identity",
+      "title": "Release dispatch lease and poll next due batch",
+      "type": "terminal"
+    },
+    {
+      "id": "error-claim",
+      "subtitle": "Lease expires; next scheduler retries/reconciles; no eager deletion",
+      "title": "Retain due item or pending intent",
+      "type": "error"
+    },
+    {
+      "id": "error-terminal",
+      "subtitle": "Lease expires; next scheduler retries/reconciles; no eager deletion",
+      "title": "Retain due item or pending intent",
+      "type": "error"
+    },
+    {
+      "id": "error-publish",
+      "subtitle": "Lease expires; next scheduler retries/reconciles; no eager deletion",
+      "title": "Retain due item or pending intent",
+      "type": "error"
+    },
+    {
+      "id": "error-mark",
+      "subtitle": "Lease expires; next scheduler retries/reconciles; no eager deletion",
+      "title": "Retain due item or pending intent",
+      "type": "error"
+    }
+  ],
+  "schemaVersion": 3,
+  "summary": "Proposed behavior. Expiration and revocation have their own persistence path; delayed messages are never simply removed without producing a terminal workflow notification.",
+  "title": "Move delayed and retried tasks into runnable queues",
+  "type": "flow"
+}

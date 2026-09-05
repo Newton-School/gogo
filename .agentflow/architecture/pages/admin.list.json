@@ -1,0 +1,105 @@
+{
+  "details": [
+    {
+      "id": "owner",
+      "label": "Proposed code owner",
+      "value": "admin.ChangeList"
+    },
+    {
+      "id": "status",
+      "label": "Implementation status",
+      "value": "No Go implementation exists. Names, limits and behavior are submitted design choices requiring review."
+    },
+    {
+      "id": "features",
+      "label": "Included features",
+      "value": "list_display; list_display_links; search_fields; filters/facets; date hierarchy; ordering; pagination; preserved filters; empty values"
+    }
+  ],
+  "edges": [
+    {
+      "from": "entry",
+      "id": "entry-to-scope",
+      "to": "scope"
+    },
+    {
+      "from": "scope",
+      "id": "scope-to-query",
+      "to": "query"
+    },
+    {
+      "from": "query",
+      "id": "query-to-rows",
+      "to": "rows"
+    },
+    {
+      "from": "rows",
+      "id": "rows-to-display",
+      "to": "display"
+    },
+    {
+      "from": "display",
+      "id": "display-to-done",
+      "to": "done"
+    },
+    {
+      "from": "rows",
+      "id": "rows-to-backend-failed",
+      "label": "Operation fails",
+      "style": "error",
+      "to": "backend-failed"
+    }
+  ],
+  "id": "admin.list",
+  "layout": {
+    "direction": "down"
+  },
+  "nodes": [
+    {
+      "id": "entry",
+      "subtitle": "GET /admin/{app}/{model}/",
+      "title": "Open model list",
+      "type": "api"
+    },
+    {
+      "id": "scope",
+      "subtitle": "Tenant/object scope before counts or available filters",
+      "title": "Apply ModelAdmin.GetQuerySet and view policy",
+      "type": "action"
+    },
+    {
+      "id": "query",
+      "subtitle": "SearchFields; ListFilter; DateHierarchy; preserve_filters; deterministic PK tie-breaker",
+      "title": "Parse allowlisted search, filters and ordering",
+      "type": "action"
+    },
+    {
+      "id": "rows",
+      "subtitle": "ListSelectRelated and prefetch; avoid N+1 display functions",
+      "title": "Read page and scoped counts",
+      "type": "database"
+    },
+    {
+      "id": "display",
+      "subtitle": "ListDisplay/Links; boolean/icon rendering; HTML escaped unless trusted renderer",
+      "title": "Compute permitted display columns and links",
+      "type": "action"
+    },
+    {
+      "id": "done",
+      "subtitle": "Empty state, pagination and filter counts respect same scope",
+      "title": "Render change list with permitted actions",
+      "type": "terminal"
+    },
+    {
+      "id": "backend-failed",
+      "subtitle": "No unfiltered fallback query",
+      "title": "Show scoped list error",
+      "type": "error"
+    }
+  ],
+  "schemaVersion": 3,
+  "summary": "Proposed behavior. Owned by admin.ChangeList; select nodes for technical details.",
+  "title": "Search, filter and paginate an Admin change list",
+  "type": "flow"
+}

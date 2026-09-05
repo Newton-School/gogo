@@ -1,0 +1,106 @@
+{
+  "details": [
+    {
+      "id": "owner",
+      "label": "Proposed code owner",
+      "value": "core/checks"
+    },
+    {
+      "id": "status",
+      "label": "Implementation status",
+      "value": "No Go implementation exists. Names, limits and behavior are submitted design choices requiring review."
+    },
+    {
+      "id": "features",
+      "label": "Included features",
+      "value": "custom checks; tags; severity; deployment checks; read-only backend checks"
+    }
+  ],
+  "edges": [
+    {
+      "from": "entry",
+      "id": "entry-to-select",
+      "to": "select"
+    },
+    {
+      "from": "select",
+      "id": "select-to-inspect",
+      "to": "inspect"
+    },
+    {
+      "from": "inspect",
+      "id": "inspect-to-probe",
+      "to": "probe"
+    },
+    {
+      "from": "probe",
+      "id": "probe-to-issues",
+      "to": "issues"
+    },
+    {
+      "from": "issues",
+      "id": "issues-to-issues-rejected",
+      "label": "Errors",
+      "style": "error",
+      "to": "issues-rejected"
+    },
+    {
+      "from": "issues",
+      "id": "issues-to-done",
+      "label": "No errors",
+      "to": "done"
+    }
+  ],
+  "id": "core.checks",
+  "layout": {
+    "direction": "down"
+  },
+  "nodes": [
+    {
+      "id": "entry",
+      "subtitle": "manage.go check [--deploy] [--tag]",
+      "title": "Run checks or start a role",
+      "type": "api"
+    },
+    {
+      "id": "select",
+      "subtitle": "Core, app and installed connector registrations; deterministic order",
+      "title": "Choose relevant check providers",
+      "type": "action"
+    },
+    {
+      "id": "inspect",
+      "subtitle": "Duplicate routes, relation targets, keys, trusted proxies, TLS and role limits",
+      "title": "Inspect schemas and settings",
+      "type": "action"
+    },
+    {
+      "id": "probe",
+      "subtitle": "Bounded read-only probes; never mutate data or install extensions",
+      "title": "Run explicitly requested backend probes",
+      "type": "action"
+    },
+    {
+      "id": "issues",
+      "subtitle": "Stable check ID, severity, setting/path, remedy",
+      "title": "Any error-level finding?",
+      "type": "decision"
+    },
+    {
+      "id": "issues-rejected",
+      "subtitle": "ChecksError; no server started",
+      "title": "Return failing exit code",
+      "type": "error"
+    },
+    {
+      "id": "done",
+      "subtitle": "Suppressions must name check IDs; security errors cannot be silently suppressed",
+      "title": "Return warnings and successful exit",
+      "type": "terminal"
+    }
+  ],
+  "schemaVersion": 3,
+  "summary": "Proposed behavior. Owned by core/checks; select nodes for technical details.",
+  "title": "Run system and deployment checks",
+  "type": "flow"
+}

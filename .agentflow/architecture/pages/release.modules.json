@@ -1,0 +1,117 @@
+{
+  "details": [
+    {
+      "id": "owner",
+      "label": "Proposed code owner",
+      "value": "release tooling; public package boundaries"
+    },
+    {
+      "id": "status",
+      "label": "Implementation status",
+      "value": "No Go implementation exists. Names, limits and behavior are submitted design choices requiring review."
+    },
+    {
+      "id": "features",
+      "label": "Included features",
+      "value": "semver; module tags; compatibility; fresh consumer tests; release notes; dependency audit; license notices"
+    }
+  ],
+  "edges": [
+    {
+      "from": "entry",
+      "id": "entry-to-versions",
+      "to": "versions"
+    },
+    {
+      "from": "versions",
+      "id": "versions-to-test",
+      "to": "test"
+    },
+    {
+      "from": "test",
+      "id": "test-to-audit",
+      "to": "audit"
+    },
+    {
+      "from": "audit",
+      "id": "audit-to-ready",
+      "to": "ready"
+    },
+    {
+      "from": "ready",
+      "id": "ready-to-ready-rejected",
+      "label": "No",
+      "style": "error",
+      "to": "ready-rejected"
+    },
+    {
+      "from": "ready",
+      "id": "ready-to-package",
+      "label": "Yes",
+      "to": "package"
+    },
+    {
+      "from": "package",
+      "id": "package-to-done",
+      "to": "done"
+    }
+  ],
+  "id": "release.modules",
+  "layout": {
+    "direction": "down"
+  },
+  "nodes": [
+    {
+      "id": "entry",
+      "subtitle": "Core, Admin, Async and selected connector modules",
+      "title": "Prepare a Gogo release",
+      "type": "actor"
+    },
+    {
+      "id": "versions",
+      "subtitle": "Submodule tags match module directories; public breaking changes require major path/version rules",
+      "title": "Choose compatible semantic versions",
+      "type": "action"
+    },
+    {
+      "id": "test",
+      "subtitle": "Disable workspace overrides; exported contracts compile independently",
+      "title": "Test each module and fresh consumer projects",
+      "type": "action"
+    },
+    {
+      "id": "audit",
+      "subtitle": "No leaked internal types; no local paths/credentials; vendor license inventory",
+      "title": "Audit API diffs and dependency/security reports",
+      "type": "action"
+    },
+    {
+      "id": "ready",
+      "subtitle": "Changelog, migration notes, compatibility matrix and documentation verified",
+      "title": "Release evidence and artifacts complete?",
+      "type": "decision"
+    },
+    {
+      "id": "ready-rejected",
+      "subtitle": "No tag claims unverified compatibility",
+      "title": "Stop release publication",
+      "type": "error"
+    },
+    {
+      "id": "package",
+      "subtitle": "Actual publishing requires explicit owner request; no automatic push in architecture task",
+      "title": "Prepare tags and release artifacts",
+      "type": "action"
+    },
+    {
+      "id": "done",
+      "subtitle": "Core never imports optional products or concrete connectors",
+      "title": "Release modules with traceable compatibility",
+      "type": "terminal"
+    }
+  ],
+  "schemaVersion": 3,
+  "summary": "Proposed behavior. Owned by release tooling; public package boundaries; select nodes for technical details.",
+  "title": "Publish compatible framework modules",
+  "type": "flow"
+}

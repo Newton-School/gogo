@@ -1,0 +1,202 @@
+{
+  "details": [
+    {
+      "id": "owner",
+      "label": "Proposed code owner",
+      "value": "core/cache; connectors/redis/cache"
+    },
+    {
+      "id": "status",
+      "label": "Implementation status",
+      "value": "No Go implementation exists. Names, limits and behavior are submitted design choices requiring review."
+    },
+    {
+      "id": "features",
+      "label": "Included features",
+      "value": "cache backends; get/set/add/delete; get_many/set_many; incr/decr; versioning; site/view/fragment caching; Vary"
+    }
+  ],
+  "edges": [
+    {
+      "from": "entry",
+      "id": "edge-1",
+      "to": "key"
+    },
+    {
+      "from": "key",
+      "id": "edge-2",
+      "to": "read"
+    },
+    {
+      "from": "read",
+      "id": "edge-3",
+      "label": "Read completed",
+      "to": "hit"
+    },
+    {
+      "from": "read",
+      "id": "edge-4",
+      "label": "Unavailable",
+      "to": "readpolicy"
+    },
+    {
+      "from": "hit",
+      "id": "edge-5",
+      "label": "Fresh",
+      "to": "cached"
+    },
+    {
+      "from": "hit",
+      "id": "edge-6",
+      "label": "Miss/expired/invalid",
+      "to": "loader"
+    },
+    {
+      "from": "readpolicy",
+      "id": "edge-7",
+      "label": "Bypass enabled",
+      "to": "loader"
+    },
+    {
+      "from": "readpolicy",
+      "id": "edge-8",
+      "label": "Required store",
+      "to": "unavailable-readpolicy"
+    },
+    {
+      "from": "loader",
+      "id": "edge-9",
+      "to": "loaded"
+    },
+    {
+      "from": "loaded",
+      "id": "edge-10",
+      "label": "No",
+      "to": "loaderror"
+    },
+    {
+      "from": "loaded",
+      "id": "edge-11",
+      "label": "Yes",
+      "to": "write"
+    },
+    {
+      "from": "write",
+      "id": "edge-12",
+      "label": "Stored",
+      "to": "done"
+    },
+    {
+      "from": "write",
+      "id": "edge-13",
+      "label": "Store failed",
+      "to": "writepolicy"
+    },
+    {
+      "from": "writepolicy",
+      "id": "edge-14",
+      "label": "Bypass enabled",
+      "to": "done"
+    },
+    {
+      "from": "writepolicy",
+      "id": "edge-15",
+      "label": "Required store",
+      "to": "unavailable-writepolicy"
+    }
+  ],
+  "id": "cache.access",
+  "layout": {
+    "direction": "down"
+  },
+  "nodes": [
+    {
+      "id": "entry",
+      "subtitle": "Caller checks authorization before any cache lookup",
+      "title": "GetOrSet an authorized scoped value",
+      "type": "api"
+    },
+    {
+      "id": "key",
+      "subtitle": "Include resource/site/user/language/Vary dimensions required by response",
+      "title": "Build namespaced versioned key",
+      "type": "action"
+    },
+    {
+      "id": "read",
+      "subtitle": "Classify miss, fresh value, decode/version miss and unavailable separately",
+      "title": "Read bounded Redis value",
+      "type": "cache"
+    },
+    {
+      "id": "hit",
+      "subtitle": "Expired or corrupt value is a miss; corrupt value reported for repair",
+      "title": "Is a fresh compatible value present?",
+      "type": "decision"
+    },
+    {
+      "id": "cached",
+      "subtitle": "No loader call",
+      "title": "Return cached value",
+      "type": "terminal"
+    },
+    {
+      "id": "readpolicy",
+      "subtitle": "Sessions/security/task state cannot select optional bypass",
+      "title": "May this optional cache bypass an outage?",
+      "type": "decision"
+    },
+    {
+      "id": "loader",
+      "subtitle": "Coalesce same-process calls; enforce context and DB/query bounds",
+      "title": "Execute scoped application loader",
+      "type": "action"
+    },
+    {
+      "id": "loaded",
+      "subtitle": "No negative caching of arbitrary backend failures",
+      "title": "Loader succeeded?",
+      "type": "decision"
+    },
+    {
+      "id": "loaderror",
+      "subtitle": "Do not store failed load as a legitimate empty result",
+      "title": "Return loader error",
+      "type": "error"
+    },
+    {
+      "id": "write",
+      "subtitle": "Jitter optional; optimistic cache not source of truth",
+      "title": "Store fresh value and bounded TTL",
+      "type": "cache"
+    },
+    {
+      "id": "writepolicy",
+      "subtitle": "Only bypass policy permits successful loaded value despite cache outage",
+      "title": "May this optional cache ignore store failure?",
+      "type": "decision"
+    },
+    {
+      "id": "done",
+      "subtitle": "Mutation invalidation performed separately after database commit",
+      "title": "Return loaded value",
+      "type": "terminal"
+    },
+    {
+      "id": "unavailable-readpolicy",
+      "subtitle": "No fallback grant or unauthenticated content substitution",
+      "title": "Return CacheUnavailable",
+      "type": "error"
+    },
+    {
+      "id": "unavailable-writepolicy",
+      "subtitle": "No fallback grant or unauthenticated content substitution",
+      "title": "Return CacheUnavailable",
+      "type": "error"
+    }
+  ],
+  "schemaVersion": 3,
+  "summary": "Proposed behavior. Backend read failure must actually execute the loader before a loaded value can be returned. Cache-write failure never creates a fabricated cache hit.",
+  "title": "Read through cache and invalidate after a write",
+  "type": "flow"
+}

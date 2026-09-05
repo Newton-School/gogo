@@ -1,0 +1,131 @@
+{
+  "details": [
+    {
+      "id": "owner",
+      "label": "Proposed code owner",
+      "value": "async.WorkerPool; ProcessExecutor"
+    },
+    {
+      "id": "status",
+      "label": "Implementation status",
+      "value": "No Go implementation exists. Names, limits and behavior are submitted design choices requiring review."
+    },
+    {
+      "id": "features",
+      "label": "Included features",
+      "value": "concurrency; prefetch; rate limits; soft/hard timeout; process isolation; autoscaling; worker recycling"
+    }
+  ],
+  "edges": [
+    {
+      "from": "entry",
+      "id": "entry-to-capacity",
+      "to": "capacity"
+    },
+    {
+      "from": "capacity",
+      "id": "capacity-to-rate",
+      "to": "rate"
+    },
+    {
+      "from": "rate",
+      "id": "rate-to-rate-rejected",
+      "label": "No",
+      "to": "rate-rejected"
+    },
+    {
+      "from": "rate",
+      "id": "rate-to-mode",
+      "label": "Yes",
+      "to": "mode"
+    },
+    {
+      "from": "mode",
+      "id": "mode-to-run",
+      "style": "async",
+      "to": "run"
+    },
+    {
+      "from": "run",
+      "id": "run-to-finished",
+      "to": "finished"
+    },
+    {
+      "from": "finished",
+      "id": "finished-to-finished-rejected",
+      "label": "No",
+      "style": "error",
+      "to": "finished-rejected"
+    },
+    {
+      "from": "finished",
+      "id": "finished-to-done",
+      "label": "Yes",
+      "to": "done"
+    }
+  ],
+  "id": "async.limits",
+  "layout": {
+    "direction": "down"
+  },
+  "nodes": [
+    {
+      "id": "entry",
+      "subtitle": "Task policy declares queue, rate, concurrency, soft and hard limits",
+      "title": "Receive executable task",
+      "type": "queue"
+    },
+    {
+      "id": "capacity",
+      "subtitle": "Bounded prefetch; no work claim without available capacity",
+      "title": "Acquire worker slot and per-task quota",
+      "type": "action"
+    },
+    {
+      "id": "rate",
+      "subtitle": "Distributed or per-worker policy explicitly selected",
+      "title": "Rate budget available?",
+      "type": "decision"
+    },
+    {
+      "id": "rate-rejected",
+      "subtitle": "Rate limit is admission delay, not execution retry",
+      "title": "Reschedule without counting a failure",
+      "type": "terminal"
+    },
+    {
+      "id": "mode",
+      "subtitle": "Goroutine pool for cooperative handlers; subprocess for killable hard deadlines",
+      "title": "Choose execution isolation",
+      "type": "action"
+    },
+    {
+      "id": "run",
+      "subtitle": "Soft timeout signals context; heartbeat continues only while lease held",
+      "title": "Run handler with cancellation deadline",
+      "type": "job"
+    },
+    {
+      "id": "finished",
+      "subtitle": "Subprocess may be terminated; arbitrary Go goroutine cannot be safely killed",
+      "title": "Handler finishes before enforced limit?",
+      "type": "decision"
+    },
+    {
+      "id": "finished-rejected",
+      "subtitle": "Uncooperative goroutine occupies slot until exit; restart/drain required",
+      "title": "Record timeout and apply retry policy",
+      "type": "error"
+    },
+    {
+      "id": "done",
+      "subtitle": "Per-process recycling and autoscale bounded by configured min/max",
+      "title": "Release slot and publish measured runtime",
+      "type": "terminal"
+    }
+  ],
+  "schemaVersion": 3,
+  "summary": "Proposed behavior. Owned by async.WorkerPool; ProcessExecutor; select nodes for technical details.",
+  "title": "Apply concurrency, rate and hard time limits",
+  "type": "flow"
+}

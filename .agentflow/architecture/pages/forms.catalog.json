@@ -1,0 +1,103 @@
+{
+  "columns": [
+    {
+      "format": "text",
+      "id": "family",
+      "label": "Family"
+    },
+    {
+      "format": "text",
+      "id": "items",
+      "label": "Features"
+    },
+    {
+      "format": "text",
+      "id": "contract",
+      "label": "Behavior"
+    },
+    {
+      "format": "text",
+      "id": "flow",
+      "label": "Flow"
+    }
+  ],
+  "id": "forms.catalog",
+  "rows": [
+    {
+      "cells": {
+        "contract": "Bound fields track raw/normalized/error/changed state; cleaning order field \u2192 custom field clean \u2192 form clean.",
+        "family": "Value fields",
+        "flow": "forms.bind",
+        "items": "Boolean/NullBoolean, Char, Choice/TypedChoice, MultipleChoice/TypedMultipleChoice, Date/DateTime/Time/Duration, Decimal/Float/Integer, Email, URL, UUID, Slug, IP, Regex, JSON"
+      },
+      "id": "fields"
+    },
+    {
+      "cells": {
+        "contract": "Choices resolved through actor-scoped querysets; file validation shares storage rules; composite cleaning collects subfield errors.",
+        "family": "Structured and file fields",
+        "flow": "forms.bind; files.upload",
+        "items": "File/Image/FilePath, ModelChoice/ModelMultipleChoice, MultiValue/Combo/SplitDateTime"
+      },
+      "id": "complex"
+    },
+    {
+      "cells": {
+        "contract": "Disabled fields use trusted initial values; ModelForm readonly exclusions are not bound from POST. Ignore undeclared HTML form fields; validate management and identity inputs explicitly; invalid hidden fields appear in error summary.",
+        "family": "Field and form options",
+        "flow": "forms.bind; admin.form",
+        "items": "required, initial, disabled, label/suffix, help_text, widget attrs, error_messages, validators, localize, prefix, auto_id, field_order, renderer, bound_field class"
+      },
+      "id": "options"
+    },
+    {
+      "cells": {
+        "contract": "Validation repeatable and cached within bound instance; error labels linked via accessible IDs; default values never mistaken for submitted false/zero.",
+        "family": "Form API",
+        "flow": "forms.bind",
+        "items": "IsBound, IsValid, Errors/ErrorList/ErrorDict, CleanedData, AddError, HasChanged, ChangedData, BoundField; render div/p/table/list/template"
+      },
+      "id": "api"
+    },
+    {
+      "cells": {
+        "contract": "Escaped attributes; sensitive password never redisplayed; media assets deduplicated deterministically.",
+        "family": "Input widgets",
+        "flow": "forms.bind; templates.render",
+        "items": "Text, Number, Email, URL, Password, Hidden, MultipleHidden, File, ClearableFile, Textarea, Date/DateTime/Time, Checkbox, Select, NullBooleanSelect, SelectMultiple, Radio, CheckboxMultiple"
+      },
+      "id": "widgets"
+    },
+    {
+      "cells": {
+        "contract": "Widget renders UI only; field retains validation authority; custom widget assets declared, not arbitrary inline scripts.",
+        "family": "Composite and custom widgets",
+        "flow": "forms.bind; admin.form",
+        "items": "MultiWidget, SplitDateTime, SplitHiddenDateTime, SelectDate; decompression/compression; template renderer; JS/CSS Media"
+      },
+      "id": "multiwidgets"
+    },
+    {
+      "cells": {
+        "contract": "Explicit writable allowlist; commit=false returns unsaved instance with deferred relation plan; save parent before SaveM2M.",
+        "family": "Model forms",
+        "flow": "forms.model; forms.formsets",
+        "items": "Factory, include/exclude, ModelFormSet, InlineFormSet, field/form callbacks, commit=false, SaveM2M, unique/constraint validation"
+      },
+      "id": "model"
+    },
+    {
+      "cells": {
+        "contract": "Reject forged management counts; absolute maximum bound before allocating forms; duplicate object IDs rejected; all writes one transaction.",
+        "family": "Formset behavior",
+        "flow": "forms.formsets",
+        "items": "Management form, prefix, initial/extra/min/max/absolute_max, ordering, deletion, empty_form, custom clean, nonform errors, model/inline factories"
+      },
+      "id": "formsets"
+    }
+  ],
+  "schemaVersion": 3,
+  "summary": "Proposed contract for architecture review; not implemented.",
+  "title": "Forms, formsets, fields and widgets",
+  "type": "table"
+}

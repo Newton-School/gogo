@@ -1,0 +1,143 @@
+{
+  "details": [
+    {
+      "id": "owner",
+      "label": "Proposed code owner",
+      "value": "core/orm.Expression; internal/sqlcompiler"
+    },
+    {
+      "id": "status",
+      "label": "Implementation status",
+      "value": "No Go implementation exists. Names, limits and behavior are submitted design choices requiring review."
+    },
+    {
+      "id": "features",
+      "label": "Included features",
+      "value": "aggregates; annotations; F expressions; conditional expressions; subqueries; window functions; database functions"
+    }
+  ],
+  "edges": [
+    {
+      "from": "entry",
+      "id": "entry-to-types",
+      "to": "types"
+    },
+    {
+      "from": "types",
+      "id": "types-to-cap",
+      "to": "cap"
+    },
+    {
+      "from": "cap",
+      "id": "cap-to-cap-rejected",
+      "label": "No",
+      "style": "error",
+      "to": "cap-rejected"
+    },
+    {
+      "from": "cap",
+      "id": "cap-to-compile",
+      "label": "Yes",
+      "to": "compile"
+    },
+    {
+      "from": "compile",
+      "id": "compile-to-execute",
+      "to": "execute"
+    },
+    {
+      "from": "execute",
+      "id": "execute-to-decode",
+      "to": "decode"
+    },
+    {
+      "from": "decode",
+      "id": "decode-to-done",
+      "to": "done"
+    },
+    {
+      "from": "execute",
+      "id": "execute-to-backend-failed",
+      "label": "Operation fails",
+      "style": "error",
+      "to": "backend-failed-execute"
+    },
+    {
+      "from": "decode",
+      "id": "decode-to-backend-failed",
+      "label": "Operation fails",
+      "style": "error",
+      "to": "backend-failed-decode"
+    }
+  ],
+  "id": "orm.expressions",
+  "layout": {
+    "direction": "down"
+  },
+  "nodes": [
+    {
+      "id": "entry",
+      "subtitle": "FieldRef, Value, Q, Case/When, Exists, Subquery, OuterRef",
+      "title": "Compose typed expression tree",
+      "type": "api"
+    },
+    {
+      "id": "types",
+      "subtitle": "Annotation aliases, aggregate output, joins, HAVING and window partition/order",
+      "title": "Resolve types and grouping",
+      "type": "action"
+    },
+    {
+      "id": "cap",
+      "subtitle": "Backend functions, filtered aggregate, window frame/exclusion",
+      "title": "Expression and frame supported?",
+      "type": "decision"
+    },
+    {
+      "id": "cap-rejected",
+      "subtitle": "No unverified SQL fallback",
+      "title": "Return UnsupportedExpression",
+      "type": "error"
+    },
+    {
+      "id": "compile",
+      "subtitle": "Sum/Avg/Count/Min/Max; math/text/date/JSON functions; bind all data values",
+      "title": "Compile scoped query AST",
+      "type": "action"
+    },
+    {
+      "id": "execute",
+      "subtitle": "Update arithmetic occurs in DB to prevent read-modify-write loss",
+      "title": "Execute SQL with bound parameters",
+      "type": "database"
+    },
+    {
+      "id": "decode",
+      "subtitle": "Declared output/null defaults; decimal precision preserved",
+      "title": "Decode annotations and empty aggregates",
+      "type": "action"
+    },
+    {
+      "id": "done",
+      "subtitle": "Scope included before aggregate and pagination",
+      "title": "Return rows or scalar aggregate",
+      "type": "terminal"
+    },
+    {
+      "id": "backend-failed-execute",
+      "subtitle": "Type/overflow/DB errors remain visible",
+      "title": "Return expression execution error",
+      "type": "error"
+    },
+    {
+      "id": "backend-failed-decode",
+      "subtitle": "Type/overflow/DB errors remain visible",
+      "title": "Return expression execution error",
+      "type": "error"
+    }
+  ],
+  "schemaVersion": 3,
+  "summary": "Proposed behavior. Owned by core/orm.Expression; internal/sqlcompiler; select nodes for technical details.",
+  "title": "Evaluate aggregates, expressions and database functions",
+  "type": "flow"
+}

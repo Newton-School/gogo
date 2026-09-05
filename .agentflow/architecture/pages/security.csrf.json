@@ -1,0 +1,120 @@
+{
+  "details": [
+    {
+      "id": "owner",
+      "label": "Proposed code owner",
+      "value": "core/security.CSRF"
+    },
+    {
+      "id": "status",
+      "label": "Implementation status",
+      "value": "No Go implementation exists. Names, limits and behavior are submitted design choices requiring review."
+    },
+    {
+      "id": "features",
+      "label": "Included features",
+      "value": "CSRF tokens; trusted origins; masked tokens; rotation; unsafe methods; exemptions"
+    }
+  ],
+  "edges": [
+    {
+      "from": "entry",
+      "id": "entry-to-origin",
+      "to": "origin"
+    },
+    {
+      "from": "origin",
+      "id": "origin-to-trusted",
+      "to": "trusted"
+    },
+    {
+      "from": "trusted",
+      "id": "trusted-to-trusted-rejected",
+      "label": "No",
+      "style": "error",
+      "to": "trusted-rejected"
+    },
+    {
+      "from": "trusted",
+      "id": "trusted-to-token",
+      "label": "Yes",
+      "to": "token"
+    },
+    {
+      "from": "token",
+      "id": "token-to-match",
+      "to": "match"
+    },
+    {
+      "from": "match",
+      "id": "match-to-match-rejected",
+      "label": "No",
+      "style": "error",
+      "to": "match-rejected"
+    },
+    {
+      "from": "match",
+      "id": "match-to-done",
+      "label": "Yes",
+      "to": "done"
+    }
+  ],
+  "id": "security.csrf",
+  "layout": {
+    "direction": "down"
+  },
+  "nodes": [
+    {
+      "id": "entry",
+      "subtitle": "POST/PUT/PATCH/DELETE; GET/HEAD/OPTIONS must not mutate state",
+      "title": "Receive unsafe-method request",
+      "type": "api"
+    },
+    {
+      "id": "origin",
+      "subtitle": "Configured trusted origins; proxy headers accepted only from trusted proxies",
+      "title": "Validate Origin or HTTPS Referer",
+      "type": "action"
+    },
+    {
+      "id": "trusted",
+      "subtitle": "No wildcard credentialed origin acceptance",
+      "title": "Origin belongs to permitted origin set?",
+      "type": "decision"
+    },
+    {
+      "id": "trusted-rejected",
+      "subtitle": "403; no handler execution",
+      "title": "Return CSRF origin failure",
+      "type": "error"
+    },
+    {
+      "id": "token",
+      "subtitle": "Constant-time; token rotates on login; secure cookie/session binding",
+      "title": "Unmask form/header token and compare secret",
+      "type": "action"
+    },
+    {
+      "id": "match",
+      "subtitle": "Require token for cookie/session identity including login",
+      "title": "Submitted token valid?",
+      "type": "decision"
+    },
+    {
+      "id": "match-rejected",
+      "subtitle": "403; safe failure reason; no token echoed",
+      "title": "Return CSRF token failure",
+      "type": "error"
+    },
+    {
+      "id": "done",
+      "subtitle": "Explicit exemption required for verified non-cookie webhook/token endpoint",
+      "title": "Invoke protected handler",
+      "type": "terminal"
+    }
+  ],
+  "schemaVersion": 3,
+  "summary": "Proposed behavior. Owned by core/security.CSRF; select nodes for technical details.",
+  "title": "Validate CSRF and origin for cookie-authenticated writes",
+  "type": "flow"
+}

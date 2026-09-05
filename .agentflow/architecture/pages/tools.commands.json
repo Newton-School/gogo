@@ -1,0 +1,131 @@
+{
+  "details": [
+    {
+      "id": "owner",
+      "label": "Proposed code owner",
+      "value": "core/management"
+    },
+    {
+      "id": "status",
+      "label": "Implementation status",
+      "value": "No Go implementation exists. Names, limits and behavior are submitted design choices requiring review."
+    },
+    {
+      "id": "features",
+      "label": "Included features",
+      "value": "custom commands; help; flags; programmatic invocation; dbshell; inspectdb; shell via compiled Go runner"
+    }
+  ],
+  "edges": [
+    {
+      "from": "entry",
+      "id": "entry-to-resolve",
+      "to": "resolve"
+    },
+    {
+      "from": "resolve",
+      "id": "resolve-to-flags",
+      "to": "flags"
+    },
+    {
+      "from": "flags",
+      "id": "flags-to-flags-rejected",
+      "label": "No",
+      "style": "error",
+      "to": "flags-rejected"
+    },
+    {
+      "from": "flags",
+      "id": "flags-to-resources",
+      "label": "Yes",
+      "to": "resources"
+    },
+    {
+      "from": "resources",
+      "id": "resources-to-execute",
+      "to": "execute"
+    },
+    {
+      "from": "execute",
+      "id": "execute-to-success",
+      "to": "success"
+    },
+    {
+      "from": "success",
+      "id": "success-to-success-rejected",
+      "label": "No",
+      "style": "error",
+      "to": "success-rejected"
+    },
+    {
+      "from": "success",
+      "id": "success-to-done",
+      "label": "Yes",
+      "to": "done"
+    }
+  ],
+  "id": "tools.commands",
+  "layout": {
+    "direction": "down"
+  },
+  "nodes": [
+    {
+      "id": "entry",
+      "subtitle": "go run manage.go <command> [flags]",
+      "title": "Invoke central command",
+      "type": "api"
+    },
+    {
+      "id": "resolve",
+      "subtitle": "Core plus installed apps; duplicate names require explicit override",
+      "title": "Resolve explicit command registration",
+      "type": "action"
+    },
+    {
+      "id": "flags",
+      "subtitle": "Typed positional arguments; --help; --settings; --verbosity; --no-color",
+      "title": "Flags and arguments valid?",
+      "type": "decision"
+    },
+    {
+      "id": "flags-rejected",
+      "subtitle": "No resources opened for invalid invocation",
+      "title": "Print usage and exit 2",
+      "type": "error"
+    },
+    {
+      "id": "resources",
+      "subtitle": "Use same application config/registry as web; no unused worker connection",
+      "title": "Initialize declared resources",
+      "type": "action"
+    },
+    {
+      "id": "execute",
+      "subtitle": "Command.Run; machine-readable output optional; no process-global stdout assumptions",
+      "title": "Run command with context and output writers",
+      "type": "action"
+    },
+    {
+      "id": "success",
+      "subtitle": "Domain errors mapped to stable nonzero codes",
+      "title": "Command completed successfully?",
+      "type": "decision"
+    },
+    {
+      "id": "success-rejected",
+      "subtitle": "CommandError; no success claim",
+      "title": "Print safe error and close resources",
+      "type": "error"
+    },
+    {
+      "id": "done",
+      "subtitle": "Programmatic management.Call uses same invocation contract",
+      "title": "Flush output and exit 0",
+      "type": "terminal"
+    }
+  ],
+  "schemaVersion": 3,
+  "summary": "Proposed behavior. Owned by core/management; select nodes for technical details.",
+  "title": "Resolve and run custom management commands",
+  "type": "flow"
+}

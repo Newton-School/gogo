@@ -1,0 +1,106 @@
+{
+  "details": [
+    {
+      "id": "owner",
+      "label": "Proposed code owner",
+      "value": "admin.Site; admin.ModelAdmin[T]"
+    },
+    {
+      "id": "status",
+      "label": "Implementation status",
+      "value": "No Go implementation exists. Names, limits and behavior are submitted design choices requiring review."
+    },
+    {
+      "id": "features",
+      "label": "Included features",
+      "value": "AdminSite; ModelAdmin; registration; unregister; multiple sites; custom templates; startup checks"
+    }
+  ],
+  "edges": [
+    {
+      "from": "entry",
+      "id": "entry-to-descriptor",
+      "to": "descriptor"
+    },
+    {
+      "from": "descriptor",
+      "id": "descriptor-to-valid",
+      "to": "valid"
+    },
+    {
+      "from": "valid",
+      "id": "valid-to-valid-rejected",
+      "label": "No",
+      "style": "error",
+      "to": "valid-rejected"
+    },
+    {
+      "from": "valid",
+      "id": "valid-to-routes",
+      "label": "Yes",
+      "to": "routes"
+    },
+    {
+      "from": "routes",
+      "id": "routes-to-assets",
+      "to": "assets"
+    },
+    {
+      "from": "assets",
+      "id": "assets-to-done",
+      "to": "done"
+    }
+  ],
+  "id": "admin.register",
+  "layout": {
+    "direction": "down"
+  },
+  "nodes": [
+    {
+      "id": "entry",
+      "subtitle": "config/apps.go includes admin.App and explicit model registrations",
+      "title": "Install optional Admin module",
+      "type": "api"
+    },
+    {
+      "id": "descriptor",
+      "subtitle": "List fields, fieldsets, forms, inlines, actions, templates and permission hooks",
+      "title": "Read ModelAdmin configuration",
+      "type": "action"
+    },
+    {
+      "id": "valid",
+      "subtitle": "Unknown field references, duplicate registration and unsafe actions rejected; known readonly fields are valid",
+      "title": "Model references and options valid?",
+      "type": "decision"
+    },
+    {
+      "id": "valid-rejected",
+      "subtitle": "No accidental full-model exposure",
+      "title": "Fail Admin startup checks",
+      "type": "error"
+    },
+    {
+      "id": "routes",
+      "subtitle": "/admin/ default; independent Site instances may use separate scopes",
+      "title": "Mount site-specific route namespace",
+      "type": "action"
+    },
+    {
+      "id": "assets",
+      "subtitle": "Project overrides explicit; no runtime Node/frontend build needed",
+      "title": "Register embedded templates and assets",
+      "type": "action"
+    },
+    {
+      "id": "done",
+      "subtitle": "Admin depends only on public Core APIs; Async not required",
+      "title": "Expose registered models only",
+      "type": "terminal"
+    }
+  ],
+  "schemaVersion": 3,
+  "summary": "Proposed behavior. Owned by admin.Site; admin.ModelAdmin[T]; select nodes for technical details.",
+  "title": "Register models and publish an Admin site",
+  "type": "flow"
+}

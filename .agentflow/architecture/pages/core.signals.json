@@ -1,0 +1,164 @@
+{
+  "details": [
+    {
+      "id": "owner",
+      "label": "Proposed code owner",
+      "value": "core/signals"
+    },
+    {
+      "id": "status",
+      "label": "Implementation status",
+      "value": "No Go implementation exists. Names, limits and behavior are submitted design choices requiring review."
+    },
+    {
+      "id": "features",
+      "label": "Included features",
+      "value": "custom signals; receiver disconnect; robust send; request/model/migration/test/task signals; ordering"
+    }
+  ],
+  "edges": [
+    {
+      "from": "entry",
+      "id": "edge-1",
+      "to": "snapshot"
+    },
+    {
+      "from": "snapshot",
+      "id": "edge-2",
+      "to": "more"
+    },
+    {
+      "from": "more",
+      "id": "edge-3",
+      "label": "No",
+      "to": "done"
+    },
+    {
+      "from": "more",
+      "id": "edge-4",
+      "label": "Yes",
+      "to": "invoke"
+    },
+    {
+      "from": "invoke",
+      "id": "edge-5",
+      "to": "ok"
+    },
+    {
+      "from": "ok",
+      "id": "edge-6",
+      "label": "Success",
+      "to": "collect"
+    },
+    {
+      "from": "collect",
+      "id": "edge-7",
+      "to": "next-success"
+    },
+    {
+      "from": "ok",
+      "id": "edge-8",
+      "label": "Error",
+      "to": "robust"
+    },
+    {
+      "from": "robust",
+      "id": "edge-9",
+      "label": "Robust",
+      "to": "collecterror"
+    },
+    {
+      "from": "collecterror",
+      "id": "edge-10",
+      "to": "next-error"
+    },
+    {
+      "from": "robust",
+      "id": "edge-11",
+      "label": "Ordinary",
+      "to": "abort"
+    }
+  ],
+  "id": "core.signals",
+  "layout": {
+    "direction": "down"
+  },
+  "nodes": [
+    {
+      "id": "entry",
+      "subtitle": "Send or SendRobust; sender owns transactional significance",
+      "title": "Send typed process-local event",
+      "type": "api"
+    },
+    {
+      "id": "snapshot",
+      "subtitle": "Stable IDs, priority and explicit disconnect registrations",
+      "title": "Snapshot frozen receiver list",
+      "type": "action"
+    },
+    {
+      "id": "more",
+      "subtitle": "Results kept in invocation order",
+      "title": "Another receiver remains?",
+      "type": "decision"
+    },
+    {
+      "id": "done",
+      "subtitle": "No durable replay or cross-process delivery implied",
+      "title": "Return ordered results and collected errors",
+      "type": "terminal"
+    },
+    {
+      "id": "invoke",
+      "subtitle": "Same context; receiver may explicitly enqueue Async work",
+      "title": "Invoke receiver synchronously",
+      "type": "action"
+    },
+    {
+      "id": "ok",
+      "subtitle": "Panic mapped according to signal policy; not silently ignored",
+      "title": "Receiver completed successfully?",
+      "type": "decision"
+    },
+    {
+      "id": "collect",
+      "subtitle": "Proceed to next receiver",
+      "title": "Append result and advance receiver index",
+      "type": "action"
+    },
+    {
+      "id": "robust",
+      "subtitle": "Ordinary Send aborts on first error",
+      "title": "Was SendRobust requested?",
+      "type": "decision"
+    },
+    {
+      "id": "collecterror",
+      "subtitle": "Robust mode continues other receivers",
+      "title": "Record error and advance receiver index",
+      "type": "action"
+    },
+    {
+      "id": "abort",
+      "subtitle": "Before-write may roll back; after-commit error cannot undo persisted state",
+      "title": "Return receiver error to sender",
+      "type": "error"
+    },
+    {
+      "id": "next-success",
+      "subtitle": "Repeat from Another receiver remains in this same Send call; finish only after all receivers or ordinary error",
+      "title": "Continue synchronously with the next receiver",
+      "type": "terminal"
+    },
+    {
+      "id": "next-error",
+      "subtitle": "SendRobust repeats from Another receiver remains; final result includes every collected receiver error",
+      "title": "Continue synchronously after collecting the error",
+      "type": "terminal"
+    }
+  ],
+  "schemaVersion": 3,
+  "summary": "Proposed behavior. Robust dispatch visibly continues after errors; ordinary dispatch stops. Registration and iteration never mutate the receiver slice being traversed.",
+  "title": "Dispatch typed lifecycle and model signals",
+  "type": "flow"
+}

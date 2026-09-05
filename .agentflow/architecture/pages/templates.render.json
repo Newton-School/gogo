@@ -1,0 +1,154 @@
+{
+  "details": [
+    {
+      "id": "owner",
+      "label": "Proposed code owner",
+      "value": "core/templates.Engine"
+    },
+    {
+      "id": "status",
+      "label": "Implementation status",
+      "value": "No Go implementation exists. Names, limits and behavior are submitted design choices requiring review."
+    },
+    {
+      "id": "features",
+      "label": "Included features",
+      "value": "template inheritance; includes; partials; tags/filters; context processors; autoescape; custom engines; template caching"
+    }
+  ],
+  "edges": [
+    {
+      "from": "entry",
+      "id": "entry-to-load",
+      "to": "load"
+    },
+    {
+      "from": "load",
+      "id": "load-to-exists",
+      "to": "exists"
+    },
+    {
+      "from": "exists",
+      "id": "exists-to-exists-rejected",
+      "label": "No",
+      "style": "error",
+      "to": "exists-rejected"
+    },
+    {
+      "from": "exists",
+      "id": "exists-to-parse",
+      "label": "Yes",
+      "to": "parse"
+    },
+    {
+      "from": "parse",
+      "id": "parse-to-context",
+      "to": "context"
+    },
+    {
+      "from": "context",
+      "id": "context-to-evaluate",
+      "to": "evaluate"
+    },
+    {
+      "from": "evaluate",
+      "id": "evaluate-to-escape",
+      "to": "escape"
+    },
+    {
+      "from": "escape",
+      "id": "escape-to-done",
+      "to": "done"
+    },
+    {
+      "from": "parse",
+      "id": "parse-to-backend-failed",
+      "label": "Operation fails",
+      "style": "error",
+      "to": "backend-failed-parse"
+    },
+    {
+      "from": "evaluate",
+      "id": "evaluate-to-backend-failed",
+      "label": "Operation fails",
+      "style": "error",
+      "to": "backend-failed-evaluate"
+    }
+  ],
+  "id": "templates.render",
+  "layout": {
+    "direction": "down"
+  },
+  "nodes": [
+    {
+      "id": "entry",
+      "subtitle": "TemplateResponse; explicit engine and context",
+      "title": "Render named template or partial",
+      "type": "api"
+    },
+    {
+      "id": "load",
+      "subtitle": "Project overrides \u2192 installed app templates \u2192 engine defaults; path traversal blocked",
+      "title": "Resolve loader precedence",
+      "type": "action"
+    },
+    {
+      "id": "exists",
+      "subtitle": "Missing template/include fails explicitly",
+      "title": "Template and referenced blocks exist?",
+      "type": "decision"
+    },
+    {
+      "id": "exists-rejected",
+      "subtitle": "No filesystem path disclosure in production",
+      "title": "Return TemplateNotFound",
+      "type": "error"
+    },
+    {
+      "id": "parse",
+      "subtitle": "Inheritance, blocks, includes, partials, loops, conditions, tags and filters",
+      "title": "Compile template AST and dependencies",
+      "type": "action"
+    },
+    {
+      "id": "context",
+      "subtitle": "Explicit values + registered context processors; no global mutable request data",
+      "title": "Build request-scoped context",
+      "type": "action"
+    },
+    {
+      "id": "evaluate",
+      "subtitle": "No arbitrary Go reflection calls; custom tags/filters explicitly registered",
+      "title": "Evaluate expressions under template policy",
+      "type": "action"
+    },
+    {
+      "id": "escape",
+      "subtitle": "SafeString explicit trusted API; autoescape on; URL/JS contexts constrained",
+      "title": "Escape output for its rendering context",
+      "type": "action"
+    },
+    {
+      "id": "done",
+      "subtitle": "Compiled-template cache invalidated by content fingerprint in development",
+      "title": "Return HTML or named partial",
+      "type": "terminal"
+    },
+    {
+      "id": "backend-failed-parse",
+      "subtitle": "Keep internal trace in redacted server logs; no partial secret-bearing output",
+      "title": "Return safe render failure",
+      "type": "error"
+    },
+    {
+      "id": "backend-failed-evaluate",
+      "subtitle": "Keep internal trace in redacted server logs; no partial secret-bearing output",
+      "title": "Return safe render failure",
+      "type": "error"
+    }
+  ],
+  "schemaVersion": 3,
+  "summary": "Proposed behavior. Owned by core/templates.Engine; select nodes for technical details.",
+  "title": "Load, inherit and render a template safely",
+  "type": "flow"
+}

@@ -1,0 +1,119 @@
+{
+  "details": [
+    {
+      "id": "owner",
+      "label": "Proposed code owner",
+      "value": "admin.RelationWidget; Autocomplete"
+    },
+    {
+      "id": "status",
+      "label": "Implementation status",
+      "value": "No Go implementation exists. Names, limits and behavior are submitted design choices requiring review."
+    },
+    {
+      "id": "features",
+      "label": "Included features",
+      "value": "autocomplete; raw_id_fields; radio/filter horizontal/vertical; related popups; scoped relation widgets"
+    }
+  ],
+  "edges": [
+    {
+      "from": "entry",
+      "id": "entry-to-source",
+      "to": "source"
+    },
+    {
+      "from": "source",
+      "id": "source-to-permission",
+      "to": "permission"
+    },
+    {
+      "from": "permission",
+      "id": "permission-to-permission-rejected",
+      "label": "No",
+      "style": "error",
+      "to": "permission-rejected"
+    },
+    {
+      "from": "permission",
+      "id": "permission-to-choices",
+      "label": "Yes",
+      "to": "choices"
+    },
+    {
+      "from": "choices",
+      "id": "choices-to-labels",
+      "to": "labels"
+    },
+    {
+      "from": "labels",
+      "id": "labels-to-done",
+      "to": "done"
+    },
+    {
+      "from": "choices",
+      "id": "choices-to-backend-failed",
+      "label": "Operation fails",
+      "style": "error",
+      "to": "backend-failed"
+    }
+  ],
+  "id": "admin.autocomplete",
+  "layout": {
+    "direction": "down"
+  },
+  "nodes": [
+    {
+      "id": "entry",
+      "subtitle": "GET /admin/autocomplete; target field and search term",
+      "title": "Request related-object choices",
+      "type": "api"
+    },
+    {
+      "id": "source",
+      "subtitle": "Do not accept arbitrary model label as query authority",
+      "title": "Resolve source model and declared relation",
+      "type": "action"
+    },
+    {
+      "id": "permission",
+      "subtitle": "Source form permission + target view policy",
+      "title": "May requester view this relation target?",
+      "type": "decision"
+    },
+    {
+      "id": "permission-rejected",
+      "subtitle": "403; no labels/counts leaked",
+      "title": "Deny relation lookup",
+      "type": "error"
+    },
+    {
+      "id": "choices",
+      "subtitle": "Bounded page; allowlisted SearchFields; raw-ID widget still validates ownership",
+      "title": "Search scoped relation queryset",
+      "type": "database"
+    },
+    {
+      "id": "labels",
+      "subtitle": "Escape labels; PK codec supports UUID/composite keys",
+      "title": "Render permitted labels and IDs",
+      "type": "action"
+    },
+    {
+      "id": "done",
+      "subtitle": "Submitted ID rechecked at save; dropdown visibility is not authorization",
+      "title": "Return paginated choices",
+      "type": "terminal"
+    },
+    {
+      "id": "backend-failed",
+      "subtitle": "Do not switch to unscoped all-values widget",
+      "title": "Return related lookup error",
+      "type": "error"
+    }
+  ],
+  "schemaVersion": 3,
+  "summary": "Proposed behavior. Owned by admin.RelationWidget; Autocomplete; select nodes for technical details.",
+  "title": "Search related objects and select permitted IDs",
+  "type": "flow"
+}

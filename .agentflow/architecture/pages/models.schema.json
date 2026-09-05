@@ -1,0 +1,117 @@
+{
+  "details": [
+    {
+      "id": "owner",
+      "label": "Proposed code owner",
+      "value": "core/models; internal/codegen"
+    },
+    {
+      "id": "status",
+      "label": "Implementation status",
+      "value": "No Go implementation exists. Names, limits and behavior are submitted design choices requiring review."
+    },
+    {
+      "id": "features",
+      "label": "Included features",
+      "value": "field metadata; model registry; typed query generation; composite primary keys; model options; custom fields"
+    }
+  ],
+  "edges": [
+    {
+      "from": "entry",
+      "id": "entry-to-describe",
+      "to": "describe"
+    },
+    {
+      "from": "describe",
+      "id": "describe-to-valid",
+      "to": "valid"
+    },
+    {
+      "from": "valid",
+      "id": "valid-to-valid-rejected",
+      "label": "No",
+      "style": "error",
+      "to": "valid-rejected"
+    },
+    {
+      "from": "valid",
+      "id": "valid-to-generate",
+      "label": "Yes",
+      "to": "generate"
+    },
+    {
+      "from": "generate",
+      "id": "generate-to-compare",
+      "to": "compare"
+    },
+    {
+      "from": "compare",
+      "id": "compare-to-freeze",
+      "to": "freeze"
+    },
+    {
+      "from": "freeze",
+      "id": "freeze-to-done",
+      "to": "done"
+    }
+  ],
+  "id": "models.schema",
+  "layout": {
+    "direction": "down"
+  },
+  "nodes": [
+    {
+      "id": "entry",
+      "subtitle": "apps/catalog/models.go; struct fields + Product.Schema()",
+      "title": "Define a Go model",
+      "type": "actor"
+    },
+    {
+      "id": "describe",
+      "subtitle": "Native Go types, DB nullability, defaults, indexes and DeletePolicy",
+      "title": "Build field and relation descriptors",
+      "type": "action"
+    },
+    {
+      "id": "valid",
+      "subtitle": "Unique field names; relation targets; PK shape; supported defaults",
+      "title": "Descriptor graph valid?",
+      "type": "decision"
+    },
+    {
+      "id": "valid-rejected",
+      "subtitle": "ModelError; no generated file replaced",
+      "title": "Report schema error at generation",
+      "type": "error"
+    },
+    {
+      "id": "generate",
+      "subtitle": "ProductFields.Name; relation accessors; explicit model registration",
+      "title": "Generate typed field references",
+      "type": "action"
+    },
+    {
+      "id": "compare",
+      "subtitle": "Stable app label + model name; source/schema drift fails build check",
+      "title": "Compare generated schema fingerprint",
+      "type": "action"
+    },
+    {
+      "id": "freeze",
+      "subtitle": "core/models.Registry; no request-time schema mutation",
+      "title": "Freeze model metadata at startup",
+      "type": "action"
+    },
+    {
+      "id": "done",
+      "subtitle": "ORM, migration detector, forms, serializers and Admin read this metadata",
+      "title": "One schema drives framework consumers",
+      "type": "terminal"
+    }
+  ],
+  "schemaVersion": 3,
+  "summary": "Proposed behavior. Owned by core/models; internal/codegen; select nodes for technical details.",
+  "title": "Declare a model and generate typed accessors",
+  "type": "flow"
+}

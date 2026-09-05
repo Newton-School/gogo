@@ -1,0 +1,165 @@
+{
+  "details": [
+    {
+      "id": "owner",
+      "label": "Proposed code owner",
+      "value": "core/api.Resource; Idempotency"
+    },
+    {
+      "id": "status",
+      "label": "Implementation status",
+      "value": "No Go implementation exists. Names, limits and behavior are submitted design choices requiring review."
+    },
+    {
+      "id": "features",
+      "label": "Included features",
+      "value": "CRUD; custom actions; optimistic concurrency; idempotency; outbox; audit; HTTP statuses"
+    }
+  ],
+  "edges": [
+    {
+      "from": "entry",
+      "id": "entry-to-authorize",
+      "to": "authorize"
+    },
+    {
+      "from": "authorize",
+      "id": "authorize-to-validate",
+      "to": "validate"
+    },
+    {
+      "from": "validate",
+      "id": "validate-to-begin",
+      "to": "begin"
+    },
+    {
+      "from": "begin",
+      "id": "begin-to-allowed",
+      "to": "allowed"
+    },
+    {
+      "from": "allowed",
+      "id": "allowed-to-allowed-rejected",
+      "label": "No",
+      "style": "error",
+      "to": "allowed-rejected"
+    },
+    {
+      "from": "allowed",
+      "id": "allowed-to-write",
+      "label": "Yes",
+      "to": "write"
+    },
+    {
+      "from": "write",
+      "id": "write-to-commit",
+      "to": "commit"
+    },
+    {
+      "from": "commit",
+      "id": "commit-to-respond",
+      "to": "respond"
+    },
+    {
+      "from": "respond",
+      "id": "respond-to-done",
+      "to": "done"
+    },
+    {
+      "from": "write",
+      "id": "write-to-backend-failed",
+      "label": "Operation fails",
+      "style": "error",
+      "to": "backend-failed-write"
+    },
+    {
+      "from": "commit",
+      "id": "commit-to-backend-failed",
+      "label": "Operation fails",
+      "style": "error",
+      "to": "backend-failed-commit"
+    }
+  ],
+  "id": "api.write",
+  "layout": {
+    "direction": "down"
+  },
+  "nodes": [
+    {
+      "id": "entry",
+      "subtitle": "Authenticated action; CSRF required with cookie/session credentials",
+      "title": "POST, PUT, PATCH or DELETE",
+      "type": "api"
+    },
+    {
+      "id": "authorize",
+      "subtitle": "Explicit serializer allowlist; never accept ownership fields blindly",
+      "title": "Validate action and field permissions",
+      "type": "action"
+    },
+    {
+      "id": "validate",
+      "subtitle": "Key bound to actor, operation and body hash; mismatch returns 409",
+      "title": "Validate payload and idempotency key",
+      "type": "action"
+    },
+    {
+      "id": "begin",
+      "subtitle": "Mutation rechecks object state/version after lock",
+      "title": "Begin transaction and lock scoped object",
+      "type": "database"
+    },
+    {
+      "id": "allowed",
+      "subtitle": "If-Match / expected_version optional resource policy",
+      "title": "Current scope, state and version permit write?",
+      "type": "decision"
+    },
+    {
+      "id": "allowed-rejected",
+      "subtitle": "No audit/outbox mutation on denial",
+      "title": "Rollback and return 404/409/412",
+      "type": "error"
+    },
+    {
+      "id": "write",
+      "subtitle": "Record idempotency response in same transaction when feature enabled",
+      "title": "Persist model mutation, audit and optional outbox",
+      "type": "database"
+    },
+    {
+      "id": "commit",
+      "subtitle": "After-commit external work runs through outbox if delivery must survive crash",
+      "title": "Commit durable resource outcome",
+      "type": "database"
+    },
+    {
+      "id": "respond",
+      "subtitle": "Create 201 + Location; update 200; delete 204; duplicate key replays saved response",
+      "title": "Serialize the committed representation",
+      "type": "action"
+    },
+    {
+      "id": "done",
+      "subtitle": "Failed or uncertain commit must not be reported as successful",
+      "title": "Return stable mutation result",
+      "type": "terminal"
+    },
+    {
+      "id": "backend-failed-write",
+      "subtitle": "Use idempotency record to resolve uncertain write; no blind replay",
+      "title": "Rollback or reconcile unknown commit",
+      "type": "error"
+    },
+    {
+      "id": "backend-failed-commit",
+      "subtitle": "Use idempotency record to resolve uncertain write; no blind replay",
+      "title": "Rollback or reconcile unknown commit",
+      "type": "error"
+    }
+  ],
+  "schemaVersion": 3,
+  "summary": "Proposed behavior. Owned by core/api.Resource; Idempotency; select nodes for technical details.",
+  "title": "Create, update or delete a resource",
+  "type": "flow"
+}

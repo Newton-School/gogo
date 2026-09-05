@@ -1,0 +1,106 @@
+{
+  "details": [
+    {
+      "id": "owner",
+      "label": "Proposed code owner",
+      "value": "core/http; core/api; core/db"
+    },
+    {
+      "id": "status",
+      "label": "Implementation status",
+      "value": "No Go implementation exists. Names, limits and behavior are submitted design choices requiring review."
+    },
+    {
+      "id": "features",
+      "label": "Included features",
+      "value": "typed exceptions; HTTP/CLI/task error mapping; redaction; field errors"
+    }
+  ],
+  "edges": [
+    {
+      "from": "entry",
+      "id": "entry-to-classify",
+      "to": "classify"
+    },
+    {
+      "from": "classify",
+      "id": "classify-to-known",
+      "to": "known"
+    },
+    {
+      "from": "known",
+      "id": "known-to-known-rejected",
+      "label": "No",
+      "style": "error",
+      "to": "known-rejected"
+    },
+    {
+      "from": "known",
+      "id": "known-to-map",
+      "label": "Yes",
+      "to": "map"
+    },
+    {
+      "from": "map",
+      "id": "map-to-log",
+      "to": "log"
+    },
+    {
+      "from": "log",
+      "id": "log-to-done",
+      "to": "done"
+    }
+  ],
+  "id": "core.typed-errors",
+  "layout": {
+    "direction": "down"
+  },
+  "nodes": [
+    {
+      "id": "entry",
+      "subtitle": "errors.Is / errors.As; typed code and safe metadata",
+      "title": "Receive domain or adapter error",
+      "type": "action"
+    },
+    {
+      "id": "classify",
+      "subtitle": "Unwrap internal errors without exposing SQL, paths or credentials",
+      "title": "Classify validation, denied, missing or conflict",
+      "type": "action"
+    },
+    {
+      "id": "known",
+      "subtitle": "ValidationError, PermissionDenied, NotFound, Conflict, Unavailable",
+      "title": "Known public error class?",
+      "type": "decision"
+    },
+    {
+      "id": "known-rejected",
+      "subtitle": "500 INTERNAL_ERROR; correlation ID; server-only redacted stack",
+      "title": "Return generic internal failure",
+      "type": "error"
+    },
+    {
+      "id": "map",
+      "subtitle": "HTTP status; CLI exit; Async retry classification use same stable code",
+      "title": "Map to operation response",
+      "type": "action"
+    },
+    {
+      "id": "log",
+      "subtitle": "Operation, trace ID, retryable; sensitive parameters excluded",
+      "title": "Record safe diagnostic attributes",
+      "type": "action"
+    },
+    {
+      "id": "done",
+      "subtitle": "code, message, field_errors, request_id; retry metadata only when meaningful",
+      "title": "Return sealed error envelope",
+      "type": "terminal"
+    }
+  ],
+  "schemaVersion": 3,
+  "summary": "Proposed behavior. Owned by core/http; core/api; core/db; select nodes for technical details.",
+  "title": "Translate errors at the public boundary",
+  "type": "flow"
+}

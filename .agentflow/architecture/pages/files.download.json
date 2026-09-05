@@ -1,0 +1,119 @@
+{
+  "details": [
+    {
+      "id": "owner",
+      "label": "Proposed code owner",
+      "value": "core/files.Access; Storage"
+    },
+    {
+      "id": "status",
+      "label": "Implementation status",
+      "value": "No Go implementation exists. Names, limits and behavior are submitted design choices requiring review."
+    },
+    {
+      "id": "features",
+      "label": "Included features",
+      "value": "private/public storage; signed URLs; range downloads; file deletion; revocation; safe headers"
+    }
+  ],
+  "edges": [
+    {
+      "from": "entry",
+      "id": "entry-to-record",
+      "to": "record"
+    },
+    {
+      "from": "record",
+      "id": "record-to-permit",
+      "to": "permit"
+    },
+    {
+      "from": "permit",
+      "id": "permit-to-permit-rejected",
+      "label": "No",
+      "style": "error",
+      "to": "permit-rejected"
+    },
+    {
+      "from": "permit",
+      "id": "permit-to-access",
+      "label": "Yes",
+      "to": "access"
+    },
+    {
+      "from": "access",
+      "id": "access-to-read",
+      "to": "read"
+    },
+    {
+      "from": "read",
+      "id": "read-to-done",
+      "to": "done"
+    },
+    {
+      "from": "read",
+      "id": "read-to-backend-failed",
+      "label": "Operation fails",
+      "style": "error",
+      "to": "backend-failed"
+    }
+  ],
+  "id": "files.download",
+  "layout": {
+    "direction": "down"
+  },
+  "nodes": [
+    {
+      "id": "entry",
+      "subtitle": "GET /files/{id}; private file path never accepted from user",
+      "title": "Request file by opaque identifier",
+      "type": "api"
+    },
+    {
+      "id": "record",
+      "subtitle": "Missing, quarantined or forbidden file not downloadable",
+      "title": "Load ready file and owner scope",
+      "type": "database"
+    },
+    {
+      "id": "permit",
+      "subtitle": "Policy before file stat, preview or signed URL",
+      "title": "Current requester may access file?",
+      "type": "decision"
+    },
+    {
+      "id": "permit-rejected",
+      "subtitle": "No storage key leakage",
+      "title": "Return 404/403 without bytes",
+      "type": "error"
+    },
+    {
+      "id": "access",
+      "subtitle": "Signed grant binds file, method, expiry; local route rechecks revocation",
+      "title": "Select local stream or short-lived signed access",
+      "type": "action"
+    },
+    {
+      "id": "read",
+      "subtitle": "Content-Disposition safe; nosniff; untrusted HTML forced attachment",
+      "title": "Read blob with bounded range support",
+      "type": "external"
+    },
+    {
+      "id": "done",
+      "subtitle": "Deletion marks metadata first, revokes local access, then removes blob with retry",
+      "title": "Return bytes or expiring grant",
+      "type": "terminal"
+    },
+    {
+      "id": "backend-failed",
+      "subtitle": "Do not serve another file as fallback",
+      "title": "Return storage failure and record reconciliation need",
+      "type": "error"
+    }
+  ],
+  "schemaVersion": 3,
+  "summary": "Proposed behavior. Owned by core/files.Access; Storage; select nodes for technical details.",
+  "title": "Authorize download, deletion and signed access",
+  "type": "flow"
+}

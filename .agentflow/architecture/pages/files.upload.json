@@ -1,0 +1,143 @@
+{
+  "details": [
+    {
+      "id": "owner",
+      "label": "Proposed code owner",
+      "value": "core/files.UploadHandler; Storage"
+    },
+    {
+      "id": "status",
+      "label": "Implementation status",
+      "value": "No Go implementation exists. Names, limits and behavior are submitted design choices requiring review."
+    },
+    {
+      "id": "features",
+      "label": "Included features",
+      "value": "multipart; upload handlers; temporary files; FileField/ImageField; storage API; checksums; quarantine; orphan cleanup"
+    }
+  ],
+  "edges": [
+    {
+      "from": "entry",
+      "id": "entry-to-stream",
+      "to": "stream"
+    },
+    {
+      "from": "stream",
+      "id": "stream-to-valid",
+      "to": "valid"
+    },
+    {
+      "from": "valid",
+      "id": "valid-to-valid-rejected",
+      "label": "No",
+      "style": "error",
+      "to": "valid-rejected"
+    },
+    {
+      "from": "valid",
+      "id": "valid-to-key",
+      "label": "Yes",
+      "to": "key"
+    },
+    {
+      "from": "key",
+      "id": "key-to-store",
+      "to": "store"
+    },
+    {
+      "from": "store",
+      "id": "store-to-metadata",
+      "to": "metadata"
+    },
+    {
+      "from": "metadata",
+      "id": "metadata-to-done",
+      "to": "done"
+    },
+    {
+      "from": "store",
+      "id": "store-to-backend-failed",
+      "label": "Operation fails",
+      "style": "error",
+      "to": "backend-failed-store"
+    },
+    {
+      "from": "metadata",
+      "id": "metadata-to-backend-failed",
+      "label": "Operation fails",
+      "style": "error",
+      "to": "backend-failed-metadata"
+    }
+  ],
+  "id": "files.upload",
+  "layout": {
+    "direction": "down"
+  },
+  "nodes": [
+    {
+      "id": "entry",
+      "subtitle": "Owner/action policy; body limit default 10MiB, per-field override",
+      "title": "Receive authorized multipart upload",
+      "type": "api"
+    },
+    {
+      "id": "stream",
+      "subtitle": "Threshold 1MiB before disk; stop on cancellation; never trust original filename",
+      "title": "Stream bytes to bounded temporary storage",
+      "type": "action"
+    },
+    {
+      "id": "valid",
+      "subtitle": "Checksum, extension allowlist and field validators",
+      "title": "Size, declared type and sniffed content allowed?",
+      "type": "decision"
+    },
+    {
+      "id": "valid-rejected",
+      "subtitle": "413 size; 422 content validation",
+      "title": "Reject and delete temporary upload",
+      "type": "error"
+    },
+    {
+      "id": "key",
+      "subtitle": "No user-controlled traversal; private access default",
+      "title": "Generate opaque storage key",
+      "type": "action"
+    },
+    {
+      "id": "store",
+      "subtitle": "Local atomic replace; future object storage supports checksummed upload completion",
+      "title": "Write blob through Storage interface",
+      "type": "external"
+    },
+    {
+      "id": "metadata",
+      "subtitle": "Blob without DB record is staged/orphaned, not published",
+      "title": "Commit gogo_files metadata and owner link",
+      "type": "database"
+    },
+    {
+      "id": "done",
+      "subtitle": "Optional scanner changes quarantined \u2192 ready; quarantined bytes never served",
+      "title": "Return file ID and authorized access path",
+      "type": "terminal"
+    },
+    {
+      "id": "backend-failed-store",
+      "subtitle": "Storage/DB failure cannot publish ready metadata",
+      "title": "Abort upload and schedule orphan cleanup",
+      "type": "error"
+    },
+    {
+      "id": "backend-failed-metadata",
+      "subtitle": "Storage/DB failure cannot publish ready metadata",
+      "title": "Abort upload and schedule orphan cleanup",
+      "type": "error"
+    }
+  ],
+  "schemaVersion": 3,
+  "summary": "Proposed behavior. Owned by core/files.UploadHandler; Storage; select nodes for technical details.",
+  "title": "Receive, validate and persist an upload",
+  "type": "flow"
+}

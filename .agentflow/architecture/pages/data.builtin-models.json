@@ -1,0 +1,162 @@
+{
+  "columns": [
+    {
+      "format": "text",
+      "id": "record",
+      "label": "Record / owner"
+    },
+    {
+      "format": "text",
+      "id": "fields",
+      "label": "Stored fields"
+    },
+    {
+      "format": "text",
+      "id": "invariants",
+      "label": "Keys, ownership and retention"
+    }
+  ],
+  "id": "data.builtin-models",
+  "rows": [
+    {
+      "cells": {
+        "fields": "id bigint identity; app varchar; name varchar; checksum char(64); applied_at timestamptz; operation_state jsonb",
+        "invariants": "Unique(app,name); immutable applied checksum; non-atomic operation checkpoints keyed by migration/operation. Created only by explicit migrate.",
+        "record": "gogo_migrations / migrations"
+      },
+      "id": "migration"
+    },
+    {
+      "cells": {
+        "fields": "id UUID; identifier varchar; password_hash text nullable; active/staff/superuser bool; auth_version bigint; last_login nullable; created_at/updated_at UTC",
+        "invariants": "Unique normalized identifier under declared normalizer; default active=true, staff/superuser=false; auth_version starts 1 and increments on credential/grant change. Swappable user contract defined before initial migration.",
+        "record": "gogo_users / auth"
+      },
+      "id": "user"
+    },
+    {
+      "cells": {
+        "fields": "group id UUID/name; permission id bigint/content_type_id/codename/name",
+        "invariants": "Unique group name; unique(content_type_id,codename); named view/add/change/delete generated per model plus explicit custom permissions.",
+        "record": "gogo_groups; gogo_permissions"
+      },
+      "id": "group"
+    },
+    {
+      "cells": {
+        "fields": "Owner and target foreign-key pairs; created_at optional policy",
+        "invariants": "Composite unique pairs; FK cascade join rows only; auth-version invalidation after changes; never grant by client-submitted group ID without grant authority.",
+        "record": "gogo_user_groups; gogo_group_permissions; gogo_user_permissions"
+      },
+      "id": "membership"
+    },
+    {
+      "cells": {
+        "fields": "id bigint; app_label; model_name; schema_version; active bool",
+        "invariants": "Unique(app_label,model_name); stable identity; removal explicit stale-type cleanup with reference preview, not automatic drop.",
+        "record": "gogo_content_types / contrib"
+      },
+      "id": "contenttype"
+    },
+    {
+      "cells": {
+        "fields": "key_digest char(64) PK; payload jsonb; version bigint; expires_at; created_at; updated_at; deleted_at/tombstone_until nullable",
+        "invariants": "Digest of random bearer key, never plaintext cookie secret; expiry index; CAS on version; deletion/tombstone prevents stale request resurrection.",
+        "record": "gogo_sessions / sessions"
+      },
+      "id": "session"
+    },
+    {
+      "cells": {
+        "fields": "id UUID; user_id; key_digest unique; scopes jsonb; expires_at; revoked_at nullable; last_used_at nullable; auth_version",
+        "invariants": "Raw secret shown once; FK identity plus current permission checks; purge policy preserves audit metadata without usable credentials.",
+        "record": "gogo_api_tokens / auth"
+      },
+      "id": "token"
+    },
+    {
+      "cells": {
+        "fields": "id UUID; user_id; secret_digest; auth_version; expires_at; used_at nullable; created_at",
+        "invariants": "Consume under transaction/row lock; single-use; valid only if account auth_version matches; anti-enumeration at response boundary.",
+        "record": "gogo_password_resets / auth"
+      },
+      "id": "reset"
+    },
+    {
+      "cells": {
+        "fields": "id UUID; reset_id FK; ciphertext bytea; nonce; key_id; expires_at; state; lease/fence; attempts; accepted_at nullable",
+        "invariants": "AEAD-encrypted reset link/recipient; additional data binds reset ID, purpose and expiry. Restricted relay; token + intent atomic. Purge ciphertext at accepted/expired horizon; no raw token in ordinary outbox.",
+        "record": "gogo_sensitive_mail / optional durable auth mail"
+      },
+      "id": "delivery"
+    },
+    {
+      "cells": {
+        "fields": "id UUID; scope_hash; action; key_digest; request_digest; response_status; response_headers JSON; response_body JSON; object_key JSON; created_at; expires_at",
+        "invariants": "Unique(scope_hash,action,key_digest); claim and final response in same mutation transaction; stable response only contains allowed fields. Expiry >= configured client replay window; existing response reauthorized before replay.",
+        "record": "gogo_idempotency / API and optional Admin operation receipts"
+      },
+      "id": "idempotency"
+    },
+    {
+      "cells": {
+        "fields": "id UUID; namespace; exact_key_digests JSON or version_scope; available_at; lease_token; lease_until; attempts; delivered_at nullable",
+        "invariants": "Business update and invalidation intent same PostgreSQL transaction; Core management relay needs no Async module; atomic target dedupe prevents duplicate version bumps; cleanup after delivered replay horizon.",
+        "record": "gogo_cache_invalidations / optional Core cache durability"
+      },
+      "id": "cache-intent"
+    },
+    {
+      "cells": {
+        "fields": "id UUID; site; actor_id nullable; actor_label snapshot; model label; object key JSON; action; changed_fields JSON; request_id; occurred_at",
+        "invariants": "Append-only within mutation transaction; sensitive fields excluded; actor deletion SET NULL retains snapshot. Object key snapshot no FK to deleted target. Retention explicit policy.",
+        "record": "gogo_admin_log / admin migrations"
+      },
+      "id": "audit"
+    },
+    {
+      "cells": {
+        "fields": "id UUID; storage_alias; object_key; owner_ref; state enum; content_type; bytes bigint; checksum; created_at; finalized_at nullable",
+        "invariants": "Unique(storage_alias,object_key); staged/ready/quarantined/deleting/deleted states; private authorization before download; cleanup grace covers transaction rollback/unfinished upload.",
+        "record": "gogo_files / files"
+      },
+      "id": "file"
+    },
+    {
+      "cells": {
+        "fields": "id UUID; domain; display_name; active bool",
+        "invariants": "Unique normalized hostname; request Host already validated; SITE_ID alternative explicit; site content lookup not tenant security by itself.",
+        "record": "gogo_sites / sites"
+      },
+      "id": "site"
+    },
+    {
+      "cells": {
+        "fields": "id UUID; url; title; content; template_name; registration_required bool; site/page join",
+        "invariants": "Unique(site,url) enforced via scoped mapping; stored content treated as trusted-editor HTML only after sanitization policy; template selection allowlisted.",
+        "record": "gogo_flatpages; gogo_flatpage_sites / flatpages"
+      },
+      "id": "flatpage"
+    },
+    {
+      "cells": {
+        "fields": "id UUID; site_id; old_path; new_path; permanent bool",
+        "invariants": "Unique(site_id,old_path); allowed redirects only; empty target means Gone; prevent cycles and external redirect injection.",
+        "record": "gogo_redirects / redirects"
+      },
+      "id": "redirect"
+    },
+    {
+      "cells": {
+        "fields": "id UUID; task_id UUID unique; task_name/version; payload JSON; destination; available_at; state; attempts; lease_token; lease_until; published_at nullable; last_error_code",
+        "invariants": "Business write and outbox insert same PostgreSQL transaction. SKIP LOCKED relay claims; publish+mark are not atomic; stable task ID and consumer idempotency handle replay; secrets prohibited in payload.",
+        "record": "gogo_outbox / optional Async outbox migrations"
+      },
+      "id": "outbox"
+    }
+  ],
+  "schemaVersion": 3,
+  "summary": "Proposed contract for architecture review; not implemented.",
+  "title": "Built-in PostgreSQL records and relational constraints",
+  "type": "table"
+}

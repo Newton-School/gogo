@@ -1,0 +1,119 @@
+{
+  "details": [
+    {
+      "id": "owner",
+      "label": "Proposed code owner",
+      "value": "core/db.Router; core/orm.Using"
+    },
+    {
+      "id": "status",
+      "label": "Implementation status",
+      "value": "No Go implementation exists. Names, limits and behavior are submitted design choices requiring review."
+    },
+    {
+      "id": "features",
+      "label": "Included features",
+      "value": "multiple databases; routers; replicas; using alias; migration routing; read consistency"
+    }
+  ],
+  "edges": [
+    {
+      "from": "entry",
+      "id": "entry-to-route",
+      "to": "route"
+    },
+    {
+      "from": "route",
+      "id": "route-to-allowed",
+      "to": "allowed"
+    },
+    {
+      "from": "allowed",
+      "id": "allowed-to-allowed-rejected",
+      "label": "No",
+      "style": "error",
+      "to": "allowed-rejected"
+    },
+    {
+      "from": "allowed",
+      "id": "allowed-to-pin",
+      "label": "Yes",
+      "to": "pin"
+    },
+    {
+      "from": "pin",
+      "id": "pin-to-execute",
+      "to": "execute"
+    },
+    {
+      "from": "execute",
+      "id": "execute-to-done",
+      "to": "done"
+    },
+    {
+      "from": "execute",
+      "id": "execute-to-backend-failed",
+      "label": "Operation fails",
+      "style": "error",
+      "to": "backend-failed"
+    }
+  ],
+  "id": "orm.routing",
+  "layout": {
+    "direction": "down"
+  },
+  "nodes": [
+    {
+      "id": "entry",
+      "subtitle": "Read, write, relation or migration with optional explicit alias",
+      "title": "Request operation for model",
+      "type": "api"
+    },
+    {
+      "id": "route",
+      "subtitle": "Write defaults to primary; read replica selected only when enabled",
+      "title": "Consult explicit alias then configured routers",
+      "type": "action"
+    },
+    {
+      "id": "allowed",
+      "subtitle": "Disallow cross-database FK and atomic multi-database writes",
+      "title": "Router allows model and operation?",
+      "type": "decision"
+    },
+    {
+      "id": "allowed-rejected",
+      "subtitle": "No connection acquired",
+      "title": "Return DatabaseRoutingError",
+      "type": "error"
+    },
+    {
+      "id": "pin",
+      "subtitle": "Per-request consistency context; replica lag never assumed zero",
+      "title": "Pin transaction/read-after-write to primary",
+      "type": "action"
+    },
+    {
+      "id": "execute",
+      "subtitle": "Pool, timeout and health state belong to that alias",
+      "title": "Execute on resolved named connection",
+      "type": "database"
+    },
+    {
+      "id": "done",
+      "subtitle": "No silent fallback to another database on a failed write",
+      "title": "Return result with alias diagnostic",
+      "type": "terminal"
+    },
+    {
+      "id": "backend-failed",
+      "subtitle": "Do not replay unknown writes on another alias",
+      "title": "Return selected backend error",
+      "type": "error"
+    }
+  ],
+  "schemaVersion": 3,
+  "summary": "Proposed behavior. Owned by core/db.Router; core/orm.Using; select nodes for technical details.",
+  "title": "Route reads, writes and migrations to database aliases",
+  "type": "flow"
+}

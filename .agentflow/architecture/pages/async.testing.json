@@ -1,0 +1,106 @@
+{
+  "details": [
+    {
+      "id": "owner",
+      "label": "Proposed code owner",
+      "value": "async/testing"
+    },
+    {
+      "id": "status",
+      "label": "Implementation status",
+      "value": "No Go implementation exists. Names, limits and behavior are submitted design choices requiring review."
+    },
+    {
+      "id": "features",
+      "label": "Included features",
+      "value": "eager mode; fake broker; fake clock; workflow tests; failure injection; real Redis conformance"
+    }
+  ],
+  "edges": [
+    {
+      "from": "entry",
+      "id": "entry-to-clock",
+      "to": "clock"
+    },
+    {
+      "from": "clock",
+      "id": "clock-to-execute",
+      "to": "execute"
+    },
+    {
+      "from": "execute",
+      "id": "execute-to-inject",
+      "to": "inject"
+    },
+    {
+      "from": "inject",
+      "id": "inject-to-assert",
+      "to": "assert"
+    },
+    {
+      "from": "assert",
+      "id": "assert-to-assert-rejected",
+      "label": "No",
+      "style": "error",
+      "to": "assert-rejected"
+    },
+    {
+      "from": "assert",
+      "id": "assert-to-done",
+      "label": "Yes",
+      "to": "done"
+    }
+  ],
+  "id": "async.testing",
+  "layout": {
+    "direction": "down"
+  },
+  "nodes": [
+    {
+      "id": "entry",
+      "subtitle": "Explicit test backend; no production fallback to eager mode",
+      "title": "Choose eager or simulated broker test",
+      "type": "actor"
+    },
+    {
+      "id": "clock",
+      "subtitle": "Advance ETA/retries deterministically; isolate registry per test",
+      "title": "Inject fake clock, IDs and retry jitter",
+      "type": "action"
+    },
+    {
+      "id": "execute",
+      "subtitle": "Eager mode can propagate errors; simulated broker exercises acknowledgement/reclaim",
+      "title": "Invoke same task serializer and handler path",
+      "type": "action"
+    },
+    {
+      "id": "inject",
+      "subtitle": "Verify side-effect idempotency and chord barrier deduplication",
+      "title": "Inject duplicate, crash or lost-ack events",
+      "type": "event"
+    },
+    {
+      "id": "assert",
+      "subtitle": "Inspect queue, result, outbox and handler calls",
+      "title": "Outcomes and forbidden effects match?",
+      "type": "decision"
+    },
+    {
+      "id": "assert-rejected",
+      "subtitle": "No race hidden by unconditional sleep",
+      "title": "Fail test with deterministic event trace",
+      "type": "error"
+    },
+    {
+      "id": "done",
+      "subtitle": "Redis integration suite proves actual atomic commands independently",
+      "title": "Reset fakes and release resources",
+      "type": "terminal"
+    }
+  ],
+  "schemaVersion": 3,
+  "summary": "Proposed behavior. Owned by async/testing; select nodes for technical details.",
+  "title": "Test tasks and workflows deterministically",
+  "type": "flow"
+}

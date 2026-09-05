@@ -1,0 +1,133 @@
+{
+  "details": [
+    {
+      "id": "owner",
+      "label": "Proposed code owner",
+      "value": "core/auth.Policy; core/api; admin"
+    },
+    {
+      "id": "status",
+      "label": "Implementation status",
+      "value": "No Go implementation exists. Names, limits and behavior are submitted design choices requiring review."
+    },
+    {
+      "id": "features",
+      "label": "Included features",
+      "value": "users/groups; model permissions; object permissions; custom policies; anonymous users; superusers; field permissions"
+    }
+  ],
+  "edges": [
+    {
+      "from": "entry",
+      "id": "entry-to-active",
+      "to": "active"
+    },
+    {
+      "from": "active",
+      "id": "active-to-active-rejected",
+      "label": "No",
+      "style": "error",
+      "to": "active-rejected"
+    },
+    {
+      "from": "active",
+      "id": "active-to-grants",
+      "label": "Yes",
+      "to": "grants"
+    },
+    {
+      "from": "grants",
+      "id": "grants-to-policy",
+      "to": "policy"
+    },
+    {
+      "from": "policy",
+      "id": "policy-to-permit",
+      "to": "permit"
+    },
+    {
+      "from": "permit",
+      "id": "permit-to-permit-rejected",
+      "label": "No",
+      "style": "error",
+      "to": "permit-rejected"
+    },
+    {
+      "from": "permit",
+      "id": "permit-to-done",
+      "label": "Yes",
+      "to": "done"
+    },
+    {
+      "from": "grants",
+      "id": "grants-to-backend-failed",
+      "label": "Operation fails",
+      "style": "error",
+      "to": "backend-failed"
+    }
+  ],
+  "id": "auth.permissions",
+  "layout": {
+    "direction": "down"
+  },
+  "nodes": [
+    {
+      "id": "entry",
+      "subtitle": "User identity + action + resource scope",
+      "title": "Request a protected operation",
+      "type": "api"
+    },
+    {
+      "id": "active",
+      "subtitle": "Anonymous permissions only explicitly configured",
+      "title": "Principal authenticated and active?",
+      "type": "decision"
+    },
+    {
+      "id": "active-rejected",
+      "subtitle": "401 unauthenticated; 403 disabled/forbidden",
+      "title": "Deny or challenge",
+      "type": "error"
+    },
+    {
+      "id": "grants",
+      "subtitle": "gogo_permissions, gogo_groups, membership; auth_version invalidates grant cache",
+      "title": "Resolve roles, groups and grants",
+      "type": "database"
+    },
+    {
+      "id": "policy",
+      "subtitle": "Superuser bypass only explicit policy; no automatic tenant boundary bypass",
+      "title": "Evaluate global and object policy",
+      "type": "action"
+    },
+    {
+      "id": "permit",
+      "subtitle": "Object predicate and field policy evaluated at trusted boundary",
+      "title": "Action permitted on current object?",
+      "type": "decision"
+    },
+    {
+      "id": "permit-rejected",
+      "subtitle": "403 action denial; scoped object lookup may return 404",
+      "title": "Return denied or scope-hidden result",
+      "type": "error"
+    },
+    {
+      "id": "done",
+      "subtitle": "Apply scope before count, pagination, export and serialization",
+      "title": "Return allowed fields and scope predicate",
+      "type": "terminal"
+    },
+    {
+      "id": "backend-failed",
+      "subtitle": "No permissive authorization fallback",
+      "title": "Fail closed on policy backend failure",
+      "type": "error"
+    }
+  ],
+  "schemaVersion": 3,
+  "summary": "Proposed behavior. Owned by core/auth.Policy; core/api; admin; select nodes for technical details.",
+  "title": "Check action, object and field permissions",
+  "type": "flow"
+}

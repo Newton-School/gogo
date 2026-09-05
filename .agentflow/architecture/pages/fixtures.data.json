@@ -1,0 +1,142 @@
+{
+  "details": [
+    {
+      "id": "owner",
+      "label": "Proposed code owner",
+      "value": "core/serialization; core/management"
+    },
+    {
+      "id": "status",
+      "label": "Implementation status",
+      "value": "No Go implementation exists. Names, limits and behavior are submitted design choices requiring review."
+    },
+    {
+      "id": "features",
+      "label": "Included features",
+      "value": "dumpdata; loaddata; fixtures; natural keys; JSON/JSONL; custom formats; initial data"
+    }
+  ],
+  "edges": [
+    {
+      "from": "entry",
+      "id": "entry-to-select",
+      "to": "select"
+    },
+    {
+      "from": "select",
+      "id": "select-to-import",
+      "to": "import"
+    },
+    {
+      "from": "import",
+      "id": "import-to-import-rejected",
+      "label": "Export",
+      "to": "import-rejected"
+    },
+    {
+      "from": "import",
+      "id": "import-to-parse",
+      "label": "Yes",
+      "to": "parse"
+    },
+    {
+      "from": "parse",
+      "id": "parse-to-load",
+      "to": "load"
+    },
+    {
+      "from": "load",
+      "id": "load-to-sequences",
+      "to": "sequences"
+    },
+    {
+      "from": "sequences",
+      "id": "sequences-to-done",
+      "to": "done"
+    },
+    {
+      "from": "load",
+      "id": "load-to-backend-failed",
+      "label": "Operation fails",
+      "style": "error",
+      "to": "backend-failed-load"
+    },
+    {
+      "from": "sequences",
+      "id": "sequences-to-backend-failed",
+      "label": "Operation fails",
+      "style": "error",
+      "to": "backend-failed-sequences"
+    }
+  ],
+  "id": "fixtures.data",
+  "layout": {
+    "direction": "down"
+  },
+  "nodes": [
+    {
+      "id": "entry",
+      "subtitle": "Explicit app/model/alias; JSON/JSONL initial formats; extensible serializer registry",
+      "title": "Run dumpdata or loaddata",
+      "type": "api"
+    },
+    {
+      "id": "select",
+      "subtitle": "Default manager policy explicit; exclude sensitive fields unless authorized export profile",
+      "title": "Resolve scope and natural keys",
+      "type": "action"
+    },
+    {
+      "id": "import",
+      "subtitle": "Export uses scoped streaming iterator",
+      "title": "Is this an import?",
+      "type": "decision"
+    },
+    {
+      "id": "import-rejected",
+      "subtitle": "Stable model/key ordering; no hidden credential fields",
+      "title": "Write deterministic fixture stream",
+      "type": "terminal"
+    },
+    {
+      "id": "parse",
+      "subtitle": "Reject unknown models/fields; resolve forward references in dependency order",
+      "title": "Parse versioned bounded fixture records",
+      "type": "action"
+    },
+    {
+      "id": "load",
+      "subtitle": "Fixture-specific hook policy; preserve supplied PKs; constraints checked",
+      "title": "Load rows and deferred relations atomically",
+      "type": "database"
+    },
+    {
+      "id": "sequences",
+      "subtitle": "Use max imported identity safely under lock",
+      "title": "Reset identity sequences after validated import",
+      "type": "database"
+    },
+    {
+      "id": "done",
+      "subtitle": "Failure rolls back import; no unrestricted executable deserialization",
+      "title": "Return counts and validation results",
+      "type": "terminal"
+    },
+    {
+      "id": "backend-failed-load",
+      "subtitle": "Return file/record/field location without leaking content",
+      "title": "Rollback fixture import",
+      "type": "error"
+    },
+    {
+      "id": "backend-failed-sequences",
+      "subtitle": "Return file/record/field location without leaking content",
+      "title": "Rollback fixture import",
+      "type": "error"
+    }
+  ],
+  "schemaVersion": 3,
+  "summary": "Proposed behavior. Owned by core/serialization; core/management; select nodes for technical details.",
+  "title": "Export and import structured fixtures",
+  "type": "flow"
+}

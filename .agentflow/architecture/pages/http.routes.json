@@ -1,0 +1,131 @@
+{
+  "details": [
+    {
+      "id": "owner",
+      "label": "Proposed code owner",
+      "value": "core/http.Router; Reverse; Resolve"
+    },
+    {
+      "id": "status",
+      "label": "Implementation status",
+      "value": "No Go implementation exists. Names, limits and behavior are submitted design choices requiring review."
+    },
+    {
+      "id": "features",
+      "label": "Included features",
+      "value": "URLconf; namespaces; include; reverse; resolve; custom converters; regex routes; localized URLs"
+    }
+  ],
+  "edges": [
+    {
+      "from": "entry",
+      "id": "entry-to-compile",
+      "to": "compile"
+    },
+    {
+      "from": "compile",
+      "id": "compile-to-unique",
+      "to": "unique"
+    },
+    {
+      "from": "unique",
+      "id": "unique-to-unique-rejected",
+      "label": "No",
+      "style": "error",
+      "to": "unique-rejected"
+    },
+    {
+      "from": "unique",
+      "id": "unique-to-freeze",
+      "label": "Yes",
+      "to": "freeze"
+    },
+    {
+      "from": "freeze",
+      "id": "freeze-to-reverse",
+      "to": "reverse"
+    },
+    {
+      "from": "reverse",
+      "id": "reverse-to-args",
+      "to": "args"
+    },
+    {
+      "from": "args",
+      "id": "args-to-args-rejected",
+      "label": "No",
+      "style": "error",
+      "to": "args-rejected"
+    },
+    {
+      "from": "args",
+      "id": "args-to-done",
+      "label": "Yes",
+      "to": "done"
+    }
+  ],
+  "id": "http.routes",
+  "layout": {
+    "direction": "down"
+  },
+  "nodes": [
+    {
+      "id": "entry",
+      "subtitle": "Path, regex pattern, Include and namespaces",
+      "title": "Register app route tree",
+      "type": "api"
+    },
+    {
+      "id": "compile",
+      "subtitle": "Built-in int/slug/uuid/path converters; custom converters validated",
+      "title": "Compile converters and method dispatch",
+      "type": "action"
+    },
+    {
+      "id": "unique",
+      "subtitle": "Duplicate namespace/name rejected; deterministic matching order",
+      "title": "Route names and patterns consistent?",
+      "type": "decision"
+    },
+    {
+      "id": "unique-rejected",
+      "subtitle": "No partially active route tree",
+      "title": "Fail startup with RouteConflict",
+      "type": "error"
+    },
+    {
+      "id": "freeze",
+      "subtitle": "App prefix and script prefix retained; route metadata shared with OpenAPI",
+      "title": "Freeze route registry",
+      "type": "action"
+    },
+    {
+      "id": "reverse",
+      "subtitle": "Converter Encode; query encoding; no unescaped path insertion",
+      "title": "Build URL by namespace and arguments",
+      "type": "action"
+    },
+    {
+      "id": "args",
+      "subtitle": "Missing/extra/invalid arguments rejected",
+      "title": "Required parameters match converters?",
+      "type": "decision"
+    },
+    {
+      "id": "args-rejected",
+      "subtitle": "Never return a guessed URL",
+      "title": "Return ReverseError",
+      "type": "error"
+    },
+    {
+      "id": "done",
+      "subtitle": "Locale-prefix routes use selected locale and validated host",
+      "title": "Return relative or explicit absolute URL",
+      "type": "terminal"
+    }
+  ],
+  "schemaVersion": 3,
+  "summary": "Proposed behavior. Owned by core/http.Router; Reverse; Resolve; select nodes for technical details.",
+  "title": "Register, resolve and reverse named routes",
+  "type": "flow"
+}

@@ -1,0 +1,245 @@
+{
+  "details": [
+    {
+      "id": "owner",
+      "label": "Proposed code owner",
+      "value": "core/db.Atomic; core/orm.WithTx"
+    },
+    {
+      "id": "status",
+      "label": "Implementation status",
+      "value": "No Go implementation exists. Names, limits and behavior are submitted design choices requiring review."
+    },
+    {
+      "id": "features",
+      "label": "Included features",
+      "value": "atomic; autocommit; savepoints; isolation; on_commit; request transactions; durable outer transaction"
+    }
+  ],
+  "edges": [
+    {
+      "from": "entry",
+      "id": "edge-1",
+      "to": "nested"
+    },
+    {
+      "from": "nested",
+      "id": "edge-2",
+      "label": "Nested",
+      "to": "savepoint"
+    },
+    {
+      "from": "nested",
+      "id": "edge-3",
+      "label": "Outermost",
+      "to": "begin"
+    },
+    {
+      "from": "begin",
+      "id": "edge-4",
+      "to": "run"
+    },
+    {
+      "from": "savepoint",
+      "id": "edge-5",
+      "to": "run"
+    },
+    {
+      "from": "begin",
+      "id": "edge-6",
+      "label": "Begin failed",
+      "style": "error",
+      "to": "error-begin"
+    },
+    {
+      "from": "savepoint",
+      "id": "edge-7",
+      "label": "Savepoint failed",
+      "style": "error",
+      "to": "error-savepoint"
+    },
+    {
+      "from": "run",
+      "id": "edge-8",
+      "to": "ok"
+    },
+    {
+      "from": "ok",
+      "id": "edge-9",
+      "label": "Error/panic",
+      "style": "error",
+      "to": "rollback"
+    },
+    {
+      "from": "rollback",
+      "id": "edge-10",
+      "to": "error-rollback"
+    },
+    {
+      "from": "ok",
+      "id": "edge-11",
+      "label": "Success",
+      "to": "outer"
+    },
+    {
+      "from": "outer",
+      "id": "edge-12",
+      "label": "Nested",
+      "to": "release"
+    },
+    {
+      "from": "release",
+      "id": "edge-13",
+      "to": "pending"
+    },
+    {
+      "from": "release",
+      "id": "edge-14",
+      "label": "Release failed",
+      "style": "error",
+      "to": "error-release"
+    },
+    {
+      "from": "outer",
+      "id": "edge-15",
+      "label": "Outer",
+      "to": "commit"
+    },
+    {
+      "from": "commit",
+      "id": "edge-16",
+      "label": "Commit not confirmed",
+      "style": "error",
+      "to": "unknown"
+    },
+    {
+      "from": "commit",
+      "id": "edge-17",
+      "label": "Confirmed",
+      "to": "callbacks"
+    },
+    {
+      "from": "callbacks",
+      "id": "edge-18",
+      "to": "done"
+    }
+  ],
+  "id": "orm.transactions",
+  "layout": {
+    "direction": "down"
+  },
+  "nodes": [
+    {
+      "id": "entry",
+      "subtitle": "Alias and isolation supplied; durable=true requires outermost boundary",
+      "title": "Enter Atomic callback",
+      "type": "api"
+    },
+    {
+      "id": "nested",
+      "subtitle": "No cross-alias atomicity; reject durable=true if nested",
+      "title": "Already inside a transaction on this alias?",
+      "type": "decision"
+    },
+    {
+      "id": "savepoint",
+      "subtitle": "Remember callback list boundary",
+      "title": "Create nested savepoint",
+      "type": "database"
+    },
+    {
+      "id": "begin",
+      "subtitle": "One pinned connection; set isolation before application work",
+      "title": "Begin outer transaction",
+      "type": "database"
+    },
+    {
+      "id": "run",
+      "subtitle": "Collect OnCommit callbacks; capture errors and panic for rollback",
+      "title": "Execute callback with transaction context",
+      "type": "action"
+    },
+    {
+      "id": "ok",
+      "subtitle": "Success may still fail at commit",
+      "title": "Callback completed without error or panic?",
+      "type": "decision"
+    },
+    {
+      "id": "rollback",
+      "subtitle": "Discard callbacks added in rolled-back boundary",
+      "title": "Roll back transaction or savepoint",
+      "type": "database"
+    },
+    {
+      "id": "outer",
+      "subtitle": "Only outer commit makes changes durable",
+      "title": "Is this the outer boundary?",
+      "type": "decision"
+    },
+    {
+      "id": "release",
+      "subtitle": "Callbacks retained by outer owner",
+      "title": "Release savepoint",
+      "type": "database"
+    },
+    {
+      "id": "pending",
+      "subtitle": "No OnCommit callback executes here",
+      "title": "Return nested result pending outer commit",
+      "type": "terminal"
+    },
+    {
+      "id": "commit",
+      "subtitle": "Confirmed response required before callbacks",
+      "title": "Commit transaction",
+      "type": "database"
+    },
+    {
+      "id": "unknown",
+      "subtitle": "Unknown transport outcome requires reconciliation; no automatic replay",
+      "title": "Return commit error with outcome class",
+      "type": "error"
+    },
+    {
+      "id": "callbacks",
+      "subtitle": "Ordinary error stops later callbacks; robust callbacks collect errors and continue",
+      "title": "Invoke committed callbacks in order",
+      "type": "event"
+    },
+    {
+      "id": "done",
+      "subtitle": "Callback failure cannot reverse the committed transaction",
+      "title": "Return durable result and callback status",
+      "type": "terminal"
+    },
+    {
+      "id": "error-begin",
+      "subtitle": "Cleanup failures attached; no swallowed rollback error",
+      "title": "Return original error or rethrow panic",
+      "type": "error"
+    },
+    {
+      "id": "error-savepoint",
+      "subtitle": "Cleanup failures attached; no swallowed rollback error",
+      "title": "Return original error or rethrow panic",
+      "type": "error"
+    },
+    {
+      "id": "error-rollback",
+      "subtitle": "Cleanup failures attached; no swallowed rollback error",
+      "title": "Return original error or rethrow panic",
+      "type": "error"
+    },
+    {
+      "id": "error-release",
+      "subtitle": "Cleanup failures attached; no swallowed rollback error",
+      "title": "Return original error or rethrow panic",
+      "type": "error"
+    }
+  ],
+  "schemaVersion": 3,
+  "summary": "Proposed behavior. Nested savepoints and outer transactions have different return and callback behavior. Outbox is required if after-commit dispatch must survive process crash.",
+  "title": "Commit, nest or roll back a transaction",
+  "type": "flow"
+}

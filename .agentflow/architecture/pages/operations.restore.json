@@ -1,0 +1,128 @@
+{
+  "details": [
+    {
+      "id": "owner",
+      "label": "Proposed code owner",
+      "value": "operations runbooks; connectors"
+    },
+    {
+      "id": "status",
+      "label": "Implementation status",
+      "value": "No Go implementation exists. Names, limits and behavior are submitted design choices requiring review."
+    },
+    {
+      "id": "features",
+      "label": "Included features",
+      "value": "backups; PITR; restore drills; RPO/RTO; Redis durability; files; task reconciliation"
+    }
+  ],
+  "edges": [
+    {
+      "from": "entry",
+      "id": "entry-to-backup",
+      "to": "backup"
+    },
+    {
+      "from": "backup",
+      "id": "backup-to-redis",
+      "to": "redis"
+    },
+    {
+      "from": "redis",
+      "id": "redis-to-files",
+      "to": "files"
+    },
+    {
+      "from": "files",
+      "id": "files-to-restore",
+      "to": "restore"
+    },
+    {
+      "from": "restore",
+      "id": "restore-to-verify",
+      "to": "verify"
+    },
+    {
+      "from": "verify",
+      "id": "verify-to-passed",
+      "to": "passed"
+    },
+    {
+      "from": "passed",
+      "id": "passed-to-passed-rejected",
+      "label": "No",
+      "style": "error",
+      "to": "passed-rejected"
+    },
+    {
+      "from": "passed",
+      "id": "passed-to-done",
+      "label": "Yes",
+      "to": "done"
+    }
+  ],
+  "id": "operations.restore",
+  "layout": {
+    "direction": "down"
+  },
+  "nodes": [
+    {
+      "id": "entry",
+      "subtitle": "Application defines RPO/RTO; framework supplies verifiable procedures",
+      "title": "Run scheduled backup or recovery exercise",
+      "type": "actor"
+    },
+    {
+      "id": "backup",
+      "subtitle": "Also retain migration history, app versions, file manifest and encryption key references",
+      "title": "Capture PostgreSQL backup and WAL position",
+      "type": "database"
+    },
+    {
+      "id": "redis",
+      "subtitle": "Disposable cache rebuildable; sessions/tasks/results need explicit AOF/snapshot/failover policy",
+      "title": "Capture required Redis durable state policy",
+      "type": "external"
+    },
+    {
+      "id": "files",
+      "subtitle": "Database backup alone does not preserve uploaded bytes",
+      "title": "Capture blob storage and metadata consistency",
+      "type": "external"
+    },
+    {
+      "id": "restore",
+      "subtitle": "Never restore over live production without explicit operator action",
+      "title": "Restore into isolated target infrastructure",
+      "type": "action"
+    },
+    {
+      "id": "verify",
+      "subtitle": "Reconcile ambiguous task publication; invalidate sessions if secrets rotated",
+      "title": "Verify schema, row invariants and outbox/workflow state",
+      "type": "database"
+    },
+    {
+      "id": "passed",
+      "subtitle": "Measure recovered checkpoint and elapsed recovery time",
+      "title": "Restore meets declared data and time objectives?",
+      "type": "decision"
+    },
+    {
+      "id": "passed-rejected",
+      "subtitle": "No claim of successful recoverability without test evidence",
+      "title": "Keep target isolated and report recovery gap",
+      "type": "error"
+    },
+    {
+      "id": "done",
+      "subtitle": "Redis failover may lose acknowledged writes depending on durability policy; no blanket zero-loss promise",
+      "title": "Record recovery evidence and cutover decision",
+      "type": "terminal"
+    }
+  ],
+  "schemaVersion": 3,
+  "summary": "Proposed behavior. Owned by operations runbooks; connectors; select nodes for technical details.",
+  "title": "Back up and restore data with consistency checks",
+  "type": "flow"
+}

@@ -1,0 +1,131 @@
+{
+  "details": [
+    {
+      "id": "owner",
+      "label": "Proposed code owner",
+      "value": "core/security.Middleware"
+    },
+    {
+      "id": "status",
+      "label": "Implementation status",
+      "value": "No Go implementation exists. Names, limits and behavior are submitted design choices requiring review."
+    },
+    {
+      "id": "features",
+      "label": "Included features",
+      "value": "host validation; trusted proxies; HTTPS; HSTS; CORS; CSP/nonces/reports; clickjacking; referrer policy"
+    }
+  ],
+  "edges": [
+    {
+      "from": "entry",
+      "id": "entry-to-proxy",
+      "to": "proxy"
+    },
+    {
+      "from": "proxy",
+      "id": "proxy-to-host",
+      "to": "host"
+    },
+    {
+      "from": "host",
+      "id": "host-to-host-rejected",
+      "label": "No",
+      "style": "error",
+      "to": "host-rejected"
+    },
+    {
+      "from": "host",
+      "id": "host-to-cors",
+      "label": "Yes",
+      "to": "cors"
+    },
+    {
+      "from": "cors",
+      "id": "cors-to-origin",
+      "to": "origin"
+    },
+    {
+      "from": "origin",
+      "id": "origin-to-origin-rejected",
+      "label": "No",
+      "style": "error",
+      "to": "origin-rejected"
+    },
+    {
+      "from": "origin",
+      "id": "origin-to-headers",
+      "label": "Yes",
+      "to": "headers"
+    },
+    {
+      "from": "headers",
+      "id": "headers-to-done",
+      "to": "done"
+    }
+  ],
+  "id": "security.headers",
+  "layout": {
+    "direction": "down"
+  },
+  "nodes": [
+    {
+      "id": "entry",
+      "subtitle": "Host, scheme, forwarded headers and Origin",
+      "title": "Process inbound request metadata",
+      "type": "api"
+    },
+    {
+      "id": "proxy",
+      "subtitle": "Untrusted X-Forwarded-For/Proto ignored",
+      "title": "Trust forwarded headers only from configured networks",
+      "type": "action"
+    },
+    {
+      "id": "host",
+      "subtitle": "AllowedHosts + configured HTTPS redirect",
+      "title": "Host allowed and transport policy met?",
+      "type": "decision"
+    },
+    {
+      "id": "host-rejected",
+      "subtitle": "400 invalid host; safe redirect avoids attacker-controlled authority",
+      "title": "Reject host or redirect to configured HTTPS origin",
+      "type": "error"
+    },
+    {
+      "id": "cors",
+      "subtitle": "Allowed origin/method/headers; Vary: Origin; credentials opt-in",
+      "title": "Evaluate CORS allowlist and preflight",
+      "type": "action"
+    },
+    {
+      "id": "origin",
+      "subtitle": "Same-origin bypasses CORS negotiation only",
+      "title": "Cross-origin operation allowed?",
+      "type": "decision"
+    },
+    {
+      "id": "origin-rejected",
+      "subtitle": "No credentialed wildcard response",
+      "title": "Reject preflight or omit CORS grant",
+      "type": "error"
+    },
+    {
+      "id": "headers",
+      "subtitle": "Nonce per response; frame-ancestors; nosniff; opener policy; report-only mode explicit",
+      "title": "Set HSTS, CSP, frame and referrer policies",
+      "type": "action"
+    },
+    {
+      "id": "done",
+      "subtitle": "CSP reports parsed with size limits and redacted URLs",
+      "title": "Continue with enforced response policy",
+      "type": "terminal"
+    }
+  ],
+  "schemaVersion": 3,
+  "summary": "Proposed behavior. Owned by core/security.Middleware; select nodes for technical details.",
+  "title": "Apply host, proxy, CORS and browser security policies",
+  "type": "flow"
+}

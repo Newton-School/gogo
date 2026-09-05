@@ -1,0 +1,128 @@
+{
+  "details": [
+    {
+      "id": "owner",
+      "label": "Proposed code owner",
+      "value": "core/management.Build; deployment examples"
+    },
+    {
+      "id": "status",
+      "label": "Implementation status",
+      "value": "No Go implementation exists. Names, limits and behavior are submitted design choices requiring review."
+    },
+    {
+      "id": "features",
+      "label": "Included features",
+      "value": "deployment; build; containers; web/worker/beat roles; rolling upgrades; rollback; migration job; capacity"
+    }
+  ],
+  "edges": [
+    {
+      "from": "entry",
+      "id": "entry-to-build",
+      "to": "build"
+    },
+    {
+      "from": "build",
+      "id": "build-to-verify",
+      "to": "verify"
+    },
+    {
+      "from": "verify",
+      "id": "verify-to-migrate",
+      "to": "migrate"
+    },
+    {
+      "from": "migrate",
+      "id": "migrate-to-rollout",
+      "to": "rollout"
+    },
+    {
+      "from": "rollout",
+      "id": "rollout-to-observe",
+      "to": "observe"
+    },
+    {
+      "from": "observe",
+      "id": "observe-to-healthy",
+      "to": "healthy"
+    },
+    {
+      "from": "healthy",
+      "id": "healthy-to-healthy-rejected",
+      "label": "No",
+      "style": "error",
+      "to": "healthy-rejected"
+    },
+    {
+      "from": "healthy",
+      "id": "healthy-to-done",
+      "label": "Yes",
+      "to": "done"
+    }
+  ],
+  "id": "operations.deploy",
+  "layout": {
+    "direction": "down"
+  },
+  "nodes": [
+    {
+      "id": "entry",
+      "subtitle": "Pinned compatible Core/Admin/Async/connector versions",
+      "title": "Release an approved client application",
+      "type": "actor"
+    },
+    {
+      "id": "build",
+      "subtitle": "No secrets embedded; generate schema/route artifacts; reproducible build metadata",
+      "title": "Validate configuration schema and compile binary",
+      "type": "action"
+    },
+    {
+      "id": "verify",
+      "subtitle": "GOWORK=off; independent module resolution; security and dependency audit",
+      "title": "Run tests and migration compatibility checks",
+      "type": "action"
+    },
+    {
+      "id": "migrate",
+      "subtitle": "One migration lock; no migration in each web replica startup",
+      "title": "Run approved expand migrations as separate job",
+      "type": "database"
+    },
+    {
+      "id": "rollout",
+      "subtitle": "Payload/version compatibility window; stop admission before drain",
+      "title": "Roll compatible web/worker versions",
+      "type": "action"
+    },
+    {
+      "id": "observe",
+      "subtitle": "Staged rollout; failure thresholds set by app deployment profile",
+      "title": "Observe readiness and error/latency budgets",
+      "type": "external"
+    },
+    {
+      "id": "healthy",
+      "subtitle": "Default example 10 minutes; errors <1%, p95 no worse than 20% baseline",
+      "title": "New deployment passes observation window?",
+      "type": "decision"
+    },
+    {
+      "id": "healthy-rejected",
+      "subtitle": "Do not blindly reverse destructive schema migrations",
+      "title": "Roll application back to compatible binary",
+      "type": "error"
+    },
+    {
+      "id": "done",
+      "subtitle": "Beat lease prevents duplicate logical scheduling; contract migrations later",
+      "title": "Complete rollout and record deployed versions",
+      "type": "terminal"
+    }
+  ],
+  "schemaVersion": 3,
+  "summary": "Proposed behavior. Owned by core/management.Build; deployment examples; select nodes for technical details.",
+  "title": "Build and deploy web, worker and scheduler roles",
+  "type": "flow"
+}

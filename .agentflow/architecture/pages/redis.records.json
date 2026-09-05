@@ -1,0 +1,114 @@
+{
+  "columns": [
+    {
+      "format": "text",
+      "id": "key",
+      "label": "Logical key / owner"
+    },
+    {
+      "format": "text",
+      "id": "data",
+      "label": "Data / atomic boundary"
+    },
+    {
+      "format": "text",
+      "id": "retention",
+      "label": "Expiry / failure rule"
+    }
+  ],
+  "id": "redis.records",
+  "rows": [
+    {
+      "cells": {
+        "data": "Versioned encoded value, created/fresh/stale timestamps; optional stampede lock token separate key",
+        "key": "<namespace>:cache:<version>:<digest>",
+        "retention": "TTL per key; independent evictable instance allowed. Key digest includes principal/site/language where response private."
+      },
+      "id": "cache"
+    },
+    {
+      "cells": {
+        "data": "Hash payload/version/expiry; atomic CAS or tombstone in same slot",
+        "key": "<namespace>:session:{session-digest}",
+        "retention": "TTL <= session expiry; tombstone spans max request lifetime after logout; noeviction preferred, outage fails closed."
+      },
+      "id": "session"
+    },
+    {
+      "cells": {
+        "data": "Token-bucket tokens/refill timestamp via Lua and Redis TIME; no cross-slot shared transaction",
+        "key": "<namespace>:limit:{scope-digest}:<policy>",
+        "retention": "TTL covers refill window; fail-closed security default with explicit policy override only."
+      },
+      "id": "limit"
+    },
+    {
+      "cells": {
+        "data": "Redis Stream per queue priority bucket; consumer groups/pending list; stable task ID in payload",
+        "key": "<namespace>:queue:{queue-shard}:p<0..9>",
+        "retention": "Never trim entries with pending deliveries; ack terminal before deletion; queue depth quotas; noeviction + persistence configuration required."
+      },
+      "id": "broker"
+    },
+    {
+      "cells": {
+        "data": "Hash(task-id) modulo 64 fixed partitions; state/fence/lease/result/tombstone and pending-intent index updated in same script/slot",
+        "key": "<namespace>:{task-pNN}:<task-id>:state / intents; :pending-intents",
+        "retention": "Full result 24h default; tombstone >=7d; active tasks/intents retained. Relay polls all 64 known indexes; no cross-slot index publication gap."
+      },
+      "id": "task"
+    },
+    {
+      "cells": {
+        "data": "Hash(workflow-id) modulo 64; DAG/member outcomes/callback claim and partition intent index atomic in one slot",
+        "key": "<namespace>:{workflow-pNN}:<workflow-id>:state / members / intents; :pending-intents",
+        "retention": "Retain until members terminal plus replay horizon; callback delivery and cleanup tracked; fixed partition changes require drain/reconciliation migration."
+      },
+      "id": "workflow"
+    },
+    {
+      "cells": {
+        "data": "Due sorted set, schedule payload/version, lease and stable occurrence/fire intent in same slot",
+        "key": "<namespace>:schedule:{partition}:due / items / intents",
+        "retention": "Partitioned fixed shard count configured; migration between partitions requires drain/reconcile; no one gigantic global cluster transaction."
+      },
+      "id": "schedule"
+    },
+    {
+      "cells": {
+        "data": "Revocation intent and expiry; worker verifies before start and on heartbeat",
+        "key": "<namespace>:revoke:{task-or-stamp-digest}",
+        "retention": "Retention covers task expiry/replay; revoke is not proof process stopped; durable task state records acknowledgment."
+      },
+      "id": "revoke"
+    },
+    {
+      "cells": {
+        "data": "Bounded monitoring stream; safe progress and lifecycle events",
+        "key": "<namespace>:events:{partition}",
+        "retention": "Trimming allowed for monitor events; never authoritative for result/chord state. Independent consumer positions."
+      },
+      "id": "events"
+    },
+    {
+      "cells": {
+        "data": "Original message reference, bounded safe envelope, decode error code, first seen and source receipt",
+        "key": "<namespace>:quarantine:{queue-shard}",
+        "retention": "Persist quarantine before ack; authorized inspect/replay/remove commands; secret-redacted display; operator retention with backup export optional."
+      },
+      "id": "poison"
+    },
+    {
+      "cells": {
+        "data": "Owner token/fence/expiry; renew and release check token",
+        "key": "<namespace>:leader:{resource-partition}",
+        "retention": "No correctness based on a lock alone: target writes verify fence or idempotency; Redis failover can lose unreplicated lock/state."
+      },
+      "id": "leases"
+    }
+  ],
+  "schemaVersion": 3,
+  "summary": "Proposed contract for architecture review; not implemented.",
+  "title": "Redis keys, partitions and retention",
+  "type": "table"
+}

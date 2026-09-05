@@ -1,0 +1,142 @@
+{
+  "details": [
+    {
+      "id": "owner",
+      "label": "Proposed code owner",
+      "value": "core/migrations.RunData; HistoricalRegistry"
+    },
+    {
+      "id": "status",
+      "label": "Implementation status",
+      "value": "No Go implementation exists. Names, limits and behavior are submitted design choices requiring review."
+    },
+    {
+      "id": "features",
+      "label": "Included features",
+      "value": "RunPython Go equivalent; historical models; RunSQL; data migrations; batched backfill; resume"
+    }
+  ],
+  "edges": [
+    {
+      "from": "entry",
+      "id": "entry-to-historical",
+      "to": "historical"
+    },
+    {
+      "from": "historical",
+      "id": "historical-to-batch",
+      "to": "batch"
+    },
+    {
+      "from": "batch",
+      "id": "batch-to-transform",
+      "to": "transform"
+    },
+    {
+      "from": "transform",
+      "id": "transform-to-write",
+      "to": "write"
+    },
+    {
+      "from": "write",
+      "id": "write-to-remaining",
+      "to": "remaining"
+    },
+    {
+      "from": "remaining",
+      "id": "remaining-to-remaining-rejected",
+      "label": "Yes",
+      "to": "remaining-rejected"
+    },
+    {
+      "from": "remaining",
+      "id": "remaining-to-done",
+      "label": "No",
+      "to": "done"
+    },
+    {
+      "from": "batch",
+      "id": "batch-to-backend-failed",
+      "label": "Operation fails",
+      "style": "error",
+      "to": "backend-failed-batch"
+    },
+    {
+      "from": "write",
+      "id": "write-to-backend-failed",
+      "label": "Operation fails",
+      "style": "error",
+      "to": "backend-failed-write"
+    }
+  ],
+  "id": "migrations.data",
+  "layout": {
+    "direction": "down"
+  },
+  "nodes": [
+    {
+      "id": "entry",
+      "subtitle": "Migration supplies forward and optional reverse functions",
+      "title": "Execute registered data operation",
+      "type": "api"
+    },
+    {
+      "id": "historical",
+      "subtitle": "Historical field/relation descriptors; never import current application models",
+      "title": "Resolve models at migration graph state",
+      "type": "action"
+    },
+    {
+      "id": "batch",
+      "subtitle": "Checkpoint by key; avoid offset drift; explicit alias",
+      "title": "Read stable primary-key batches",
+      "type": "database"
+    },
+    {
+      "id": "transform",
+      "subtitle": "No network calls in transaction; unsafe irreversible changes declared",
+      "title": "Validate transformation and idempotency",
+      "type": "action"
+    },
+    {
+      "id": "write",
+      "subtitle": "Same transaction; rows completed once under replay-safe predicate",
+      "title": "Update selected batch and checkpoint",
+      "type": "database"
+    },
+    {
+      "id": "remaining",
+      "subtitle": "Resume from durable checkpoint",
+      "title": "More batches remain?",
+      "type": "decision"
+    },
+    {
+      "id": "remaining-rejected",
+      "subtitle": "Next bounded batch; retryable interruption resumes checkpoint",
+      "title": "Continue from saved key",
+      "type": "terminal"
+    },
+    {
+      "id": "done",
+      "subtitle": "Verify expected row count/invariants before migration marked applied",
+      "title": "Record data operation completion",
+      "type": "terminal"
+    },
+    {
+      "id": "backend-failed-batch",
+      "subtitle": "Retry from last durable key; do not skip failed rows",
+      "title": "Rollback active batch and preserve checkpoint",
+      "type": "error"
+    },
+    {
+      "id": "backend-failed-write",
+      "subtitle": "Retry from last durable key; do not skip failed rows",
+      "title": "Rollback active batch and preserve checkpoint",
+      "type": "error"
+    }
+  ],
+  "schemaVersion": 3,
+  "summary": "Proposed behavior. Owned by core/migrations.RunData; HistoricalRegistry; select nodes for technical details.",
+  "title": "Run a historical data migration",
+  "type": "flow"
+}

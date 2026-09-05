@@ -1,0 +1,94 @@
+{
+  "details": [
+    {
+      "id": "owner",
+      "label": "Proposed code owner",
+      "value": "admin.History; Site.GetURLs"
+    },
+    {
+      "id": "status",
+      "label": "Implementation status",
+      "value": "No Go implementation exists. Names, limits and behavior are submitted design choices requiring review."
+    },
+    {
+      "id": "features",
+      "label": "Included features",
+      "value": "history; LogEntry; custom URLs/views; templates; branding; Admin extensions; admindocs"
+    }
+  ],
+  "edges": [
+    {
+      "from": "entry",
+      "id": "entry-to-policy",
+      "to": "policy"
+    },
+    {
+      "from": "policy",
+      "id": "policy-to-audit",
+      "to": "audit"
+    },
+    {
+      "from": "audit",
+      "id": "audit-to-customize",
+      "to": "customize"
+    },
+    {
+      "from": "customize",
+      "id": "customize-to-done",
+      "to": "done"
+    },
+    {
+      "from": "audit",
+      "id": "audit-to-backend-failed",
+      "label": "Operation fails",
+      "style": "error",
+      "to": "backend-failed"
+    }
+  ],
+  "id": "admin.history",
+  "layout": {
+    "direction": "down"
+  },
+  "nodes": [
+    {
+      "id": "entry",
+      "subtitle": "GET /admin/{app}/{model}/{pk}/history",
+      "title": "Open object history or custom site route",
+      "type": "api"
+    },
+    {
+      "id": "policy",
+      "subtitle": "Historical/deleted objects retain scope identity; staff flag insufficient",
+      "title": "Check site, model and object-history permission",
+      "type": "action"
+    },
+    {
+      "id": "audit",
+      "subtitle": "Actor, action, timestamp, redacted changes; pagination within object scope",
+      "title": "Read ordered audit entries",
+      "type": "database"
+    },
+    {
+      "id": "customize",
+      "subtitle": "Project/app overrides; custom views wrapped with Admin authorization and CSRF",
+      "title": "Apply configured template and display hooks",
+      "type": "action"
+    },
+    {
+      "id": "done",
+      "subtitle": "Hooks expose public context; extensions cannot bypass scope by overriding navigation",
+      "title": "Render accessible history or extension view",
+      "type": "terminal"
+    },
+    {
+      "id": "backend-failed",
+      "subtitle": "No global audit dump fallback",
+      "title": "Return scoped history error",
+      "type": "error"
+    }
+  ],
+  "schemaVersion": 3,
+  "summary": "Proposed behavior. Owned by admin.History; Site.GetURLs; select nodes for technical details.",
+  "title": "Read history and customize Admin behavior",
+  "type": "flow"
+}

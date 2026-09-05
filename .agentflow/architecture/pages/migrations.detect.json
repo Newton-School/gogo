@@ -1,0 +1,117 @@
+{
+  "details": [
+    {
+      "id": "owner",
+      "label": "Proposed code owner",
+      "value": "core/migrations.Autodetector"
+    },
+    {
+      "id": "status",
+      "label": "Implementation status",
+      "value": "No Go implementation exists. Names, limits and behavior are submitted design choices requiring review."
+    },
+    {
+      "id": "features",
+      "label": "Included features",
+      "value": "makemigrations; autodetection; rename detection; dependencies; dry run; check drift; custom operations"
+    }
+  ],
+  "edges": [
+    {
+      "from": "entry",
+      "id": "entry-to-history",
+      "to": "history"
+    },
+    {
+      "from": "history",
+      "id": "history-to-diff",
+      "to": "diff"
+    },
+    {
+      "from": "diff",
+      "id": "diff-to-ambiguous",
+      "to": "ambiguous"
+    },
+    {
+      "from": "ambiguous",
+      "id": "ambiguous-to-ambiguous-rejected",
+      "label": "No",
+      "style": "error",
+      "to": "ambiguous-rejected"
+    },
+    {
+      "from": "ambiguous",
+      "id": "ambiguous-to-dependencies",
+      "label": "Yes",
+      "to": "dependencies"
+    },
+    {
+      "from": "dependencies",
+      "id": "dependencies-to-write",
+      "to": "write"
+    },
+    {
+      "from": "write",
+      "id": "write-to-done",
+      "to": "done"
+    }
+  ],
+  "id": "migrations.detect",
+  "layout": {
+    "direction": "down"
+  },
+  "nodes": [
+    {
+      "id": "entry",
+      "subtitle": "go run manage.go makemigrations [app] --check/--dry-run",
+      "title": "Generate migration from current schemas",
+      "type": "api"
+    },
+    {
+      "id": "history",
+      "subtitle": "Replay descriptors, not live model definitions; validate checksums",
+      "title": "Load immutable migration graph and state",
+      "type": "action"
+    },
+    {
+      "id": "diff",
+      "subtitle": "Fields, relations, indexes, constraints, options and defaults",
+      "title": "Diff historical and generated model states",
+      "type": "action"
+    },
+    {
+      "id": "ambiguous",
+      "subtitle": "Rename/drop ambiguity requires explicit developer selection",
+      "title": "Changes unambiguous and safe?",
+      "type": "decision"
+    },
+    {
+      "id": "ambiguous-rejected",
+      "subtitle": "Never guess a rename or destructive data conversion",
+      "title": "Return decision-required diagnostic",
+      "type": "error"
+    },
+    {
+      "id": "dependencies",
+      "subtitle": "FK targets before constraints; reversible metadata recorded",
+      "title": "Order operations and app dependencies",
+      "type": "action"
+    },
+    {
+      "id": "write",
+      "subtitle": "No timestamps in fingerprints; temp file then atomic rename",
+      "title": "Write deterministic migration source",
+      "type": "action"
+    },
+    {
+      "id": "done",
+      "subtitle": "No database mutation during makemigrations",
+      "title": "Return migration and dry-run plan",
+      "type": "terminal"
+    }
+  ],
+  "schemaVersion": 3,
+  "summary": "Proposed behavior. Owned by core/migrations.Autodetector; select nodes for technical details.",
+  "title": "Detect model changes and write a migration",
+  "type": "flow"
+}

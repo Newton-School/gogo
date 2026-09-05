@@ -1,0 +1,204 @@
+{
+  "details": [
+    {
+      "id": "owner",
+      "label": "Proposed code owner",
+      "value": "core/api.Idempotency; core/db"
+    },
+    {
+      "id": "status",
+      "label": "Implementation status",
+      "value": "No Go implementation exists. Names, limits and behavior are submitted design choices requiring review."
+    },
+    {
+      "id": "features",
+      "label": "Included features",
+      "value": "idempotency keys; concurrent requests; response replay; uncertain commits; retention"
+    }
+  ],
+  "edges": [
+    {
+      "from": "entry",
+      "id": "entry-to-identity",
+      "to": "identity"
+    },
+    {
+      "from": "identity",
+      "id": "identity-to-claim",
+      "to": "claim"
+    },
+    {
+      "from": "claim",
+      "id": "claim-to-same",
+      "to": "same"
+    },
+    {
+      "from": "same",
+      "id": "same-to-same-rejected",
+      "label": "No",
+      "style": "error",
+      "to": "same-rejected"
+    },
+    {
+      "from": "same",
+      "id": "same-to-replay",
+      "label": "Yes",
+      "to": "replay"
+    },
+    {
+      "from": "replay",
+      "id": "replay-to-replay-rejected",
+      "label": "Yes",
+      "to": "replay-rejected"
+    },
+    {
+      "from": "replay",
+      "id": "replay-to-mutate",
+      "label": "No",
+      "to": "mutate"
+    },
+    {
+      "from": "mutate",
+      "id": "mutate-to-receipt",
+      "to": "receipt"
+    },
+    {
+      "from": "receipt",
+      "id": "receipt-to-commit",
+      "to": "commit"
+    },
+    {
+      "from": "commit",
+      "id": "commit-to-done",
+      "to": "done"
+    },
+    {
+      "from": "claim",
+      "id": "claim-to-backend-failed",
+      "label": "Operation fails",
+      "style": "error",
+      "to": "backend-failed-claim"
+    },
+    {
+      "from": "mutate",
+      "id": "mutate-to-backend-failed",
+      "label": "Operation fails",
+      "style": "error",
+      "to": "backend-failed-mutate"
+    },
+    {
+      "from": "receipt",
+      "id": "receipt-to-backend-failed",
+      "label": "Operation fails",
+      "style": "error",
+      "to": "backend-failed-receipt"
+    },
+    {
+      "from": "commit",
+      "id": "commit-to-backend-failed",
+      "label": "Operation fails",
+      "style": "error",
+      "to": "backend-failed-commit"
+    }
+  ],
+  "id": "api.idempotency",
+  "layout": {
+    "direction": "down"
+  },
+  "nodes": [
+    {
+      "id": "entry",
+      "subtitle": "Resource explicitly enables key policy; default retention 24h",
+      "title": "Receive mutation with idempotency key",
+      "type": "api"
+    },
+    {
+      "id": "identity",
+      "subtitle": "Digest principal/scope/action/key; canonical request body digest; no plaintext key logs",
+      "title": "Authenticate and derive scoped operation identity",
+      "type": "action"
+    },
+    {
+      "id": "claim",
+      "subtitle": "Unique scoped key; concurrent request waits with bounded lock deadline",
+      "title": "Insert or lock gogo_idempotency row inside mutation transaction",
+      "type": "database"
+    },
+    {
+      "id": "same",
+      "subtitle": "Different body must not reuse committed response",
+      "title": "Existing key uses same body and action?",
+      "type": "decision"
+    },
+    {
+      "id": "same-rejected",
+      "subtitle": "No mutation and no other request's response disclosed",
+      "title": "Rollback and return 409 key conflict",
+      "type": "error"
+    },
+    {
+      "id": "replay",
+      "subtitle": "Current authorization rechecked before any replay",
+      "title": "Does a committed response already exist?",
+      "type": "decision"
+    },
+    {
+      "id": "replay-rejected",
+      "subtitle": "Same status/body/allowlisted headers; current field redaction policy applied",
+      "title": "Return authorized stored response",
+      "type": "terminal"
+    },
+    {
+      "id": "mutate",
+      "subtitle": "Validate serialization before commit; audit/outbox in same transaction",
+      "title": "Run resource mutation and build sealed response",
+      "type": "database"
+    },
+    {
+      "id": "receipt",
+      "subtitle": "No session cookies or secrets cached; object identity retained for scoped replay",
+      "title": "Store response receipt in same transaction",
+      "type": "database"
+    },
+    {
+      "id": "commit",
+      "subtitle": "Rollback removes both; uncertain commit reconciled with same scoped key",
+      "title": "Commit mutation and receipt together",
+      "type": "database"
+    },
+    {
+      "id": "done",
+      "subtitle": "Replay only guaranteed within retention; expiry reuse may repeat effects",
+      "title": "Return sealed committed response",
+      "type": "terminal"
+    },
+    {
+      "id": "backend-failed-claim",
+      "subtitle": "Do not create a second logical operation to resolve unknown commit; re-read same scoped key",
+      "title": "Return failed or uncertain mutation outcome",
+      "type": "error"
+    },
+    {
+      "id": "backend-failed-mutate",
+      "subtitle": "Do not create a second logical operation to resolve unknown commit; re-read same scoped key",
+      "title": "Return failed or uncertain mutation outcome",
+      "type": "error"
+    },
+    {
+      "id": "backend-failed-receipt",
+      "subtitle": "Do not create a second logical operation to resolve unknown commit; re-read same scoped key",
+      "title": "Return failed or uncertain mutation outcome",
+      "type": "error"
+    },
+    {
+      "id": "backend-failed-commit",
+      "subtitle": "Do not create a second logical operation to resolve unknown commit; re-read same scoped key",
+      "title": "Return failed or uncertain mutation outcome",
+      "type": "error"
+    }
+  ],
+  "schemaVersion": 3,
+  "summary": "Proposed behavior. Owned by core/api.Idempotency; core/db; select nodes for technical details.",
+  "title": "Claim and replay an idempotent mutation safely",
+  "type": "flow"
+}

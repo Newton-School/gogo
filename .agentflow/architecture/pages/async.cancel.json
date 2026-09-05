@@ -1,0 +1,143 @@
+{
+  "details": [
+    {
+      "id": "owner",
+      "label": "Proposed code owner",
+      "value": "async.Control.Revoke; Cancel"
+    },
+    {
+      "id": "status",
+      "label": "Implementation status",
+      "value": "No Go implementation exists. Names, limits and behavior are submitted design choices requiring review."
+    },
+    {
+      "id": "features",
+      "label": "Included features",
+      "value": "revoke; cancel; terminate; control messages; already-completed tasks"
+    }
+  ],
+  "edges": [
+    {
+      "from": "entry",
+      "id": "entry-to-read",
+      "to": "read"
+    },
+    {
+      "from": "read",
+      "id": "read-to-terminal",
+      "to": "terminal"
+    },
+    {
+      "from": "terminal",
+      "id": "terminal-to-terminal-rejected",
+      "label": "Already terminal",
+      "to": "terminal-rejected"
+    },
+    {
+      "from": "terminal",
+      "id": "terminal-to-mark",
+      "label": "Yes",
+      "to": "mark"
+    },
+    {
+      "from": "mark",
+      "id": "mark-to-signal",
+      "to": "signal"
+    },
+    {
+      "from": "signal",
+      "id": "signal-to-handler",
+      "style": "async",
+      "to": "handler"
+    },
+    {
+      "from": "handler",
+      "id": "handler-to-done",
+      "to": "done"
+    },
+    {
+      "from": "read",
+      "id": "read-to-backend-failed",
+      "label": "Operation fails",
+      "style": "error",
+      "to": "backend-failed-read"
+    },
+    {
+      "from": "mark",
+      "id": "mark-to-backend-failed",
+      "label": "Operation fails",
+      "style": "error",
+      "to": "backend-failed-mark"
+    }
+  ],
+  "id": "async.cancel",
+  "layout": {
+    "direction": "down"
+  },
+  "nodes": [
+    {
+      "id": "entry",
+      "subtitle": "Authorized control command with task ID and reason",
+      "title": "Request task cancellation",
+      "type": "api"
+    },
+    {
+      "id": "read",
+      "subtitle": "Scope-bound requester; do not expose another application's task",
+      "title": "Read current task state",
+      "type": "cache"
+    },
+    {
+      "id": "terminal",
+      "subtitle": "Terminal result is immutable",
+      "title": "Task still active or pending?",
+      "type": "decision"
+    },
+    {
+      "id": "terminal-rejected",
+      "subtitle": "Cancellation cannot undo completed effects",
+      "title": "Return existing outcome",
+      "type": "terminal"
+    },
+    {
+      "id": "mark",
+      "subtitle": "Queue deletion alone is insufficient; workers check durable cancellation state",
+      "title": "Persist cancellation request and reason",
+      "type": "cache"
+    },
+    {
+      "id": "signal",
+      "subtitle": "Best effort notification; heartbeat observes durable cancel marker",
+      "title": "Notify current worker through control channel",
+      "type": "event"
+    },
+    {
+      "id": "handler",
+      "subtitle": "Subprocess kill only with explicit policy; external effects are not reversed",
+      "title": "Cancel context or isolated subprocess",
+      "type": "job"
+    },
+    {
+      "id": "done",
+      "subtitle": "Requested is distinct from confirmed canceled; pending deliveries acknowledged after state persisted",
+      "title": "Record REVOKED after execution stops",
+      "type": "terminal"
+    },
+    {
+      "id": "backend-failed-read",
+      "subtitle": "No claim that running work was canceled",
+      "title": "Return cancellation not recorded",
+      "type": "error"
+    },
+    {
+      "id": "backend-failed-mark",
+      "subtitle": "No claim that running work was canceled",
+      "title": "Return cancellation not recorded",
+      "type": "error"
+    }
+  ],
+  "schemaVersion": 3,
+  "summary": "Proposed behavior. Owned by async.Control.Revoke; Cancel; select nodes for technical details.",
+  "title": "Revoke pending work or cooperatively cancel execution",
+  "type": "flow"
+}

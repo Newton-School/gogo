@@ -1,0 +1,81 @@
+{
+  "details": [
+    {
+      "id": "owner",
+      "label": "Proposed code owner",
+      "value": "core/contrib/humanize"
+    },
+    {
+      "id": "status",
+      "label": "Implementation status",
+      "value": "No Go implementation exists. Names, limits and behavior are submitted design choices requiring review."
+    },
+    {
+      "id": "features",
+      "label": "Included features",
+      "value": "humanize; ordinal; number grouping; natural time/day; plural rules"
+    }
+  ],
+  "edges": [
+    {
+      "from": "entry",
+      "id": "entry-to-locale",
+      "to": "locale"
+    },
+    {
+      "from": "locale",
+      "id": "locale-to-convert",
+      "to": "convert"
+    },
+    {
+      "from": "convert",
+      "id": "convert-to-format",
+      "to": "format"
+    },
+    {
+      "from": "format",
+      "id": "format-to-done",
+      "to": "done"
+    }
+  ],
+  "id": "contrib.humanize",
+  "layout": {
+    "direction": "down"
+  },
+  "nodes": [
+    {
+      "id": "entry",
+      "subtitle": "ordinal, intcomma, intword, naturalday, naturaltime, apnumber",
+      "title": "Invoke registered display filter",
+      "type": "api"
+    },
+    {
+      "id": "locale",
+      "subtitle": "No process-global locale mutation",
+      "title": "Resolve request/task locale and timezone",
+      "type": "action"
+    },
+    {
+      "id": "convert",
+      "subtitle": "Explicit null behavior; deterministic clock in tests",
+      "title": "Validate numeric/date input and reference clock",
+      "type": "action"
+    },
+    {
+      "id": "format",
+      "subtitle": "Pluralization; future/past duration wording; decimal precision retained",
+      "title": "Apply locale-aware display rule",
+      "type": "action"
+    },
+    {
+      "id": "done",
+      "subtitle": "Formatting does not change stored value or timezone identity",
+      "title": "Return escaped display string",
+      "type": "terminal"
+    }
+  ],
+  "schemaVersion": 3,
+  "summary": "Proposed behavior. Owned by core/contrib/humanize; select nodes for technical details.",
+  "title": "Format human-readable display values",
+  "type": "flow"
+}

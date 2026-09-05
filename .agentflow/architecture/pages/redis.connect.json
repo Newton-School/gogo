@@ -1,0 +1,119 @@
+{
+  "details": [
+    {
+      "id": "owner",
+      "label": "Proposed code owner",
+      "value": "connectors/redis; go-redis"
+    },
+    {
+      "id": "status",
+      "label": "Implementation status",
+      "value": "No Go implementation exists. Names, limits and behavior are submitted design choices requiring review."
+    },
+    {
+      "id": "features",
+      "label": "Included features",
+      "value": "standalone; Sentinel; Cluster; TLS/ACL; pools; roles; capability checks; noeviction"
+    }
+  ],
+  "edges": [
+    {
+      "from": "entry",
+      "id": "entry-to-validate",
+      "to": "validate"
+    },
+    {
+      "from": "validate",
+      "id": "validate-to-connect",
+      "to": "connect"
+    },
+    {
+      "from": "connect",
+      "id": "connect-to-role",
+      "to": "role"
+    },
+    {
+      "from": "role",
+      "id": "role-to-role-rejected",
+      "label": "No",
+      "style": "error",
+      "to": "role-rejected"
+    },
+    {
+      "from": "role",
+      "id": "role-to-capability",
+      "label": "Yes",
+      "to": "capability"
+    },
+    {
+      "from": "capability",
+      "id": "capability-to-done",
+      "to": "done"
+    },
+    {
+      "from": "connect",
+      "id": "connect-to-backend-failed",
+      "label": "Operation fails",
+      "style": "error",
+      "to": "backend-failed"
+    }
+  ],
+  "id": "redis.connect",
+  "layout": {
+    "direction": "down"
+  },
+  "nodes": [
+    {
+      "id": "entry",
+      "subtitle": "cache / sessions / tasks / task_results / scheduler roles",
+      "title": "Create named Redis connection",
+      "type": "api"
+    },
+    {
+      "id": "validate",
+      "subtitle": "TLS, ACL credentials, pool size, deadlines and namespace",
+      "title": "Parse standalone, Sentinel or Cluster configuration",
+      "type": "action"
+    },
+    {
+      "id": "connect",
+      "subtitle": "go-redis transport; Redis 7.2+ proposed minimum; fail if required commands missing",
+      "title": "Open client and probe supported commands",
+      "type": "external"
+    },
+    {
+      "id": "role",
+      "subtitle": "Task/result/session state cannot use evictable disposable cache policy",
+      "title": "Durability/eviction policy fits selected role?",
+      "type": "decision"
+    },
+    {
+      "id": "role-rejected",
+      "subtitle": "Operator configures persistence and noeviction; startup never rewrites server settings",
+      "title": "Fail durable-role readiness",
+      "type": "error"
+    },
+    {
+      "id": "capability",
+      "subtitle": "Core cache/session/rate interfaces separate; no Async dependency in this module",
+      "title": "Expose client operations through connector API",
+      "type": "action"
+    },
+    {
+      "id": "done",
+      "subtitle": "Role aliases may share a development server; production separation explicit",
+      "title": "Return role-owned connection",
+      "type": "terminal"
+    },
+    {
+      "id": "backend-failed",
+      "subtitle": "No fallback to process memory for durable state",
+      "title": "Close partial client and return unavailable",
+      "type": "error"
+    }
+  ],
+  "schemaVersion": 3,
+  "summary": "Proposed behavior. Owned by connectors/redis; go-redis; select nodes for technical details.",
+  "title": "Open Redis connections by workload role",
+  "type": "flow"
+}

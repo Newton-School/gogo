@@ -1,0 +1,132 @@
+{
+  "details": [
+    {
+      "id": "owner",
+      "label": "Proposed code owner",
+      "value": "core/contrib/contenttypes"
+    },
+    {
+      "id": "status",
+      "label": "Implementation status",
+      "value": "No Go implementation exists. Names, limits and behavior are submitted design choices requiring review."
+    },
+    {
+      "id": "features",
+      "label": "Included features",
+      "value": "content types; generic FK; generic relation; permissions identity; natural keys"
+    }
+  ],
+  "edges": [
+    {
+      "from": "entry",
+      "id": "entry-to-sync",
+      "to": "sync"
+    },
+    {
+      "from": "sync",
+      "id": "sync-to-resolve",
+      "to": "resolve"
+    },
+    {
+      "from": "resolve",
+      "id": "resolve-to-allowed",
+      "to": "allowed"
+    },
+    {
+      "from": "allowed",
+      "id": "allowed-to-allowed-rejected",
+      "label": "No",
+      "style": "error",
+      "to": "allowed-rejected"
+    },
+    {
+      "from": "allowed",
+      "id": "allowed-to-load",
+      "label": "Yes",
+      "to": "load"
+    },
+    {
+      "from": "load",
+      "id": "load-to-done",
+      "to": "done"
+    },
+    {
+      "from": "sync",
+      "id": "sync-to-backend-failed",
+      "label": "Operation fails",
+      "style": "error",
+      "to": "backend-failed-sync"
+    },
+    {
+      "from": "load",
+      "id": "load-to-backend-failed",
+      "label": "Operation fails",
+      "style": "error",
+      "to": "backend-failed-load"
+    }
+  ],
+  "id": "contrib.contenttypes",
+  "layout": {
+    "direction": "down"
+  },
+  "nodes": [
+    {
+      "id": "entry",
+      "subtitle": "Installed app label + model name identities",
+      "title": "Models registered or post-migrate emitted",
+      "type": "event"
+    },
+    {
+      "id": "sync",
+      "subtitle": "Unique(app_label, model); stable IDs; stale records reported before removal",
+      "title": "Upsert gogo_content_types",
+      "type": "database"
+    },
+    {
+      "id": "resolve",
+      "subtitle": "Content type + encoded object PK; target model explicitly allowlisted",
+      "title": "Resolve generic foreign key reference",
+      "type": "api"
+    },
+    {
+      "id": "allowed",
+      "subtitle": "Generic relation is not a permission bypass",
+      "title": "Target model and requester scope permitted?",
+      "type": "decision"
+    },
+    {
+      "id": "allowed-rejected",
+      "subtitle": "No arbitrary model query from untrusted type ID",
+      "title": "Return invalid or hidden reference",
+      "type": "error"
+    },
+    {
+      "id": "load",
+      "subtitle": "Composite keys use canonical codec; absence explicit",
+      "title": "Read target through scoped manager",
+      "type": "database"
+    },
+    {
+      "id": "done",
+      "subtitle": "Generic referential integrity and cleanup use application/collector rules, not a cross-table FK",
+      "title": "Return typed generic object reference",
+      "type": "terminal"
+    },
+    {
+      "id": "backend-failed-sync",
+      "subtitle": "Do not reuse a mismatched stale type identity",
+      "title": "Return content-type persistence/query error",
+      "type": "error"
+    },
+    {
+      "id": "backend-failed-load",
+      "subtitle": "Do not reuse a mismatched stale type identity",
+      "title": "Return content-type persistence/query error",
+      "type": "error"
+    }
+  ],
+  "schemaVersion": 3,
+  "summary": "Proposed behavior. Owned by core/contrib/contenttypes; select nodes for technical details.",
+  "title": "Resolve model identities and generic relations",
+  "type": "flow"
+}

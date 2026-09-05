@@ -1,0 +1,157 @@
+{
+  "details": [
+    {
+      "id": "owner",
+      "label": "Proposed code owner",
+      "value": "core/orm.Get; First; Exists; Count"
+    },
+    {
+      "id": "status",
+      "label": "Implementation status",
+      "value": "No Go implementation exists. Names, limits and behavior are submitted design choices requiring review."
+    },
+    {
+      "id": "features",
+      "label": "Included features",
+      "value": "get; first/last; exists; count; get_or_404; missing rows; ambiguous results"
+    }
+  ],
+  "edges": [
+    {
+      "from": "entry",
+      "id": "entry-to-plan",
+      "to": "plan"
+    },
+    {
+      "from": "plan",
+      "id": "plan-to-query",
+      "to": "query"
+    },
+    {
+      "from": "query",
+      "id": "query-to-mode",
+      "to": "mode"
+    },
+    {
+      "from": "mode",
+      "id": "mode-to-mode-rejected",
+      "label": "No",
+      "to": "mode-rejected"
+    },
+    {
+      "from": "mode",
+      "id": "mode-to-found",
+      "label": "Yes",
+      "to": "found"
+    },
+    {
+      "from": "found",
+      "id": "found-to-found-rejected",
+      "label": "No",
+      "style": "error",
+      "to": "found-rejected"
+    },
+    {
+      "from": "found",
+      "id": "found-to-single",
+      "label": "Yes",
+      "to": "single"
+    },
+    {
+      "from": "single",
+      "id": "single-to-single-rejected",
+      "label": "No",
+      "style": "error",
+      "to": "single-rejected"
+    },
+    {
+      "from": "single",
+      "id": "single-to-done",
+      "label": "Yes",
+      "to": "done"
+    },
+    {
+      "from": "query",
+      "id": "query-to-backend-failed",
+      "label": "Operation fails",
+      "style": "error",
+      "to": "backend-failed"
+    }
+  ],
+  "id": "orm.cardinality",
+  "layout": {
+    "direction": "down"
+  },
+  "nodes": [
+    {
+      "id": "entry",
+      "subtitle": "Get / First / Last / Exists / Count",
+      "title": "Request a terminal query operation",
+      "type": "api"
+    },
+    {
+      "id": "plan",
+      "subtitle": "Get limits to 2; Exists selects boolean; Count uses scoped count",
+      "title": "Choose minimal database operation",
+      "type": "action"
+    },
+    {
+      "id": "query",
+      "subtitle": "Same filters and transaction snapshot as caller",
+      "title": "Read selected alias",
+      "type": "database"
+    },
+    {
+      "id": "mode",
+      "subtitle": "Get requires exactly one matching row",
+      "title": "Is exactly-one operation requested?",
+      "type": "decision"
+    },
+    {
+      "id": "mode-rejected",
+      "subtitle": "Count=0; Exists=false; First/Last return None when empty",
+      "title": "Return aggregate or optional value",
+      "type": "terminal"
+    },
+    {
+      "id": "found",
+      "subtitle": "Up to two rows fetched for Get",
+      "title": "Any row returned?",
+      "type": "decision"
+    },
+    {
+      "id": "found-rejected",
+      "subtitle": "No write performed",
+      "title": "Return NotFound",
+      "type": "error"
+    },
+    {
+      "id": "single",
+      "subtitle": "More than one is an ambiguous lookup",
+      "title": "Exactly one row returned?",
+      "type": "decision"
+    },
+    {
+      "id": "single-rejected",
+      "subtitle": "Caller must narrow predicates",
+      "title": "Return MultipleObjectsReturned",
+      "type": "error"
+    },
+    {
+      "id": "done",
+      "subtitle": "Includes only selected fields",
+      "title": "Return one typed instance",
+      "type": "terminal"
+    },
+    {
+      "id": "backend-failed",
+      "subtitle": "No cache hit or empty-result fallback on DB failure",
+      "title": "Return database read error",
+      "type": "error"
+    }
+  ],
+  "schemaVersion": 3,
+  "summary": "Proposed behavior. Owned by core/orm.Get; First; Exists; Count; select nodes for technical details.",
+  "title": "Handle missing, singular and multiple rows",
+  "type": "flow"
+}

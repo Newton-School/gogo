@@ -1,0 +1,105 @@
+{
+  "details": [
+    {
+      "id": "owner",
+      "label": "Proposed code owner",
+      "value": "core/i18n"
+    },
+    {
+      "id": "status",
+      "label": "Implementation status",
+      "value": "No Go implementation exists. Names, limits and behavior are submitted design choices requiring review."
+    },
+    {
+      "id": "features",
+      "label": "Included features",
+      "value": "translation catalogs; pluralization; context; locale middleware; localized URLs; timezone; makemessages/compilemessages; lazy translation"
+    }
+  ],
+  "edges": [
+    {
+      "from": "entry",
+      "id": "entry-to-resolve",
+      "to": "resolve"
+    },
+    {
+      "from": "resolve",
+      "id": "resolve-to-catalog",
+      "to": "catalog"
+    },
+    {
+      "from": "catalog",
+      "id": "catalog-to-found",
+      "to": "found"
+    },
+    {
+      "from": "found",
+      "id": "found-to-found-rejected",
+      "label": "No",
+      "to": "found-rejected"
+    },
+    {
+      "from": "found",
+      "id": "found-to-format",
+      "label": "Yes",
+      "to": "format"
+    },
+    {
+      "from": "format",
+      "id": "format-to-done",
+      "to": "done"
+    }
+  ],
+  "id": "i18n.locale",
+  "layout": {
+    "direction": "down"
+  },
+  "nodes": [
+    {
+      "id": "entry",
+      "subtitle": "Explicit locale override or request negotiation",
+      "title": "Render localized request or background output",
+      "type": "api"
+    },
+    {
+      "id": "resolve",
+      "subtitle": "User preference \u2192 locale cookie \u2192 Accept-Language \u2192 project default",
+      "title": "Choose allowed locale and timezone",
+      "type": "action"
+    },
+    {
+      "id": "catalog",
+      "subtitle": "Namespaced message ID; plural rules; context-aware translation",
+      "title": "Load compiled app/project translation catalog",
+      "type": "action"
+    },
+    {
+      "id": "found",
+      "subtitle": "Fallback chain never changes stored source value",
+      "title": "Translation available for selected locale?",
+      "type": "decision"
+    },
+    {
+      "id": "found-rejected",
+      "subtitle": "Record missing catalog key in development only",
+      "title": "Use configured fallback message",
+      "type": "terminal"
+    },
+    {
+      "id": "format",
+      "subtitle": "UTC instants in storage; explicit timezone conversion and ambiguous-time validation",
+      "title": "Format dates, numbers and currency",
+      "type": "action"
+    },
+    {
+      "id": "done",
+      "subtitle": "Background tasks carry explicit locale; request locale never global",
+      "title": "Return localized representation",
+      "type": "terminal"
+    }
+  ],
+  "schemaVersion": 3,
+  "summary": "Proposed behavior. Owned by core/i18n; select nodes for technical details.",
+  "title": "Resolve locale, translate and format values",
+  "type": "flow"
+}

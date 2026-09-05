@@ -1,0 +1,112 @@
+{
+  "columns": [
+    {
+      "format": "text",
+      "id": "family",
+      "label": "Family"
+    },
+    {
+      "format": "text",
+      "id": "items",
+      "label": "Included surface"
+    },
+    {
+      "format": "text",
+      "id": "rule",
+      "label": "Execution and safety"
+    },
+    {
+      "format": "text",
+      "id": "flow",
+      "label": "Flow"
+    }
+  ],
+  "id": "templates.catalog",
+  "rows": [
+    {
+      "cells": {
+        "family": "Engine and context",
+        "flow": "templates.render",
+        "items": "Engine registry, project/app/filesystem/embedded loaders, cached loader, context stack, request context processors, render-to-string, template response",
+        "rule": "Project override before app order; prevent path traversal; compile AST once per template digest; debug origins do not leak in production."
+      },
+      "id": "engine"
+    },
+    {
+      "cells": {
+        "family": "Composition",
+        "flow": "templates.render",
+        "items": "extends, block/block.super, include with/only, partialdef, partial reference, load, custom libraries",
+        "rule": "Cycle/depth check; explicit exported context values; partial render uses same autoescape and permissions as parent."
+      },
+      "id": "inheritance"
+    },
+    {
+      "cells": {
+        "family": "Control tags",
+        "flow": "templates.render",
+        "items": "if/elif/else, for/empty, ifchanged, with, cycle/resetcycle, regroup, firstof, filter, comment, verbatim",
+        "rule": "Missing values render empty unless strict mode; no arbitrary reflection method calls or executable Go expressions."
+      },
+      "id": "control"
+    },
+    {
+      "cells": {
+        "family": "Output tags",
+        "flow": "templates.render; security.csrf",
+        "items": "autoescape, csrf_token, debug, lorem, now, spaceless, templatetag, url, querystring, widthratio",
+        "rule": "debug disabled in production; CSRF token comes from request context; URL reversing uses named routes; querystring copies/encodes multivalue params."
+      },
+      "id": "output"
+    },
+    {
+      "cells": {
+        "family": "Text filters",
+        "flow": "templates.render",
+        "items": "addslashes, capfirst, center, cut, escape/force_escape/escapeseq, fix_ampersands, iriencode, join, linebreaks/linebreaksbr, linenumbers, ljust/rjust, lower/upper, slugify, stringformat, striptags, title, truncatechars/words/html, wordcount/wordwrap",
+        "rule": "Escaping tracks SafeHTML provenance; striptags is text presentation, not an HTML sanitizer; truncate HTML parses structure before output."
+      },
+      "id": "text"
+    },
+    {
+      "cells": {
+        "family": "Collection/value filters",
+        "flow": "templates.render",
+        "items": "add, default/default_if_none, dictsort/reversed, divisibleby, first/last, length/length_is, make_list, random, slice, yesno, pluralize, pprint",
+        "rule": "Removed legacy aliases accepted only via explicit compatibility library; no mutation of input context; random prohibited for security decisions."
+      },
+      "id": "collections"
+    },
+    {
+      "cells": {
+        "family": "Format/link filters",
+        "flow": "templates.render",
+        "items": "date, time, timesince/timeuntil, floatformat, filesizeformat, get_digit, phone2numeric, safeseq/safe, unordered_list, urlencode, urlize/urlizetrunc, json_script",
+        "rule": "json_script escapes script-breaking text; safe opt-in requires trusted server value; urlize links reject unsafe schemes."
+      },
+      "id": "format"
+    },
+    {
+      "cells": {
+        "family": "Built-in libraries",
+        "flow": "templates.render; cache.access; i18n.locale; contrib.humanize",
+        "items": "static/get_static_prefix/get_media_prefix; cache; i18n translate/blocktranslate/language/get_language_info; l10n localize; tz localtime/timezone; humanize",
+        "rule": "Cache fragments include language/site/permission variation; translation extraction stable; timezone scoped per request."
+      },
+      "id": "libraries"
+    },
+    {
+      "cells": {
+        "family": "Custom tags/filters/engines",
+        "flow": "templates.render; connectors.extend",
+        "items": "Typed Filter, SimpleTag, InclusionTag, BlockTag, Parser/Node, context processor and TemplateBackend",
+        "rule": "Register at bootstrap with safety flags/output kind; sandbox does not permit templates to fetch arbitrary URLs or filesystem paths."
+      },
+      "id": "extensions"
+    }
+  ],
+  "schemaVersion": 3,
+  "summary": "Proposed contract for architecture review; not implemented.",
+  "title": "Template engine, tags, filters and extension points",
+  "type": "table"
+}

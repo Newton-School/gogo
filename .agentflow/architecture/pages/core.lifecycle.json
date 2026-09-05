@@ -1,0 +1,145 @@
+{
+  "details": [
+    {
+      "id": "owner",
+      "label": "Proposed code owner",
+      "value": "core/app.Lifecycle; core/http.Server"
+    },
+    {
+      "id": "status",
+      "label": "Implementation status",
+      "value": "No Go implementation exists. Names, limits and behavior are submitted design choices requiring review."
+    },
+    {
+      "id": "features",
+      "label": "Included features",
+      "value": "graceful shutdown; readiness; resource lifecycle; hook errors"
+    }
+  ],
+  "edges": [
+    {
+      "from": "entry",
+      "id": "edge-1",
+      "to": "unready"
+    },
+    {
+      "from": "unready",
+      "id": "edge-2",
+      "to": "drain"
+    },
+    {
+      "from": "drain",
+      "id": "edge-3",
+      "to": "finished"
+    },
+    {
+      "from": "finished",
+      "id": "edge-4",
+      "label": "Finished",
+      "to": "hooks"
+    },
+    {
+      "from": "finished",
+      "id": "edge-5",
+      "label": "Timed out",
+      "to": "cancel"
+    },
+    {
+      "from": "cancel",
+      "id": "edge-6",
+      "to": "hooks"
+    },
+    {
+      "from": "hooks",
+      "id": "edge-7",
+      "to": "close"
+    },
+    {
+      "from": "close",
+      "id": "edge-8",
+      "to": "clean"
+    },
+    {
+      "from": "clean",
+      "id": "edge-9",
+      "label": "No errors",
+      "to": "success"
+    },
+    {
+      "from": "clean",
+      "id": "edge-10",
+      "label": "Any failure",
+      "to": "failure"
+    }
+  ],
+  "id": "core.lifecycle",
+  "layout": {
+    "direction": "down"
+  },
+  "nodes": [
+    {
+      "id": "entry",
+      "subtitle": "Shutdown is idempotent; one lifecycle owner",
+      "title": "Receive SIGTERM/SIGINT or Close",
+      "type": "event"
+    },
+    {
+      "id": "unready",
+      "subtitle": "Stop scheduler claims and worker intake before closing shared pools",
+      "title": "Set readiness false and stop new admission",
+      "type": "action"
+    },
+    {
+      "id": "drain",
+      "subtitle": "30s default grace; in-flight tasks keep heartbeats while drain allowed",
+      "title": "Drain HTTP and in-flight task work",
+      "type": "action"
+    },
+    {
+      "id": "finished",
+      "subtitle": "Timeout must not skip cleanup",
+      "title": "All work finished within grace?",
+      "type": "decision"
+    },
+    {
+      "id": "cancel",
+      "subtitle": "Goroutine cannot be killed; lost task lease later reclaimed; mark drain failure",
+      "title": "Cancel remaining contexts and stop subprocesses",
+      "type": "action"
+    },
+    {
+      "id": "hooks",
+      "subtitle": "Each bounded; collect errors and continue remaining hooks",
+      "title": "Run shutdown hooks in reverse app order",
+      "type": "action"
+    },
+    {
+      "id": "close",
+      "subtitle": "Flush telemetry with timeout; close each shared pool once; continue on close errors",
+      "title": "Close resources in reverse ownership order",
+      "type": "action"
+    },
+    {
+      "id": "clean",
+      "subtitle": "Aggregated status includes timed-out work",
+      "title": "Drain, hooks and resource closes all succeeded?",
+      "type": "decision"
+    },
+    {
+      "id": "success",
+      "subtitle": "All admitted work finished within stated grace",
+      "title": "Exit successfully",
+      "type": "terminal"
+    },
+    {
+      "id": "failure",
+      "subtitle": "No claim that canceled or killed task side effects were undone",
+      "title": "Exit nonzero with safe shutdown report",
+      "type": "error"
+    }
+  ],
+  "schemaVersion": 3,
+  "summary": "Proposed behavior. Timeout or hook error records failure but still reaches every resource close. Worker crash recovery follows lease/result contracts, not shutdown success assumptions.",
+  "title": "Drain requests and shut down resources",
+  "type": "flow"
+}

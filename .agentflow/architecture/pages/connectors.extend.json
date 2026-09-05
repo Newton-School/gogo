@@ -1,0 +1,117 @@
+{
+  "details": [
+    {
+      "id": "owner",
+      "label": "Proposed code owner",
+      "value": "core/db; core/cache; core/sessions; async/broker"
+    },
+    {
+      "id": "status",
+      "label": "Implementation status",
+      "value": "No Go implementation exists. Names, limits and behavior are submitted design choices requiring review."
+    },
+    {
+      "id": "features",
+      "label": "Included features",
+      "value": "future SQL connectors; future cache/broker backends; third-party adapters; capabilities; conformance; versioning"
+    }
+  ],
+  "edges": [
+    {
+      "from": "entry",
+      "id": "entry-to-contract",
+      "to": "contract"
+    },
+    {
+      "from": "contract",
+      "id": "contract-to-implement",
+      "to": "implement"
+    },
+    {
+      "from": "implement",
+      "id": "implement-to-tests",
+      "to": "tests"
+    },
+    {
+      "from": "tests",
+      "id": "tests-to-pass",
+      "to": "pass"
+    },
+    {
+      "from": "pass",
+      "id": "pass-to-pass-rejected",
+      "label": "No",
+      "style": "error",
+      "to": "pass-rejected"
+    },
+    {
+      "from": "pass",
+      "id": "pass-to-register",
+      "label": "Yes",
+      "to": "register"
+    },
+    {
+      "from": "register",
+      "id": "register-to-done",
+      "to": "done"
+    }
+  ],
+  "id": "connectors.extend",
+  "layout": {
+    "direction": "down"
+  },
+  "nodes": [
+    {
+      "id": "entry",
+      "subtitle": "Example database, cache backend, Redis-compatible server or message broker",
+      "title": "Implement a new backend module",
+      "type": "actor"
+    },
+    {
+      "id": "contract",
+      "subtitle": "Database needs dialect/schema/introspection; cache does not imply queue support",
+      "title": "Select public capability interfaces",
+      "type": "action"
+    },
+    {
+      "id": "implement",
+      "subtitle": "No imports of Gogo internal packages; normalize errors and context behavior",
+      "title": "Implement adapter and capability descriptor",
+      "type": "action"
+    },
+    {
+      "id": "tests",
+      "subtitle": "Transactions, TTL, cancellation, duplicates, migration and unsupported-feature cases",
+      "title": "Run shared contract suite against real backend",
+      "type": "action"
+    },
+    {
+      "id": "pass",
+      "subtitle": "Provider-specific limitations explicitly reported",
+      "title": "Requested feature profile passes conformance?",
+      "type": "decision"
+    },
+    {
+      "id": "pass-rejected",
+      "subtitle": "Keep adapter unapproved/experimental for failing feature set",
+      "title": "Do not advertise unsupported compatibility",
+      "type": "error"
+    },
+    {
+      "id": "register",
+      "subtitle": "Application explicitly selects new connector and settings",
+      "title": "Publish independently versioned module",
+      "type": "action"
+    },
+    {
+      "id": "done",
+      "subtitle": "No guarantee that vendor-specific SQL or data migrates by swapping a DSN",
+      "title": "Reuse supported Core/Admin/Async flows",
+      "type": "terminal"
+    }
+  ],
+  "schemaVersion": 3,
+  "summary": "Proposed behavior. Owned by core/db; core/cache; core/sessions; async/broker; select nodes for technical details.",
+  "title": "Add a future connector without changing application APIs",
+  "type": "flow"
+}

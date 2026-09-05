@@ -1,0 +1,223 @@
+{
+  "details": [
+    {
+      "id": "owner",
+      "label": "Proposed code owner",
+      "value": "core/orm.SelectForUpdate; VersionedSave"
+    },
+    {
+      "id": "status",
+      "label": "Implementation status",
+      "value": "No Go implementation exists. Names, limits and behavior are submitted design choices requiring review."
+    },
+    {
+      "id": "features",
+      "label": "Included features",
+      "value": "row locking; nowait; skip_locked; optimistic versioning; deadlocks; serialization retry"
+    }
+  ],
+  "edges": [
+    {
+      "from": "entry",
+      "id": "edge-1",
+      "to": "mode"
+    },
+    {
+      "from": "mode",
+      "id": "edge-2",
+      "label": "Pessimistic / combined",
+      "to": "tx"
+    },
+    {
+      "from": "mode",
+      "id": "edge-3",
+      "label": "Optimistic only",
+      "to": "cas"
+    },
+    {
+      "from": "tx",
+      "id": "edge-4",
+      "label": "No",
+      "to": "missing"
+    },
+    {
+      "from": "tx",
+      "id": "edge-5",
+      "label": "Yes",
+      "to": "lock"
+    },
+    {
+      "from": "lock",
+      "id": "edge-6",
+      "to": "policy"
+    },
+    {
+      "from": "policy",
+      "id": "edge-7",
+      "to": "lockedwrite"
+    },
+    {
+      "from": "lockedwrite",
+      "id": "edge-8",
+      "to": "locked"
+    },
+    {
+      "from": "cas",
+      "id": "edge-9",
+      "to": "affected"
+    },
+    {
+      "from": "affected",
+      "id": "edge-10",
+      "label": "Zero",
+      "to": "conflict"
+    },
+    {
+      "from": "affected",
+      "id": "edge-11",
+      "label": "One",
+      "to": "done"
+    },
+    {
+      "from": "lock",
+      "id": "edge-12",
+      "label": "Lock failed",
+      "style": "error",
+      "to": "error-lock"
+    },
+    {
+      "from": "policy",
+      "id": "edge-13",
+      "label": "Denied",
+      "style": "error",
+      "to": "error-policy"
+    },
+    {
+      "from": "lockedwrite",
+      "id": "edge-14",
+      "label": "Write failed",
+      "style": "error",
+      "to": "error-lockedwrite"
+    },
+    {
+      "from": "cas",
+      "id": "edge-15",
+      "label": "Write failed",
+      "style": "error",
+      "to": "error-cas"
+    }
+  ],
+  "id": "orm.locking",
+  "layout": {
+    "direction": "down"
+  },
+  "nodes": [
+    {
+      "id": "entry",
+      "subtitle": "Pessimistic FOR UPDATE versus optimistic expected_version",
+      "title": "Choose lock or compare-and-swap",
+      "type": "api"
+    },
+    {
+      "id": "mode",
+      "subtitle": "Combined policy may use both in one transaction",
+      "title": "Which concurrency policy was requested?",
+      "type": "decision"
+    },
+    {
+      "id": "tx",
+      "subtitle": "A lock outside transaction has no useful lifetime",
+      "title": "Pessimistic mode has an active transaction?",
+      "type": "decision"
+    },
+    {
+      "id": "missing",
+      "subtitle": "No ineffective lock query issued",
+      "title": "Return TransactionRequired",
+      "type": "error"
+    },
+    {
+      "id": "lock",
+      "subtitle": "NOWAIT/SKIP LOCKED/OF/NO KEY options capability-checked",
+      "title": "Lock scoped rows in stable key order",
+      "type": "database"
+    },
+    {
+      "id": "policy",
+      "subtitle": "Lock does not grant permission",
+      "title": "Recheck current state and authorization",
+      "type": "action"
+    },
+    {
+      "id": "lockedwrite",
+      "subtitle": "Optional version predicate when combined mode selected",
+      "title": "Apply update in caller transaction",
+      "type": "database"
+    },
+    {
+      "details": [
+        {
+          "id": "related-flows",
+          "label": "Related flow pages",
+          "value": "orm.transactions"
+        }
+      ],
+      "id": "locked",
+      "subtitle": "Lock released at outer end; follow orm.transactions",
+      "title": "Return pending caller commit",
+      "type": "terminal"
+    },
+    {
+      "id": "cas",
+      "subtitle": "SET version=version+1 WHERE key and scope and version match; one atomic statement",
+      "title": "Update scoped row with expected version",
+      "type": "database"
+    },
+    {
+      "id": "affected",
+      "subtitle": "Zero means conflict or scoped missing object",
+      "title": "One expected row changed?",
+      "type": "decision"
+    },
+    {
+      "id": "conflict",
+      "subtitle": "Caller reloads; no silent overwrite",
+      "title": "Return Conflict/NotFound safely",
+      "type": "error"
+    },
+    {
+      "id": "done",
+      "subtitle": "Autocommit confirmed or result pending caller transaction",
+      "title": "Return new version",
+      "type": "terminal"
+    },
+    {
+      "id": "error-lock",
+      "subtitle": "Deadlock/serialization retry only around explicit idempotent callback",
+      "title": "Return contention or backend error",
+      "type": "error"
+    },
+    {
+      "id": "error-policy",
+      "subtitle": "Deadlock/serialization retry only around explicit idempotent callback",
+      "title": "Return contention or backend error",
+      "type": "error"
+    },
+    {
+      "id": "error-lockedwrite",
+      "subtitle": "Deadlock/serialization retry only around explicit idempotent callback",
+      "title": "Return contention or backend error",
+      "type": "error"
+    },
+    {
+      "id": "error-cas",
+      "subtitle": "Deadlock/serialization retry only around explicit idempotent callback",
+      "title": "Return contention or backend error",
+      "type": "error"
+    }
+  ],
+  "schemaVersion": 3,
+  "summary": "Proposed behavior. Optimistic compare-and-swap does not require SELECT FOR UPDATE; explicit pessimistic locks always live within caller-owned transaction scope.",
+  "title": "Coordinate concurrent writers",
+  "type": "flow"
+}

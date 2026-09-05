@@ -1,8 +1,8 @@
 {
-  "appliedAt": "2026-09-05T12:14:21Z",
-  "appliedBy": "bootstrap",
-  "hash": "08f1bb9199294622c9990a976750fc4ca4bb49476a2624d808321f225a9aa6d2",
-  "pageCount": 0,
-  "proposalId": null,
+  "appliedAt": "2026-09-05T13:25:35Z",
+  "appliedBy": "user",
+  "hash": "5b3383ff4fa95ff74897e635f1033351ca799444d7147a44e5e91eae0256d30b",
+  "pageCount": 152,
+  "proposalId": "gogo-complete-framework-architecture",
   "schemaVersion": 3
 }

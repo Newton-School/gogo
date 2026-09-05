@@ -1,0 +1,108 @@
+{
+  "details": [
+    {
+      "id": "owner",
+      "label": "Proposed code owner",
+      "value": "core/contrib/sites"
+    },
+    {
+      "id": "status",
+      "label": "Implementation status",
+      "value": "No Go implementation exists. Names, limits and behavior are submitted design choices requiring review."
+    },
+    {
+      "id": "features",
+      "label": "Included features",
+      "value": "sites; current site; domain mapping; site cache; multi-site content"
+    }
+  ],
+  "edges": [
+    {
+      "from": "entry",
+      "id": "entry-to-host",
+      "to": "host"
+    },
+    {
+      "from": "host",
+      "id": "host-to-lookup",
+      "to": "lookup"
+    },
+    {
+      "from": "lookup",
+      "id": "lookup-to-found",
+      "to": "found"
+    },
+    {
+      "from": "found",
+      "id": "found-to-found-rejected",
+      "label": "No",
+      "style": "error",
+      "to": "found-rejected"
+    },
+    {
+      "from": "found",
+      "id": "found-to-done",
+      "label": "Yes",
+      "to": "done"
+    },
+    {
+      "from": "lookup",
+      "id": "lookup-to-backend-failed",
+      "label": "Operation fails",
+      "style": "error",
+      "to": "backend-failed"
+    }
+  ],
+  "id": "contrib.sites",
+  "layout": {
+    "direction": "down"
+  },
+  "nodes": [
+    {
+      "id": "entry",
+      "subtitle": "Explicit SiteID preferred; request host mapping otherwise",
+      "title": "Resolve current site for request or job",
+      "type": "api"
+    },
+    {
+      "id": "host",
+      "subtitle": "Port/IDN policy explicit; no trust in unvalidated Host header",
+      "title": "Normalize validated host",
+      "type": "action"
+    },
+    {
+      "id": "lookup",
+      "subtitle": "Unique domain; cache key includes site config version",
+      "title": "Load gogo_sites or versioned cache entry",
+      "type": "database"
+    },
+    {
+      "id": "found",
+      "subtitle": "No ambiguous multi-site fallback",
+      "title": "One configured site matches?",
+      "type": "decision"
+    },
+    {
+      "id": "found-rejected",
+      "subtitle": "No accidental content from another site",
+      "title": "Return SiteNotConfigured",
+      "type": "error"
+    },
+    {
+      "id": "done",
+      "subtitle": "Background tasks require explicit site when more than one configured",
+      "title": "Expose site to views, emails and contrib queries",
+      "type": "terminal"
+    },
+    {
+      "id": "backend-failed",
+      "subtitle": "No global default-site leak on outage",
+      "title": "Return site lookup unavailable",
+      "type": "error"
+    }
+  ],
+  "schemaVersion": 3,
+  "summary": "Proposed behavior. Owned by core/contrib/sites; select nodes for technical details.",
+  "title": "Resolve the current site and scope site-owned content",
+  "type": "flow"
+}

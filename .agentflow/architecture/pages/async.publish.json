@@ -1,0 +1,164 @@
+{
+  "details": [
+    {
+      "id": "owner",
+      "label": "Proposed code owner",
+      "value": "async.Enqueue; async/redis/broker"
+    },
+    {
+      "id": "status",
+      "label": "Implementation status",
+      "value": "No Go implementation exists. Names, limits and behavior are submitted design choices requiring review."
+    },
+    {
+      "id": "features",
+      "label": "Included features",
+      "value": "delay; apply_async; signatures; ETA/countdown; expiration; routing; priority; headers; publication retry"
+    }
+  ],
+  "edges": [
+    {
+      "from": "entry",
+      "id": "edge-1",
+      "to": "validate"
+    },
+    {
+      "from": "validate",
+      "id": "edge-2",
+      "to": "valid"
+    },
+    {
+      "from": "valid",
+      "id": "edge-3",
+      "label": "Invalid/expired",
+      "to": "invalid"
+    },
+    {
+      "from": "valid",
+      "id": "edge-4",
+      "label": "Valid",
+      "to": "eta"
+    },
+    {
+      "from": "eta",
+      "id": "edge-5",
+      "label": "Future",
+      "to": "schedule"
+    },
+    {
+      "from": "eta",
+      "id": "edge-6",
+      "label": "Now",
+      "to": "publish"
+    },
+    {
+      "from": "schedule",
+      "id": "edge-7",
+      "label": "Durable acceptance confirmed",
+      "to": "scheduled"
+    },
+    {
+      "from": "schedule",
+      "id": "edge-8",
+      "label": "Write not confirmed",
+      "style": "error",
+      "to": "uncertain-schedule"
+    },
+    {
+      "from": "publish",
+      "id": "edge-9",
+      "label": "Broker accepted",
+      "to": "queued"
+    },
+    {
+      "from": "publish",
+      "id": "edge-10",
+      "label": "Publish not confirmed",
+      "style": "error",
+      "to": "uncertain-publish"
+    }
+  ],
+  "id": "async.publish",
+  "layout": {
+    "direction": "down"
+  },
+  "nodes": [
+    {
+      "id": "entry",
+      "subtitle": "Stable task ID plus queue, priority, ETA/countdown, expiry",
+      "title": "Enqueue typed signature",
+      "type": "api"
+    },
+    {
+      "id": "validate",
+      "subtitle": "256 KiB cap; JSON allowlist; no secrets in ordinary payload",
+      "title": "Validate schema, payload and route",
+      "type": "action"
+    },
+    {
+      "id": "valid",
+      "subtitle": "Task IDs bind immutable payload digest and task version",
+      "title": "Payload, routing and expiry valid?",
+      "type": "decision"
+    },
+    {
+      "id": "invalid",
+      "subtitle": "No task accepted",
+      "title": "Return enqueue validation error",
+      "type": "error"
+    },
+    {
+      "id": "eta",
+      "subtitle": "Countdown converted once to UTC ETA",
+      "title": "When should this task run?",
+      "type": "decision"
+    },
+    {
+      "id": "schedule",
+      "subtitle": "Same schedule partition; task ID/attempt idempotent",
+      "title": "Persist delayed item and due index atomically",
+      "type": "cache"
+    },
+    {
+      "details": [
+        {
+          "id": "related-flows",
+          "label": "Related flow pages",
+          "value": "async.delayed"
+        }
+      ],
+      "id": "scheduled",
+      "subtitle": "async.delayed later dispatches; no worker slot consumed now",
+      "title": "Return SCHEDULED acceptance receipt",
+      "type": "terminal"
+    },
+    {
+      "id": "publish",
+      "subtitle": "Bounded producer retry uses same ID and digest",
+      "title": "Publish stream entry with stable task ID",
+      "type": "queue"
+    },
+    {
+      "id": "queued",
+      "subtitle": "Acceptance is not execution or guaranteed fsync replication",
+      "title": "Return confirmed QUEUED receipt",
+      "type": "terminal"
+    },
+    {
+      "id": "uncertain-schedule",
+      "subtitle": "Caller reconciles; retry same ID, never invent second logical task",
+      "title": "Return failed or uncertain acceptance with task ID",
+      "type": "error"
+    },
+    {
+      "id": "uncertain-publish",
+      "subtitle": "Caller reconciles; retry same ID, never invent second logical task",
+      "title": "Return failed or uncertain acceptance with task ID",
+      "type": "error"
+    }
+  ],
+  "schemaVersion": 3,
+  "summary": "Proposed behavior. Immediate enqueue and future scheduling have different durable acceptance boundaries. Backend connection failure is never a successful task receipt.",
+  "title": "Publish a task with routing and scheduling metadata",
+  "type": "flow"
+}

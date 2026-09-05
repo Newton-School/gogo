@@ -1,0 +1,139 @@
+{
+  "columns": [
+    {
+      "format": "text",
+      "id": "op",
+      "label": "Operation"
+    },
+    {
+      "format": "text",
+      "id": "behavior",
+      "label": "Execution rule"
+    },
+    {
+      "format": "text",
+      "id": "failure",
+      "label": "Failure / result rule"
+    },
+    {
+      "format": "text",
+      "id": "flow",
+      "label": "Flow"
+    }
+  ],
+  "id": "async.canvas-catalog",
+  "rows": [
+    {
+      "cells": {
+        "behavior": "Serializable task reference + typed args + immutable options; clone produces new descriptor; call validates schema",
+        "failure": "Mutable signature prepends parent result; immutable signature ignores it; mismatch rejected before dispatch.",
+        "flow": "async.signatures",
+        "op": "Signature / immutable signature"
+      },
+      "id": "signature"
+    },
+    {
+      "cells": {
+        "behavior": "Persist graph; publish first; success transition creates next-child intent with prior result; stable child IDs",
+        "failure": "Failure stops descendants and sends errback; no subsequent task unless recovery explicitly replaces continuation.",
+        "flow": "async.chain",
+        "op": "Chain"
+      },
+      "id": "chain"
+    },
+    {
+      "cells": {
+        "behavior": "Snapshot bounded children; publish each via durable intent; fanout may partially publish and resume",
+        "failure": "Group result stores ordered child IDs; collect/join bounded and outside workers; ready when every child terminal.",
+        "flow": "async.group",
+        "op": "Group"
+      },
+      "id": "group"
+    },
+    {
+      "cells": {
+        "behavior": "Group header plus body; body dispatch when expected distinct successful members settle; durable callback claim and intent",
+        "failure": "Default waits for all header terminals, then fails with failed IDs if any unsuccessful. No callback success on missing/ignored/expired header results.",
+        "flow": "async.chord",
+        "op": "Chord"
+      },
+      "id": "chord"
+    },
+    {
+      "cells": {
+        "behavior": "Map sends items as one task or explicit chunk policy; Starmap unpacks tuple args into validated handler shape",
+        "failure": "Bounded payload; sequential within one mapping task unless explicit Group selected; failure policy per map task.",
+        "flow": "async.map",
+        "op": "Map / Starmap"
+      },
+      "id": "map"
+    },
+    {
+      "cells": {
+        "behavior": "Split input snapshot into deterministic chunk task IDs, dispatch as Group and preserve input indexes",
+        "failure": "Retry only failed chunks, but successful item effects within failed chunk still need idempotency.",
+        "flow": "async.map",
+        "op": "Chunks"
+      },
+      "id": "chunks"
+    },
+    {
+      "cells": {
+        "behavior": "Persist callback/errback/replacement descriptors with parent before execution; terminal transition writes intent",
+        "failure": "Callbacks at least once across transport failures; terminal observer failures do not rewrite original success; no arbitrary code in messages.",
+        "flow": "async.callbacks",
+        "op": "Links / errbacks / replace"
+      },
+      "id": "callbacks"
+    },
+    {
+      "cells": {
+        "behavior": "Flatten compatible chains/groups; versioned DAG; max nodes/depth; task stamps propagate under explicit merge policy",
+        "failure": "Cycle/unbounded expansion and incompatible result shapes rejected at build time.",
+        "flow": "async.signatures",
+        "op": "Nested composition / stamping"
+      },
+      "id": "nested"
+    },
+    {
+      "cells": {
+        "behavior": "Get/Ready/Successful/Failed/Wait/Forget/Revoke; Group Join/JoinNative/Iterate/Save/Restore; graph inspection",
+        "failure": "Authorized by scope; timeouts not cancellation; worker sync joins disallowed by default; no pickle-based result codec.",
+        "flow": "async.results",
+        "op": "Result handles"
+      },
+      "id": "results"
+    },
+    {
+      "cells": {
+        "behavior": "Interval, crontab, solar schedule adapter; timezone, DST policy, jitter, start/end, misfire, overlap policy, enabled/version",
+        "failure": "One logical occurrence ID; fenced scheduler lease; fixed-rate vs fixed-delay declared; catchup bound, skip/coalesce rules.",
+        "flow": "async.beat",
+        "op": "Periodic schedules"
+      },
+      "id": "beat"
+    },
+    {
+      "cells": {
+        "behavior": "Convert countdown once at producer to UTC ETA; store delayed work outside worker memory; due-index dispatcher",
+        "failure": "Task expiry wins over ETA; dispatch crash resumes durable intent; no sleeping goroutine per delayed task.",
+        "flow": "async.delayed",
+        "op": "ETA and countdown"
+      },
+      "id": "eta"
+    },
+    {
+      "cells": {
+        "behavior": "Goroutine/subprocess pools; concurrency/prefetch; autoscaling bounds; max tasks/memory per child; queue/rate/time limits; drain",
+        "failure": "Hard kill only subprocess; resource limits via OS/runtime; Python prefork/eventlet/gevent semantics not copied.",
+        "flow": "async.limits; async.monitor",
+        "op": "Worker options"
+      },
+      "id": "pools"
+    }
+  ],
+  "schemaVersion": 3,
+  "summary": "Proposed contract for architecture review; not implemented.",
+  "title": "Canvas operations, result composition and scheduling options",
+  "type": "table"
+}

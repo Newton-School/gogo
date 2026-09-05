@@ -1,0 +1,214 @@
+{
+  "details": [
+    {
+      "id": "owner",
+      "label": "Proposed code owner",
+      "value": "core/forms.ModelForm"
+    },
+    {
+      "id": "status",
+      "label": "Implementation status",
+      "value": "No Go implementation exists. Names, limits and behavior are submitted design choices requiring review."
+    },
+    {
+      "id": "features",
+      "label": "Included features",
+      "value": "ModelForm; field allowlist; commit=false; save_m2m; custom widgets; scoped choices"
+    }
+  ],
+  "edges": [
+    {
+      "from": "entry",
+      "id": "edge-1",
+      "to": "validate"
+    },
+    {
+      "from": "validate",
+      "id": "edge-2",
+      "to": "valid"
+    },
+    {
+      "from": "valid",
+      "id": "edge-3",
+      "label": "No",
+      "to": "invalid"
+    },
+    {
+      "from": "valid",
+      "id": "edge-4",
+      "label": "Yes",
+      "to": "build"
+    },
+    {
+      "from": "build",
+      "id": "edge-5",
+      "to": "commit"
+    },
+    {
+      "from": "commit",
+      "id": "edge-6",
+      "label": "false",
+      "to": "deferred"
+    },
+    {
+      "from": "commit",
+      "id": "edge-7",
+      "label": "true",
+      "to": "begin"
+    },
+    {
+      "from": "begin",
+      "id": "edge-8",
+      "to": "save"
+    },
+    {
+      "from": "save",
+      "id": "edge-9",
+      "to": "relations"
+    },
+    {
+      "from": "relations",
+      "id": "edge-10",
+      "to": "finish"
+    },
+    {
+      "from": "finish",
+      "id": "edge-11",
+      "to": "done"
+    },
+    {
+      "from": "begin",
+      "id": "edge-12",
+      "label": "Begin failed",
+      "style": "error",
+      "to": "error-begin"
+    },
+    {
+      "from": "save",
+      "id": "edge-13",
+      "label": "Save failed",
+      "style": "error",
+      "to": "error-save"
+    },
+    {
+      "from": "relations",
+      "id": "edge-14",
+      "label": "Relation failed",
+      "style": "error",
+      "to": "error-relations"
+    },
+    {
+      "from": "finish",
+      "id": "edge-15",
+      "label": "Commit/release failed",
+      "style": "error",
+      "to": "error-finish"
+    }
+  ],
+  "id": "forms.model",
+  "layout": {
+    "direction": "down"
+  },
+  "nodes": [
+    {
+      "id": "entry",
+      "subtitle": "Explicit field allowlist; relation choices scoped",
+      "title": "Bind ModelForm with actor and instance",
+      "type": "api"
+    },
+    {
+      "id": "validate",
+      "subtitle": "Unknown or readonly fields cannot mutate model; uniqueness preflight advisory",
+      "title": "Run form/model/relation validation",
+      "type": "action"
+    },
+    {
+      "id": "valid",
+      "subtitle": "Revalidate submitted IDs against scope",
+      "title": "All values and target references valid?",
+      "type": "decision"
+    },
+    {
+      "id": "invalid",
+      "subtitle": "No record or relation mutation",
+      "title": "Return bound form errors",
+      "type": "error"
+    },
+    {
+      "id": "build",
+      "subtitle": "No database write yet",
+      "title": "Build normalized unsaved instance and relation plan",
+      "type": "action"
+    },
+    {
+      "id": "commit",
+      "subtitle": "Default Save is atomic; commit=false explicitly defers persistence",
+      "title": "Commit was requested?",
+      "type": "decision"
+    },
+    {
+      "id": "deferred",
+      "subtitle": "Caller saves instance first; handle checks persisted identity, current scope and transaction",
+      "title": "Return unsaved instance and SaveM2M handle",
+      "type": "terminal"
+    },
+    {
+      "id": "begin",
+      "subtitle": "Parent and relations share same connection/boundary",
+      "title": "Begin transaction or savepoint",
+      "type": "database"
+    },
+    {
+      "id": "save",
+      "subtitle": "Transactional hooks; after-commit callbacks remain deferred",
+      "title": "Save parent through ORM",
+      "type": "database"
+    },
+    {
+      "id": "relations",
+      "subtitle": "Explicit through fields validated; hidden parent IDs ignored",
+      "title": "Apply many-to-many selections",
+      "type": "database"
+    },
+    {
+      "id": "finish",
+      "subtitle": "Only outer commit runs callbacks; nested result still pending",
+      "title": "Commit owned transaction or release savepoint",
+      "type": "database"
+    },
+    {
+      "id": "done",
+      "subtitle": "All ordinary Save changes in one boundary",
+      "title": "Return instance and relation outcome",
+      "type": "terminal"
+    },
+    {
+      "id": "error-begin",
+      "subtitle": "Known constraints mapped to fields; unknown commit reported honestly",
+      "title": "Roll back boundary and return errors",
+      "type": "error"
+    },
+    {
+      "id": "error-save",
+      "subtitle": "Known constraints mapped to fields; unknown commit reported honestly",
+      "title": "Roll back boundary and return errors",
+      "type": "error"
+    },
+    {
+      "id": "error-relations",
+      "subtitle": "Known constraints mapped to fields; unknown commit reported honestly",
+      "title": "Roll back boundary and return errors",
+      "type": "error"
+    },
+    {
+      "id": "error-finish",
+      "subtitle": "Known constraints mapped to fields; unknown commit reported honestly",
+      "title": "Roll back boundary and return errors",
+      "type": "error"
+    }
+  ],
+  "schemaVersion": 3,
+  "summary": "Proposed behavior. commit=false does not run any persistence node. Deferred relation saving is a separate explicit call after the parent has a persisted key.",
+  "title": "Save model forms without mass assignment",
+  "type": "flow"
+}

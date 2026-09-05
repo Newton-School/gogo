@@ -1,0 +1,1316 @@
+{
+  "columns": [
+    {
+      "format": "text",
+      "id": "name",
+      "label": "Feature / flow"
+    },
+    {
+      "format": "text",
+      "id": "parent",
+      "label": "Parent tree"
+    },
+    {
+      "format": "text",
+      "id": "owner",
+      "label": "Public owner"
+    },
+    {
+      "format": "text",
+      "id": "included",
+      "label": "Included operations"
+    },
+    {
+      "format": "text",
+      "id": "flow",
+      "label": "Flow page ID"
+    }
+  ],
+  "id": "reference.feature-index",
+  "rows": [
+    {
+      "cells": {
+        "flow": "map.products",
+        "included": "Products, packages and runtime roles",
+        "name": "Products, packages and runtime roles",
+        "owner": "gogo.go; core/; admin/; async/; connectors/",
+        "parent": "Review map"
+      },
+      "id": "map.products"
+    },
+    {
+      "cells": {
+        "flow": "core.bootstrap",
+        "included": "AppConfig; installed apps; dependency order; registry; Ready hooks; explicit startup; command resource selection",
+        "name": "Start an application and freeze its registry",
+        "owner": "gogo.go; core/app; internal/bootstrap",
+        "parent": "Gogo Core / Application and configuration"
+      },
+      "id": "core.bootstrap"
+    },
+    {
+      "cells": {
+        "flow": "core.settings",
+        "included": "typed settings; environment overrides; required config; .env/.env.example parity; secret redaction; build checks",
+        "name": "Load configuration and validate the build target",
+        "owner": "core/conf; core/management.Build",
+        "parent": "Gogo Core / Application and configuration"
+      },
+      "id": "core.settings"
+    },
+    {
+      "cells": {
+        "flow": "core.checks",
+        "included": "custom checks; tags; severity; deployment checks; read-only backend checks",
+        "name": "Run system and deployment checks",
+        "owner": "core/checks",
+        "parent": "Gogo Core / Application and configuration"
+      },
+      "id": "core.checks"
+    },
+    {
+      "cells": {
+        "flow": "tools.project",
+        "included": "startproject; templates; optional modules; public imports; environment templates",
+        "name": "Generate a client project",
+        "owner": "cmd/gogo; internal/codegen",
+        "parent": "Developer tools and operations / Project lifecycle"
+      },
+      "id": "tools.project"
+    },
+    {
+      "cells": {
+        "flow": "tools.app",
+        "included": "startapp; reusable apps; AST registration; custom app templates; app ownership",
+        "name": "Generate and register a reusable app",
+        "owner": "internal/codegen.App; core/app",
+        "parent": "Developer tools and operations / Project lifecycle"
+      },
+      "id": "tools.app"
+    },
+    {
+      "cells": {
+        "flow": "tools.commands",
+        "included": "custom commands; help; flags; programmatic invocation; dbshell; inspectdb; shell via compiled Go runner",
+        "name": "Resolve and run custom management commands",
+        "owner": "core/management",
+        "parent": "Developer tools and operations / Project lifecycle"
+      },
+      "id": "tools.commands"
+    },
+    {
+      "cells": {
+        "flow": "core.typed-errors",
+        "included": "typed exceptions; HTTP/CLI/task error mapping; redaction; field errors",
+        "name": "Translate errors at the public boundary",
+        "owner": "core/http; core/api; core/db",
+        "parent": "Gogo Core / Errors and validation"
+      },
+      "id": "core.typed-errors"
+    },
+    {
+      "cells": {
+        "flow": "tools.reload",
+        "included": "runserver; autoreload; development errors; static development serving",
+        "name": "Reload the development server safely",
+        "owner": "core/management.RunServer; internal/codegen",
+        "parent": "Developer tools and operations / Project lifecycle"
+      },
+      "id": "tools.reload"
+    },
+    {
+      "cells": {
+        "flow": "models.schema",
+        "included": "field metadata; model registry; typed query generation; composite primary keys; model options; custom fields",
+        "name": "Declare a model and generate typed accessors",
+        "owner": "core/models; internal/codegen",
+        "parent": "Gogo Core / Models and ORM"
+      },
+      "id": "models.schema"
+    },
+    {
+      "cells": {
+        "flow": "models.validate",
+        "included": "clean; full validation; unique constraints; null vs blank; validation errors",
+        "name": "Validate an instance before persistence",
+        "owner": "core/models.Validate; core/forms; core/api",
+        "parent": "Gogo Core / Models and ORM"
+      },
+      "id": "models.validate"
+    },
+    {
+      "cells": {
+        "flow": "orm.select",
+        "included": "filter; exclude; Q AND/OR/NOT; ordering; distinct; values; defer/only; union/intersection/difference; iterator; explain",
+        "name": "Build, execute and materialize a query",
+        "owner": "core/orm.Query; internal/sqlcompiler; core/db",
+        "parent": "Gogo Core / Models and ORM"
+      },
+      "id": "orm.select"
+    },
+    {
+      "cells": {
+        "flow": "orm.cardinality",
+        "included": "get; first/last; exists; count; get_or_404; missing rows; ambiguous results",
+        "name": "Handle missing, singular and multiple rows",
+        "owner": "core/orm.Get; First; Exists; Count",
+        "parent": "Gogo Core / Models and ORM"
+      },
+      "id": "orm.cardinality"
+    },
+    {
+      "cells": {
+        "flow": "orm.bulk",
+        "included": "bulk_create; bulk_update; conflict ignore/update; batch size; hook semantics",
+        "name": "Create, update and upsert batches",
+        "owner": "core/orm.BulkCreate; BulkUpdate",
+        "parent": "Gogo Core / Models and ORM"
+      },
+      "id": "orm.bulk"
+    },
+    {
+      "cells": {
+        "flow": "orm.delete",
+        "included": "cascade; protect; restrict; set null/default; delete counts; delete signals; soft-delete extension",
+        "name": "Collect and delete related objects safely",
+        "owner": "core/orm.DeleteCollector",
+        "parent": "Gogo Core / Models and ORM"
+      },
+      "id": "orm.delete"
+    },
+    {
+      "cells": {
+        "flow": "orm.relations",
+        "included": "foreign keys; one-to-one; many-to-many; through models; reverse managers; relation cache",
+        "name": "Read and mutate related objects",
+        "owner": "core/orm.RelationManager",
+        "parent": "Gogo Core / Models and ORM"
+      },
+      "id": "orm.relations"
+    },
+    {
+      "cells": {
+        "flow": "orm.eager",
+        "included": "select_related; prefetch_related; custom prefetch; nested prefetch; query count bounds",
+        "name": "Load joins and collections without hidden N+1 queries",
+        "owner": "core/orm.SelectRelated; PrefetchRelated",
+        "parent": "Gogo Core / Models and ORM"
+      },
+      "id": "orm.eager"
+    },
+    {
+      "cells": {
+        "flow": "orm.expressions",
+        "included": "aggregates; annotations; F expressions; conditional expressions; subqueries; window functions; database functions",
+        "name": "Evaluate aggregates, expressions and database functions",
+        "owner": "core/orm.Expression; internal/sqlcompiler",
+        "parent": "Gogo Core / Models and ORM"
+      },
+      "id": "orm.expressions"
+    },
+    {
+      "cells": {
+        "flow": "orm.routing",
+        "included": "multiple databases; routers; replicas; using alias; migration routing; read consistency",
+        "name": "Route reads, writes and migrations to database aliases",
+        "owner": "core/db.Router; core/orm.Using",
+        "parent": "Gogo Core / Models and ORM"
+      },
+      "id": "orm.routing"
+    },
+    {
+      "cells": {
+        "flow": "orm.native",
+        "included": "raw SQL escape hatch; extra SQL migration; explain; query instrumentation",
+        "name": "Use explicit native SQL and inspect query performance",
+        "owner": "core/orm.Raw; core/db.Explain",
+        "parent": "Gogo Core / Models and ORM"
+      },
+      "id": "orm.native"
+    },
+    {
+      "cells": {
+        "flow": "migrations.detect",
+        "included": "makemigrations; autodetection; rename detection; dependencies; dry run; check drift; custom operations",
+        "name": "Detect model changes and write a migration",
+        "owner": "core/migrations.Autodetector",
+        "parent": "Gogo Core / Migrations"
+      },
+      "id": "migrations.detect"
+    },
+    {
+      "cells": {
+        "flow": "migrations.apply",
+        "included": "migrate; migration locks; checksums; transactional DDL; history; post_migrate; fake-initial verification",
+        "name": "Apply migrations with locking and durable history",
+        "owner": "core/migrations.Executor; connectors/postgres",
+        "parent": "Gogo Core / Migrations"
+      },
+      "id": "migrations.apply"
+    },
+    {
+      "cells": {
+        "flow": "migrations.reverse",
+        "included": "showmigrations; sqlmigrate; reverse; fake; irreversible operations",
+        "name": "Preview, reverse or explicitly fake a migration",
+        "owner": "core/migrations.Plan; Executor.Reverse",
+        "parent": "Gogo Core / Migrations"
+      },
+      "id": "migrations.reverse"
+    },
+    {
+      "cells": {
+        "flow": "migrations.data",
+        "included": "RunPython Go equivalent; historical models; RunSQL; data migrations; batched backfill; resume",
+        "name": "Run a historical data migration",
+        "owner": "core/migrations.RunData; HistoricalRegistry",
+        "parent": "Gogo Core / Migrations"
+      },
+      "id": "migrations.data"
+    },
+    {
+      "cells": {
+        "flow": "migrations.online",
+        "included": "expand-contract; zero-downtime patterns; concurrent indexes; constraint validation; backfill; rollout compatibility",
+        "name": "Expand, backfill and contract an online schema",
+        "owner": "core/migrations; core/management.Backfill",
+        "parent": "Gogo Core / Migrations"
+      },
+      "id": "migrations.online"
+    },
+    {
+      "cells": {
+        "flow": "migrations.squash",
+        "included": "squashing; optimizer; merge conflicts; replacement migrations; fresh vs incremental",
+        "name": "Squash and merge migration history",
+        "owner": "core/migrations.Optimizer",
+        "parent": "Gogo Core / Migrations"
+      },
+      "id": "migrations.squash"
+    },
+    {
+      "cells": {
+        "flow": "models.legacy",
+        "included": "inspectdb; legacy databases; unmanaged models; views; custom column mappings",
+        "name": "Inspect an existing database and map legacy tables",
+        "owner": "core/management.InspectDB; connectors/postgres.Introspector",
+        "parent": "Gogo Core / Migrations"
+      },
+      "id": "models.legacy"
+    },
+    {
+      "cells": {
+        "flow": "models.inheritance",
+        "included": "abstract models; multi-table inheritance; proxy models; Go composition; parent links",
+        "name": "Resolve model composition and polymorphic identity",
+        "owner": "core/models.Composition",
+        "parent": "Gogo Core / Models and ORM"
+      },
+      "id": "models.inheritance"
+    },
+    {
+      "cells": {
+        "flow": "http.request",
+        "included": "request lifecycle; middleware order; error handlers; timeouts; context; host validation",
+        "name": "Receive a request and send a response",
+        "owner": "core/http.Server; Router; Middleware",
+        "parent": "Gogo Core / HTTP and routing"
+      },
+      "id": "http.request"
+    },
+    {
+      "cells": {
+        "flow": "http.routes",
+        "included": "URLconf; namespaces; include; reverse; resolve; custom converters; regex routes; localized URLs",
+        "name": "Register, resolve and reverse named routes",
+        "owner": "core/http.Router; Reverse; Resolve",
+        "parent": "Gogo Core / HTTP and routing"
+      },
+      "id": "http.routes"
+    },
+    {
+      "cells": {
+        "flow": "http.responses",
+        "included": "JsonResponse; redirects; cookies; TemplateResponse; conditional GET; HEAD; file response; content negotiation",
+        "name": "Construct JSON, redirects, files and conditional responses",
+        "owner": "core/http.Response",
+        "parent": "Gogo Core / HTTP and routing"
+      },
+      "id": "http.responses"
+    },
+    {
+      "cells": {
+        "flow": "http.streaming",
+        "included": "streaming HTTP; SSE; backpressure; disconnect; replay cursor; streaming outside DB transaction",
+        "name": "Stream responses and reconnect SSE clients",
+        "owner": "core/http.Stream; SSE",
+        "parent": "Gogo Core / HTTP and routing"
+      },
+      "id": "http.streaming"
+    },
+    {
+      "cells": {
+        "flow": "http.websocket",
+        "included": "WebSockets; origin checks; message schemas; backpressure; connection cancellation",
+        "name": "Authorize and process WebSocket messages",
+        "owner": "core/http.WebSocket",
+        "parent": "Gogo Core / HTTP and routing"
+      },
+      "id": "http.websocket"
+    },
+    {
+      "cells": {
+        "flow": "api.serializers",
+        "included": "serializers; model serializers; nested data; partial updates; validators; parsers/renderers; read/write only; field errors",
+        "name": "Parse, validate and serialize typed resources",
+        "owner": "core/api.Serializer",
+        "parent": "Gogo Core / REST APIs and serializers"
+      },
+      "id": "api.serializers"
+    },
+    {
+      "cells": {
+        "flow": "api.read",
+        "included": "viewsets; routers; generic API views; list/detail; custom actions; object visibility",
+        "name": "Serve scoped resource lists and details",
+        "owner": "core/api.Resource; ViewSet",
+        "parent": "Gogo Core / REST APIs and serializers"
+      },
+      "id": "api.read"
+    },
+    {
+      "cells": {
+        "flow": "api.write",
+        "included": "CRUD; custom actions; optimistic concurrency; idempotency; outbox; audit; HTTP statuses",
+        "name": "Create, update or delete a resource",
+        "owner": "core/api.Resource; Idempotency",
+        "parent": "Gogo Core / REST APIs and serializers"
+      },
+      "id": "api.write"
+    },
+    {
+      "cells": {
+        "flow": "api.pagination",
+        "included": "filter backends; search; ordering; page-number; limit-offset; cursor pagination; scope before count",
+        "name": "Filter, search, order and paginate without scope leaks",
+        "owner": "core/api.FilterBackend; core/pagination",
+        "parent": "Gogo Core / REST APIs and serializers"
+      },
+      "id": "api.pagination"
+    },
+    {
+      "cells": {
+        "flow": "api.schema",
+        "included": "OpenAPI; generated clients; schema versioning; metadata; OPTIONS; browsable API; content negotiation",
+        "name": "Generate OpenAPI and typed clients",
+        "owner": "core/api.OpenAPI; core/management.GenerateClient",
+        "parent": "Gogo Core / REST APIs and serializers"
+      },
+      "id": "api.schema"
+    },
+    {
+      "cells": {
+        "flow": "auth.login",
+        "included": "authentication backends; login; custom user model; inactive users; password rehash; session fixation",
+        "name": "Authenticate and create a session",
+        "owner": "core/auth.Authenticate; core/sessions",
+        "parent": "Gogo Core / Identity, sessions and security"
+      },
+      "id": "auth.login"
+    },
+    {
+      "cells": {
+        "flow": "auth.permissions",
+        "included": "users/groups; model permissions; object permissions; custom policies; anonymous users; superusers; field permissions",
+        "name": "Check action, object and field permissions",
+        "owner": "core/auth.Policy; core/api; admin",
+        "parent": "Gogo Core / Identity, sessions and security"
+      },
+      "id": "auth.permissions"
+    },
+    {
+      "cells": {
+        "flow": "sessions.request",
+        "included": "session middleware; expiry; rotation; logout; clear expired; concurrent saves; cookie backend extension",
+        "name": "Load, rotate, save and revoke sessions",
+        "owner": "core/sessions.Middleware; connectors/redis/sessions",
+        "parent": "Gogo Core / Identity, sessions and security"
+      },
+      "id": "sessions.request"
+    },
+    {
+      "cells": {
+        "flow": "auth.tokens",
+        "included": "API tokens; revocation; rotation; scopes; custom auth providers; OIDC adapter contract",
+        "name": "Authenticate a bearer token and rotate credentials",
+        "owner": "core/auth.TokenBackend",
+        "parent": "Gogo Core / Identity, sessions and security"
+      },
+      "id": "auth.tokens"
+    },
+    {
+      "cells": {
+        "flow": "security.csrf",
+        "included": "CSRF tokens; trusted origins; masked tokens; rotation; unsafe methods; exemptions",
+        "name": "Validate CSRF and origin for cookie-authenticated writes",
+        "owner": "core/security.CSRF",
+        "parent": "Gogo Core / Identity, sessions and security"
+      },
+      "id": "security.csrf"
+    },
+    {
+      "cells": {
+        "flow": "security.headers",
+        "included": "host validation; trusted proxies; HTTPS; HSTS; CORS; CSP/nonces/reports; clickjacking; referrer policy",
+        "name": "Apply host, proxy, CORS and browser security policies",
+        "owner": "core/security.Middleware",
+        "parent": "Gogo Core / Identity, sessions and security"
+      },
+      "id": "security.headers"
+    },
+    {
+      "cells": {
+        "flow": "security.signing",
+        "included": "cryptographic signing; timestamp signer; key rotation; constant-time compare; safe serialization",
+        "name": "Sign and verify time-bounded values",
+        "owner": "core/security.Signer",
+        "parent": "Gogo Core / Identity, sessions and security"
+      },
+      "id": "security.signing"
+    },
+    {
+      "cells": {
+        "flow": "forms.bind",
+        "included": "forms; bound/unbound; widgets; prefixes; initial data; changed fields; disabled fields; accessibility",
+        "name": "Bind and validate a form",
+        "owner": "core/forms.Form",
+        "parent": "Gogo Core / Forms and templates"
+      },
+      "id": "forms.bind"
+    },
+    {
+      "cells": {
+        "flow": "forms.formsets",
+        "included": "formsets; model formsets; inline formsets; ordering/deletion; management form; row ownership",
+        "name": "Validate and save a formset or inline formset",
+        "owner": "core/forms.FormSet; InlineFormSet",
+        "parent": "Gogo Core / Forms and templates"
+      },
+      "id": "forms.formsets"
+    },
+    {
+      "cells": {
+        "flow": "templates.render",
+        "included": "template inheritance; includes; partials; tags/filters; context processors; autoescape; custom engines; template caching",
+        "name": "Load, inherit and render a template safely",
+        "owner": "core/templates.Engine",
+        "parent": "Gogo Core / Forms and templates"
+      },
+      "id": "templates.render"
+    },
+    {
+      "cells": {
+        "flow": "static.collect",
+        "included": "collectstatic; findstatic; manifest storage; hashed assets; template static tag; deployment",
+        "name": "Collect, fingerprint and serve static assets",
+        "owner": "core/static",
+        "parent": "Gogo Core / Storage and shared services"
+      },
+      "id": "static.collect"
+    },
+    {
+      "cells": {
+        "flow": "files.upload",
+        "included": "multipart; upload handlers; temporary files; FileField/ImageField; storage API; checksums; quarantine; orphan cleanup",
+        "name": "Receive, validate and persist an upload",
+        "owner": "core/files.UploadHandler; Storage",
+        "parent": "Gogo Core / Storage and shared services"
+      },
+      "id": "files.upload"
+    },
+    {
+      "cells": {
+        "flow": "files.download",
+        "included": "private/public storage; signed URLs; range downloads; file deletion; revocation; safe headers",
+        "name": "Authorize download, deletion and signed access",
+        "owner": "core/files.Access; Storage",
+        "parent": "Gogo Core / Storage and shared services"
+      },
+      "id": "files.download"
+    },
+    {
+      "cells": {
+        "flow": "ratelimit.consume",
+        "included": "API throttling; login throttling; token bucket; distributed atomicity; task rate limits; Retry-After",
+        "name": "Enforce a distributed request or task quota",
+        "owner": "core/ratelimit; connectors/redis/ratelimit",
+        "parent": "Gogo Core / Storage and shared services"
+      },
+      "id": "ratelimit.consume"
+    },
+    {
+      "cells": {
+        "flow": "email.send",
+        "included": "SMTP; multipart mail; attachments; bulk mail; mail admins/managers; test outbox; backend extension",
+        "name": "Build and send a validated email",
+        "owner": "core/mail.Message; Backend",
+        "parent": "Gogo Core / Storage and shared services"
+      },
+      "id": "email.send"
+    },
+    {
+      "cells": {
+        "flow": "messages.flash",
+        "included": "flash messages; levels; tags; cookie/session storage; consumption",
+        "name": "Store and consume one-time user messages",
+        "owner": "core/messages",
+        "parent": "Gogo Core / Storage and shared services"
+      },
+      "id": "messages.flash"
+    },
+    {
+      "cells": {
+        "flow": "i18n.locale",
+        "included": "translation catalogs; pluralization; context; locale middleware; localized URLs; timezone; makemessages/compilemessages; lazy translation",
+        "name": "Resolve locale, translate and format values",
+        "owner": "core/i18n",
+        "parent": "Gogo Core / Storage and shared services"
+      },
+      "id": "i18n.locale"
+    },
+    {
+      "cells": {
+        "flow": "fixtures.data",
+        "included": "dumpdata; loaddata; fixtures; natural keys; JSON/JSONL; custom formats; initial data",
+        "name": "Export and import structured fixtures",
+        "owner": "core/serialization; core/management",
+        "parent": "Gogo Core / Storage and shared services"
+      },
+      "id": "fixtures.data"
+    },
+    {
+      "cells": {
+        "flow": "admin.register",
+        "included": "AdminSite; ModelAdmin; registration; unregister; multiple sites; custom templates; startup checks",
+        "name": "Register models and publish an Admin site",
+        "owner": "admin.Site; admin.ModelAdmin[T]",
+        "parent": "Gogo Admin / Site and access"
+      },
+      "id": "admin.register"
+    },
+    {
+      "cells": {
+        "flow": "admin.access",
+        "included": "staff login; dashboard; navigation permissions; recent actions; password change; site branding",
+        "name": "Authenticate staff and render the Admin index",
+        "owner": "admin.Auth; admin.Index",
+        "parent": "Gogo Admin / Site and access"
+      },
+      "id": "admin.access"
+    },
+    {
+      "cells": {
+        "flow": "admin.list",
+        "included": "list_display; list_display_links; search_fields; filters/facets; date hierarchy; ordering; pagination; preserved filters; empty values",
+        "name": "Search, filter and paginate an Admin change list",
+        "owner": "admin.ChangeList",
+        "parent": "Gogo Admin / Model browsing"
+      },
+      "id": "admin.list"
+    },
+    {
+      "cells": {
+        "flow": "admin.autocomplete",
+        "included": "autocomplete; raw_id_fields; radio/filter horizontal/vertical; related popups; scoped relation widgets",
+        "name": "Search related objects and select permitted IDs",
+        "owner": "admin.RelationWidget; Autocomplete",
+        "parent": "Gogo Admin / Model browsing"
+      },
+      "id": "admin.autocomplete"
+    },
+    {
+      "cells": {
+        "flow": "admin.form",
+        "included": "readonly_fields; fieldsets; fields/exclude; prepopulated fields; custom forms; inlines; view-only mode; form media",
+        "name": "Render create, change and read-only forms",
+        "owner": "admin.ChangeForm",
+        "parent": "Gogo Admin / Model editing and actions"
+      },
+      "id": "admin.form"
+    },
+    {
+      "cells": {
+        "flow": "admin.save",
+        "included": "save_model; save_related; inlines; atomic edit; audit; save_as; save_on_top; optimistic conflict",
+        "name": "Save parent, inlines and audit in one transaction",
+        "owner": "admin.SaveModel; SaveRelated",
+        "parent": "Gogo Admin / Model editing and actions"
+      },
+      "id": "admin.save"
+    },
+    {
+      "cells": {
+        "flow": "admin.delete",
+        "included": "delete confirmation; cascade preview; protected objects; delete history; restore policy",
+        "name": "Preview and confirm scoped deletion",
+        "owner": "admin.DeleteView; core/orm.DeleteCollector",
+        "parent": "Gogo Admin / Model editing and actions"
+      },
+      "id": "admin.delete"
+    },
+    {
+      "cells": {
+        "flow": "admin.actions",
+        "included": "bulk actions; custom actions; confirmation forms; list_editable; selected IDs; select all; exports; async action extension",
+        "name": "Execute a custom action or bulk list edit",
+        "owner": "admin.Action; ListEditable",
+        "parent": "Gogo Admin / Model editing and actions"
+      },
+      "id": "admin.actions"
+    },
+    {
+      "cells": {
+        "flow": "admin.history",
+        "included": "history; LogEntry; custom URLs/views; templates; branding; Admin extensions; admindocs",
+        "name": "Read history and customize Admin behavior",
+        "owner": "admin.History; Site.GetURLs",
+        "parent": "Gogo Admin / History and extensions"
+      },
+      "id": "admin.history"
+    },
+    {
+      "cells": {
+        "flow": "async.register",
+        "included": "task declaration; typed input/output; task naming; registry; version compatibility; custom serializers",
+        "name": "Declare tasks and validate worker compatibility",
+        "owner": "async.Task[I,O]; Registry",
+        "parent": "Gogo Async / Task declaration and dispatch"
+      },
+      "id": "async.register"
+    },
+    {
+      "cells": {
+        "flow": "async.outbox",
+        "included": "transactional outbox; on_commit; durable intent; relay leases; crash recovery; duplicate publication",
+        "name": "Commit business data and reliably dispatch a task",
+        "owner": "async/outbox; core/db.Atomic",
+        "parent": "Gogo Async / Task declaration and dispatch"
+      },
+      "id": "async.outbox"
+    },
+    {
+      "cells": {
+        "flow": "async.reclaim",
+        "included": "worker loss; visibility/lease timeout; heartbeats; XAUTOCLAIM; fencing; duplicate effects",
+        "name": "Recover after worker crash or lease loss",
+        "owner": "async/redis/broker.Reclaimer; Worker",
+        "parent": "Gogo Async / Worker execution and recovery"
+      },
+      "id": "async.reclaim"
+    },
+    {
+      "cells": {
+        "flow": "async.limits",
+        "included": "concurrency; prefetch; rate limits; soft/hard timeout; process isolation; autoscaling; worker recycling",
+        "name": "Apply concurrency, rate and hard time limits",
+        "owner": "async.WorkerPool; ProcessExecutor",
+        "parent": "Gogo Async / Worker execution and recovery"
+      },
+      "id": "async.limits"
+    },
+    {
+      "cells": {
+        "flow": "async.cancel",
+        "included": "revoke; cancel; terminate; control messages; already-completed tasks",
+        "name": "Revoke pending work or cooperatively cancel execution",
+        "owner": "async.Control.Revoke; Cancel",
+        "parent": "Gogo Async / Worker execution and recovery"
+      },
+      "id": "async.cancel"
+    },
+    {
+      "cells": {
+        "flow": "async.results",
+        "included": "AsyncResult; GroupResult; get/wait; progress; states; forget; expiry; result graph",
+        "name": "Read task results, progress and retention state",
+        "owner": "async/results.Backend; AsyncResult",
+        "parent": "Gogo Async / Results and visibility"
+      },
+      "id": "async.results"
+    },
+    {
+      "cells": {
+        "flow": "async.monitor",
+        "included": "events; inspect; remote control; heartbeats; worker status; monitoring dashboard extension",
+        "name": "Inspect workers, task events and control operations",
+        "owner": "async.Events; Inspect; Control",
+        "parent": "Gogo Async / Results and visibility"
+      },
+      "id": "async.monitor"
+    },
+    {
+      "cells": {
+        "flow": "async.signatures",
+        "included": "signatures; partials; immutable signatures; clone; argument forwarding; serialization",
+        "name": "Compose immutable task signatures",
+        "owner": "async.Signature; async/canvas",
+        "parent": "Gogo Async / Canvas workflows"
+      },
+      "id": "async.signatures"
+    },
+    {
+      "cells": {
+        "flow": "async.chord",
+        "included": "Run a chord callback exactly once per logical completion",
+        "name": "Complete a chord barrier and dispatch its callback",
+        "owner": "async/canvas.Chord; async/redis/results",
+        "parent": "Gogo Async / Canvas workflows"
+      },
+      "id": "async.chord"
+    },
+    {
+      "cells": {
+        "flow": "async.map",
+        "included": "map; starmap; chunks; batching; empty input; per-item failure",
+        "name": "Execute map, starmap and chunks",
+        "owner": "async/canvas.Map; StarMap; Chunks",
+        "parent": "Gogo Async / Canvas workflows"
+      },
+      "id": "async.map"
+    },
+    {
+      "cells": {
+        "flow": "async.callbacks",
+        "included": "link; link_error; callbacks; errbacks; task replacement; nested canvas; trail",
+        "name": "Dispatch callbacks, errbacks and task replacement",
+        "owner": "async.Link; LinkError; Replace",
+        "parent": "Gogo Async / Canvas workflows"
+      },
+      "id": "async.callbacks"
+    },
+    {
+      "cells": {
+        "flow": "async.beat",
+        "included": "beat; interval; crontab; timezones; DST; misfires; leader election; scheduler recovery",
+        "name": "Evaluate periodic schedules and dispatch one occurrence",
+        "owner": "async/scheduler.Beat; async/redis/scheduler",
+        "parent": "Gogo Async / Beat and periodic scheduling"
+      },
+      "id": "async.beat"
+    },
+    {
+      "cells": {
+        "flow": "async.testing",
+        "included": "eager mode; fake broker; fake clock; workflow tests; failure injection; real Redis conformance",
+        "name": "Test tasks and workflows deterministically",
+        "owner": "async/testing",
+        "parent": "Gogo Async / Testing"
+      },
+      "id": "async.testing"
+    },
+    {
+      "cells": {
+        "flow": "postgres.connect",
+        "included": "DSN; TLS; pooling; server capabilities; health; aliases; pgx; database/sql",
+        "name": "Open and manage a PostgreSQL connection alias",
+        "owner": "connectors/postgres; core/db",
+        "parent": "Connectors / PostgreSQL"
+      },
+      "id": "postgres.connect"
+    },
+    {
+      "cells": {
+        "flow": "postgres.execute",
+        "included": "SQL dialect; bound parameters; type codecs; SQLSTATE; COPY; LISTEN/NOTIFY; prepared statements",
+        "name": "Compile PostgreSQL SQL and execute it safely",
+        "owner": "connectors/postgres.Dialect; core/db.Executor",
+        "parent": "Connectors / PostgreSQL"
+      },
+      "id": "postgres.execute"
+    },
+    {
+      "cells": {
+        "flow": "postgres.schema",
+        "included": "SchemaEditor; introspection; DDL transactions; concurrent indexes; constraint validation; schema fingerprint",
+        "name": "Execute schema operations and introspect results",
+        "owner": "connectors/postgres.SchemaEditor; Introspector",
+        "parent": "Connectors / PostgreSQL"
+      },
+      "id": "postgres.schema"
+    },
+    {
+      "cells": {
+        "flow": "postgres.extensions",
+        "included": "arrays; ranges; hstore; JSONB; full-text search; trigram; GIN/GiST/BRIN; exclusion constraints; aggregates",
+        "name": "Use PostgreSQL-specific model and query features",
+        "owner": "connectors/postgres/extensions; core/contrib/postgres",
+        "parent": "Connectors / PostgreSQL"
+      },
+      "id": "postgres.extensions"
+    },
+    {
+      "cells": {
+        "flow": "redis.connect",
+        "included": "standalone; Sentinel; Cluster; TLS/ACL; pools; roles; capability checks; noeviction",
+        "name": "Open Redis connections by workload role",
+        "owner": "connectors/redis; go-redis",
+        "parent": "Connectors / Redis"
+      },
+      "id": "redis.connect"
+    },
+    {
+      "cells": {
+        "flow": "redis.atomic",
+        "included": "Lua; CAS; cluster hash slots; NOSCRIPT; ambiguous mutation; atomic counters",
+        "name": "Run atomic Redis operations with cluster-safe keys",
+        "owner": "connectors/redis.Atomic",
+        "parent": "Connectors / Redis"
+      },
+      "id": "redis.atomic"
+    },
+    {
+      "cells": {
+        "flow": "redis.async-adapter",
+        "included": "broker/result/scheduler separation; optional module; streams; durable intents; connector contracts",
+        "name": "Connect Async contracts to Redis storage roles",
+        "owner": "async/redis; async/broker; async/results; async/scheduler",
+        "parent": "Connectors / Redis Async integration"
+      },
+      "id": "redis.async-adapter"
+    },
+    {
+      "cells": {
+        "flow": "connectors.extend",
+        "included": "future SQL connectors; future cache/broker backends; third-party adapters; capabilities; conformance; versioning",
+        "name": "Add a future connector without changing application APIs",
+        "owner": "core/db; core/cache; core/sessions; async/broker",
+        "parent": "Connectors / Extension contracts"
+      },
+      "id": "connectors.extend"
+    },
+    {
+      "cells": {
+        "flow": "contrib.contenttypes",
+        "included": "content types; generic FK; generic relation; permissions identity; natural keys",
+        "name": "Resolve model identities and generic relations",
+        "owner": "core/contrib/contenttypes",
+        "parent": "Gogo Core / Contrib applications"
+      },
+      "id": "contrib.contenttypes"
+    },
+    {
+      "cells": {
+        "flow": "contrib.sites",
+        "included": "sites; current site; domain mapping; site cache; multi-site content",
+        "name": "Resolve the current site and scope site-owned content",
+        "owner": "core/contrib/sites",
+        "parent": "Gogo Core / Contrib applications"
+      },
+      "id": "contrib.sites"
+    },
+    {
+      "cells": {
+        "flow": "contrib.flatpages",
+        "included": "flatpages; site association; registration required; custom templates; 404 fallback",
+        "name": "Serve a registered flat page",
+        "owner": "core/contrib/flatpages",
+        "parent": "Gogo Core / Contrib applications"
+      },
+      "id": "contrib.flatpages"
+    },
+    {
+      "cells": {
+        "flow": "contrib.redirects",
+        "included": "redirects; gone responses; site scope; slash handling; redirect safety",
+        "name": "Apply a site-bound redirect after route miss",
+        "owner": "core/contrib/redirects",
+        "parent": "Gogo Core / Contrib applications"
+      },
+      "id": "contrib.redirects"
+    },
+    {
+      "cells": {
+        "flow": "contrib.sitemap",
+        "included": "sitemaps; indexes; pagination; lastmod; i18n alternates; cache validators",
+        "name": "Generate sitemap indexes and bounded sitemap pages",
+        "owner": "core/contrib/sitemaps",
+        "parent": "Gogo Core / Contrib applications"
+      },
+      "id": "contrib.sitemap"
+    },
+    {
+      "cells": {
+        "flow": "contrib.feeds",
+        "included": "RSS; Atom; feed classes; enclosures; item metadata; custom feed formats",
+        "name": "Generate RSS or Atom syndication feeds",
+        "owner": "core/contrib/syndication",
+        "parent": "Gogo Core / Contrib applications"
+      },
+      "id": "contrib.feeds"
+    },
+    {
+      "cells": {
+        "flow": "contrib.humanize",
+        "included": "humanize; ordinal; number grouping; natural time/day; plural rules",
+        "name": "Format human-readable display values",
+        "owner": "core/contrib/humanize",
+        "parent": "Gogo Core / Contrib applications"
+      },
+      "id": "contrib.humanize"
+    },
+    {
+      "cells": {
+        "flow": "contrib.gis-query",
+        "included": "GeoDjango; PostGIS; geometry/geography; spatial lookups/functions; measure units; GeoJSON; GeoAdmin; spatial indexes",
+        "name": "Declare and query spatial data through PostGIS",
+        "owner": "core/contrib/gis; connectors/postgres/extensions",
+        "parent": "Gogo Core / Contrib applications"
+      },
+      "id": "contrib.gis-query"
+    },
+    {
+      "cells": {
+        "flow": "contrib.gis-import",
+        "included": "GIS layer mapping; coordinate transforms; spatial inspectdb; raster; GDAL/GEOS adapter contracts; spatial export",
+        "name": "Import, transform and export spatial datasets",
+        "owner": "core/contrib/gis.Import; Raster",
+        "parent": "Gogo Core / Contrib applications"
+      },
+      "id": "contrib.gis-import"
+    },
+    {
+      "cells": {
+        "flow": "contrib.admindocs",
+        "included": "admindocs; model reference; view reference; template tags; staff-only documentation",
+        "name": "Generate developer-facing model and route reference",
+        "owner": "admin/admindocs",
+        "parent": "Gogo Admin / History and extensions"
+      },
+      "id": "contrib.admindocs"
+    },
+    {
+      "cells": {
+        "flow": "testing.suite",
+        "included": "test runner; request client/factory; fixtures/factories; test DB; parallel tests; query assertions; race/fuzz; connector conformance",
+        "name": "Run unit, integration and generated-client tests",
+        "owner": "core/testing; module test suites",
+        "parent": "Developer tools and operations / Verification and release"
+      },
+      "id": "testing.suite"
+    },
+    {
+      "cells": {
+        "flow": "operations.telemetry",
+        "included": "logging; metrics; traces; profiling; sampling; redaction; correlation; error reporting",
+        "name": "Trace requests, queries and tasks without leaking secrets",
+        "owner": "core/observability",
+        "parent": "Developer tools and operations / Runtime operations"
+      },
+      "id": "operations.telemetry"
+    },
+    {
+      "cells": {
+        "flow": "operations.deploy",
+        "included": "deployment; build; containers; web/worker/beat roles; rolling upgrades; rollback; migration job; capacity",
+        "name": "Build and deploy web, worker and scheduler roles",
+        "owner": "core/management.Build; deployment examples",
+        "parent": "Developer tools and operations / Runtime operations"
+      },
+      "id": "operations.deploy"
+    },
+    {
+      "cells": {
+        "flow": "operations.restore",
+        "included": "backups; PITR; restore drills; RPO/RTO; Redis durability; files; task reconciliation",
+        "name": "Back up and restore data with consistency checks",
+        "owner": "operations runbooks; connectors",
+        "parent": "Developer tools and operations / Runtime operations"
+      },
+      "id": "operations.restore"
+    },
+    {
+      "cells": {
+        "flow": "release.modules",
+        "included": "semver; module tags; compatibility; fresh consumer tests; release notes; dependency audit; license notices",
+        "name": "Publish compatible framework modules",
+        "owner": "release tooling; public package boundaries",
+        "parent": "Developer tools and operations / Verification and release"
+      },
+      "id": "release.modules"
+    },
+    {
+      "cells": {
+        "flow": "files.direct",
+        "included": "direct upload; multipart; signed parts; completion verification; future storage adapter; processing state",
+        "name": "Verify direct multipart uploads through a future storage adapter",
+        "owner": "core/files.DirectUpload; future storage adapter",
+        "parent": "Connectors / Extension contracts"
+      },
+      "id": "files.direct"
+    },
+    {
+      "cells": {
+        "flow": "orm.save",
+        "included": "insert; update; force create/update; generated fields; save hooks; refresh_from_db; update_fields",
+        "name": "Insert or update a model with transaction hooks",
+        "owner": "core/orm.Save; core/models",
+        "parent": "Gogo Core / Models and ORM"
+      },
+      "id": "orm.save"
+    },
+    {
+      "cells": {
+        "flow": "orm.transactions",
+        "included": "atomic; autocommit; savepoints; isolation; on_commit; request transactions; durable outer transaction",
+        "name": "Commit, nest or roll back a transaction",
+        "owner": "core/db.Atomic; core/orm.WithTx",
+        "parent": "Gogo Core / Models and ORM"
+      },
+      "id": "orm.transactions"
+    },
+    {
+      "cells": {
+        "flow": "orm.upsert",
+        "included": "get_or_create; update_or_create; upsert; unique-key concurrency",
+        "name": "Resolve create-or-update races safely",
+        "owner": "core/orm.GetOrCreate; UpdateOrCreate",
+        "parent": "Gogo Core / Models and ORM"
+      },
+      "id": "orm.upsert"
+    },
+    {
+      "cells": {
+        "flow": "orm.locking",
+        "included": "row locking; nowait; skip_locked; optimistic versioning; deadlocks; serialization retry",
+        "name": "Coordinate concurrent writers",
+        "owner": "core/orm.SelectForUpdate; VersionedSave",
+        "parent": "Gogo Core / Models and ORM"
+      },
+      "id": "orm.locking"
+    },
+    {
+      "cells": {
+        "flow": "forms.model",
+        "included": "ModelForm; field allowlist; commit=false; save_m2m; custom widgets; scoped choices",
+        "name": "Save model forms without mass assignment",
+        "owner": "core/forms.ModelForm",
+        "parent": "Gogo Core / Forms and templates"
+      },
+      "id": "forms.model"
+    },
+    {
+      "cells": {
+        "flow": "cache.access",
+        "included": "cache backends; get/set/add/delete; get_many/set_many; incr/decr; versioning; site/view/fragment caching; Vary",
+        "name": "Read through cache and invalidate after a write",
+        "owner": "core/cache; connectors/redis/cache",
+        "parent": "Gogo Core / Storage and shared services"
+      },
+      "id": "cache.access"
+    },
+    {
+      "cells": {
+        "flow": "auth.password-reset",
+        "included": "password reset; password change; password validators; single-use tokens; session invalidation",
+        "name": "Reset a password without leaking account existence",
+        "owner": "core/auth.PasswordReset; core/mail",
+        "parent": "Gogo Core / Identity, sessions and security"
+      },
+      "id": "auth.password-reset"
+    },
+    {
+      "cells": {
+        "flow": "auth.password-reset-confirm",
+        "included": "password reset confirmation; single-use token; credential rotation; session invalidation",
+        "name": "Consume a reset token and replace the password",
+        "owner": "core/auth.PasswordResetConfirm",
+        "parent": "Gogo Core / Identity, sessions and security"
+      },
+      "id": "auth.password-reset-confirm"
+    },
+    {
+      "cells": {
+        "flow": "auth.password-change",
+        "included": "password change; UserAdmin privileges; group updates; auth-version invalidation",
+        "name": "Change a password or privileged user grants",
+        "owner": "core/auth.AccountService",
+        "parent": "Gogo Core / Identity, sessions and security"
+      },
+      "id": "auth.password-change"
+    },
+    {
+      "cells": {
+        "flow": "core.signals",
+        "included": "custom signals; receiver disconnect; robust send; request/model/migration/test/task signals; ordering",
+        "name": "Dispatch typed lifecycle and model signals",
+        "owner": "core/signals",
+        "parent": "Gogo Core / Signals and events"
+      },
+      "id": "core.signals"
+    },
+    {
+      "cells": {
+        "flow": "async.publish",
+        "included": "delay; apply_async; signatures; ETA/countdown; expiration; routing; priority; headers; publication retry",
+        "name": "Publish a task with routing and scheduling metadata",
+        "owner": "async.Enqueue; async/redis/broker",
+        "parent": "Gogo Async / Task declaration and dispatch"
+      },
+      "id": "async.publish"
+    },
+    {
+      "cells": {
+        "flow": "async.worker",
+        "included": "Claim, execute, persist and acknowledge a task",
+        "name": "Claim, execute, persist and acknowledge a task",
+        "owner": "async.Worker; async/redis",
+        "parent": "Gogo Async / Worker execution and recovery"
+      },
+      "id": "async.worker"
+    },
+    {
+      "cells": {
+        "flow": "async.retry",
+        "included": "retry; autoretry; backoff; jitter; max retries; retry after; permanent errors; errbacks",
+        "name": "Retry transient failures or retain terminal failures",
+        "owner": "async.RetryPolicy",
+        "parent": "Gogo Async / Worker execution and recovery"
+      },
+      "id": "async.retry"
+    },
+    {
+      "cells": {
+        "flow": "async.intent-relay",
+        "included": "durable intent discovery; cross-store relay; callback dispatch; workflow completion delivery; reconciliation",
+        "name": "Relay durable task and workflow intents across stores",
+        "owner": "async.IntentRelay; async/redis",
+        "parent": "Gogo Async / Worker execution and recovery"
+      },
+      "id": "async.intent-relay"
+    },
+    {
+      "cells": {
+        "flow": "async.chain",
+        "included": "chain; result forwarding; immutable steps; failure propagation; child IDs",
+        "name": "Execute a chain and stop on failure",
+        "owner": "async/canvas.Chain",
+        "parent": "Gogo Async / Canvas workflows"
+      },
+      "id": "async.chain"
+    },
+    {
+      "cells": {
+        "flow": "async.group",
+        "included": "group; parallel fanout; GroupResult; join; ordered results; empty group; partial failures",
+        "name": "Fan out a group and collect ordered outcomes",
+        "owner": "async/canvas.Group",
+        "parent": "Gogo Async / Canvas workflows"
+      },
+      "id": "async.group"
+    },
+    {
+      "cells": {
+        "flow": "async.delayed",
+        "included": "ETA; countdown; delayed retry; expiration; scheduler storage; recovery",
+        "name": "Move delayed and retried tasks into runnable queues",
+        "owner": "async/redis/scheduler.Delayed",
+        "parent": "Gogo Async / Beat and periodic scheduling"
+      },
+      "id": "async.delayed"
+    },
+    {
+      "cells": {
+        "flow": "http.generic",
+        "included": "list/detail views; editing views; date archive views; mixins via composition; decorators; shortcut helpers",
+        "name": "Serve generic list, detail, edit and date views",
+        "owner": "core/http.GenericView",
+        "parent": "Gogo Core / HTTP and routing"
+      },
+      "id": "http.generic"
+    },
+    {
+      "cells": {
+        "flow": "operations.health",
+        "included": "health; liveness; readiness; startup; role-specific dependencies; degraded service",
+        "name": "Report startup, readiness and liveness independently",
+        "owner": "core/health",
+        "parent": "Developer tools and operations / Runtime operations"
+      },
+      "id": "operations.health"
+    },
+    {
+      "cells": {
+        "flow": "core.lifecycle",
+        "included": "graceful shutdown; readiness; resource lifecycle; hook errors",
+        "name": "Drain requests and shut down resources",
+        "owner": "core/app.Lifecycle; core/http.Server",
+        "parent": "Gogo Core / Application and configuration"
+      },
+      "id": "core.lifecycle"
+    },
+    {
+      "cells": {
+        "flow": "api.idempotency",
+        "included": "idempotency keys; concurrent requests; response replay; uncertain commits; retention",
+        "name": "Claim and replay an idempotent mutation safely",
+        "owner": "core/api.Idempotency; core/db",
+        "parent": "Gogo Core / REST APIs and serializers"
+      },
+      "id": "api.idempotency"
+    },
+    {
+      "cells": {
+        "flow": "cache.invalidate",
+        "included": "postcommit invalidation; cache versions; durable invalidation; stale window; cache stampede",
+        "name": "Invalidate derived cache entries after mutation",
+        "owner": "core/cache.Invalidation; core/db.OnCommit",
+        "parent": "Gogo Core / Storage and shared services"
+      },
+      "id": "cache.invalidate"
+    },
+    {
+      "cells": {
+        "flow": "email.sensitive-delivery",
+        "included": "secret-bearing mail; encrypted durable intent; SMTP ambiguity; token expiry; delivery key rotation",
+        "name": "Deliver encrypted single-use reset mail",
+        "owner": "core/auth.SensitiveMailRelay; core/mail",
+        "parent": "Gogo Core / Storage and shared services"
+      },
+      "id": "email.sensitive-delivery"
+    },
+    {
+      "cells": {
+        "flow": "redis.reconcile",
+        "included": "Redis failover; intent repair; state gaps; outbox replay; barrier reconciliation; durability limits",
+        "name": "Reconcile lost acknowledgements and Redis failover",
+        "owner": "async/redis.Reconciler",
+        "parent": "Connectors / Redis Async integration"
+      },
+      "id": "redis.reconcile"
+    },
+    {
+      "cells": {
+        "flow": "map.client-journey",
+        "included": "client usage; project structure; app creation; models/views/serializers; optional Admin; optional Async",
+        "name": "Developer journey: app, API, Admin and background workflow",
+        "owner": "Generated client project using public Gogo APIs",
+        "parent": "Review map"
+      },
+      "id": "map.client-journey"
+    },
+    {
+      "cells": {
+        "flow": "operations.scale",
+        "included": "horizontal scaling; connection budgets; queue isolation; read replicas; hot partitions; backpressure; capacity limits",
+        "name": "Scale web, workers and storage independently",
+        "owner": "core/http; async.Worker; deployment integration",
+        "parent": "Developer tools and operations / Runtime operations"
+      },
+      "id": "operations.scale"
+    }
+  ],
+  "schemaVersion": 3,
+  "summary": "Proposed contract for architecture review; not implemented.",
+  "title": "Every feature and its flow",
+  "type": "table"
+}

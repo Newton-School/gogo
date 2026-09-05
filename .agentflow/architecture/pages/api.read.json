@@ -1,0 +1,155 @@
+{
+  "details": [
+    {
+      "id": "owner",
+      "label": "Proposed code owner",
+      "value": "core/api.Resource; ViewSet"
+    },
+    {
+      "id": "status",
+      "label": "Implementation status",
+      "value": "No Go implementation exists. Names, limits and behavior are submitted design choices requiring review."
+    },
+    {
+      "id": "features",
+      "label": "Included features",
+      "value": "viewsets; routers; generic API views; list/detail; custom actions; object visibility"
+    }
+  ],
+  "edges": [
+    {
+      "from": "entry",
+      "id": "entry-to-identity",
+      "to": "identity"
+    },
+    {
+      "from": "identity",
+      "id": "identity-to-permission",
+      "to": "permission"
+    },
+    {
+      "from": "permission",
+      "id": "permission-to-permission-rejected",
+      "label": "No",
+      "style": "error",
+      "to": "permission-rejected"
+    },
+    {
+      "from": "permission",
+      "id": "permission-to-scope",
+      "label": "Yes",
+      "to": "scope"
+    },
+    {
+      "from": "scope",
+      "id": "scope-to-query",
+      "to": "query"
+    },
+    {
+      "from": "query",
+      "id": "query-to-found",
+      "to": "found"
+    },
+    {
+      "from": "found",
+      "id": "found-to-found-rejected",
+      "label": "No",
+      "style": "error",
+      "to": "found-rejected"
+    },
+    {
+      "from": "found",
+      "id": "found-to-serialize",
+      "label": "Yes",
+      "to": "serialize"
+    },
+    {
+      "from": "serialize",
+      "id": "serialize-to-done",
+      "to": "done"
+    },
+    {
+      "from": "query",
+      "id": "query-to-backend-failed",
+      "label": "Operation fails",
+      "style": "error",
+      "to": "backend-failed"
+    }
+  ],
+  "id": "api.read",
+  "layout": {
+    "direction": "down"
+  },
+  "nodes": [
+    {
+      "id": "entry",
+      "subtitle": "Router maps registered resources and custom read actions",
+      "title": "GET collection or object route",
+      "type": "api"
+    },
+    {
+      "id": "identity",
+      "subtitle": "Session, bearer or app authentication backend; anonymous only if allowed",
+      "title": "Authenticate configured scheme",
+      "type": "action"
+    },
+    {
+      "id": "permission",
+      "subtitle": "Action permission before object lookup",
+      "title": "Request permission granted?",
+      "type": "decision"
+    },
+    {
+      "id": "permission-rejected",
+      "subtitle": "No data query for denied action",
+      "title": "Return 401 or 403",
+      "type": "error"
+    },
+    {
+      "id": "scope",
+      "subtitle": "Tenant/owner filters before search, filters, aggregate count and page selection",
+      "title": "Apply resource queryset policy",
+      "type": "action"
+    },
+    {
+      "id": "query",
+      "subtitle": "Stable ordering; eager loading declared; cross-scope objects absent",
+      "title": "Read filtered page or object",
+      "type": "database"
+    },
+    {
+      "id": "found",
+      "subtitle": "Empty list is valid; missing detail is not",
+      "title": "Requested object/page valid?",
+      "type": "decision"
+    },
+    {
+      "id": "found-rejected",
+      "subtitle": "No existence disclosure outside scope",
+      "title": "Return 404 or invalid-cursor error",
+      "type": "error"
+    },
+    {
+      "id": "serialize",
+      "subtitle": "No forbidden fields; object read policy checked before projection",
+      "title": "Apply output serializer and field policy",
+      "type": "action"
+    },
+    {
+      "id": "done",
+      "subtitle": "Pagination links, cursor and permitted cache metadata",
+      "title": "Return 200 resource envelope",
+      "type": "terminal"
+    },
+    {
+      "id": "backend-failed",
+      "subtitle": "No unscoped fallback or stale unauthorized cached response",
+      "title": "Return 503 or safe internal error",
+      "type": "error"
+    }
+  ],
+  "schemaVersion": 3,
+  "summary": "Proposed behavior. Owned by core/api.Resource; ViewSet; select nodes for technical details.",
+  "title": "Serve scoped resource lists and details",
+  "type": "flow"
+}

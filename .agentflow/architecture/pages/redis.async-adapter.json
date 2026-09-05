@@ -1,0 +1,107 @@
+{
+  "details": [
+    {
+      "id": "owner",
+      "label": "Proposed code owner",
+      "value": "async/redis; async/broker; async/results; async/scheduler"
+    },
+    {
+      "id": "status",
+      "label": "Implementation status",
+      "value": "No Go implementation exists. Names, limits and behavior are submitted design choices requiring review."
+    },
+    {
+      "id": "features",
+      "label": "Included features",
+      "value": "broker/result/scheduler separation; optional module; streams; durable intents; connector contracts"
+    }
+  ],
+  "edges": [
+    {
+      "from": "entry",
+      "id": "entry-to-bind",
+      "to": "bind"
+    },
+    {
+      "from": "bind",
+      "id": "bind-to-cap",
+      "to": "cap"
+    },
+    {
+      "from": "cap",
+      "id": "cap-to-cap-rejected",
+      "label": "No",
+      "style": "error",
+      "to": "cap-rejected"
+    },
+    {
+      "from": "cap",
+      "id": "cap-to-register",
+      "label": "Yes",
+      "to": "register"
+    },
+    {
+      "from": "register",
+      "id": "register-to-relay",
+      "style": "async",
+      "to": "relay"
+    },
+    {
+      "from": "relay",
+      "id": "relay-to-done",
+      "to": "done"
+    }
+  ],
+  "id": "redis.async-adapter",
+  "layout": {
+    "direction": "down"
+  },
+  "nodes": [
+    {
+      "id": "entry",
+      "subtitle": "Separate async/redis module imports Async and Redis connector",
+      "title": "Install optional Redis Async adapter",
+      "type": "api"
+    },
+    {
+      "id": "bind",
+      "subtitle": "Streams broker; task/workflow state; schedule sorted sets; result-local intent stream",
+      "title": "Bind independently configured backend roles",
+      "type": "action"
+    },
+    {
+      "id": "cap",
+      "subtitle": "Chord needs atomic member recording, completion CAS and retained results",
+      "title": "Every requested workflow capability supported?",
+      "type": "decision"
+    },
+    {
+      "id": "cap-rejected",
+      "subtitle": "Do not degrade chord into best-effort callback",
+      "title": "Fail Async startup checks",
+      "type": "error"
+    },
+    {
+      "id": "register",
+      "subtitle": "Public Async contracts; no Core or Admin import of this adapter",
+      "title": "Register broker, results and scheduler adapters",
+      "type": "action"
+    },
+    {
+      "id": "relay",
+      "subtitle": "Separate Redis servers coordinated by durable intent and idempotent relay",
+      "title": "Start required intent relays and reclaim loops",
+      "type": "job"
+    },
+    {
+      "id": "done",
+      "subtitle": "Pub/Sub may notify monitors; Streams/state records own durable work",
+      "title": "Expose task transport to producer/worker/beat",
+      "type": "terminal"
+    }
+  ],
+  "schemaVersion": 3,
+  "summary": "Proposed behavior. Owned by async/redis; async/broker; async/results; async/scheduler; select nodes for technical details.",
+  "title": "Connect Async contracts to Redis storage roles",
+  "type": "flow"
+}

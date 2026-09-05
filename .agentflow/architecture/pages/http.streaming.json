@@ -1,0 +1,117 @@
+{
+  "details": [
+    {
+      "id": "owner",
+      "label": "Proposed code owner",
+      "value": "core/http.Stream; SSE"
+    },
+    {
+      "id": "status",
+      "label": "Implementation status",
+      "value": "No Go implementation exists. Names, limits and behavior are submitted design choices requiring review."
+    },
+    {
+      "id": "features",
+      "label": "Included features",
+      "value": "streaming HTTP; SSE; backpressure; disconnect; replay cursor; streaming outside DB transaction"
+    }
+  ],
+  "edges": [
+    {
+      "from": "entry",
+      "id": "entry-to-authorize",
+      "to": "authorize"
+    },
+    {
+      "from": "authorize",
+      "id": "authorize-to-headers",
+      "to": "headers"
+    },
+    {
+      "from": "headers",
+      "id": "headers-to-produce",
+      "style": "async",
+      "to": "produce"
+    },
+    {
+      "from": "produce",
+      "id": "produce-to-alive",
+      "to": "alive"
+    },
+    {
+      "from": "alive",
+      "id": "alive-to-alive-rejected",
+      "label": "No",
+      "to": "alive-rejected"
+    },
+    {
+      "from": "alive",
+      "id": "alive-to-resume",
+      "label": "Yes",
+      "to": "resume"
+    },
+    {
+      "from": "resume",
+      "id": "resume-to-done",
+      "to": "done"
+    }
+  ],
+  "id": "http.streaming",
+  "layout": {
+    "direction": "down"
+  },
+  "nodes": [
+    {
+      "id": "entry",
+      "subtitle": "Handler returns stream producer with context",
+      "title": "Open authorized stream",
+      "type": "api"
+    },
+    {
+      "id": "authorize",
+      "subtitle": "Reauthorize long-lived subscriptions on revocation signal",
+      "title": "Check scope before committing headers",
+      "type": "action"
+    },
+    {
+      "id": "headers",
+      "subtitle": "SSE text/event-stream; no proxy buffering; heartbeat interval 15s",
+      "title": "Commit stream headers and flush",
+      "type": "action"
+    },
+    {
+      "id": "produce",
+      "subtitle": "Backpressure blocks producer; no unbounded in-memory queue",
+      "title": "Produce bounded chunks/events",
+      "type": "job"
+    },
+    {
+      "id": "alive",
+      "subtitle": "Write error or cancellation terminates producer",
+      "title": "Client connected and context valid?",
+      "type": "decision"
+    },
+    {
+      "id": "alive-rejected",
+      "subtitle": "After headers, do not return a second HTTP status",
+      "title": "Close stream and release resources",
+      "type": "terminal"
+    },
+    {
+      "id": "resume",
+      "subtitle": "Last-Event-ID replay requires durable source cursor; ephemeral sources reject unavailable replay",
+      "title": "Attach event IDs only for replayable sources",
+      "type": "action"
+    },
+    {
+      "id": "done",
+      "subtitle": "Reconnect policy owned by client; completion closes producer and resources",
+      "title": "Finish or continue subscription",
+      "type": "terminal"
+    }
+  ],
+  "schemaVersion": 3,
+  "summary": "Proposed behavior. Owned by core/http.Stream; SSE; select nodes for technical details.",
+  "title": "Stream responses and reconnect SSE clients",
+  "type": "flow"
+}

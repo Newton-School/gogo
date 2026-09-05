@@ -1,0 +1,118 @@
+{
+  "details": [
+    {
+      "id": "owner",
+      "label": "Proposed code owner",
+      "value": "core/models.Composition"
+    },
+    {
+      "id": "status",
+      "label": "Implementation status",
+      "value": "No Go implementation exists. Names, limits and behavior are submitted design choices requiring review."
+    },
+    {
+      "id": "features",
+      "label": "Included features",
+      "value": "abstract models; multi-table inheritance; proxy models; Go composition; parent links"
+    }
+  ],
+  "edges": [
+    {
+      "from": "entry",
+      "id": "entry-to-flatten",
+      "to": "flatten"
+    },
+    {
+      "from": "flatten",
+      "id": "flatten-to-kind",
+      "to": "kind"
+    },
+    {
+      "from": "kind",
+      "id": "kind-to-kind-rejected",
+      "label": "Proxy",
+      "to": "kind-rejected"
+    },
+    {
+      "from": "kind",
+      "id": "kind-to-parent",
+      "label": "Yes",
+      "to": "parent"
+    },
+    {
+      "from": "parent",
+      "id": "parent-to-save",
+      "to": "save"
+    },
+    {
+      "from": "save",
+      "id": "save-to-done",
+      "to": "done"
+    },
+    {
+      "from": "save",
+      "id": "save-to-backend-failed",
+      "label": "Operation fails",
+      "style": "error",
+      "to": "backend-failed"
+    }
+  ],
+  "id": "models.inheritance",
+  "layout": {
+    "direction": "down"
+  },
+  "nodes": [
+    {
+      "id": "entry",
+      "subtitle": "Abstract embedded fields, concrete parent or proxy descriptor",
+      "title": "Register composed model",
+      "type": "api"
+    },
+    {
+      "id": "flatten",
+      "subtitle": "Abstract fields copy to child; reject conflicting names and indexes",
+      "title": "Resolve inherited field metadata",
+      "type": "action"
+    },
+    {
+      "id": "kind",
+      "subtitle": "Proxy uses existing concrete model table",
+      "title": "Does this model own database storage?",
+      "type": "decision"
+    },
+    {
+      "id": "kind-rejected",
+      "subtitle": "Different manager/Admin options; identical concrete PK/table",
+      "title": "Register behavior-only proxy",
+      "type": "terminal"
+    },
+    {
+      "id": "parent",
+      "subtitle": "One-to-one parent PK; explicit join; no implicit Go method inheritance",
+      "title": "Map concrete parent link when declared",
+      "type": "action"
+    },
+    {
+      "id": "save",
+      "subtitle": "Parent-first creation; shared deletion graph; generated keys propagated",
+      "title": "Persist parent and child in one transaction",
+      "type": "database"
+    },
+    {
+      "id": "done",
+      "subtitle": "Parent-only queries do not silently downcast; polymorphic retrieval explicit",
+      "title": "Return complete composed instance",
+      "type": "terminal"
+    },
+    {
+      "id": "backend-failed",
+      "subtitle": "No orphan parent from failed child insert",
+      "title": "Rollback parent and child writes",
+      "type": "error"
+    }
+  ],
+  "schemaVersion": 3,
+  "summary": "Proposed behavior. Owned by core/models.Composition; select nodes for technical details.",
+  "title": "Resolve model composition and polymorphic identity",
+  "type": "flow"
+}

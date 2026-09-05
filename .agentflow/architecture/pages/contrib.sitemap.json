@@ -1,0 +1,118 @@
+{
+  "details": [
+    {
+      "id": "owner",
+      "label": "Proposed code owner",
+      "value": "core/contrib/sitemaps"
+    },
+    {
+      "id": "status",
+      "label": "Implementation status",
+      "value": "No Go implementation exists. Names, limits and behavior are submitted design choices requiring review."
+    },
+    {
+      "id": "features",
+      "label": "Included features",
+      "value": "sitemaps; indexes; pagination; lastmod; i18n alternates; cache validators"
+    }
+  ],
+  "edges": [
+    {
+      "from": "entry",
+      "id": "entry-to-select",
+      "to": "select"
+    },
+    {
+      "from": "select",
+      "id": "select-to-items",
+      "to": "items"
+    },
+    {
+      "from": "items",
+      "id": "items-to-urls",
+      "to": "urls"
+    },
+    {
+      "from": "urls",
+      "id": "urls-to-serialize",
+      "to": "serialize"
+    },
+    {
+      "from": "serialize",
+      "id": "serialize-to-done",
+      "to": "done"
+    },
+    {
+      "from": "items",
+      "id": "items-to-backend-failed",
+      "label": "Operation fails",
+      "style": "error",
+      "to": "backend-failed-items"
+    },
+    {
+      "from": "serialize",
+      "id": "serialize-to-backend-failed",
+      "label": "Operation fails",
+      "style": "error",
+      "to": "backend-failed-serialize"
+    }
+  ],
+  "id": "contrib.sitemap",
+  "layout": {
+    "direction": "down"
+  },
+  "nodes": [
+    {
+      "id": "entry",
+      "subtitle": "GET /sitemap.xml or section/page route",
+      "title": "Request sitemap index or section",
+      "type": "api"
+    },
+    {
+      "id": "select",
+      "subtitle": "Exclude private/unauthorized URLs; locale alternates explicit",
+      "title": "Select site and public-content provider",
+      "type": "action"
+    },
+    {
+      "id": "items",
+      "subtitle": "Max 50000 URLs per file; provider controls modified timestamp",
+      "title": "Read stable bounded page of sitemap items",
+      "type": "database"
+    },
+    {
+      "id": "urls",
+      "subtitle": "Validated site domain/scheme; XML escaping; lastmod/changefreq/priority optional",
+      "title": "Generate absolute canonical URLs",
+      "type": "action"
+    },
+    {
+      "id": "serialize",
+      "subtitle": "Alternate locale links; split by item and byte limits",
+      "title": "Build sitemap or index document",
+      "type": "action"
+    },
+    {
+      "id": "done",
+      "subtitle": "Large generation can use Async only when explicitly configured",
+      "title": "Return XML with cache validators",
+      "type": "terminal"
+    },
+    {
+      "id": "backend-failed-items",
+      "subtitle": "Do not publish truncated XML as a complete sitemap",
+      "title": "Return sitemap generation error",
+      "type": "error"
+    },
+    {
+      "id": "backend-failed-serialize",
+      "subtitle": "Do not publish truncated XML as a complete sitemap",
+      "title": "Return sitemap generation error",
+      "type": "error"
+    }
+  ],
+  "schemaVersion": 3,
+  "summary": "Proposed behavior. Owned by core/contrib/sitemaps; select nodes for technical details.",
+  "title": "Generate sitemap indexes and bounded sitemap pages",
+  "type": "flow"
+}

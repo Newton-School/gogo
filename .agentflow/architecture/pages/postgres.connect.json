@@ -1,0 +1,143 @@
+{
+  "details": [
+    {
+      "id": "owner",
+      "label": "Proposed code owner",
+      "value": "connectors/postgres; core/db"
+    },
+    {
+      "id": "status",
+      "label": "Implementation status",
+      "value": "No Go implementation exists. Names, limits and behavior are submitted design choices requiring review."
+    },
+    {
+      "id": "features",
+      "label": "Included features",
+      "value": "DSN; TLS; pooling; server capabilities; health; aliases; pgx; database/sql"
+    }
+  ],
+  "edges": [
+    {
+      "from": "entry",
+      "id": "entry-to-validate",
+      "to": "validate"
+    },
+    {
+      "from": "validate",
+      "id": "validate-to-open",
+      "to": "open"
+    },
+    {
+      "from": "open",
+      "id": "open-to-capabilities",
+      "to": "capabilities"
+    },
+    {
+      "from": "capabilities",
+      "id": "capabilities-to-supported",
+      "to": "supported"
+    },
+    {
+      "from": "supported",
+      "id": "supported-to-supported-rejected",
+      "label": "No",
+      "style": "error",
+      "to": "supported-rejected"
+    },
+    {
+      "from": "supported",
+      "id": "supported-to-register",
+      "label": "Yes",
+      "to": "register"
+    },
+    {
+      "from": "register",
+      "id": "register-to-done",
+      "to": "done"
+    },
+    {
+      "from": "open",
+      "id": "open-to-backend-failed",
+      "label": "Operation fails",
+      "style": "error",
+      "to": "backend-failed-open"
+    },
+    {
+      "from": "capabilities",
+      "id": "capabilities-to-backend-failed",
+      "label": "Operation fails",
+      "style": "error",
+      "to": "backend-failed-capabilities"
+    }
+  ],
+  "id": "postgres.connect",
+  "layout": {
+    "direction": "down"
+  },
+  "nodes": [
+    {
+      "id": "entry",
+      "subtitle": "postgres.Open(config.Database); pgx database/sql adapter",
+      "title": "Create PostgreSQL backend for alias",
+      "type": "api"
+    },
+    {
+      "id": "validate",
+      "subtitle": "Credentials from runtime env; production TLS verification; default max open 20",
+      "title": "Validate DSN, TLS and pool settings",
+      "type": "action"
+    },
+    {
+      "id": "open",
+      "subtitle": "Connect timeout 5s; PingContext; never log DSN password",
+      "title": "Open pool and perform bounded readiness probe",
+      "type": "external"
+    },
+    {
+      "id": "capabilities",
+      "subtitle": "PostgreSQL 16+ proposed baseline; record JSON/window/generated/index capabilities",
+      "title": "Read server version and installed extensions",
+      "type": "database"
+    },
+    {
+      "id": "supported",
+      "subtitle": "Do not create extensions as a connection side effect",
+      "title": "Server and requested extensions supported?",
+      "type": "decision"
+    },
+    {
+      "id": "supported-rejected",
+      "subtitle": "UnsupportedBackend; migration operator must install required extensions",
+      "title": "Close pool and fail backend startup",
+      "type": "error"
+    },
+    {
+      "id": "register",
+      "subtitle": "Executor, dialect, schema editor, introspector, capabilities and typed errors",
+      "title": "Expose backend contract to Core",
+      "type": "action"
+    },
+    {
+      "id": "done",
+      "subtitle": "Named aliases allow primary/replica pools; Close exactly once",
+      "title": "Return lifecycle-owned backend",
+      "type": "terminal"
+    },
+    {
+      "id": "backend-failed-open",
+      "subtitle": "Bounded reconnect only; no silently selected alternate database",
+      "title": "Close partial connection and report unavailable",
+      "type": "error"
+    },
+    {
+      "id": "backend-failed-capabilities",
+      "subtitle": "Bounded reconnect only; no silently selected alternate database",
+      "title": "Close partial connection and report unavailable",
+      "type": "error"
+    }
+  ],
+  "schemaVersion": 3,
+  "summary": "Proposed behavior. Owned by connectors/postgres; core/db; select nodes for technical details.",
+  "title": "Open and manage a PostgreSQL connection alias",
+  "type": "flow"
+}

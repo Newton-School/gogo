@@ -1,0 +1,129 @@
+{
+  "details": [
+    {
+      "id": "owner",
+      "label": "Proposed code owner",
+      "value": "core/orm.SelectRelated; PrefetchRelated"
+    },
+    {
+      "id": "status",
+      "label": "Implementation status",
+      "value": "No Go implementation exists. Names, limits and behavior are submitted design choices requiring review."
+    },
+    {
+      "id": "features",
+      "label": "Included features",
+      "value": "select_related; prefetch_related; custom prefetch; nested prefetch; query count bounds"
+    }
+  ],
+  "edges": [
+    {
+      "from": "entry",
+      "id": "entry-to-validate",
+      "to": "validate"
+    },
+    {
+      "from": "validate",
+      "id": "validate-to-roots",
+      "to": "roots"
+    },
+    {
+      "from": "roots",
+      "id": "roots-to-keys",
+      "to": "keys"
+    },
+    {
+      "from": "keys",
+      "id": "keys-to-children",
+      "to": "children"
+    },
+    {
+      "from": "children",
+      "id": "children-to-attach",
+      "to": "attach"
+    },
+    {
+      "from": "attach",
+      "id": "attach-to-done",
+      "to": "done"
+    },
+    {
+      "from": "roots",
+      "id": "roots-to-backend-failed",
+      "label": "Operation fails",
+      "style": "error",
+      "to": "backend-failed-roots"
+    },
+    {
+      "from": "children",
+      "id": "children-to-backend-failed",
+      "label": "Operation fails",
+      "style": "error",
+      "to": "backend-failed-children"
+    }
+  ],
+  "id": "orm.eager",
+  "layout": {
+    "direction": "down"
+  },
+  "nodes": [
+    {
+      "id": "entry",
+      "subtitle": "SelectRelated to-one; PrefetchRelated collections",
+      "title": "Choose eager-loading paths",
+      "type": "api"
+    },
+    {
+      "id": "validate",
+      "subtitle": "Prevent cycles and field/path conflicts; bound depth",
+      "title": "Resolve graph and allowed projections",
+      "type": "action"
+    },
+    {
+      "id": "roots",
+      "subtitle": "One statement for SelectRelated; preserve nullable relations",
+      "title": "Read root rows and joined to-one rows",
+      "type": "database"
+    },
+    {
+      "id": "keys",
+      "subtitle": "Batch to backend parameter limit; retain root order",
+      "title": "Collect distinct root/relation keys",
+      "type": "action"
+    },
+    {
+      "id": "children",
+      "subtitle": "Custom prefetch query and nested paths supported",
+      "title": "Read each collection with scoped predicates",
+      "type": "database"
+    },
+    {
+      "id": "attach",
+      "subtitle": "Empty collection explicit; cache scoped to returned instance",
+      "title": "Attach related instances to each root",
+      "type": "action"
+    },
+    {
+      "id": "done",
+      "subtitle": "Later mutation invalidates affected relation cache",
+      "title": "Return fully attached object graph",
+      "type": "terminal"
+    },
+    {
+      "id": "backend-failed-roots",
+      "subtitle": "Do not silently fall back to per-row queries",
+      "title": "Return eager-load error",
+      "type": "error"
+    },
+    {
+      "id": "backend-failed-children",
+      "subtitle": "Do not silently fall back to per-row queries",
+      "title": "Return eager-load error",
+      "type": "error"
+    }
+  ],
+  "schemaVersion": 3,
+  "summary": "Proposed behavior. Owned by core/orm.SelectRelated; PrefetchRelated; select nodes for technical details.",
+  "title": "Load joins and collections without hidden N+1 queries",
+  "type": "flow"
+}

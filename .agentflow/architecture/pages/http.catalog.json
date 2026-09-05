@@ -1,0 +1,103 @@
+{
+  "columns": [
+    {
+      "format": "text",
+      "id": "family",
+      "label": "Family"
+    },
+    {
+      "format": "text",
+      "id": "items",
+      "label": "Public features"
+    },
+    {
+      "format": "text",
+      "id": "rule",
+      "label": "Rule"
+    },
+    {
+      "format": "text",
+      "id": "flow",
+      "label": "Flow"
+    }
+  ],
+  "id": "http.catalog",
+  "rows": [
+    {
+      "cells": {
+        "family": "Routing",
+        "flow": "http.routes",
+        "items": "Path converters int/string/slug/UUID/path; regex; Include; namespace; Reverse/Resolve; script prefix; language-prefix routes",
+        "rule": "Compile immutable route trie/regex set; capture type errors are 404; duplicate name/ambiguous route check."
+      },
+      "id": "router"
+    },
+    {
+      "cells": {
+        "family": "Request",
+        "flow": "http.request",
+        "items": "Method/path/headers/cookies; MultiValue query/form; body/JSON/files; scheme/host/port; absolute URI; client address; accepted type; context user/session/messages",
+        "rule": "Proxy-derived values trusted only from configured CIDRs; bodies bounded and parsed once; per-request values not global."
+      },
+      "id": "request"
+    },
+    {
+      "cells": {
+        "family": "Response",
+        "flow": "http.responses; files.download",
+        "items": "HTML/Text/JSON/Redirect/File/Stream; status/header/cookie; reason; charset; close callbacks; 400/403/404/405/410/500 handlers",
+        "rule": "Validate redirect targets/header values; headers immutable after first write; safe error envelope."
+      },
+      "id": "response"
+    },
+    {
+      "cells": {
+        "family": "Middleware lifecycle",
+        "flow": "http.request; http.streaming",
+        "items": "Request, route/view, exception, template response and response hooks; short circuit; recovery; instrumentation",
+        "rule": "Enter configured order; unwind reverse order; exception after stream begins closes stream, cannot replace status."
+      },
+      "id": "middleware"
+    },
+    {
+      "cells": {
+        "family": "Built-in middleware",
+        "flow": "http.request; security.headers; cache.access",
+        "items": "Security/CSP, host/proxy, common slash handling, session, locale, CSRF, authentication, messages, clickjacking, GZip, conditional GET, cache update/fetch",
+        "rule": "Request compression opt-in for sensitive dynamic bodies; authentication before permissions; cache keys include full Vary scope."
+      },
+      "id": "builtins"
+    },
+    {
+      "cells": {
+        "family": "View helpers and decorators",
+        "flow": "http.generic; http.responses; auth.permissions",
+        "items": "Render, Redirect, GetObjectOr404, GetListOr404; require methods/safe; cache_control/never_cache/vary; etag/last_modified; gzip; login/permission required",
+        "rule": "Helpers preserve same scope, conditional response and authorization checks as resource handlers."
+      },
+      "id": "shortcuts"
+    },
+    {
+      "cells": {
+        "family": "Generic views",
+        "flow": "http.generic; api.read; api.write",
+        "items": "Template, Redirect, List, Detail; Form, Create, Update, Delete; ArchiveIndex, Year/Month/Week/Day/TodayArchive, DateDetail",
+        "rule": "Go composition replaces class inheritance; typed context/query/form hooks; GET never mutates; date timezone/filter scope explicit."
+      },
+      "id": "generic"
+    },
+    {
+      "cells": {
+        "family": "Realtime and large output",
+        "flow": "http.streaming; http.websocket",
+        "items": "Bounded streaming, file ranges, SSE reconnect IDs, optional WebSocket transport registration",
+        "rule": "Per-connection authorization and quotas; canceled context closes resources; durable replay requires explicit event store."
+      },
+      "id": "stream"
+    }
+  ],
+  "schemaVersion": 3,
+  "summary": "Proposed contract for architecture review; not implemented.",
+  "title": "HTTP, middleware and view building blocks",
+  "type": "table"
+}
