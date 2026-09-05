@@ -105,11 +105,11 @@ func checkAccountTokenScope(p Principal, change AccountChange) error {
 	switch change.Action {
 	case "create_user":
 		action, model = "add", "User"
-	case "change_password", "change_own_password", "reset_password", "change_account_flags", "set_user_permissions", "set_user_groups":
+	case "change_password", "change_own_password", "reset_password", "change_account_flags", "set_user_permissions", "set_user_groups", "change_identifier":
 		action, model = "change", "User"
 	case "create_group":
 		action, model = "add", "Group"
-	case "set_group_permissions":
+	case "set_group_permissions", "rename_group":
 		action, model = "change", "Group"
 	default:
 		return ErrPermissionDenied

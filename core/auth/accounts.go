@@ -26,6 +26,9 @@ type AccountChange struct {
 	PermissionIDs                 []int64
 	GroupIDs                      []string
 	Active, Staff, Superuser      bool
+	// Unusable identifies an intentional disabled-password credential effect.
+	// It never contains the password or its encoded representation.
+	Unusable bool
 }
 
 type AccountsConfig struct {
@@ -295,11 +298,23 @@ func (a *Accounts) UpdateHash(ctx context.Context, id, previous, replacement str
 type CreateUserOptions struct{ Inactive, Staff, Superuser bool }
 
 func (a *Accounts) CreateUser(ctx context.Context, identifier, password string, options CreateUserOptions) (*User, error) {
+	return a.createUser(ctx, identifier, password, options, false)
+}
+
+// CreateUserWithoutPassword creates an account with an unusable password
+// directly. It never generates a temporary usable credential or invokes
+// password validators on invented input. Explicit create_user authority sees
+// Unusable=true, the normalized identifier and the complete requested flags.
+func (a *Accounts) CreateUserWithoutPassword(ctx context.Context, identifier string, options CreateUserOptions) (*User, error) {
+	return a.createUser(ctx, identifier, "", options, true)
+}
+
+func (a *Accounts) createUser(ctx context.Context, identifier, password string, options CreateUserOptions, unusable bool) (*User, error) {
 	identifier, err := a.identifier(identifier)
 	if err != nil {
 		return nil, err
 	}
-	change := AccountChange{Action: "create_user", Name: identifier, Active: !options.Inactive, Staff: options.Staff, Superuser: options.Superuser}
+	change := AccountChange{Action: "create_user", Name: identifier, Active: !options.Inactive, Staff: options.Staff, Superuser: options.Superuser, Unusable: unusable}
 	if err := a.permit(ctx, change); err != nil {
 		return nil, err
 	}
@@ -307,7 +322,12 @@ func (a *Accounts) CreateUser(ctx context.Context, identifier, password string, 
 	if err != nil {
 		return nil, err
 	}
-	hash, err := a.hash(ctx, password, Principal{ID: id, Active: !options.Inactive, Staff: options.Staff, Superuser: options.Superuser, AuthVersion: 1})
+	var hash string
+	if unusable {
+		hash, err = UnusablePassword()
+	} else {
+		hash, err = a.hash(ctx, password, Principal{ID: id, Active: !options.Inactive, Staff: options.Staff, Superuser: options.Superuser, AuthVersion: 1})
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -323,7 +343,10 @@ func (a *Accounts) CreateUser(ctx context.Context, identifier, password string, 
 		if err := a.permit(ctx, change); err != nil {
 			return err
 		}
-		return a.saveUser(ctx, user, orm.SaveOptions{ForceInsert: true})
+		if err := a.saveUser(ctx, user, orm.SaveOptions{ForceInsert: true, Guard: func(ctx context.Context, _ models.Record) error { return a.permit(ctx, change) }}); err != nil {
+			return err
+		}
+		return a.permitSavedUser(ctx, change, user)
 	})
 	if err != nil {
 		return nil, err

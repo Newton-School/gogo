@@ -123,7 +123,7 @@ func (a *Accounts) ChangePassword(ctx context.Context, userID, password string) 
 }
 
 func (a *Accounts) SetUnusablePassword(ctx context.Context, userID string) error {
-	return a.withUser(ctx, AccountChange{Action: "change_password", UserID: userID}, func(ctx context.Context, user *User) error {
+	return a.withUser(ctx, AccountChange{Action: "change_password", UserID: userID, Unusable: true}, func(ctx context.Context, user *User) error {
 		marker, err := UnusablePassword()
 		if err != nil {
 			return err
