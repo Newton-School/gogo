@@ -40,11 +40,12 @@ func loginConfig() LoginConfig {
 var csrfInput = regexp.MustCompile(`name="csrfmiddlewaretoken" value="([^"]+)"`)
 
 type loginFixture struct {
-	t       *testing.T
-	handler http.Handler
-	session *sessions.Session
-	cookies map[string]*http.Cookie
-	token   string
+	t         *testing.T
+	handler   http.Handler
+	session   *sessions.Session
+	cookies   map[string]*http.Cookie
+	token     string
+	principal auth.Principal
 }
 
 func newLoginFixture(t *testing.T, config LoginConfig) *loginFixture {
@@ -66,6 +67,7 @@ func (f *loginFixture) call(method, path string, values url.Values, headerToken 
 	r := httptest.NewRequest(method, "http://example.test"+path, strings.NewReader(values.Encode()))
 	r.RemoteAddr = "192.0.2.1:4242"
 	r = r.WithContext(sessions.WithSession(r.Context(), f.session))
+	r = r.WithContext(auth.WithPrincipal(r.Context(), f.principal))
 	for _, c := range f.cookies {
 		r.AddCookie(c)
 	}

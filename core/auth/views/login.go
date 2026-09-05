@@ -168,11 +168,15 @@ func Login(config LoginConfig) (http.Handler, error) {
 }
 
 func allowLogin(w http.ResponseWriter, r *http.Request, config LoginConfig, kind, value string, limit ratelimit.Limit) bool {
-	mac := hmac.New(sha256.New, config.RateSecret)
-	_, _ = mac.Write([]byte("gogo.auth.login." + kind + "\x00" + value))
-	decision, err := config.Limiter.Allow(r.Context(), "auth:login:"+kind+":"+hex.EncodeToString(mac.Sum(nil)), limit, 1)
+	return allowAccountAction(w, r, config.Limiter, config.RateSecret, config.OnFailure, "login", kind, value, limit)
+}
+
+func allowAccountAction(w http.ResponseWriter, r *http.Request, limiter ratelimit.Limiter, secret []byte, onFailure func(context.Context, string), action, kind, value string, limit ratelimit.Limit) bool {
+	mac := hmac.New(sha256.New, secret)
+	_, _ = mac.Write([]byte("gogo.auth." + action + "." + kind + "\x00" + value))
+	decision, err := limiter.Allow(r.Context(), "auth:"+action+":"+kind+":"+hex.EncodeToString(mac.Sum(nil)), limit, 1)
 	if err != nil {
-		failure(r.Context(), config.OnFailure, "unavailable")
+		failure(r.Context(), onFailure, "unavailable")
 		unavailable(w)
 		return false
 	}
@@ -182,8 +186,8 @@ func allowLogin(w http.ResponseWriter, r *http.Request, config LoginConfig, kind
 			seconds++
 		}
 		w.Header().Set("Retry-After", strconv.FormatInt(max(int64(1), seconds), 10))
-		failure(r.Context(), config.OnFailure, "rate_limited")
-		http.Error(w, "Too many sign-in attempts. Try again later.", http.StatusTooManyRequests)
+		failure(r.Context(), onFailure, "rate_limited")
+		http.Error(w, "Too many attempts. Try again later.", http.StatusTooManyRequests)
 		return false
 	}
 	return true

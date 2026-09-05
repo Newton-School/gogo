@@ -3,10 +3,26 @@ package auth
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
 )
+
+func TestAccountPasswordPolicyErrorsRemainClassifiableWithoutCredentialRendering(t *testing.T) {
+	cause := errors.New("submitted-secret-must-not-render")
+	err := passwordValidationError{cause: cause}
+	if !errors.Is(err, ErrPasswordValidation) || !errors.Is(err, cause) {
+		t.Fatal("lost policy classification")
+	}
+	for _, verb := range []string{"%v", "%+v", "%#v", "%d", "%s", "%x", "%q", "%f"} {
+		for _, value := range []any{err, &err} {
+			if rendered := fmt.Sprintf(verb, value); strings.Contains(rendered, "submitted-secret") {
+				t.Fatal("validator details rendered", verb)
+			}
+		}
+	}
+}
 
 func TestPasswordValidatorsCannotMutatePrincipalGrants(t *testing.T) {
 	principal := Principal{ID: "fixture", Permissions: []string{"catalog.view_asset"}}

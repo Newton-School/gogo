@@ -17,6 +17,18 @@ import (
 
 var ErrCredentials = errors.New("invalid credentials")
 var ErrPasswordHash = errors.New("invalid password hash")
+var ErrPasswordValidation = errors.New("password does not satisfy account policy")
+
+// passwordValidationError preserves machine-readable causes without rendering
+// custom validator messages, which may include submitted credential material.
+type passwordValidationError struct{ cause error }
+
+func (passwordValidationError) Error() string        { return ErrPasswordValidation.Error() }
+func (e passwordValidationError) Unwrap() error      { return e.cause }
+func (passwordValidationError) Is(target error) bool { return target == ErrPasswordValidation }
+func (passwordValidationError) Format(state fmt.State, _ rune) {
+	_, _ = fmt.Fprint(state, ErrPasswordValidation.Error())
+}
 
 type PasswordParams struct {
 	Memory, Iterations uint32

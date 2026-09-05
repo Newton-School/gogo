@@ -111,6 +111,45 @@ func Login(w http.ResponseWriter, r *http.Request, p Principal, csrf security.CS
 	return nil
 }
 
+// RefreshLogin preserves the current account's session data after an already
+// verified, durably committed credential transition. It is not authentication:
+// callers must supply the principal returned by their trusted password-change
+// service, never submitted claims or an arbitrary freshly loaded account.
+// The old authenticated request and persisted session identity must agree.
+// Session middleware revokes the old key and confirms the new write before
+// emitting a replacement cookie. A failure cannot undo the credential change.
+func RefreshLogin(w http.ResponseWriter, r *http.Request, verified Principal, csrf security.CSRFConfig) error {
+	current := FromContext(r.Context())
+	if !current.Authenticated || !current.Active || current.ID == "" || current.AuthVersion == 0 ||
+		!verified.Authenticated || !verified.Active || verified.ID != current.ID || verified.AuthVersion <= current.AuthVersion {
+		return ErrCredentials
+	}
+	session, ok := sessions.FromContext(r.Context())
+	if !ok {
+		return errors.New("auth: session middleware required")
+	}
+	var identity sessionIdentity
+	found, err := session.Get(authSessionKey, &identity)
+	if err != nil {
+		return err
+	}
+	record := session.Snapshot()
+	if !found || record.ID == "" || record.Version == 0 || identity.ID != current.ID || identity.AuthVersion != current.AuthVersion {
+		return ErrAccountChanged
+	}
+	if err := session.CycleKey(); err != nil {
+		return err
+	}
+	if err := security.RotateCSRFRequest(w, r, csrf); err != nil {
+		return err
+	}
+	if err := session.Set(authSessionKey, sessionIdentity{ID: verified.ID, AuthVersion: verified.AuthVersion}); err != nil {
+		return err
+	}
+	*r = *r.WithContext(WithPrincipal(r.Context(), verified))
+	return nil
+}
+
 // Logout removes all state belonging to the old account. A subsequent session
 // write (such as a generic logout message) receives a fresh anonymous identity.
 func Logout(w http.ResponseWriter, r *http.Request, csrf security.CSRFConfig) error {

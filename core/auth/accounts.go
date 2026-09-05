@@ -326,7 +326,10 @@ func (a *Accounts) CreateUser(ctx context.Context, identifier, password string, 
 
 func (a *Accounts) hash(ctx context.Context, password string, principal Principal) (string, error) {
 	if err := ValidatePassword(ctx, password, principal, a.validators...); err != nil {
-		return "", err
+		if ctx.Err() != nil {
+			return "", ctx.Err()
+		}
+		return "", passwordValidationError{cause: err}
 	}
 	select {
 	case a.slots <- struct{}{}:

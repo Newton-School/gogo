@@ -47,6 +47,54 @@ func TestLoginRotatesIdentityAndSwitchingAccountsDropsData(t *testing.T) {
 	}
 }
 
+func TestRefreshLoginRequiresMatchingDurableIdentityAndVerifiedTransition(t *testing.T) {
+	for _, scenario := range []string{"valid", "anonymous", "different-account", "stale-session", "same-version", "new-session"} {
+		t.Run(scenario, func(t *testing.T) {
+			old := Principal{ID: "account", AuthVersion: 2, Active: true, Authenticated: true}
+			verified := old
+			verified.AuthVersion = 3
+			session := sessions.New(sessions.Record{ID: "persisted-session", Version: 1})
+			identity := sessionIdentity{ID: old.ID, AuthVersion: old.AuthVersion}
+			switch scenario {
+			case "anonymous":
+				old.Authenticated = false
+			case "different-account":
+				verified.ID = "another-account"
+			case "stale-session":
+				identity.AuthVersion = 1
+			case "same-version":
+				verified.AuthVersion = 2
+			case "new-session":
+				session = sessions.New(sessions.Record{})
+			}
+			_ = session.Set(authSessionKey, identity)
+			_ = session.Set("private", "same-account")
+			r := httptest.NewRequest("POST", "/change", nil).WithContext(WithPrincipal(sessions.WithSession(context.Background(), session), old))
+			w := httptest.NewRecorder()
+			err := RefreshLogin(w, r, verified, security.CSRFConfig{})
+			if scenario != "valid" {
+				if err == nil || len(w.Result().Cookies()) != 0 {
+					t.Fatal("invalid transition accepted", err)
+				}
+				return
+			}
+			if err != nil || FromContext(r.Context()).AuthVersion != 3 {
+				t.Fatal(err, FromContext(r.Context()))
+			}
+			var retained string
+			if found, _ := session.Get("private", &retained); !found || retained != "same-account" {
+				t.Fatal("lost current account data")
+			}
+			if session.Generation() != 0 {
+				t.Fatal("same-account refresh discarded dependent state")
+			}
+			if found, _ := session.Get(authSessionKey, &identity); !found || identity.AuthVersion != 3 {
+				t.Fatal(identity)
+			}
+		})
+	}
+}
+
 func TestCurrentPrincipalRefreshAndInvalidation(t *testing.T) {
 	for _, test := range []struct {
 		name      string
