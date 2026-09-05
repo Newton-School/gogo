@@ -163,6 +163,12 @@ type PasswordBackend interface {
 	Lookup(context.Context, string) (Principal, string, error)
 	UpdateHash(context.Context, string, string, string) error
 }
+
+// CredentialValidator optionally rechecks current identity state after password
+// work. The built-in account backend uses it to reject concurrent replacement.
+type CredentialValidator interface {
+	RevalidateCredential(context.Context, string, string) (Principal, error)
+}
 type Authenticator struct {
 	Backend PasswordBackend
 	dummy   string
@@ -210,6 +216,17 @@ func (a *Authenticator) Authenticate(ctx context.Context, identifier, password s
 		}
 		if e = a.Backend.UpdateHash(ctx, p.ID, encoded, replacement); e != nil {
 			return Principal{}, e
+		}
+		encoded = replacement
+	}
+	if validator, ok := a.Backend.(CredentialValidator); ok {
+		id := p.ID
+		p, err = validator.RevalidateCredential(ctx, id, encoded)
+		if err != nil {
+			return Principal{}, err
+		}
+		if !p.Active || p.ID != id || p.AuthVersion == 0 {
+			return Principal{}, ErrCredentials
 		}
 	}
 	p.Authenticated = true
