@@ -29,12 +29,21 @@ func (a *Accounts) CreateGroup(ctx context.Context, name string) (*Group, error)
 		if err := a.permit(ctx, change); err != nil {
 			return err
 		}
-		if err := a.store.Save(ctx, group, orm.SaveOptions{ForceInsert: true, Guard: func(context.Context, models.Record) error {
+		if err := a.store.Save(ctx, group, orm.SaveOptions{ForceInsert: true, Guard: func(ctx context.Context, _ models.Record) error {
+			if err := a.permit(ctx, change); err != nil {
+				return err
+			}
 			if group.ID != id || group.Name != name {
 				return ErrPermissionDenied
 			}
 			return nil
 		}}); err != nil {
+			return err
+		}
+		// A model hook may revoke authority, and authorization may itself run a
+		// nested domain operation. Verify the exact newly-created snapshot only
+		// after this last extension point, without any subsequent mutation.
+		if err := a.permit(ctx, change); err != nil {
 			return err
 		}
 		if group.ID != id || group.Name != name {
@@ -48,9 +57,20 @@ func (a *Accounts) CreateGroup(ctx context.Context, name string) (*Group, error)
 			return err
 		}
 		if persisted.Name != name {
-			return ErrPermissionDenied
+			return ErrAccountChanged
 		}
-		return nil
+		members, err := orm.For(a.store, func() *UserGroup { return &UserGroup{} }).Filter(orm.Q("group_id", id)).Exists(ctx)
+		if err != nil {
+			return err
+		}
+		permissions, err := orm.For(a.store, func() *GroupPermission { return &GroupPermission{} }).Filter(orm.Q("group_id", id)).Exists(ctx)
+		if err != nil {
+			return err
+		}
+		if members || permissions {
+			return ErrAccountChanged
+		}
+		return ctx.Err()
 	})
 	if err != nil {
 		return nil, err
