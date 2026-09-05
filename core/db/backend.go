@@ -83,6 +83,12 @@ type SchemaResolverEditor interface {
 	WithSchemas([]models.Schema) (SchemaEditor, error)
 }
 
+// AutoKeyAllocator reserves generated numeric keys before a batch so RETURNING
+// values can be matched by identity, never by undocumented database row order.
+type AutoKeyAllocator interface {
+	ReserveAutoKeys(context.Context, Executor, models.Schema, models.Field, int) ([]any, error)
+}
+
 // MigrationLocker holds a dedicated session lock for the entire migration run.
 type MigrationLocker interface {
 	LockMigrations(context.Context) (func() error, error)
