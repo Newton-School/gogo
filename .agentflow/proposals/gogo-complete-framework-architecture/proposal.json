@@ -19,6 +19,12 @@
                 "type": "page"
               },
               {
+                "id": "nav.map.client-journey",
+                "pageId": "map.client-journey",
+                "title": "Developer journey: app, API, Admin and background workflow",
+                "type": "page"
+              },
+              {
                 "id": "nav.map.repository",
                 "pageId": "map.repository",
                 "title": "Repository roots and independent Go modules",
@@ -364,6 +370,12 @@
                     "type": "page"
                   },
                   {
+                    "id": "nav.api.idempotency",
+                    "pageId": "api.idempotency",
+                    "title": "Claim and replay an idempotent mutation safely",
+                    "type": "page"
+                  },
+                  {
                     "id": "nav.api.catalog",
                     "pageId": "api.catalog",
                     "title": "REST API feature and serializer catalog",
@@ -547,6 +559,18 @@
                     "type": "page"
                   },
                   {
+                    "id": "nav.cache.invalidate",
+                    "pageId": "cache.invalidate",
+                    "title": "Invalidate derived cache entries after mutation",
+                    "type": "page"
+                  },
+                  {
+                    "id": "nav.email.sensitive-delivery",
+                    "pageId": "email.sensitive-delivery",
+                    "title": "Deliver encrypted single-use reset mail",
+                    "type": "page"
+                  },
+                  {
                     "id": "nav.services.catalog",
                     "pageId": "services.catalog",
                     "title": "Shared service methods and provider contracts",
@@ -611,12 +635,6 @@
                     "id": "nav.contrib.gis-import",
                     "pageId": "contrib.gis-import",
                     "title": "Import, transform and export spatial datasets",
-                    "type": "page"
-                  },
-                  {
-                    "id": "nav.contrib.admindocs",
-                    "pageId": "contrib.admindocs",
-                    "title": "Generate developer-facing model and route reference",
                     "type": "page"
                   }
                 ],
@@ -712,6 +730,12 @@
                     "id": "nav.admin.history",
                     "pageId": "admin.history",
                     "title": "Read history and customize Admin behavior",
+                    "type": "page"
+                  },
+                  {
+                    "id": "nav.contrib.admindocs",
+                    "pageId": "contrib.admindocs",
+                    "title": "Generate developer-facing model and route reference",
                     "type": "page"
                   }
                 ],
@@ -976,6 +1000,12 @@
                     "pageId": "redis.async-adapter",
                     "title": "Connect Async contracts to Redis storage roles",
                     "type": "page"
+                  },
+                  {
+                    "id": "nav.redis.reconcile",
+                    "pageId": "redis.reconcile",
+                    "title": "Reconcile lost acknowledgements and Redis failover",
+                    "type": "page"
                   }
                 ],
                 "id": "folder.connectors-redis-async-integration",
@@ -1100,6 +1130,12 @@
                     "id": "nav.operations.restore",
                     "pageId": "operations.restore",
                     "title": "Back up and restore data with consistency checks",
+                    "type": "page"
+                  },
+                  {
+                    "id": "nav.operations.scale",
+                    "pageId": "operations.scale",
+                    "title": "Scale web, workers and storage independently",
                     "type": "page"
                   },
                   {
@@ -1548,14 +1584,14 @@
             "id": "resources-to-backend-failed",
             "label": "Operation fails",
             "style": "error",
-            "to": "backend-failed"
+            "to": "backend-failed-resources"
           },
           {
             "from": "ready",
             "id": "ready-to-backend-failed",
             "label": "Operation fails",
             "style": "error",
-            "to": "backend-failed"
+            "to": "backend-failed-ready"
           }
         ],
         "id": "core.bootstrap",
@@ -1642,7 +1678,13 @@
             "type": "terminal"
           },
           {
-            "id": "backend-failed",
+            "id": "backend-failed-resources",
+            "subtitle": "Reverse-order close; preserve original startup error",
+            "title": "Close opened resources; exit nonzero",
+            "type": "error"
+          },
+          {
+            "id": "backend-failed-ready",
             "subtitle": "Reverse-order close; preserve original startup error",
             "title": "Close opened resources; exit nonzero",
             "type": "error"
@@ -1930,48 +1972,57 @@
         "edges": [
           {
             "from": "entry",
-            "id": "entry-to-unready",
+            "id": "edge-1",
             "to": "unready"
           },
           {
             "from": "unready",
-            "id": "unready-to-listeners",
-            "to": "listeners"
+            "id": "edge-2",
+            "to": "drain"
           },
           {
-            "from": "listeners",
-            "id": "listeners-to-drained",
-            "to": "drained"
+            "from": "drain",
+            "id": "edge-3",
+            "to": "finished"
           },
           {
-            "from": "drained",
-            "id": "drained-to-drained-rejected",
-            "label": "No",
-            "style": "error",
-            "to": "drained-rejected"
+            "from": "finished",
+            "id": "edge-4",
+            "label": "Finished",
+            "to": "hooks"
           },
           {
-            "from": "drained",
-            "id": "drained-to-hooks",
-            "label": "Yes",
+            "from": "finished",
+            "id": "edge-5",
+            "label": "Timed out",
+            "to": "cancel"
+          },
+          {
+            "from": "cancel",
+            "id": "edge-6",
             "to": "hooks"
           },
           {
             "from": "hooks",
-            "id": "hooks-to-close",
+            "id": "edge-7",
             "to": "close"
           },
           {
             "from": "close",
-            "id": "close-to-done",
-            "to": "done"
+            "id": "edge-8",
+            "to": "clean"
           },
           {
-            "from": "close",
-            "id": "close-to-backend-failed",
-            "label": "Operation fails",
-            "style": "error",
-            "to": "backend-failed"
+            "from": "clean",
+            "id": "edge-9",
+            "label": "No errors",
+            "to": "success"
+          },
+          {
+            "from": "clean",
+            "id": "edge-10",
+            "label": "Any failure",
+            "to": "failure"
           }
         ],
         "id": "core.lifecycle",
@@ -1981,61 +2032,67 @@
         "nodes": [
           {
             "id": "entry",
-            "subtitle": "SIGTERM / SIGINT / application.Close",
-            "title": "Receive shutdown signal",
+            "subtitle": "Shutdown is idempotent; one lifecycle owner",
+            "title": "Receive SIGTERM/SIGINT or Close",
             "type": "event"
           },
           {
             "id": "unready",
-            "subtitle": "Stop new work admission; liveness remains responsive during drain",
-            "title": "Mark readiness false",
+            "subtitle": "Stop scheduler claims and worker intake before closing shared pools",
+            "title": "Set readiness false and stop new admission",
             "type": "action"
           },
           {
-            "id": "listeners",
-            "subtitle": "Server.Shutdown; worker intake cancel; scheduler stops dispatch",
-            "title": "Stop accepting HTTP and worker claims",
+            "id": "drain",
+            "subtitle": "30s default grace; in-flight tasks keep heartbeats while drain allowed",
+            "title": "Drain HTTP and in-flight task work",
             "type": "action"
           },
           {
-            "id": "drained",
-            "subtitle": "Default 30s; command override bounded by deployment settings",
-            "title": "Work finished within grace period?",
+            "id": "finished",
+            "subtitle": "Timeout must not skip cleanup",
+            "title": "All work finished within grace?",
             "type": "decision"
           },
           {
-            "id": "drained-rejected",
-            "subtitle": "Worker claims recover by lease expiry; HTTP contexts canceled",
-            "title": "Cancel remaining work and report timeout",
-            "type": "error"
+            "id": "cancel",
+            "subtitle": "Goroutine cannot be killed; lost task lease later reclaimed; mark drain failure",
+            "title": "Cancel remaining contexts and stop subprocesses",
+            "type": "action"
           },
           {
             "id": "hooks",
-            "subtitle": "Each hook bounded; errors collected without skipping later closes",
+            "subtitle": "Each bounded; collect errors and continue remaining hooks",
             "title": "Run shutdown hooks in reverse app order",
             "type": "action"
           },
           {
             "id": "close",
-            "subtitle": "Owner closes shared pools once after consumers finish",
-            "title": "Close pools and flush telemetry",
-            "type": "external"
+            "subtitle": "Flush telemetry with timeout; close each shared pool once; continue on close errors",
+            "title": "Close resources in reverse ownership order",
+            "type": "action"
           },
           {
-            "id": "done",
-            "subtitle": "Nonzero on failed drain/hook; do not claim canceled task side effects were undone",
-            "title": "Exit with completion status",
+            "id": "clean",
+            "subtitle": "Aggregated status includes timed-out work",
+            "title": "Drain, hooks and resource closes all succeeded?",
+            "type": "decision"
+          },
+          {
+            "id": "success",
+            "subtitle": "All admitted work finished within stated grace",
+            "title": "Exit successfully",
             "type": "terminal"
           },
           {
-            "id": "backend-failed",
-            "subtitle": "Continue closing other resources; no new work admitted",
-            "title": "Report shutdown errors",
+            "id": "failure",
+            "subtitle": "No claim that canceled or killed task side effects were undone",
+            "title": "Exit nonzero with safe shutdown report",
             "type": "error"
           }
         ],
         "schemaVersion": 3,
-        "summary": "Proposed behavior. Owned by core/app.Lifecycle; core/http.Server; select nodes for technical details.",
+        "summary": "Proposed behavior. Timeout or hook error records failure but still reaches every resource close. Worker crash recovery follows lease/result contracts, not shutdown success assumptions.",
         "title": "Drain requests and shut down resources",
         "type": "flow"
       }
@@ -2471,7 +2528,7 @@
           {
             "from": "collect",
             "id": "edge-7",
-            "to": "more"
+            "to": "next-success"
           },
           {
             "from": "ok",
@@ -2488,7 +2545,7 @@
           {
             "from": "collecterror",
             "id": "edge-10",
-            "to": "more"
+            "to": "next-error"
           },
           {
             "from": "robust",
@@ -2561,6 +2618,18 @@
             "subtitle": "Before-write may roll back; after-commit error cannot undo persisted state",
             "title": "Return receiver error to sender",
             "type": "error"
+          },
+          {
+            "id": "next-success",
+            "subtitle": "Repeat from Another receiver remains in this same Send call; finish only after all receivers or ordinary error",
+            "title": "Continue synchronously with the next receiver",
+            "type": "terminal"
+          },
+          {
+            "id": "next-error",
+            "subtitle": "SendRobust repeats from Another receiver remains; final result includes every collected receiver error",
+            "title": "Continue synchronously after collecting the error",
+            "type": "terminal"
           }
         ],
         "schemaVersion": 3,
@@ -3119,14 +3188,14 @@
             "id": "execute-to-backend-failed",
             "label": "Operation fails",
             "style": "error",
-            "to": "backend-failed"
+            "to": "backend-failed-execute"
           },
           {
             "from": "scan",
             "id": "scan-to-backend-failed",
             "label": "Operation fails",
             "style": "error",
-            "to": "backend-failed"
+            "to": "backend-failed-scan"
           }
         ],
         "id": "orm.select",
@@ -3189,7 +3258,13 @@
             "type": "terminal"
           },
           {
-            "id": "backend-failed",
+            "id": "backend-failed-execute",
+            "subtitle": "Canceled, unavailable and decoding errors remain distinguishable",
+            "title": "Close rows and return QueryError",
+            "type": "error"
+          },
+          {
+            "id": "backend-failed-scan",
             "subtitle": "Canceled, unavailable and decoding errors remain distinguishable",
             "title": "Close rows and return QueryError",
             "type": "error"
@@ -3414,7 +3489,7 @@
             "id": "edge-6",
             "label": "Cannot begin",
             "style": "error",
-            "to": "failed"
+            "to": "failed-begin"
           },
           {
             "from": "write",
@@ -3451,7 +3526,7 @@
           {
             "from": "rollback",
             "id": "edge-12",
-            "to": "failed"
+            "to": "failed-rollback"
           },
           {
             "from": "hooks",
@@ -3475,7 +3550,7 @@
             "id": "edge-16",
             "label": "Release failed",
             "style": "error",
-            "to": "failed"
+            "to": "failed-release"
           },
           {
             "from": "owned",
@@ -3556,12 +3631,6 @@
             "type": "database"
           },
           {
-            "id": "failed",
-            "subtitle": "Missing/stale row, constraint, hook or backend error; no success claim",
-            "title": "Return typed failure",
-            "type": "error"
-          },
-          {
             "id": "hooks",
             "subtitle": "A hook error rolls back; no external effects in transaction hooks",
             "title": "Run transactional AfterSave and queue OnCommit",
@@ -3580,6 +3649,13 @@
             "type": "database"
           },
           {
+            "details": [
+              {
+                "id": "related-flows",
+                "label": "Related flow pages",
+                "value": "orm.transactions"
+              }
+            ],
             "id": "pending",
             "subtitle": "Caller may still roll back; follow orm.transactions for outer completion",
             "title": "Return instance pending caller commit",
@@ -3608,6 +3684,24 @@
             "subtitle": "Generated values and persisted identity",
             "title": "Return committed instance",
             "type": "terminal"
+          },
+          {
+            "id": "failed-begin",
+            "subtitle": "Missing/stale row, constraint, hook or backend error; no success claim",
+            "title": "Return typed failure",
+            "type": "error"
+          },
+          {
+            "id": "failed-rollback",
+            "subtitle": "Missing/stale row, constraint, hook or backend error; no success claim",
+            "title": "Return typed failure",
+            "type": "error"
+          },
+          {
+            "id": "failed-release",
+            "subtitle": "Missing/stale row, constraint, hook or backend error; no success claim",
+            "title": "Return typed failure",
+            "type": "error"
           }
         ],
         "schemaVersion": 3,
@@ -3748,14 +3842,14 @@
             "id": "edge-20",
             "label": "Commit/release failed",
             "style": "error",
-            "to": "error"
+            "to": "error-commit"
           },
           {
             "from": "begin",
             "id": "edge-21",
             "label": "Begin failed",
             "style": "error",
-            "to": "error"
+            "to": "error-begin"
           },
           {
             "from": "select",
@@ -3795,7 +3889,7 @@
           {
             "from": "rollback",
             "id": "edge-27",
-            "to": "error"
+            "to": "error-rollback"
           }
         ],
         "id": "orm.upsert",
@@ -3906,7 +4000,19 @@
             "type": "database"
           },
           {
-            "id": "error",
+            "id": "error-commit",
+            "subtitle": "Do not retry arbitrary failures as unique races",
+            "title": "Return typed error or uncertain commit",
+            "type": "error"
+          },
+          {
+            "id": "error-begin",
+            "subtitle": "Do not retry arbitrary failures as unique races",
+            "title": "Return typed error or uncertain commit",
+            "type": "error"
+          },
+          {
+            "id": "error-rollback",
             "subtitle": "Do not retry arbitrary failures as unique races",
             "title": "Return typed error or uncertain commit",
             "type": "error"
@@ -3995,14 +4101,14 @@
             "id": "execute-to-backend-failed",
             "label": "Operation fails",
             "style": "error",
-            "to": "backend-failed"
+            "to": "backend-failed-execute"
           },
           {
             "from": "commit",
             "id": "commit-to-backend-failed",
             "label": "Operation fails",
             "style": "error",
-            "to": "backend-failed"
+            "to": "backend-failed-commit"
           }
         ],
         "id": "orm.bulk",
@@ -4071,7 +4177,13 @@
             "type": "terminal"
           },
           {
-            "id": "backend-failed",
+            "id": "backend-failed-execute",
+            "subtitle": "Rollback active atomic transaction; no automatic replay",
+            "title": "Return batch failure with committed boundary",
+            "type": "error"
+          },
+          {
+            "id": "backend-failed-commit",
             "subtitle": "Rollback active atomic transaction; no automatic replay",
             "title": "Return batch failure with committed boundary",
             "type": "error"
@@ -4152,14 +4264,14 @@
             "id": "mutate-to-backend-failed",
             "label": "Operation fails",
             "style": "error",
-            "to": "backend-failed"
+            "to": "backend-failed-mutate"
           },
           {
             "from": "commit",
             "id": "commit-to-backend-failed",
             "label": "Operation fails",
             "style": "error",
-            "to": "backend-failed"
+            "to": "backend-failed-commit"
           }
         ],
         "id": "orm.delete",
@@ -4222,7 +4334,13 @@
             "type": "terminal"
           },
           {
-            "id": "backend-failed",
+            "id": "backend-failed-mutate",
+            "subtitle": "Constraint or hook failure prevents partial tree deletion",
+            "title": "Rollback all affected records",
+            "type": "error"
+          },
+          {
+            "id": "backend-failed-commit",
             "subtitle": "Constraint or hook failure prevents partial tree deletion",
             "title": "Rollback all affected records",
             "type": "error"
@@ -4303,21 +4421,21 @@
             "id": "change-to-backend-failed",
             "label": "Operation fails",
             "style": "error",
-            "to": "backend-failed"
+            "to": "backend-failed-change"
           },
           {
             "from": "hooks",
             "id": "hooks-to-backend-failed",
             "label": "Operation fails",
             "style": "error",
-            "to": "backend-failed"
+            "to": "backend-failed-hooks"
           },
           {
             "from": "commit",
             "id": "commit-to-backend-failed",
             "label": "Operation fails",
             "style": "error",
-            "to": "backend-failed"
+            "to": "backend-failed-commit"
           }
         ],
         "id": "orm.relations",
@@ -4380,7 +4498,19 @@
             "type": "terminal"
           },
           {
-            "id": "backend-failed",
+            "id": "backend-failed-change",
+            "subtitle": "No partial Set result; return typed constraint or availability error",
+            "title": "Rollback relation changes",
+            "type": "error"
+          },
+          {
+            "id": "backend-failed-hooks",
+            "subtitle": "No partial Set result; return typed constraint or availability error",
+            "title": "Rollback relation changes",
+            "type": "error"
+          },
+          {
+            "id": "backend-failed-commit",
             "subtitle": "No partial Set result; return typed constraint or availability error",
             "title": "Rollback relation changes",
             "type": "error"
@@ -4448,14 +4578,14 @@
             "id": "roots-to-backend-failed",
             "label": "Operation fails",
             "style": "error",
-            "to": "backend-failed"
+            "to": "backend-failed-roots"
           },
           {
             "from": "children",
             "id": "children-to-backend-failed",
             "label": "Operation fails",
             "style": "error",
-            "to": "backend-failed"
+            "to": "backend-failed-children"
           }
         ],
         "id": "orm.eager",
@@ -4506,7 +4636,13 @@
             "type": "terminal"
           },
           {
-            "id": "backend-failed",
+            "id": "backend-failed-roots",
+            "subtitle": "Do not silently fall back to per-row queries",
+            "title": "Return eager-load error",
+            "type": "error"
+          },
+          {
+            "id": "backend-failed-children",
             "subtitle": "Do not silently fall back to per-row queries",
             "title": "Return eager-load error",
             "type": "error"
@@ -4582,14 +4718,14 @@
             "id": "execute-to-backend-failed",
             "label": "Operation fails",
             "style": "error",
-            "to": "backend-failed"
+            "to": "backend-failed-execute"
           },
           {
             "from": "decode",
             "id": "decode-to-backend-failed",
             "label": "Operation fails",
             "style": "error",
-            "to": "backend-failed"
+            "to": "backend-failed-decode"
           }
         ],
         "id": "orm.expressions",
@@ -4646,7 +4782,13 @@
             "type": "terminal"
           },
           {
-            "id": "backend-failed",
+            "id": "backend-failed-execute",
+            "subtitle": "Type/overflow/DB errors remain visible",
+            "title": "Return expression execution error",
+            "type": "error"
+          },
+          {
+            "id": "backend-failed-decode",
             "subtitle": "Type/overflow/DB errors remain visible",
             "title": "Return expression execution error",
             "type": "error"
@@ -4711,14 +4853,14 @@
             "id": "edge-6",
             "label": "Begin failed",
             "style": "error",
-            "to": "error"
+            "to": "error-begin"
           },
           {
             "from": "savepoint",
             "id": "edge-7",
             "label": "Savepoint failed",
             "style": "error",
-            "to": "error"
+            "to": "error-savepoint"
           },
           {
             "from": "run",
@@ -4735,7 +4877,7 @@
           {
             "from": "rollback",
             "id": "edge-10",
-            "to": "error"
+            "to": "error-rollback"
           },
           {
             "from": "ok",
@@ -4759,7 +4901,7 @@
             "id": "edge-14",
             "label": "Release failed",
             "style": "error",
-            "to": "error"
+            "to": "error-release"
           },
           {
             "from": "outer",
@@ -4834,12 +4976,6 @@
             "type": "database"
           },
           {
-            "id": "error",
-            "subtitle": "Cleanup failures attached; no swallowed rollback error",
-            "title": "Return original error or rethrow panic",
-            "type": "error"
-          },
-          {
             "id": "outer",
             "subtitle": "Only outer commit makes changes durable",
             "title": "Is this the outer boundary?",
@@ -4880,6 +5016,30 @@
             "subtitle": "Callback failure cannot reverse the committed transaction",
             "title": "Return durable result and callback status",
             "type": "terminal"
+          },
+          {
+            "id": "error-begin",
+            "subtitle": "Cleanup failures attached; no swallowed rollback error",
+            "title": "Return original error or rethrow panic",
+            "type": "error"
+          },
+          {
+            "id": "error-savepoint",
+            "subtitle": "Cleanup failures attached; no swallowed rollback error",
+            "title": "Return original error or rethrow panic",
+            "type": "error"
+          },
+          {
+            "id": "error-rollback",
+            "subtitle": "Cleanup failures attached; no swallowed rollback error",
+            "title": "Return original error or rethrow panic",
+            "type": "error"
+          },
+          {
+            "id": "error-release",
+            "subtitle": "Cleanup failures attached; no swallowed rollback error",
+            "title": "Return original error or rethrow panic",
+            "type": "error"
           }
         ],
         "schemaVersion": 3,
@@ -4975,28 +5135,28 @@
             "id": "edge-12",
             "label": "Lock failed",
             "style": "error",
-            "to": "error"
+            "to": "error-lock"
           },
           {
             "from": "policy",
             "id": "edge-13",
             "label": "Denied",
             "style": "error",
-            "to": "error"
+            "to": "error-policy"
           },
           {
             "from": "lockedwrite",
             "id": "edge-14",
             "label": "Write failed",
             "style": "error",
-            "to": "error"
+            "to": "error-lockedwrite"
           },
           {
             "from": "cas",
             "id": "edge-15",
             "label": "Write failed",
             "style": "error",
-            "to": "error"
+            "to": "error-cas"
           }
         ],
         "id": "orm.locking",
@@ -5047,6 +5207,13 @@
             "type": "database"
           },
           {
+            "details": [
+              {
+                "id": "related-flows",
+                "label": "Related flow pages",
+                "value": "orm.transactions"
+              }
+            ],
             "id": "locked",
             "subtitle": "Lock released at outer end; follow orm.transactions",
             "title": "Return pending caller commit",
@@ -5077,7 +5244,25 @@
             "type": "terminal"
           },
           {
-            "id": "error",
+            "id": "error-lock",
+            "subtitle": "Deadlock/serialization retry only around explicit idempotent callback",
+            "title": "Return contention or backend error",
+            "type": "error"
+          },
+          {
+            "id": "error-policy",
+            "subtitle": "Deadlock/serialization retry only around explicit idempotent callback",
+            "title": "Return contention or backend error",
+            "type": "error"
+          },
+          {
+            "id": "error-lockedwrite",
+            "subtitle": "Deadlock/serialization retry only around explicit idempotent callback",
+            "title": "Return contention or backend error",
+            "type": "error"
+          },
+          {
+            "id": "error-cas",
             "subtitle": "Deadlock/serialization retry only around explicit idempotent callback",
             "title": "Return contention or backend error",
             "type": "error"
@@ -5535,21 +5720,21 @@
             "id": "lock-to-backend-failed",
             "label": "Operation fails",
             "style": "error",
-            "to": "backend-failed"
+            "to": "backend-failed-lock"
           },
           {
             "from": "execute",
             "id": "execute-to-backend-failed",
             "label": "Operation fails",
             "style": "error",
-            "to": "backend-failed"
+            "to": "backend-failed-execute"
           },
           {
             "from": "record",
             "id": "record-to-backend-failed",
             "label": "Operation fails",
             "style": "error",
-            "to": "backend-failed"
+            "to": "backend-failed-record"
           }
         ],
         "id": "migrations.apply",
@@ -5624,7 +5809,19 @@
             "type": "terminal"
           },
           {
-            "id": "backend-failed",
+            "id": "backend-failed-lock",
+            "subtitle": "Unknown commit or partial non-atomic DDL needs inspection before retry",
+            "title": "Stop; release lock; preserve recovery position",
+            "type": "error"
+          },
+          {
+            "id": "backend-failed-execute",
+            "subtitle": "Unknown commit or partial non-atomic DDL needs inspection before retry",
+            "title": "Stop; release lock; preserve recovery position",
+            "type": "error"
+          },
+          {
+            "id": "backend-failed-record",
             "subtitle": "Unknown commit or partial non-atomic DDL needs inspection before retry",
             "title": "Stop; release lock; preserve recovery position",
             "type": "error"
@@ -5707,14 +5904,14 @@
             "id": "reverse-to-backend-failed",
             "label": "Operation fails",
             "style": "error",
-            "to": "backend-failed"
+            "to": "backend-failed-reverse"
           },
           {
             "from": "history",
             "id": "history-to-backend-failed",
             "label": "Operation fails",
             "style": "error",
-            "to": "backend-failed"
+            "to": "backend-failed-history"
           }
         ],
         "id": "migrations.reverse",
@@ -5777,7 +5974,13 @@
             "type": "terminal"
           },
           {
-            "id": "backend-failed",
+            "id": "backend-failed-reverse",
+            "subtitle": "Rollback active atomic migration; report exact operation",
+            "title": "Stop at last verified migration boundary",
+            "type": "error"
+          },
+          {
+            "id": "backend-failed-history",
             "subtitle": "Rollback active atomic migration; report exact operation",
             "title": "Stop at last verified migration boundary",
             "type": "error"
@@ -5852,14 +6055,14 @@
             "id": "batch-to-backend-failed",
             "label": "Operation fails",
             "style": "error",
-            "to": "backend-failed"
+            "to": "backend-failed-batch"
           },
           {
             "from": "write",
             "id": "write-to-backend-failed",
             "label": "Operation fails",
             "style": "error",
-            "to": "backend-failed"
+            "to": "backend-failed-write"
           }
         ],
         "id": "migrations.data",
@@ -5916,7 +6119,13 @@
             "type": "terminal"
           },
           {
-            "id": "backend-failed",
+            "id": "backend-failed-batch",
+            "subtitle": "Retry from last durable key; do not skip failed rows",
+            "title": "Rollback active batch and preserve checkpoint",
+            "type": "error"
+          },
+          {
+            "id": "backend-failed-write",
             "subtitle": "Retry from last durable key; do not skip failed rows",
             "title": "Rollback active batch and preserve checkpoint",
             "type": "error"
@@ -6002,21 +6211,21 @@
             "id": "expand-to-backend-failed",
             "label": "Operation fails",
             "style": "error",
-            "to": "backend-failed"
+            "to": "backend-failed-expand"
           },
           {
             "from": "verify",
             "id": "verify-to-backend-failed",
             "label": "Operation fails",
             "style": "error",
-            "to": "backend-failed"
+            "to": "backend-failed-verify"
           },
           {
             "from": "contract",
             "id": "contract-to-backend-failed",
             "label": "Operation fails",
             "style": "error",
-            "to": "backend-failed"
+            "to": "backend-failed-contract"
           }
         ],
         "id": "migrations.online",
@@ -6085,7 +6294,19 @@
             "type": "terminal"
           },
           {
-            "id": "backend-failed",
+            "id": "backend-failed-expand",
+            "subtitle": "Preserve compatible schema; investigate lock/constraint error",
+            "title": "Pause at the durable phase",
+            "type": "error"
+          },
+          {
+            "id": "backend-failed-verify",
+            "subtitle": "Preserve compatible schema; investigate lock/constraint error",
+            "title": "Pause at the durable phase",
+            "type": "error"
+          },
+          {
+            "id": "backend-failed-contract",
             "subtitle": "Preserve compatible schema; investigate lock/constraint error",
             "title": "Pause at the durable phase",
             "type": "error"
@@ -6552,14 +6773,14 @@
             "id": "handler-to-backend-failed",
             "label": "Operation fails",
             "style": "error",
-            "to": "backend-failed"
+            "to": "backend-failed-handler"
           },
           {
             "from": "response",
             "id": "response-to-backend-failed",
             "label": "Operation fails",
             "style": "error",
-            "to": "backend-failed"
+            "to": "backend-failed-response"
           }
         ],
         "id": "http.request",
@@ -6634,7 +6855,13 @@
             "type": "terminal"
           },
           {
-            "id": "backend-failed",
+            "id": "backend-failed-handler",
+            "subtitle": "Before headers: 500; after streaming starts: close stream and log; never append HTML stack",
+            "title": "Recover safely and emit internal error",
+            "type": "error"
+          },
+          {
+            "id": "backend-failed-response",
             "subtitle": "Before headers: 500; after streaming starts: close stream and log; never append HTML stack",
             "title": "Recover safely and emit internal error",
             "type": "error"
@@ -6924,55 +7151,87 @@
         "edges": [
           {
             "from": "entry",
-            "id": "entry-to-scope",
-            "to": "scope"
+            "id": "edge-1",
+            "to": "access"
           },
           {
-            "from": "scope",
-            "id": "scope-to-method",
+            "from": "access",
+            "id": "edge-2",
+            "label": "Allowed",
             "to": "method"
           },
           {
-            "from": "method",
-            "id": "method-to-query",
-            "to": "query"
+            "from": "access",
+            "id": "edge-3",
+            "label": "Denied/unsupported",
+            "style": "error",
+            "to": "failed-access"
           },
           {
-            "from": "query",
-            "id": "query-to-valid",
+            "from": "method",
+            "id": "edge-4",
+            "label": "GET / HEAD",
+            "to": "read"
+          },
+          {
+            "from": "read",
+            "id": "edge-5",
+            "to": "render"
+          },
+          {
+            "from": "render",
+            "id": "edge-6",
+            "to": "readresponse"
+          },
+          {
+            "from": "read",
+            "id": "edge-7",
+            "label": "Query failed",
+            "style": "error",
+            "to": "failed-read"
+          },
+          {
+            "from": "render",
+            "id": "edge-8",
+            "label": "Render failed",
+            "style": "error",
+            "to": "failed-render"
+          },
+          {
+            "from": "method",
+            "id": "edge-9",
+            "label": "POST / PUT / PATCH / DELETE",
+            "to": "bind"
+          },
+          {
+            "from": "bind",
+            "id": "edge-10",
             "to": "valid"
           },
           {
             "from": "valid",
-            "id": "valid-to-valid-rejected",
+            "id": "edge-11",
             "label": "No",
-            "style": "error",
-            "to": "valid-rejected"
+            "to": "errors"
           },
           {
             "from": "valid",
-            "id": "valid-to-dispatch",
+            "id": "edge-12",
             "label": "Yes",
-            "to": "dispatch"
+            "to": "save"
           },
           {
-            "from": "dispatch",
-            "id": "dispatch-to-done",
-            "to": "done"
+            "from": "save",
+            "id": "edge-13",
+            "label": "Commit confirmed",
+            "to": "written"
           },
           {
-            "from": "query",
-            "id": "query-to-backend-failed",
-            "label": "Operation fails",
+            "from": "save",
+            "id": "edge-14",
+            "label": "Operation failed",
             "style": "error",
-            "to": "backend-failed"
-          },
-          {
-            "from": "dispatch",
-            "id": "dispatch-to-backend-failed",
-            "label": "Operation fails",
-            "style": "error",
-            "to": "backend-failed"
+            "to": "failed-save"
           }
         ],
         "id": "http.generic",
@@ -6982,61 +7241,104 @@
         "nodes": [
           {
             "id": "entry",
-            "subtitle": "List, Detail, Create, Update, Delete, Redirect, Template or DateArchive",
-            "title": "Dispatch generic view method",
+            "subtitle": "Template, Redirect, List, Detail, Create/Update/Delete or date archive",
+            "title": "Invoke configured generic view",
             "type": "api"
           },
           {
-            "id": "scope",
-            "subtitle": "App-supplied scope and permissions; no automatic full-table public exposure",
-            "title": "Resolve configured queryset and object policy",
+            "id": "access",
+            "subtitle": "CSRF on cookie-authenticated mutation; app supplies explicit queryset scope",
+            "title": "Check method, authentication and permission",
             "type": "action"
           },
           {
             "id": "method",
-            "subtitle": "GET/HEAD safe reads; changes require unsafe method and CSRF for sessions",
-            "title": "Apply allowed-method and login decorators",
-            "type": "action"
-          },
-          {
-            "id": "query",
-            "subtitle": "404 for missing or scope-excluded row; pagination after scope",
-            "title": "Load scoped object/list or form instance",
-            "type": "database"
-          },
-          {
-            "id": "valid",
-            "subtitle": "GET only renders; POST binds and validates fields",
-            "title": "Submitted form valid when editing?",
+            "subtitle": "Unsupported method returns 405 before executing operation",
+            "title": "Is this safe GET/HEAD or a mutation?",
             "type": "decision"
           },
           {
-            "id": "valid-rejected",
-            "subtitle": "No model mutation on invalid form",
-            "title": "Render field errors with submitted values",
-            "type": "error"
+            "id": "read",
+            "subtitle": "Create form has no existing-object lookup; pagination/date boundary scope applied",
+            "title": "Read scoped list/object or initial form data",
+            "type": "database"
           },
           {
-            "id": "dispatch",
-            "subtitle": "Model CRUD owns transaction; date views apply timezone-aware boundaries",
-            "title": "Execute configured operation and render",
+            "id": "render",
+            "subtitle": "Safe request never deletes or saves a record",
+            "title": "Render page or delete confirmation",
             "type": "action"
           },
           {
-            "id": "done",
-            "subtitle": "Form errors 422; create/update redirect 303; delete GET only confirms",
-            "title": "Return page or validated success redirect",
+            "id": "readresponse",
+            "subtitle": "Missing scoped detail returns 404; redirect target validated",
+            "title": "Return 200/HEAD or configured redirect",
             "type": "terminal"
           },
           {
-            "id": "backend-failed",
-            "subtitle": "No redirect success on failed persistence",
-            "title": "Return generic-view failure",
+            "id": "bind",
+            "subtitle": "Readonly/ownership fields excluded; target references rechecked",
+            "title": "Bind and validate submitted form",
+            "type": "action"
+          },
+          {
+            "id": "valid",
+            "subtitle": "Delete uses fresh graph/permission checks instead of editable fields",
+            "title": "Form and mutation policy valid?",
+            "type": "decision"
+          },
+          {
+            "id": "errors",
+            "subtitle": "422 for field errors; 403/404/409 for authorization/state conflicts",
+            "title": "Render errors without mutation",
+            "type": "terminal"
+          },
+          {
+            "details": [
+              {
+                "id": "related-flows",
+                "label": "Related flow pages",
+                "value": "forms.model, orm.delete"
+              }
+            ],
+            "id": "save",
+            "subtitle": "forms.model or orm.delete; no persistence hidden in a render hook",
+            "title": "Run atomic create/update/delete operation",
+            "type": "subprocess"
+          },
+          {
+            "id": "written",
+            "subtitle": "303 after committed HTML-form mutation",
+            "title": "Return safe success redirect",
+            "type": "terminal"
+          },
+          {
+            "id": "failed-access",
+            "subtitle": "No success redirect on failed or uncertain commit",
+            "title": "Return safe read/write error",
+            "type": "error"
+          },
+          {
+            "id": "failed-read",
+            "subtitle": "No success redirect on failed or uncertain commit",
+            "title": "Return safe read/write error",
+            "type": "error"
+          },
+          {
+            "id": "failed-render",
+            "subtitle": "No success redirect on failed or uncertain commit",
+            "title": "Return safe read/write error",
+            "type": "error"
+          },
+          {
+            "id": "failed-save",
+            "subtitle": "No success redirect on failed or uncertain commit",
+            "title": "Return safe read/write error",
             "type": "error"
           }
         ],
         "schemaVersion": 3,
-        "summary": "Proposed behavior. Owned by core/http.GenericView; select nodes for technical details.",
+        "summary": "Proposed behavior. Read and write branches never share an ambiguous execute node: a safe method only renders, and only validated unsafe methods reach the persistence branch.",
         "title": "Serve generic list, detail, edit and date views",
         "type": "flow"
       }
@@ -7661,14 +7963,14 @@
             "id": "write-to-backend-failed",
             "label": "Operation fails",
             "style": "error",
-            "to": "backend-failed"
+            "to": "backend-failed-write"
           },
           {
             "from": "commit",
             "id": "commit-to-backend-failed",
             "label": "Operation fails",
             "style": "error",
-            "to": "backend-failed"
+            "to": "backend-failed-commit"
           }
         ],
         "id": "api.write",
@@ -7737,7 +8039,13 @@
             "type": "terminal"
           },
           {
-            "id": "backend-failed",
+            "id": "backend-failed-write",
+            "subtitle": "Use idempotency record to resolve uncertain write; no blind replay",
+            "title": "Rollback or reconcile unknown commit",
+            "type": "error"
+          },
+          {
+            "id": "backend-failed-commit",
             "subtitle": "Use idempotency record to resolve uncertain write; no blind replay",
             "title": "Rollback or reconcile unknown commit",
             "type": "error"
@@ -8066,14 +8374,14 @@
             "id": "user-to-backend-failed",
             "label": "Operation fails",
             "style": "error",
-            "to": "backend-failed"
+            "to": "backend-failed-user"
           },
           {
             "from": "session",
             "id": "session-to-backend-failed",
             "label": "Operation fails",
             "style": "error",
-            "to": "backend-failed"
+            "to": "backend-failed-session"
           }
         ],
         "id": "auth.login",
@@ -8130,7 +8438,13 @@
             "type": "terminal"
           },
           {
-            "id": "backend-failed",
+            "id": "backend-failed-user",
+            "subtitle": "No authenticated cookie issued if session persistence failed",
+            "title": "Return authentication service unavailable",
+            "type": "error"
+          },
+          {
+            "id": "backend-failed-session",
             "subtitle": "No authenticated cookie issued if session persistence failed",
             "title": "Return authentication service unavailable",
             "type": "error"
@@ -8341,14 +8655,14 @@
             "id": "load-to-backend-failed",
             "label": "Operation fails",
             "style": "error",
-            "to": "backend-failed"
+            "to": "backend-failed-load"
           },
           {
             "from": "save",
             "id": "save-to-backend-failed",
             "label": "Operation fails",
             "style": "error",
-            "to": "backend-failed"
+            "to": "backend-failed-save"
           }
         ],
         "id": "sessions.request",
@@ -8405,7 +8719,13 @@
             "type": "terminal"
           },
           {
-            "id": "backend-failed",
+            "id": "backend-failed-load",
+            "subtitle": "503; do not silently log in or overwrite concurrent session updates",
+            "title": "Fail session-dependent request",
+            "type": "error"
+          },
+          {
+            "id": "backend-failed-save",
             "subtitle": "503; do not silently log in or overwrite concurrent session updates",
             "title": "Fail session-dependent request",
             "type": "error"
@@ -8496,12 +8816,6 @@
             "to": "intent"
           },
           {
-            "from": "delivery",
-            "id": "edge-11",
-            "label": "Synchronous mode; commit token first",
-            "to": "send"
-          },
-          {
             "from": "intent",
             "id": "edge-12",
             "label": "Token and intent commit confirmed",
@@ -8527,6 +8841,30 @@
           {
             "from": "observe",
             "id": "edge-16",
+            "to": "done"
+          },
+          {
+            "from": "delivery",
+            "id": "sync-commit",
+            "label": "Synchronous mode",
+            "to": "synccommit"
+          },
+          {
+            "from": "synccommit",
+            "id": "sync-send",
+            "label": "Commit confirmed",
+            "to": "send"
+          },
+          {
+            "from": "synccommit",
+            "id": "sync-error",
+            "label": "Commit failed",
+            "to": "observe"
+          },
+          {
+            "from": "intent",
+            "id": "async-http-return",
+            "label": "Commit confirmed: HTTP returns immediately",
             "to": "done"
           }
         ],
@@ -8602,10 +8940,23 @@
             "type": "action"
           },
           {
+            "details": [
+              {
+                "id": "related-flows",
+                "label": "Related flow pages",
+                "value": "auth.password-reset-confirm"
+              }
+            ],
             "id": "done",
             "subtitle": "Confirmation is a separate request: auth.password-reset-confirm",
             "title": "Return generic reset-request acknowledgement",
             "type": "terminal"
+          },
+          {
+            "id": "synccommit",
+            "subtitle": "If commit fails, do not send a link that cannot be redeemed",
+            "title": "Commit token before synchronous email",
+            "type": "database"
           }
         ],
         "schemaVersion": 3,
@@ -9285,28 +9636,28 @@
             "id": "edge-12",
             "label": "Begin failed",
             "style": "error",
-            "to": "error"
+            "to": "error-begin"
           },
           {
             "from": "save",
             "id": "edge-13",
             "label": "Save failed",
             "style": "error",
-            "to": "error"
+            "to": "error-save"
           },
           {
             "from": "relations",
             "id": "edge-14",
             "label": "Relation failed",
             "style": "error",
-            "to": "error"
+            "to": "error-relations"
           },
           {
             "from": "finish",
             "id": "edge-15",
             "label": "Commit/release failed",
             "style": "error",
-            "to": "error"
+            "to": "error-finish"
           }
         ],
         "id": "forms.model",
@@ -9387,7 +9738,25 @@
             "type": "terminal"
           },
           {
-            "id": "error",
+            "id": "error-begin",
+            "subtitle": "Known constraints mapped to fields; unknown commit reported honestly",
+            "title": "Roll back boundary and return errors",
+            "type": "error"
+          },
+          {
+            "id": "error-save",
+            "subtitle": "Known constraints mapped to fields; unknown commit reported honestly",
+            "title": "Roll back boundary and return errors",
+            "type": "error"
+          },
+          {
+            "id": "error-relations",
+            "subtitle": "Known constraints mapped to fields; unknown commit reported honestly",
+            "title": "Roll back boundary and return errors",
+            "type": "error"
+          },
+          {
+            "id": "error-finish",
             "subtitle": "Known constraints mapped to fields; unknown commit reported honestly",
             "title": "Roll back boundary and return errors",
             "type": "error"
@@ -9615,14 +9984,14 @@
             "id": "parse-to-backend-failed",
             "label": "Operation fails",
             "style": "error",
-            "to": "backend-failed"
+            "to": "backend-failed-parse"
           },
           {
             "from": "evaluate",
             "id": "evaluate-to-backend-failed",
             "label": "Operation fails",
             "style": "error",
-            "to": "backend-failed"
+            "to": "backend-failed-evaluate"
           }
         ],
         "id": "templates.render",
@@ -9685,7 +10054,13 @@
             "type": "terminal"
           },
           {
-            "id": "backend-failed",
+            "id": "backend-failed-parse",
+            "subtitle": "Keep internal trace in redacted server logs; no partial secret-bearing output",
+            "title": "Return safe render failure",
+            "type": "error"
+          },
+          {
+            "id": "backend-failed-evaluate",
             "subtitle": "Keep internal trace in redacted server logs; no partial secret-bearing output",
             "title": "Return safe render failure",
             "type": "error"
@@ -9880,14 +10255,14 @@
             "id": "store-to-backend-failed",
             "label": "Operation fails",
             "style": "error",
-            "to": "backend-failed"
+            "to": "backend-failed-store"
           },
           {
             "from": "metadata",
             "id": "metadata-to-backend-failed",
             "label": "Operation fails",
             "style": "error",
-            "to": "backend-failed"
+            "to": "backend-failed-metadata"
           }
         ],
         "id": "files.upload",
@@ -9944,7 +10319,13 @@
             "type": "terminal"
           },
           {
-            "id": "backend-failed",
+            "id": "backend-failed-store",
+            "subtitle": "Storage/DB failure cannot publish ready metadata",
+            "title": "Abort upload and schedule orphan cleanup",
+            "type": "error"
+          },
+          {
+            "id": "backend-failed-metadata",
             "subtitle": "Storage/DB failure cannot publish ready metadata",
             "title": "Abort upload and schedule orphan cleanup",
             "type": "error"
@@ -10143,7 +10524,7 @@
             "from": "readpolicy",
             "id": "edge-8",
             "label": "Required store",
-            "to": "unavailable"
+            "to": "unavailable-readpolicy"
           },
           {
             "from": "loader",
@@ -10184,7 +10565,7 @@
             "from": "writepolicy",
             "id": "edge-15",
             "label": "Required store",
-            "to": "unavailable"
+            "to": "unavailable-writepolicy"
           }
         ],
         "id": "cache.access",
@@ -10229,12 +10610,6 @@
             "type": "decision"
           },
           {
-            "id": "unavailable",
-            "subtitle": "No fallback grant or unauthenticated content substitution",
-            "title": "Return CacheUnavailable",
-            "type": "error"
-          },
-          {
             "id": "loader",
             "subtitle": "Coalesce same-process calls; enforce context and DB/query bounds",
             "title": "Execute scoped application loader",
@@ -10269,6 +10644,18 @@
             "subtitle": "Mutation invalidation performed separately after database commit",
             "title": "Return loaded value",
             "type": "terminal"
+          },
+          {
+            "id": "unavailable-readpolicy",
+            "subtitle": "No fallback grant or unauthenticated content substitution",
+            "title": "Return CacheUnavailable",
+            "type": "error"
+          },
+          {
+            "id": "unavailable-writepolicy",
+            "subtitle": "No fallback grant or unauthenticated content substitution",
+            "title": "Return CacheUnavailable",
+            "type": "error"
           }
         ],
         "schemaVersion": 3,
@@ -10492,6 +10879,13 @@
             "type": "decision"
           },
           {
+            "details": [
+              {
+                "id": "related-flows",
+                "label": "Related flow pages",
+                "value": "async.outbox"
+              }
+            ],
             "id": "async-rejected",
             "subtitle": "Follow async.outbox; no false delivered state on enqueue",
             "title": "Persist durable dispatch intent",
@@ -10585,14 +10979,14 @@
             "id": "persist-to-backend-failed",
             "label": "Operation fails",
             "style": "error",
-            "to": "backend-failed"
+            "to": "backend-failed-persist"
           },
           {
             "from": "consume",
             "id": "consume-to-backend-failed",
             "label": "Operation fails",
             "style": "error",
-            "to": "backend-failed"
+            "to": "backend-failed-consume"
           }
         ],
         "id": "messages.flash",
@@ -10637,7 +11031,13 @@
             "type": "terminal"
           },
           {
-            "id": "backend-failed",
+            "id": "backend-failed-persist",
+            "subtitle": "Do not claim durable flash delivery after failed storage",
+            "title": "Report message/session persistence failure",
+            "type": "error"
+          },
+          {
+            "id": "backend-failed-consume",
             "subtitle": "Do not claim durable flash delivery after failed storage",
             "title": "Report message/session persistence failure",
             "type": "error"
@@ -10820,14 +11220,14 @@
             "id": "load-to-backend-failed",
             "label": "Operation fails",
             "style": "error",
-            "to": "backend-failed"
+            "to": "backend-failed-load"
           },
           {
             "from": "sequences",
             "id": "sequences-to-backend-failed",
             "label": "Operation fails",
             "style": "error",
-            "to": "backend-failed"
+            "to": "backend-failed-sequences"
           }
         ],
         "id": "fixtures.data",
@@ -10884,7 +11284,13 @@
             "type": "terminal"
           },
           {
-            "id": "backend-failed",
+            "id": "backend-failed-load",
+            "subtitle": "Return file/record/field location without leaking content",
+            "title": "Rollback fixture import",
+            "type": "error"
+          },
+          {
+            "id": "backend-failed-sequences",
             "subtitle": "Return file/record/field location without leaking content",
             "title": "Rollback fixture import",
             "type": "error"
@@ -10970,7 +11376,7 @@
           },
           {
             "id": "valid",
-            "subtitle": "Unknown/read-only fields, duplicate registration and unsafe actions rejected",
+            "subtitle": "Unknown field references, duplicate registration and unsafe actions rejected; known readonly fields are valid",
             "title": "Model references and options valid?",
             "type": "decision"
           },
@@ -11539,28 +11945,28 @@
             "id": "parent-to-backend-failed",
             "label": "Operation fails",
             "style": "error",
-            "to": "backend-failed"
+            "to": "backend-failed-parent"
           },
           {
             "from": "children",
             "id": "children-to-backend-failed",
             "label": "Operation fails",
             "style": "error",
-            "to": "backend-failed"
+            "to": "backend-failed-children"
           },
           {
             "from": "audit",
             "id": "audit-to-backend-failed",
             "label": "Operation fails",
             "style": "error",
-            "to": "backend-failed"
+            "to": "backend-failed-audit"
           },
           {
             "from": "commit",
             "id": "commit-to-backend-failed",
             "label": "Operation fails",
             "style": "error",
-            "to": "backend-failed"
+            "to": "backend-failed-commit"
           }
         ],
         "id": "admin.save",
@@ -11629,7 +12035,25 @@
             "type": "terminal"
           },
           {
-            "id": "backend-failed",
+            "id": "backend-failed-parent",
+            "subtitle": "Uncertain commit resolved by operation ID; no duplicate create",
+            "title": "Rollback edits and show safe save error",
+            "type": "error"
+          },
+          {
+            "id": "backend-failed-children",
+            "subtitle": "Uncertain commit resolved by operation ID; no duplicate create",
+            "title": "Rollback edits and show safe save error",
+            "type": "error"
+          },
+          {
+            "id": "backend-failed-audit",
+            "subtitle": "Uncertain commit resolved by operation ID; no duplicate create",
+            "title": "Rollback edits and show safe save error",
+            "type": "error"
+          },
+          {
+            "id": "backend-failed-commit",
             "subtitle": "Uncertain commit resolved by operation ID; no duplicate create",
             "title": "Rollback edits and show safe save error",
             "type": "error"
@@ -11849,14 +12273,14 @@
             "id": "execute-to-backend-failed",
             "label": "Operation fails",
             "style": "error",
-            "to": "backend-failed"
+            "to": "backend-failed-execute"
           },
           {
             "from": "audit",
             "id": "audit-to-backend-failed",
             "label": "Operation fails",
             "style": "error",
-            "to": "backend-failed"
+            "to": "backend-failed-audit"
           }
         ],
         "id": "admin.actions",
@@ -11913,7 +12337,13 @@
             "type": "terminal"
           },
           {
-            "id": "backend-failed",
+            "id": "backend-failed-execute",
+            "subtitle": "Report committed chunk boundary for explicit partial mode",
+            "title": "Rollback active action batch",
+            "type": "error"
+          },
+          {
+            "id": "backend-failed-audit",
             "subtitle": "Report committed chunk boundary for explicit partial mode",
             "title": "Rollback active action batch",
             "type": "error"
@@ -12186,7 +12616,7 @@
             "id": "edge-8",
             "label": "Write not confirmed",
             "style": "error",
-            "to": "uncertain"
+            "to": "uncertain-schedule"
           },
           {
             "from": "publish",
@@ -12199,7 +12629,7 @@
             "id": "edge-10",
             "label": "Publish not confirmed",
             "style": "error",
-            "to": "uncertain"
+            "to": "uncertain-publish"
           }
         ],
         "id": "async.publish",
@@ -12244,6 +12674,13 @@
             "type": "cache"
           },
           {
+            "details": [
+              {
+                "id": "related-flows",
+                "label": "Related flow pages",
+                "value": "async.delayed"
+              }
+            ],
             "id": "scheduled",
             "subtitle": "async.delayed later dispatches; no worker slot consumed now",
             "title": "Return SCHEDULED acceptance receipt",
@@ -12262,7 +12699,13 @@
             "type": "terminal"
           },
           {
-            "id": "uncertain",
+            "id": "uncertain-schedule",
+            "subtitle": "Caller reconciles; retry same ID, never invent second logical task",
+            "title": "Return failed or uncertain acceptance with task ID",
+            "type": "error"
+          },
+          {
+            "id": "uncertain-publish",
             "subtitle": "Caller reconciles; retry same ID, never invent second logical task",
             "title": "Return failed or uncertain acceptance with task ID",
             "type": "error"
@@ -12337,14 +12780,14 @@
             "id": "publish-to-backend-failed",
             "label": "Operation fails",
             "style": "error",
-            "to": "backend-failed"
+            "to": "backend-failed-publish"
           },
           {
             "from": "mark",
             "id": "mark-to-backend-failed",
             "label": "Operation fails",
             "style": "error",
-            "to": "backend-failed"
+            "to": "backend-failed-mark"
           }
         ],
         "id": "async.outbox",
@@ -12401,7 +12844,13 @@
             "type": "terminal"
           },
           {
-            "id": "backend-failed",
+            "id": "backend-failed-publish",
+            "subtitle": "Business commit is not undone by broker failure; never mark unpublished intent delivered",
+            "title": "Keep committed intent pending for recovery",
+            "type": "error"
+          },
+          {
+            "id": "backend-failed-mark",
             "subtitle": "Business commit is not undone by broker failure; never mark unpublished intent delivered",
             "title": "Keep committed intent pending for recovery",
             "type": "error"
@@ -12456,7 +12905,7 @@
             "id": "edge-5",
             "label": "Quarantine failed",
             "style": "error",
-            "to": "storefail"
+            "to": "storefail-poison"
           },
           {
             "from": "known",
@@ -12475,7 +12924,7 @@
             "id": "edge-8",
             "label": "Store unavailable",
             "style": "error",
-            "to": "storefail"
+            "to": "storefail-claim"
           },
           {
             "from": "state",
@@ -12520,7 +12969,7 @@
             "id": "edge-15",
             "label": "Persistence failed",
             "style": "error",
-            "to": "storefail"
+            "to": "storefail-stop"
           },
           {
             "from": "run",
@@ -12550,7 +12999,7 @@
             "id": "edge-20",
             "label": "Store/fence failure",
             "style": "error",
-            "to": "storefail"
+            "to": "storefail-result"
           },
           {
             "from": "retry",
@@ -12563,7 +13012,7 @@
             "id": "edge-22",
             "label": "No durable policy",
             "style": "error",
-            "to": "storefail"
+            "to": "storefail-retry"
           },
           {
             "from": "ack",
@@ -12576,7 +13025,7 @@
             "id": "edge-24",
             "label": "Ack failed; result still durable",
             "style": "error",
-            "to": "storefail"
+            "to": "storefail-ack"
           }
         ],
         "id": "async.worker",
@@ -12657,6 +13106,13 @@
             "type": "cache"
           },
           {
+            "details": [
+              {
+                "id": "related-flows",
+                "label": "Related flow pages",
+                "value": "async.retry"
+              }
+            ],
             "id": "retry",
             "subtitle": "async.retry; only returns durable=true after state+intent is persisted",
             "title": "Run retry or terminal policy",
@@ -12675,7 +13131,37 @@
             "type": "terminal"
           },
           {
-            "id": "storefail",
+            "id": "storefail-poison",
+            "subtitle": "No terminal success claim; recovery may repeat external effects",
+            "title": "Leave delivery pending; report unavailable/lease loss",
+            "type": "error"
+          },
+          {
+            "id": "storefail-claim",
+            "subtitle": "No terminal success claim; recovery may repeat external effects",
+            "title": "Leave delivery pending; report unavailable/lease loss",
+            "type": "error"
+          },
+          {
+            "id": "storefail-stop",
+            "subtitle": "No terminal success claim; recovery may repeat external effects",
+            "title": "Leave delivery pending; report unavailable/lease loss",
+            "type": "error"
+          },
+          {
+            "id": "storefail-result",
+            "subtitle": "No terminal success claim; recovery may repeat external effects",
+            "title": "Leave delivery pending; report unavailable/lease loss",
+            "type": "error"
+          },
+          {
+            "id": "storefail-retry",
+            "subtitle": "No terminal success claim; recovery may repeat external effects",
+            "title": "Leave delivery pending; report unavailable/lease loss",
+            "type": "error"
+          },
+          {
+            "id": "storefail-ack",
             "subtitle": "No terminal success claim; recovery may repeat external effects",
             "title": "Leave delivery pending; report unavailable/lease loss",
             "type": "error"
@@ -12758,7 +13244,7 @@
             "id": "edge-9",
             "label": "Write/fence failed",
             "style": "error",
-            "to": "error"
+            "to": "error-intent"
           },
           {
             "from": "terminal",
@@ -12771,7 +13257,7 @@
             "id": "edge-11",
             "label": "Write/fence failed",
             "style": "error",
-            "to": "error"
+            "to": "error-terminal"
           }
         ],
         "id": "async.retry",
@@ -12816,6 +13302,13 @@
             "type": "cache"
           },
           {
+            "details": [
+              {
+                "id": "related-flows",
+                "label": "Related flow pages",
+                "value": "async.intent-relay"
+              }
+            ],
             "id": "retrydone",
             "subtitle": "Worker may ack old delivery; async.intent-relay handles later publication",
             "title": "Tell worker durable retry is recorded",
@@ -12834,7 +13327,13 @@
             "type": "terminal"
           },
           {
-            "id": "error",
+            "id": "error-intent",
+            "subtitle": "Worker leaves source delivery pending; stale fence may no longer write",
+            "title": "Return no durable outcome",
+            "type": "error"
+          },
+          {
+            "id": "error-terminal",
             "subtitle": "Worker leaves source delivery pending; stale fence may no longer write",
             "title": "Return no durable outcome",
             "type": "error"
@@ -12917,14 +13416,14 @@
             "id": "state-to-backend-failed",
             "label": "Operation fails",
             "style": "error",
-            "to": "backend-failed"
+            "to": "backend-failed-state"
           },
           {
             "from": "claim",
             "id": "claim-to-backend-failed",
             "label": "Operation fails",
             "style": "error",
-            "to": "backend-failed"
+            "to": "backend-failed-claim"
           }
         ],
         "id": "async.reclaim",
@@ -12987,7 +13486,13 @@
             "type": "terminal"
           },
           {
-            "id": "backend-failed",
+            "id": "backend-failed-state",
+            "subtitle": "Never ACK or rerun blindly when task state is unavailable",
+            "title": "Pause recovery and retain pending delivery",
+            "type": "error"
+          },
+          {
+            "id": "backend-failed-claim",
             "subtitle": "Never ACK or rerun blindly when task state is unavailable",
             "title": "Pause recovery and retain pending delivery",
             "type": "error"
@@ -13197,14 +13702,14 @@
             "id": "read-to-backend-failed",
             "label": "Operation fails",
             "style": "error",
-            "to": "backend-failed"
+            "to": "backend-failed-read"
           },
           {
             "from": "mark",
             "id": "mark-to-backend-failed",
             "label": "Operation fails",
             "style": "error",
-            "to": "backend-failed"
+            "to": "backend-failed-mark"
           }
         ],
         "id": "async.cancel",
@@ -13261,7 +13766,13 @@
             "type": "terminal"
           },
           {
-            "id": "backend-failed",
+            "id": "backend-failed-read",
+            "subtitle": "No claim that running work was canceled",
+            "title": "Return cancellation not recorded",
+            "type": "error"
+          },
+          {
+            "id": "backend-failed-mark",
             "subtitle": "No claim that running work was canceled",
             "title": "Return cancellation not recorded",
             "type": "error"
@@ -13686,7 +14197,7 @@
             "from": "dedupe",
             "id": "edge-7",
             "label": "Duplicate / wait for expected",
-            "to": "completion"
+            "to": "duplicate-wait"
           },
           {
             "from": "success",
@@ -13714,7 +14225,7 @@
           {
             "from": "next",
             "id": "edge-12",
-            "to": "dispatch"
+            "to": "next-dispatch"
           },
           {
             "from": "more",
@@ -13732,42 +14243,42 @@
             "id": "edge-15",
             "label": "Store failed",
             "style": "error",
-            "to": "error"
+            "to": "error-create"
           },
           {
             "from": "dispatch",
             "id": "edge-16",
             "label": "Publish failed",
             "style": "error",
-            "to": "error"
+            "to": "error-dispatch"
           },
           {
             "from": "dedupe",
             "id": "edge-17",
             "label": "Store failed",
             "style": "error",
-            "to": "error"
+            "to": "error-dedupe"
           },
           {
             "from": "next",
             "id": "edge-18",
             "label": "Store failed",
             "style": "error",
-            "to": "error"
+            "to": "error-next"
           },
           {
             "from": "fail",
             "id": "edge-19",
             "label": "Store failed",
             "style": "error",
-            "to": "error"
+            "to": "error-fail"
           },
           {
             "from": "finish",
             "id": "edge-20",
             "label": "Store failed",
             "style": "error",
-            "to": "error"
+            "to": "error-finish"
           }
         ],
         "id": "async.chain",
@@ -13788,6 +14299,13 @@
             "type": "cache"
           },
           {
+            "details": [
+              {
+                "id": "related-flows",
+                "label": "Related flow pages",
+                "value": "async.intent-relay"
+              }
+            ],
             "id": "dispatch",
             "subtitle": "Use committed intent only; async.intent-relay retries same child identity",
             "title": "Relay next child to queue",
@@ -13842,7 +14360,56 @@
             "type": "terminal"
           },
           {
-            "id": "error",
+            "id": "duplicate-wait",
+            "subtitle": "Duplicate does not advance chain; next durable completion resumes at Receive child's durable terminal completion",
+            "title": "Keep waiting for the expected child completion",
+            "type": "terminal"
+          },
+          {
+            "details": [
+              {
+                "id": "related-flows",
+                "label": "Related flow pages",
+                "value": "async.intent-relay"
+              }
+            ],
+            "id": "next-dispatch",
+            "subtitle": "async.intent-relay publishes stable next task ID; its terminal event resumes this page at Receive child's durable terminal completion",
+            "title": "Relay persisted next-child intent",
+            "type": "job"
+          },
+          {
+            "id": "error-create",
+            "subtitle": "No missing child is treated as successful",
+            "title": "Preserve state and pending intents for repair",
+            "type": "error"
+          },
+          {
+            "id": "error-dispatch",
+            "subtitle": "No missing child is treated as successful",
+            "title": "Preserve state and pending intents for repair",
+            "type": "error"
+          },
+          {
+            "id": "error-dedupe",
+            "subtitle": "No missing child is treated as successful",
+            "title": "Preserve state and pending intents for repair",
+            "type": "error"
+          },
+          {
+            "id": "error-next",
+            "subtitle": "No missing child is treated as successful",
+            "title": "Preserve state and pending intents for repair",
+            "type": "error"
+          },
+          {
+            "id": "error-fail",
+            "subtitle": "No missing child is treated as successful",
+            "title": "Preserve state and pending intents for repair",
+            "type": "error"
+          },
+          {
+            "id": "error-finish",
             "subtitle": "No missing child is treated as successful",
             "title": "Preserve state and pending intents for repair",
             "type": "error"
@@ -13917,7 +14484,7 @@
             "from": "all",
             "id": "edge-8",
             "label": "Still waiting",
-            "to": "completion"
+            "to": "wait-more"
           },
           {
             "from": "all",
@@ -13935,28 +14502,28 @@
             "id": "edge-11",
             "label": "Store failed",
             "style": "error",
-            "to": "error"
+            "to": "error-register"
           },
           {
             "from": "fanout",
             "id": "edge-12",
             "label": "Partial publish failure",
             "style": "error",
-            "to": "error"
+            "to": "error-fanout"
           },
           {
             "from": "record",
             "id": "edge-13",
             "label": "Store failed",
             "style": "error",
-            "to": "error"
+            "to": "error-record"
           },
           {
             "from": "finish",
             "id": "edge-14",
             "label": "Store failed",
             "style": "error",
-            "to": "error"
+            "to": "error-finish"
           }
         ],
         "id": "async.group",
@@ -14019,7 +14586,31 @@
             "type": "terminal"
           },
           {
-            "id": "error",
+            "id": "wait-more",
+            "subtitle": "Next event resumes at Receive durable terminal member completion; active group state retained until all expected IDs settle",
+            "title": "Await another terminal child event",
+            "type": "terminal"
+          },
+          {
+            "id": "error-register",
+            "subtitle": "Do not lose partially dispatched children or fabricate completion",
+            "title": "Retain member state and pending intents for repair",
+            "type": "error"
+          },
+          {
+            "id": "error-fanout",
+            "subtitle": "Do not lose partially dispatched children or fabricate completion",
+            "title": "Retain member state and pending intents for repair",
+            "type": "error"
+          },
+          {
+            "id": "error-record",
+            "subtitle": "Do not lose partially dispatched children or fabricate completion",
+            "title": "Retain member state and pending intents for repair",
+            "type": "error"
+          },
+          {
+            "id": "error-finish",
             "subtitle": "Do not lose partially dispatched children or fabricate completion",
             "title": "Retain member state and pending intents for repair",
             "type": "error"
@@ -14128,49 +14719,49 @@
             "id": "edge-15",
             "label": "Backend failure",
             "style": "error",
-            "to": "error"
+            "to": "error-record"
           },
           {
             "from": "intent",
             "id": "edge-16",
             "label": "Backend failure",
             "style": "error",
-            "to": "error"
+            "to": "error-intent"
           },
           {
             "from": "relay",
             "id": "edge-17",
             "label": "Retryable publish failure",
             "style": "error",
-            "to": "error"
+            "to": "error-relay"
           },
           {
             "from": "register",
             "id": "failure-register",
             "label": "Persistence / dispatch failed",
             "style": "error",
-            "to": "error"
+            "to": "error-register"
           },
           {
             "from": "dispatch",
             "id": "failure-dispatch",
             "label": "Persistence / dispatch failed",
             "style": "error",
-            "to": "error"
+            "to": "error-dispatch"
           },
           {
             "from": "fail",
             "id": "failure-fail",
             "label": "Persistence / dispatch failed",
             "style": "error",
-            "to": "error"
+            "to": "error-fail"
           },
           {
             "from": "final",
             "id": "failure-final",
             "label": "Persistence / dispatch failed",
             "style": "error",
-            "to": "error"
+            "to": "error-final"
           }
         ],
         "id": "async.chord",
@@ -14263,7 +14854,43 @@
             "type": "terminal"
           },
           {
-            "id": "error",
+            "id": "error-record",
+            "subtitle": "Store failure cannot be interpreted as completed barrier",
+            "title": "Keep durable workflow state for repair",
+            "type": "error"
+          },
+          {
+            "id": "error-intent",
+            "subtitle": "Store failure cannot be interpreted as completed barrier",
+            "title": "Keep durable workflow state for repair",
+            "type": "error"
+          },
+          {
+            "id": "error-relay",
+            "subtitle": "Store failure cannot be interpreted as completed barrier",
+            "title": "Keep durable workflow state for repair",
+            "type": "error"
+          },
+          {
+            "id": "error-register",
+            "subtitle": "Store failure cannot be interpreted as completed barrier",
+            "title": "Keep durable workflow state for repair",
+            "type": "error"
+          },
+          {
+            "id": "error-dispatch",
+            "subtitle": "Store failure cannot be interpreted as completed barrier",
+            "title": "Keep durable workflow state for repair",
+            "type": "error"
+          },
+          {
+            "id": "error-fail",
+            "subtitle": "Store failure cannot be interpreted as completed barrier",
+            "title": "Keep durable workflow state for repair",
+            "type": "error"
+          },
+          {
+            "id": "error-final",
             "subtitle": "Store failure cannot be interpreted as completed barrier",
             "title": "Keep durable workflow state for repair",
             "type": "error"
@@ -14454,14 +15081,14 @@
             "id": "intent-to-backend-failed",
             "label": "Operation fails",
             "style": "error",
-            "to": "backend-failed"
+            "to": "backend-failed-intent"
           },
           {
             "from": "publish",
             "id": "publish-to-backend-failed",
             "label": "Operation fails",
             "style": "error",
-            "to": "backend-failed"
+            "to": "backend-failed-publish"
           }
         ],
         "id": "async.callbacks",
@@ -14512,7 +15139,13 @@
             "type": "terminal"
           },
           {
-            "id": "backend-failed",
+            "id": "backend-failed-intent",
+            "subtitle": "Reconciler retries; original terminal state remains authoritative",
+            "title": "Retain undispatched callback intent",
+            "type": "error"
+          },
+          {
+            "id": "backend-failed-publish",
             "subtitle": "Reconciler retries; original terminal state remains authoritative",
             "title": "Retain undispatched callback intent",
             "type": "error"
@@ -14588,21 +15221,21 @@
             "id": "lease-to-backend-failed",
             "label": "Operation fails",
             "style": "error",
-            "to": "backend-failed"
+            "to": "backend-failed-lease"
           },
           {
             "from": "claim",
             "id": "claim-to-backend-failed",
             "label": "Operation fails",
             "style": "error",
-            "to": "backend-failed"
+            "to": "backend-failed-claim"
           },
           {
             "from": "relay",
             "id": "relay-to-backend-failed",
             "label": "Operation fails",
             "style": "error",
-            "to": "backend-failed"
+            "to": "backend-failed-relay"
           }
         ],
         "id": "async.beat",
@@ -14659,7 +15292,19 @@
             "type": "terminal"
           },
           {
-            "id": "backend-failed",
+            "id": "backend-failed-lease",
+            "subtitle": "No duplicate new occurrence identity on retry",
+            "title": "Stop claiming and preserve pending occurrence",
+            "type": "error"
+          },
+          {
+            "id": "backend-failed-claim",
+            "subtitle": "No duplicate new occurrence identity on retry",
+            "title": "Stop claiming and preserve pending occurrence",
+            "type": "error"
+          },
+          {
+            "id": "backend-failed-relay",
             "subtitle": "No duplicate new occurrence identity on retry",
             "title": "Stop claiming and preserve pending occurrence",
             "type": "error"
@@ -14736,28 +15381,28 @@
             "id": "edge-8",
             "label": "Claim failed",
             "style": "error",
-            "to": "error"
+            "to": "error-claim"
           },
           {
             "from": "terminal",
             "id": "edge-9",
             "label": "Terminal write failed",
             "style": "error",
-            "to": "error"
+            "to": "error-terminal"
           },
           {
             "from": "publish",
             "id": "edge-10",
             "label": "Publish uncertain/failed",
             "style": "error",
-            "to": "error"
+            "to": "error-publish"
           },
           {
             "from": "mark",
             "id": "edge-11",
             "label": "Mark failed",
             "style": "error",
-            "to": "error"
+            "to": "error-mark"
           }
         ],
         "id": "async.delayed",
@@ -14808,7 +15453,25 @@
             "type": "terminal"
           },
           {
-            "id": "error",
+            "id": "error-claim",
+            "subtitle": "Lease expires; next scheduler retries/reconciles; no eager deletion",
+            "title": "Retain due item or pending intent",
+            "type": "error"
+          },
+          {
+            "id": "error-terminal",
+            "subtitle": "Lease expires; next scheduler retries/reconciles; no eager deletion",
+            "title": "Retain due item or pending intent",
+            "type": "error"
+          },
+          {
+            "id": "error-publish",
+            "subtitle": "Lease expires; next scheduler retries/reconciles; no eager deletion",
+            "title": "Retain due item or pending intent",
+            "type": "error"
+          },
+          {
+            "id": "error-mark",
             "subtitle": "Lease expires; next scheduler retries/reconciles; no eager deletion",
             "title": "Retain due item or pending intent",
             "type": "error"
@@ -14993,14 +15656,14 @@
             "id": "open-to-backend-failed",
             "label": "Operation fails",
             "style": "error",
-            "to": "backend-failed"
+            "to": "backend-failed-open"
           },
           {
             "from": "capabilities",
             "id": "capabilities-to-backend-failed",
             "label": "Operation fails",
             "style": "error",
-            "to": "backend-failed"
+            "to": "backend-failed-capabilities"
           }
         ],
         "id": "postgres.connect",
@@ -15057,7 +15720,13 @@
             "type": "terminal"
           },
           {
-            "id": "backend-failed",
+            "id": "backend-failed-open",
+            "subtitle": "Bounded reconnect only; no silently selected alternate database",
+            "title": "Close partial connection and report unavailable",
+            "type": "error"
+          },
+          {
+            "id": "backend-failed-capabilities",
             "subtitle": "Bounded reconnect only; no silently selected alternate database",
             "title": "Close partial connection and report unavailable",
             "type": "error"
@@ -15236,14 +15905,14 @@
             "id": "ddl-to-backend-failed",
             "label": "Operation fails",
             "style": "error",
-            "to": "backend-failed"
+            "to": "backend-failed-ddl"
           },
           {
             "from": "inspect",
             "id": "inspect-to-backend-failed",
             "label": "Operation fails",
             "style": "error",
-            "to": "backend-failed"
+            "to": "backend-failed-inspect"
           }
         ],
         "id": "postgres.schema",
@@ -15294,7 +15963,13 @@
             "type": "terminal"
           },
           {
-            "id": "backend-failed",
+            "id": "backend-failed-ddl",
+            "subtitle": "Rollback transactional DDL; concurrent operation may need inspect/resume",
+            "title": "Report exact DDL failure and state",
+            "type": "error"
+          },
+          {
+            "id": "backend-failed-inspect",
             "subtitle": "Rollback transactional DDL; concurrent operation may need inspect/resume",
             "title": "Report exact DDL failure and state",
             "type": "error"
@@ -15365,14 +16040,14 @@
             "id": "query-to-backend-failed",
             "label": "Operation fails",
             "style": "error",
-            "to": "backend-failed"
+            "to": "backend-failed-query"
           },
           {
             "from": "decode",
             "id": "decode-to-backend-failed",
             "label": "Operation fails",
             "style": "error",
-            "to": "backend-failed"
+            "to": "backend-failed-decode"
           }
         ],
         "id": "postgres.extensions",
@@ -15423,7 +16098,13 @@
             "type": "terminal"
           },
           {
-            "id": "backend-failed",
+            "id": "backend-failed-query",
+            "subtitle": "No fallback that changes comparison or index semantics",
+            "title": "Return extension query error",
+            "type": "error"
+          },
+          {
+            "id": "backend-failed-decode",
             "subtitle": "No fallback that changes comparison or index semantics",
             "title": "Return extension query error",
             "type": "error"
@@ -15968,14 +16649,14 @@
             "id": "sync-to-backend-failed",
             "label": "Operation fails",
             "style": "error",
-            "to": "backend-failed"
+            "to": "backend-failed-sync"
           },
           {
             "from": "load",
             "id": "load-to-backend-failed",
             "label": "Operation fails",
             "style": "error",
-            "to": "backend-failed"
+            "to": "backend-failed-load"
           }
         ],
         "id": "contrib.contenttypes",
@@ -16026,7 +16707,13 @@
             "type": "terminal"
           },
           {
-            "id": "backend-failed",
+            "id": "backend-failed-sync",
+            "subtitle": "Do not reuse a mismatched stale type identity",
+            "title": "Return content-type persistence/query error",
+            "type": "error"
+          },
+          {
+            "id": "backend-failed-load",
             "subtitle": "Do not reuse a mismatched stale type identity",
             "title": "Return content-type persistence/query error",
             "type": "error"
@@ -16435,14 +17122,14 @@
             "id": "items-to-backend-failed",
             "label": "Operation fails",
             "style": "error",
-            "to": "backend-failed"
+            "to": "backend-failed-items"
           },
           {
             "from": "serialize",
             "id": "serialize-to-backend-failed",
             "label": "Operation fails",
             "style": "error",
-            "to": "backend-failed"
+            "to": "backend-failed-serialize"
           }
         ],
         "id": "contrib.sitemap",
@@ -16487,7 +17174,13 @@
             "type": "terminal"
           },
           {
-            "id": "backend-failed",
+            "id": "backend-failed-items",
+            "subtitle": "Do not publish truncated XML as a complete sitemap",
+            "title": "Return sitemap generation error",
+            "type": "error"
+          },
+          {
+            "id": "backend-failed-serialize",
             "subtitle": "Do not publish truncated XML as a complete sitemap",
             "title": "Return sitemap generation error",
             "type": "error"
@@ -16545,14 +17238,14 @@
             "id": "items-to-backend-failed",
             "label": "Operation fails",
             "style": "error",
-            "to": "backend-failed"
+            "to": "backend-failed-items"
           },
           {
             "from": "format",
             "id": "format-to-backend-failed",
             "label": "Operation fails",
             "style": "error",
-            "to": "backend-failed"
+            "to": "backend-failed-format"
           }
         ],
         "id": "contrib.feeds",
@@ -16591,7 +17284,13 @@
             "type": "terminal"
           },
           {
-            "id": "backend-failed",
+            "id": "backend-failed-items",
+            "subtitle": "No partial malformed feed published",
+            "title": "Return feed generation error",
+            "type": "error"
+          },
+          {
+            "id": "backend-failed-format",
             "subtitle": "No partial malformed feed published",
             "title": "Return feed generation error",
             "type": "error"
@@ -16746,14 +17445,14 @@
             "id": "query-to-backend-failed",
             "label": "Operation fails",
             "style": "error",
-            "to": "backend-failed"
+            "to": "backend-failed-query"
           },
           {
             "from": "decode",
             "id": "decode-to-backend-failed",
             "label": "Operation fails",
             "style": "error",
-            "to": "backend-failed"
+            "to": "backend-failed-decode"
           }
         ],
         "id": "contrib.gis-query",
@@ -16804,7 +17503,13 @@
             "type": "terminal"
           },
           {
-            "id": "backend-failed",
+            "id": "backend-failed-query",
+            "subtitle": "No silent SRID conversion or dimension loss",
+            "title": "Return spatial validation/execution failure",
+            "type": "error"
+          },
+          {
+            "id": "backend-failed-decode",
             "subtitle": "No silent SRID conversion or dimension loss",
             "title": "Return spatial validation/execution failure",
             "type": "error"
@@ -16945,7 +17650,7 @@
           {
             "id": "owner",
             "label": "Proposed code owner",
-            "value": "core/contrib/admindocs; admin"
+            "value": "admin/admindocs"
           },
           {
             "id": "status",
@@ -17100,14 +17805,14 @@
             "id": "database-to-backend-failed",
             "label": "Operation fails",
             "style": "error",
-            "to": "backend-failed"
+            "to": "backend-failed-database"
           },
           {
             "from": "redis",
             "id": "redis-to-backend-failed",
             "label": "Operation fails",
             "style": "error",
-            "to": "backend-failed"
+            "to": "backend-failed-redis"
           }
         ],
         "id": "testing.suite",
@@ -17164,7 +17869,13 @@
             "type": "terminal"
           },
           {
-            "id": "backend-failed",
+            "id": "backend-failed-database",
+            "subtitle": "No fallback from real integration test to mock",
+            "title": "Abort setup and report unavailable dependency",
+            "type": "error"
+          },
+          {
+            "id": "backend-failed-redis",
             "subtitle": "No fallback from real integration test to mock",
             "title": "Abort setup and report unavailable dependency",
             "type": "error"
@@ -17199,44 +17910,73 @@
         "edges": [
           {
             "from": "entry",
-            "id": "entry-to-role",
-            "to": "role"
+            "id": "edge-1",
+            "to": "kind"
           },
           {
-            "from": "role",
-            "id": "role-to-live",
+            "from": "kind",
+            "id": "edge-2",
+            "label": "Liveness",
             "to": "live"
           },
           {
             "from": "live",
-            "id": "live-to-live-rejected",
-            "label": "No",
-            "style": "error",
-            "to": "live-rejected"
+            "id": "edge-3",
+            "label": "Responsive",
+            "to": "alive"
           },
           {
             "from": "live",
-            "id": "live-to-dependencies",
-            "label": "Yes",
-            "to": "dependencies"
+            "id": "edge-4",
+            "label": "Fatal/unresponsive",
+            "to": "dead"
           },
           {
-            "from": "dependencies",
-            "id": "dependencies-to-ready",
+            "from": "kind",
+            "id": "edge-5",
+            "label": "Startup",
+            "to": "started"
+          },
+          {
+            "from": "started",
+            "id": "edge-6",
+            "label": "Finished",
+            "to": "startup"
+          },
+          {
+            "from": "started",
+            "id": "edge-7",
+            "label": "Incomplete/failed",
+            "to": "notstarted"
+          },
+          {
+            "from": "kind",
+            "id": "edge-8",
+            "label": "Readiness",
+            "to": "role"
+          },
+          {
+            "from": "role",
+            "id": "edge-9",
+            "to": "probe"
+          },
+          {
+            "from": "probe",
+            "id": "edge-10",
+            "label": "Collect success/failure/timeout",
             "to": "ready"
           },
           {
             "from": "ready",
-            "id": "ready-to-ready-rejected",
-            "label": "No",
-            "style": "error",
-            "to": "ready-rejected"
+            "id": "edge-11",
+            "label": "All required ready",
+            "to": "yes"
           },
           {
             "from": "ready",
-            "id": "ready-to-done",
-            "label": "Yes",
-            "to": "done"
+            "id": "edge-12",
+            "label": "Failure/draining",
+            "to": "no"
           }
         ],
         "id": "operations.health",
@@ -17246,55 +17986,85 @@
         "nodes": [
           {
             "id": "entry",
-            "subtitle": "Minimal public payload; detailed diagnostics restricted",
-            "title": "Probe /health/live, /health/ready or /health/startup",
+            "subtitle": "/health/live; /health/startup; /health/ready",
+            "title": "Probe process health",
             "type": "api"
           },
           {
-            "id": "role",
-            "subtitle": "Web does not require worker-only dependencies; graceful shutdown marks unready",
-            "title": "Select checks for current process role",
-            "type": "action"
-          },
-          {
-            "id": "live",
-            "subtitle": "Liveness does not fail merely because DB briefly unavailable",
-            "title": "Process responsive and not fatally failed?",
+            "id": "kind",
+            "subtitle": "Public payload minimal; detailed diagnostics access-controlled",
+            "title": "Which probe was requested?",
             "type": "decision"
           },
           {
-            "id": "live-rejected",
-            "subtitle": "Orchestrator may restart process",
-            "title": "Return liveness failure",
+            "id": "live",
+            "subtitle": "Database outage alone is not process death",
+            "title": "Event loop responds without fatal runtime failure?",
+            "type": "decision"
+          },
+          {
+            "id": "alive",
+            "subtitle": "No DB or Redis probe performed for liveness",
+            "title": "Return 200 live",
+            "type": "terminal"
+          },
+          {
+            "id": "dead",
+            "subtitle": "Orchestrator may restart failed process",
+            "title": "Return failed liveness",
             "type": "error"
           },
           {
-            "id": "dependencies",
-            "subtitle": "Bounded PostgreSQL/Redis checks for readiness; cached results avoid probe storms",
-            "title": "Probe required dependencies within deadline",
+            "id": "started",
+            "subtitle": "Resources/hooks/checks required for selected role completed",
+            "title": "Registry initialization finished successfully?",
+            "type": "decision"
+          },
+          {
+            "id": "startup",
+            "subtitle": "Startup does not claim ongoing dependency availability",
+            "title": "Return 200 startup complete",
+            "type": "terminal"
+          },
+          {
+            "id": "notstarted",
+            "subtitle": "Expose only safe status and correlation ID",
+            "title": "Return 503 starting/failed",
+            "type": "error"
+          },
+          {
+            "id": "role",
+            "subtitle": "Web does not require worker-only Redis roles; shutdown immediately unready",
+            "title": "Select required dependency and drain checks",
+            "type": "action"
+          },
+          {
+            "id": "probe",
+            "subtitle": "Success/failure/timeouts collected into a result; small cache prevents probe storm",
+            "title": "Perform bounded required PostgreSQL/Redis probes",
             "type": "external"
           },
           {
             "id": "ready",
-            "subtitle": "Optional cache failure follows configured degraded policy",
-            "title": "Initialization complete and required resources available?",
+            "subtitle": "Optional cache can be degraded only by configured bypass policy",
+            "title": "Required checks pass and process not draining?",
             "type": "decision"
           },
           {
-            "id": "ready-rejected",
-            "subtitle": "No credential/host details exposed",
-            "title": "Return 503 not ready",
-            "type": "error"
+            "id": "yes",
+            "subtitle": "Safe role readiness status",
+            "title": "Return 200 ready",
+            "type": "terminal"
           },
           {
-            "id": "done",
-            "subtitle": "Readiness and startup never run migrations or mutate data",
-            "title": "Return healthy role status",
-            "type": "terminal"
+            "id": "no",
+            "subtitle": "Do not return DSN, hostnames, credentials or detailed failure publicly",
+            "title": "Return 503 not ready",
+            "type": "error"
           }
         ],
         "schemaVersion": 3,
-        "summary": "Proposed behavior. Owned by core/health; select nodes for technical details.",
+        "summary": "Proposed behavior. Liveness never hits external dependencies. Startup, readiness and graceful-drain state answer different questions and have separate branches.",
         "title": "Report startup, readiness and liveness independently",
         "type": "flow"
       }
@@ -17871,14 +18641,14 @@
             "id": "verify-to-backend-failed",
             "label": "Operation fails",
             "style": "error",
-            "to": "backend-failed"
+            "to": "backend-failed-verify"
           },
           {
             "from": "ready",
             "id": "ready-to-backend-failed",
             "label": "Operation fails",
             "style": "error",
-            "to": "backend-failed"
+            "to": "backend-failed-ready"
           }
         ],
         "id": "files.direct",
@@ -17953,7 +18723,13 @@
             "type": "terminal"
           },
           {
-            "id": "backend-failed",
+            "id": "backend-failed-verify",
+            "subtitle": "Provider/DB mismatch creates cleanup work, not a ready file",
+            "title": "Retain pending intent for reconciliation",
+            "type": "error"
+          },
+          {
+            "id": "backend-failed-ready",
             "subtitle": "Provider/DB mismatch creates cleanup work, not a ready file",
             "title": "Retain pending intent for reconciliation",
             "type": "error"
@@ -18034,28 +18810,28 @@
             "id": "lock-to-backend-failed",
             "label": "Operation fails",
             "style": "error",
-            "to": "backend-failed"
+            "to": "backend-failed-lock"
           },
           {
             "from": "validate",
             "id": "validate-to-backend-failed",
             "label": "Operation fails",
             "style": "error",
-            "to": "backend-failed"
+            "to": "backend-failed-validate"
           },
           {
             "from": "change",
             "id": "change-to-backend-failed",
             "label": "Operation fails",
             "style": "error",
-            "to": "backend-failed"
+            "to": "backend-failed-change"
           },
           {
             "from": "commit",
             "id": "commit-to-backend-failed",
             "label": "Operation fails",
             "style": "error",
-            "to": "backend-failed"
+            "to": "backend-failed-commit"
           }
         ],
         "id": "auth.password-reset-confirm",
@@ -18118,7 +18894,25 @@
             "type": "terminal"
           },
           {
-            "id": "backend-failed",
+            "id": "backend-failed-lock",
+            "subtitle": "Unknown commit requires token/account reconciliation; do not assume token still valid",
+            "title": "Rollback or report uncertain outcome safely",
+            "type": "error"
+          },
+          {
+            "id": "backend-failed-validate",
+            "subtitle": "Unknown commit requires token/account reconciliation; do not assume token still valid",
+            "title": "Rollback or report uncertain outcome safely",
+            "type": "error"
+          },
+          {
+            "id": "backend-failed-change",
+            "subtitle": "Unknown commit requires token/account reconciliation; do not assume token still valid",
+            "title": "Rollback or report uncertain outcome safely",
+            "type": "error"
+          },
+          {
+            "id": "backend-failed-commit",
             "subtitle": "Unknown commit requires token/account reconciliation; do not assume token still valid",
             "title": "Rollback or report uncertain outcome safely",
             "type": "error"
@@ -18211,28 +19005,28 @@
             "id": "lock-to-backend-failed",
             "label": "Operation fails",
             "style": "error",
-            "to": "backend-failed"
+            "to": "backend-failed-lock"
           },
           {
             "from": "mutate",
             "id": "mutate-to-backend-failed",
             "label": "Operation fails",
             "style": "error",
-            "to": "backend-failed"
+            "to": "backend-failed-mutate"
           },
           {
             "from": "commit",
             "id": "commit-to-backend-failed",
             "label": "Operation fails",
             "style": "error",
-            "to": "backend-failed"
+            "to": "backend-failed-commit"
           },
           {
             "from": "session",
             "id": "session-to-backend-failed",
             "label": "Operation fails",
             "style": "error",
-            "to": "backend-failed"
+            "to": "backend-failed-session"
           }
         ],
         "id": "auth.password-change",
@@ -18307,7 +19101,25 @@
             "type": "terminal"
           },
           {
-            "id": "backend-failed",
+            "id": "backend-failed-lock",
+            "subtitle": "Rollback active DB boundary; after DB commit report session refresh failure separately",
+            "title": "Return accurate mutation/session outcome",
+            "type": "error"
+          },
+          {
+            "id": "backend-failed-mutate",
+            "subtitle": "Rollback active DB boundary; after DB commit report session refresh failure separately",
+            "title": "Return accurate mutation/session outcome",
+            "type": "error"
+          },
+          {
+            "id": "backend-failed-commit",
+            "subtitle": "Rollback active DB boundary; after DB commit report session refresh failure separately",
+            "title": "Return accurate mutation/session outcome",
+            "type": "error"
+          },
+          {
+            "id": "backend-failed-session",
             "subtitle": "Rollback active DB boundary; after DB commit report session refresh failure separately",
             "title": "Return accurate mutation/session outcome",
             "type": "error"
@@ -18388,28 +19200,28 @@
             "id": "locate-to-backend-failed",
             "label": "Operation fails",
             "style": "error",
-            "to": "backend-failed"
+            "to": "backend-failed-locate"
           },
           {
             "from": "claim",
             "id": "claim-to-backend-failed",
             "label": "Operation fails",
             "style": "error",
-            "to": "backend-failed"
+            "to": "backend-failed-claim"
           },
           {
             "from": "deliver",
             "id": "deliver-to-backend-failed",
             "label": "Operation fails",
             "style": "error",
-            "to": "backend-failed"
+            "to": "backend-failed-deliver"
           },
           {
             "from": "mark",
             "id": "mark-to-backend-failed",
             "label": "Operation fails",
             "style": "error",
-            "to": "backend-failed"
+            "to": "backend-failed-mark"
           }
         ],
         "id": "async.intent-relay",
@@ -18425,7 +19237,7 @@
           },
           {
             "id": "locate",
-            "subtitle": "Configured shard inventory or explicit registered partition index; repair scanner recovers index lag",
+            "subtitle": "Poll 64 fixed per-family pending-intent indexes; transition and index addition share one Redis slot/script",
             "title": "Read durable partition manifest",
             "type": "action"
           },
@@ -18472,7 +19284,25 @@
             "type": "terminal"
           },
           {
-            "id": "backend-failed",
+            "id": "backend-failed-locate",
+            "subtitle": "No target availability means no source deletion; process restarts discover pending work",
+            "title": "Retain durable source intent for recovery",
+            "type": "error"
+          },
+          {
+            "id": "backend-failed-claim",
+            "subtitle": "No target availability means no source deletion; process restarts discover pending work",
+            "title": "Retain durable source intent for recovery",
+            "type": "error"
+          },
+          {
+            "id": "backend-failed-deliver",
+            "subtitle": "No target availability means no source deletion; process restarts discover pending work",
+            "title": "Retain durable source intent for recovery",
+            "type": "error"
+          },
+          {
+            "id": "backend-failed-mark",
             "subtitle": "No target availability means no source deletion; process restarts discover pending work",
             "title": "Retain durable source intent for recovery",
             "type": "error"
@@ -18481,6 +19311,999 @@
         "schemaVersion": 3,
         "summary": "Proposed behavior. Owned by async.IntentRelay; async/redis; select nodes for technical details.",
         "title": "Relay durable task and workflow intents across stores",
+        "type": "flow"
+      }
+    },
+    {
+      "op": "upsert-page",
+      "page": {
+        "details": [
+          {
+            "id": "owner",
+            "label": "Proposed code owner",
+            "value": "core/api.Idempotency; core/db"
+          },
+          {
+            "id": "status",
+            "label": "Implementation status",
+            "value": "No Go implementation exists. Names, limits and behavior are submitted design choices requiring review."
+          },
+          {
+            "id": "features",
+            "label": "Included features",
+            "value": "idempotency keys; concurrent requests; response replay; uncertain commits; retention"
+          }
+        ],
+        "edges": [
+          {
+            "from": "entry",
+            "id": "entry-to-identity",
+            "to": "identity"
+          },
+          {
+            "from": "identity",
+            "id": "identity-to-claim",
+            "to": "claim"
+          },
+          {
+            "from": "claim",
+            "id": "claim-to-same",
+            "to": "same"
+          },
+          {
+            "from": "same",
+            "id": "same-to-same-rejected",
+            "label": "No",
+            "style": "error",
+            "to": "same-rejected"
+          },
+          {
+            "from": "same",
+            "id": "same-to-replay",
+            "label": "Yes",
+            "to": "replay"
+          },
+          {
+            "from": "replay",
+            "id": "replay-to-replay-rejected",
+            "label": "Yes",
+            "to": "replay-rejected"
+          },
+          {
+            "from": "replay",
+            "id": "replay-to-mutate",
+            "label": "No",
+            "to": "mutate"
+          },
+          {
+            "from": "mutate",
+            "id": "mutate-to-receipt",
+            "to": "receipt"
+          },
+          {
+            "from": "receipt",
+            "id": "receipt-to-commit",
+            "to": "commit"
+          },
+          {
+            "from": "commit",
+            "id": "commit-to-done",
+            "to": "done"
+          },
+          {
+            "from": "claim",
+            "id": "claim-to-backend-failed",
+            "label": "Operation fails",
+            "style": "error",
+            "to": "backend-failed-claim"
+          },
+          {
+            "from": "mutate",
+            "id": "mutate-to-backend-failed",
+            "label": "Operation fails",
+            "style": "error",
+            "to": "backend-failed-mutate"
+          },
+          {
+            "from": "receipt",
+            "id": "receipt-to-backend-failed",
+            "label": "Operation fails",
+            "style": "error",
+            "to": "backend-failed-receipt"
+          },
+          {
+            "from": "commit",
+            "id": "commit-to-backend-failed",
+            "label": "Operation fails",
+            "style": "error",
+            "to": "backend-failed-commit"
+          }
+        ],
+        "id": "api.idempotency",
+        "layout": {
+          "direction": "down"
+        },
+        "nodes": [
+          {
+            "id": "entry",
+            "subtitle": "Resource explicitly enables key policy; default retention 24h",
+            "title": "Receive mutation with idempotency key",
+            "type": "api"
+          },
+          {
+            "id": "identity",
+            "subtitle": "Digest principal/scope/action/key; canonical request body digest; no plaintext key logs",
+            "title": "Authenticate and derive scoped operation identity",
+            "type": "action"
+          },
+          {
+            "id": "claim",
+            "subtitle": "Unique scoped key; concurrent request waits with bounded lock deadline",
+            "title": "Insert or lock gogo_idempotency row inside mutation transaction",
+            "type": "database"
+          },
+          {
+            "id": "same",
+            "subtitle": "Different body must not reuse committed response",
+            "title": "Existing key uses same body and action?",
+            "type": "decision"
+          },
+          {
+            "id": "same-rejected",
+            "subtitle": "No mutation and no other request's response disclosed",
+            "title": "Rollback and return 409 key conflict",
+            "type": "error"
+          },
+          {
+            "id": "replay",
+            "subtitle": "Current authorization rechecked before any replay",
+            "title": "Does a committed response already exist?",
+            "type": "decision"
+          },
+          {
+            "id": "replay-rejected",
+            "subtitle": "Same status/body/allowlisted headers; current field redaction policy applied",
+            "title": "Return authorized stored response",
+            "type": "terminal"
+          },
+          {
+            "id": "mutate",
+            "subtitle": "Validate serialization before commit; audit/outbox in same transaction",
+            "title": "Run resource mutation and build sealed response",
+            "type": "database"
+          },
+          {
+            "id": "receipt",
+            "subtitle": "No session cookies or secrets cached; object identity retained for scoped replay",
+            "title": "Store response receipt in same transaction",
+            "type": "database"
+          },
+          {
+            "id": "commit",
+            "subtitle": "Rollback removes both; uncertain commit reconciled with same scoped key",
+            "title": "Commit mutation and receipt together",
+            "type": "database"
+          },
+          {
+            "id": "done",
+            "subtitle": "Replay only guaranteed within retention; expiry reuse may repeat effects",
+            "title": "Return sealed committed response",
+            "type": "terminal"
+          },
+          {
+            "id": "backend-failed-claim",
+            "subtitle": "Do not create a second logical operation to resolve unknown commit; re-read same scoped key",
+            "title": "Return failed or uncertain mutation outcome",
+            "type": "error"
+          },
+          {
+            "id": "backend-failed-mutate",
+            "subtitle": "Do not create a second logical operation to resolve unknown commit; re-read same scoped key",
+            "title": "Return failed or uncertain mutation outcome",
+            "type": "error"
+          },
+          {
+            "id": "backend-failed-receipt",
+            "subtitle": "Do not create a second logical operation to resolve unknown commit; re-read same scoped key",
+            "title": "Return failed or uncertain mutation outcome",
+            "type": "error"
+          },
+          {
+            "id": "backend-failed-commit",
+            "subtitle": "Do not create a second logical operation to resolve unknown commit; re-read same scoped key",
+            "title": "Return failed or uncertain mutation outcome",
+            "type": "error"
+          }
+        ],
+        "schemaVersion": 3,
+        "summary": "Proposed behavior. Owned by core/api.Idempotency; core/db; select nodes for technical details.",
+        "title": "Claim and replay an idempotent mutation safely",
+        "type": "flow"
+      }
+    },
+    {
+      "op": "upsert-page",
+      "page": {
+        "details": [
+          {
+            "id": "owner",
+            "label": "Proposed code owner",
+            "value": "core/cache.Invalidation; core/db.OnCommit"
+          },
+          {
+            "id": "status",
+            "label": "Implementation status",
+            "value": "No Go implementation exists. Names, limits and behavior are submitted design choices requiring review."
+          },
+          {
+            "id": "features",
+            "label": "Included features",
+            "value": "postcommit invalidation; cache versions; durable invalidation; stale window; cache stampede"
+          }
+        ],
+        "edges": [
+          {
+            "from": "entry",
+            "id": "entry-to-write",
+            "to": "write"
+          },
+          {
+            "from": "write",
+            "id": "write-to-commit",
+            "to": "commit"
+          },
+          {
+            "from": "commit",
+            "id": "commit-to-durable",
+            "to": "durable"
+          },
+          {
+            "from": "durable",
+            "id": "durable-to-durable-rejected",
+            "label": "No",
+            "to": "durable-rejected"
+          },
+          {
+            "from": "durable",
+            "id": "durable-to-relay",
+            "label": "Yes",
+            "style": "async",
+            "to": "relay"
+          },
+          {
+            "from": "relay",
+            "id": "relay-to-invalidate",
+            "to": "invalidate"
+          },
+          {
+            "from": "invalidate",
+            "id": "invalidate-to-mark",
+            "to": "mark"
+          },
+          {
+            "from": "mark",
+            "id": "mark-to-done",
+            "to": "done"
+          },
+          {
+            "from": "relay",
+            "id": "relay-to-backend-failed",
+            "label": "Operation fails",
+            "style": "error",
+            "to": "backend-failed-relay"
+          },
+          {
+            "from": "invalidate",
+            "id": "invalidate-to-backend-failed",
+            "label": "Operation fails",
+            "style": "error",
+            "to": "backend-failed-invalidate"
+          },
+          {
+            "from": "mark",
+            "id": "mark-to-backend-failed",
+            "label": "Operation fails",
+            "style": "error",
+            "to": "backend-failed-mark"
+          }
+        ],
+        "id": "cache.invalidate",
+        "layout": {
+          "direction": "down"
+        },
+        "nodes": [
+          {
+            "id": "entry",
+            "subtitle": "Declare affected key prefixes or version namespace",
+            "title": "Plan a cache-affecting domain mutation",
+            "type": "api"
+          },
+          {
+            "id": "write",
+            "subtitle": "Optional durable invalidation intent in same PostgreSQL transaction",
+            "title": "Write source-of-truth state in transaction",
+            "type": "database"
+          },
+          {
+            "id": "commit",
+            "subtitle": "No invalidation on rolled-back mutation",
+            "title": "Commit business state",
+            "type": "database"
+          },
+          {
+            "id": "durable",
+            "subtitle": "Ordinary OnCommit callback can be lost on process crash",
+            "title": "Was durable invalidation requested?",
+            "type": "decision"
+          },
+          {
+            "id": "durable-rejected",
+            "subtitle": "Bound stale window by TTL; correctness-critical read bypasses cache",
+            "title": "Run best-effort after-commit invalidation",
+            "type": "terminal"
+          },
+          {
+            "id": "relay",
+            "subtitle": "Scoped key/version, stable event ID; bounded retry",
+            "title": "Claim committed invalidation intent",
+            "type": "job"
+          },
+          {
+            "id": "invalidate",
+            "subtitle": "Never clear unrelated app namespace; idempotent repeat by event ID",
+            "title": "Delete exact keys or atomically bump version",
+            "type": "cache"
+          },
+          {
+            "id": "mark",
+            "subtitle": "Crash before mark safely retries; version bump deduped by event identity",
+            "title": "Mark invalidation delivered",
+            "type": "database"
+          },
+          {
+            "id": "done",
+            "subtitle": "Cache stampede coalescing independent of invalidation; stale TTL remains explicit",
+            "title": "New reads miss stale entries",
+            "type": "terminal"
+          },
+          {
+            "id": "backend-failed-relay",
+            "subtitle": "Business write remains committed; strict-freshness resource must read authoritative DB",
+            "title": "Keep durable invalidation pending and report lag",
+            "type": "error"
+          },
+          {
+            "id": "backend-failed-invalidate",
+            "subtitle": "Business write remains committed; strict-freshness resource must read authoritative DB",
+            "title": "Keep durable invalidation pending and report lag",
+            "type": "error"
+          },
+          {
+            "id": "backend-failed-mark",
+            "subtitle": "Business write remains committed; strict-freshness resource must read authoritative DB",
+            "title": "Keep durable invalidation pending and report lag",
+            "type": "error"
+          }
+        ],
+        "schemaVersion": 3,
+        "summary": "Proposed behavior. Owned by core/cache.Invalidation; core/db.OnCommit; select nodes for technical details.",
+        "title": "Invalidate derived cache entries after mutation",
+        "type": "flow"
+      }
+    },
+    {
+      "op": "upsert-page",
+      "page": {
+        "details": [
+          {
+            "id": "owner",
+            "label": "Proposed code owner",
+            "value": "core/auth.SensitiveMailRelay; core/mail"
+          },
+          {
+            "id": "status",
+            "label": "Implementation status",
+            "value": "No Go implementation exists. Names, limits and behavior are submitted design choices requiring review."
+          },
+          {
+            "id": "features",
+            "label": "Included features",
+            "value": "secret-bearing mail; encrypted durable intent; SMTP ambiguity; token expiry; delivery key rotation"
+          }
+        ],
+        "edges": [
+          {
+            "from": "entry",
+            "id": "entry-to-lease",
+            "to": "lease"
+          },
+          {
+            "from": "lease",
+            "id": "lease-to-eligible",
+            "to": "eligible"
+          },
+          {
+            "from": "eligible",
+            "id": "eligible-to-eligible-rejected",
+            "label": "No",
+            "to": "eligible-rejected"
+          },
+          {
+            "from": "eligible",
+            "id": "eligible-to-decrypt",
+            "label": "Yes",
+            "to": "decrypt"
+          },
+          {
+            "from": "decrypt",
+            "id": "decrypt-to-send",
+            "to": "send"
+          },
+          {
+            "from": "send",
+            "id": "send-to-record",
+            "to": "record"
+          },
+          {
+            "from": "record",
+            "id": "record-to-done",
+            "to": "done"
+          },
+          {
+            "from": "lease",
+            "id": "lease-to-backend-failed",
+            "label": "Operation fails",
+            "style": "error",
+            "to": "backend-failed-lease"
+          },
+          {
+            "from": "decrypt",
+            "id": "decrypt-to-backend-failed",
+            "label": "Operation fails",
+            "style": "error",
+            "to": "backend-failed-decrypt"
+          },
+          {
+            "from": "send",
+            "id": "send-to-backend-failed",
+            "label": "Operation fails",
+            "style": "error",
+            "to": "backend-failed-send"
+          },
+          {
+            "from": "record",
+            "id": "record-to-backend-failed",
+            "label": "Operation fails",
+            "style": "error",
+            "to": "backend-failed-record"
+          }
+        ],
+        "id": "email.sensitive-delivery",
+        "layout": {
+          "direction": "down"
+        },
+        "nodes": [
+          {
+            "id": "entry",
+            "subtitle": "Enabled only when durable reset delivery selected",
+            "title": "Poll committed sensitive-mail records",
+            "type": "job"
+          },
+          {
+            "id": "lease",
+            "subtitle": "SKIP LOCKED; token and mail intent already committed together",
+            "title": "Claim eligible record with lease/fence",
+            "type": "database"
+          },
+          {
+            "id": "eligible",
+            "subtitle": "No send for used/replaced/inactive account token",
+            "title": "Reset token still valid and delivery not expired?",
+            "type": "decision"
+          },
+          {
+            "id": "eligible-rejected",
+            "subtitle": "Retain only safe delivery metadata",
+            "title": "Mark expired and purge encrypted payload",
+            "type": "terminal"
+          },
+          {
+            "id": "decrypt",
+            "subtitle": "Additional data binds reset ID, purpose and expiry; no plaintext logs or queue payload",
+            "title": "Resolve key and AEAD-decrypt in memory",
+            "type": "action"
+          },
+          {
+            "id": "send",
+            "subtitle": "TLS and bounded timeouts; duplicate acceptance possible on retry after unknown outcome",
+            "title": "Submit validated reset email to SMTP",
+            "type": "external"
+          },
+          {
+            "id": "record",
+            "subtitle": "Matching lease fence; purge ciphertext after accepted/expired retention policy",
+            "title": "Record accepted or retryable/terminal delivery outcome",
+            "type": "database"
+          },
+          {
+            "id": "done",
+            "subtitle": "HTTP reset acknowledgement already returned; SMTP accepted is not inbox delivery",
+            "title": "Release lease and expose safe internal delivery status",
+            "type": "terminal"
+          },
+          {
+            "id": "backend-failed-lease",
+            "subtitle": "Failed key/SMTP/record operation never reveals account existence; retries bounded by token lifetime",
+            "title": "Retain encrypted intent until retry or expiry",
+            "type": "error"
+          },
+          {
+            "id": "backend-failed-decrypt",
+            "subtitle": "Failed key/SMTP/record operation never reveals account existence; retries bounded by token lifetime",
+            "title": "Retain encrypted intent until retry or expiry",
+            "type": "error"
+          },
+          {
+            "id": "backend-failed-send",
+            "subtitle": "Failed key/SMTP/record operation never reveals account existence; retries bounded by token lifetime",
+            "title": "Retain encrypted intent until retry or expiry",
+            "type": "error"
+          },
+          {
+            "id": "backend-failed-record",
+            "subtitle": "Failed key/SMTP/record operation never reveals account existence; retries bounded by token lifetime",
+            "title": "Retain encrypted intent until retry or expiry",
+            "type": "error"
+          }
+        ],
+        "schemaVersion": 3,
+        "summary": "Proposed behavior. Owned by core/auth.SensitiveMailRelay; core/mail; select nodes for technical details.",
+        "title": "Deliver encrypted single-use reset mail",
+        "type": "flow"
+      }
+    },
+    {
+      "op": "upsert-page",
+      "page": {
+        "details": [
+          {
+            "id": "owner",
+            "label": "Proposed code owner",
+            "value": "async/redis.Reconciler"
+          },
+          {
+            "id": "status",
+            "label": "Implementation status",
+            "value": "No Go implementation exists. Names, limits and behavior are submitted design choices requiring review."
+          },
+          {
+            "id": "features",
+            "label": "Included features",
+            "value": "Redis failover; intent repair; state gaps; outbox replay; barrier reconciliation; durability limits"
+          }
+        ],
+        "edges": [
+          {
+            "from": "entry",
+            "id": "entry-to-inventory",
+            "to": "inventory"
+          },
+          {
+            "from": "inventory",
+            "id": "inventory-to-read",
+            "to": "read"
+          },
+          {
+            "from": "read",
+            "id": "read-to-known",
+            "to": "known"
+          },
+          {
+            "from": "known",
+            "id": "known-to-known-rejected",
+            "label": "No",
+            "style": "error",
+            "to": "known-rejected"
+          },
+          {
+            "from": "known",
+            "id": "known-to-repair",
+            "label": "Yes",
+            "to": "repair"
+          },
+          {
+            "from": "repair",
+            "id": "repair-to-apply",
+            "to": "apply"
+          },
+          {
+            "from": "apply",
+            "id": "apply-to-done",
+            "to": "done"
+          },
+          {
+            "from": "read",
+            "id": "read-to-backend-failed",
+            "label": "Operation fails",
+            "style": "error",
+            "to": "backend-failed-read"
+          },
+          {
+            "from": "apply",
+            "id": "apply-to-backend-failed",
+            "label": "Operation fails",
+            "style": "error",
+            "to": "backend-failed-apply"
+          }
+        ],
+        "id": "redis.reconcile",
+        "layout": {
+          "direction": "down"
+        },
+        "nodes": [
+          {
+            "id": "entry",
+            "subtitle": "Fixed task/workflow/scheduler partition indexes plus stream pending deliveries",
+            "title": "Run periodic state reconciliation",
+            "type": "job"
+          },
+          {
+            "id": "inventory",
+            "subtitle": "Bounded cursor batches; version/fence included; do not scan unrelated namespace",
+            "title": "Enumerate leased, pending and overdue records",
+            "type": "action"
+          },
+          {
+            "id": "read",
+            "subtitle": "Redis failover may have lost unreplicated accepted data",
+            "title": "Read authoritative state and local intent records",
+            "type": "cache"
+          },
+          {
+            "id": "known",
+            "subtitle": "Cannot infer lost business intent from absent Redis state alone",
+            "title": "Required source record still available?",
+            "type": "decision"
+          },
+          {
+            "id": "known-rejected",
+            "subtitle": "Replay from PostgreSQL outbox if available; otherwise operator/application reconciliation required",
+            "title": "Report unrecoverable Redis-state gap",
+            "type": "error"
+          },
+          {
+            "id": "repair",
+            "subtitle": "Publish same stable ID; collect expected child state; preserve active result pins",
+            "title": "Choose replay, reclaim, barrier sync or cleanup",
+            "type": "action"
+          },
+          {
+            "id": "apply",
+            "subtitle": "CAS prevents overwriting concurrent healthy progress",
+            "title": "Apply versioned idempotent repair transition",
+            "type": "cache"
+          },
+          {
+            "id": "done",
+            "subtitle": "No universal exactly-once or zero-loss promise from Redis replication",
+            "title": "Report repaired counts and remaining lag",
+            "type": "terminal"
+          },
+          {
+            "id": "backend-failed-read",
+            "subtitle": "Do not ACK uncertain tasks or invent completed barrier members",
+            "title": "Pause affected partition and retain diagnostics",
+            "type": "error"
+          },
+          {
+            "id": "backend-failed-apply",
+            "subtitle": "Do not ACK uncertain tasks or invent completed barrier members",
+            "title": "Pause affected partition and retain diagnostics",
+            "type": "error"
+          }
+        ],
+        "schemaVersion": 3,
+        "summary": "Proposed behavior. Owned by async/redis.Reconciler; select nodes for technical details.",
+        "title": "Reconcile lost acknowledgements and Redis failover",
+        "type": "flow"
+      }
+    },
+    {
+      "op": "upsert-page",
+      "page": {
+        "details": [
+          {
+            "id": "owner",
+            "label": "Proposed code owner",
+            "value": "Generated client project using public Gogo APIs"
+          },
+          {
+            "id": "status",
+            "label": "Implementation status",
+            "value": "No Go implementation exists. Names, limits and behavior are submitted design choices requiring review."
+          },
+          {
+            "id": "features",
+            "label": "Included features",
+            "value": "client usage; project structure; app creation; models/views/serializers; optional Admin; optional Async"
+          }
+        ],
+        "edges": [
+          {
+            "from": "entry",
+            "id": "entry-to-app",
+            "to": "app"
+          },
+          {
+            "from": "app",
+            "id": "app-to-generate",
+            "to": "generate"
+          },
+          {
+            "from": "generate",
+            "id": "generate-to-migrate",
+            "to": "migrate"
+          },
+          {
+            "from": "migrate",
+            "id": "migrate-to-api",
+            "to": "api"
+          },
+          {
+            "from": "api",
+            "id": "api-to-admin",
+            "to": "admin"
+          },
+          {
+            "from": "admin",
+            "id": "admin-to-task",
+            "to": "task"
+          },
+          {
+            "from": "task",
+            "id": "task-to-outbox",
+            "to": "outbox"
+          },
+          {
+            "from": "outbox",
+            "id": "outbox-to-worker",
+            "style": "async",
+            "to": "worker"
+          },
+          {
+            "from": "worker",
+            "id": "worker-to-done",
+            "to": "done"
+          },
+          {
+            "from": "generate",
+            "id": "generate-to-backend-failed",
+            "label": "Operation fails",
+            "style": "error",
+            "to": "backend-failed-generate"
+          },
+          {
+            "from": "migrate",
+            "id": "migrate-to-backend-failed",
+            "label": "Operation fails",
+            "style": "error",
+            "to": "backend-failed-migrate"
+          },
+          {
+            "from": "outbox",
+            "id": "outbox-to-backend-failed",
+            "label": "Operation fails",
+            "style": "error",
+            "to": "backend-failed-outbox"
+          }
+        ],
+        "id": "map.client-journey",
+        "layout": {
+          "direction": "down"
+        },
+        "nodes": [
+          {
+            "id": "entry",
+            "subtitle": "gogo startproject storefront --module example.com/storefront; proposed command",
+            "title": "Create storefront with Core and PostgreSQL",
+            "type": "actor"
+          },
+          {
+            "id": "app",
+            "subtitle": "go run manage.go startapp catalog; Product has ID, Name, Price and Stock descriptors",
+            "title": "Create catalog app and model schema",
+            "type": "action"
+          },
+          {
+            "id": "generate",
+            "subtitle": "go run manage.go generate; makemigrations catalog; review generated operations",
+            "title": "Generate typed model references and migration",
+            "type": "action"
+          },
+          {
+            "id": "migrate",
+            "subtitle": "go run manage.go migrate; explicit operator command, never automatic at web startup",
+            "title": "Apply catalog migration to configured PostgreSQL",
+            "type": "database"
+          },
+          {
+            "id": "api",
+            "subtitle": "List/detail read scoped queryset; create/update writable Name/Price only; Stock mutated by domain service",
+            "title": "Register product resource and serializer",
+            "type": "action"
+          },
+          {
+            "id": "admin",
+            "subtitle": "admin.ModelAdmin Product with ListDisplay and ReadonlyFields ID; fieldsets and scoped inlines",
+            "title": "Optionally install and register Admin",
+            "type": "action"
+          },
+          {
+            "id": "task",
+            "subtitle": "Register typed ReindexProduct task; declare queues and worker policies; not imported by Core",
+            "title": "Optionally install Async and Async Redis adapter",
+            "type": "action"
+          },
+          {
+            "id": "outbox",
+            "subtitle": "Application service uses db.Atomic and Async outbox; task gets product ID/version, not credentials",
+            "title": "Update product and write task intent atomically",
+            "type": "database"
+          },
+          {
+            "id": "worker",
+            "subtitle": "Compiled manage worker / beat; web process independently serves API/Admin",
+            "title": "Run worker and optional beat separately",
+            "type": "job"
+          },
+          {
+            "id": "done",
+            "subtitle": "Every named capability has detailed branch/failure diagrams in its owning feature tree",
+            "title": "Use one structured project across runtime roles",
+            "type": "terminal"
+          },
+          {
+            "id": "backend-failed-generate",
+            "subtitle": "Generation, migration and runtime startup checks report explicit failures; existing committed data preserved",
+            "title": "Stop failing operation without claiming completion",
+            "type": "error"
+          },
+          {
+            "id": "backend-failed-migrate",
+            "subtitle": "Generation, migration and runtime startup checks report explicit failures; existing committed data preserved",
+            "title": "Stop failing operation without claiming completion",
+            "type": "error"
+          },
+          {
+            "id": "backend-failed-outbox",
+            "subtitle": "Generation, migration and runtime startup checks report explicit failures; existing committed data preserved",
+            "title": "Stop failing operation without claiming completion",
+            "type": "error"
+          }
+        ],
+        "schemaVersion": 3,
+        "summary": "Proposed behavior. Owned by Generated client project using public Gogo APIs; select nodes for technical details.",
+        "title": "Developer journey: app, API, Admin and background workflow",
+        "type": "flow"
+      }
+    },
+    {
+      "op": "upsert-page",
+      "page": {
+        "details": [
+          {
+            "id": "owner",
+            "label": "Proposed code owner",
+            "value": "core/http; async.Worker; deployment integration"
+          },
+          {
+            "id": "status",
+            "label": "Implementation status",
+            "value": "No Go implementation exists. Names, limits and behavior are submitted design choices requiring review."
+          },
+          {
+            "id": "features",
+            "label": "Included features",
+            "value": "horizontal scaling; connection budgets; queue isolation; read replicas; hot partitions; backpressure; capacity limits"
+          }
+        ],
+        "edges": [
+          {
+            "from": "entry",
+            "id": "entry-to-web",
+            "to": "web"
+          },
+          {
+            "from": "web",
+            "id": "web-to-workers",
+            "to": "workers"
+          },
+          {
+            "from": "workers",
+            "id": "workers-to-state",
+            "to": "state"
+          },
+          {
+            "from": "state",
+            "id": "state-to-db",
+            "to": "db"
+          },
+          {
+            "from": "db",
+            "id": "db-to-capacity",
+            "to": "capacity"
+          },
+          {
+            "from": "capacity",
+            "id": "capacity-to-capacity-rejected",
+            "label": "No",
+            "style": "error",
+            "to": "capacity-rejected"
+          },
+          {
+            "from": "capacity",
+            "id": "capacity-to-done",
+            "label": "Yes",
+            "to": "done"
+          }
+        ],
+        "id": "operations.scale",
+        "layout": {
+          "direction": "down"
+        },
+        "nodes": [
+          {
+            "id": "entry",
+            "subtitle": "Measure latency, queue lag, DB saturation and error budget first",
+            "title": "Increase workload beyond one process",
+            "type": "actor"
+          },
+          {
+            "id": "web",
+            "subtitle": "Shared PostgreSQL/session state; no process-local auth or durable job assumptions",
+            "title": "Add stateless web replicas behind trusted proxy",
+            "type": "action"
+          },
+          {
+            "id": "workers",
+            "subtitle": "Bound global DB connections; prefetch/concurrency quota prevents queue starvation",
+            "title": "Scale workers per queue and task cost",
+            "type": "action"
+          },
+          {
+            "id": "state",
+            "subtitle": "Dedicated noeviction state stores; cache may evict; changing shard count requires migration",
+            "title": "Partition Redis roles and fixed coordination shards",
+            "type": "action"
+          },
+          {
+            "id": "db",
+            "subtitle": "Writes primary; read-after-write pinned; replicas explicit eventual-consistency queries only",
+            "title": "Tune PostgreSQL pools and indexes then replicas",
+            "type": "database"
+          },
+          {
+            "id": "capacity",
+            "subtitle": "Inspect tail latency, hot partitions, locks, memory and queue backlog",
+            "title": "Load tests meet latency and recovery objectives?",
+            "type": "decision"
+          },
+          {
+            "id": "capacity-rejected",
+            "subtitle": "No framework guarantees unlimited scale or automatic database sharding",
+            "title": "Reduce admission or redesign hot workload",
+            "type": "error"
+          },
+          {
+            "id": "done",
+            "subtitle": "App-level tenant sharding/partition routing remains explicit domain architecture",
+            "title": "Deploy measured capacity with rollback plan",
+            "type": "terminal"
+          }
+        ],
+        "schemaVersion": 3,
+        "summary": "Proposed behavior. Owned by core/http; async.Worker; deployment integration; select nodes for technical details.",
+        "title": "Scale web, workers and storage independently",
         "type": "flow"
       }
     },
@@ -18524,7 +20347,7 @@
             "cells": {
               "depends": "Other public Core packages under a checked acyclic dependency graph",
               "path": "core/",
-              "public": "app, conf, management, checks, models, orm, db, migrations, http, urls, views, api, auth, sessions, security, forms, templates, cache, files, mail, messages, i18n, signals, testing, telemetry, contrib",
+              "public": "app, conf, management, checks, models, orm, db, migrations, http, urls, views, api, pagination, auth, sessions, security, forms, templates, cache, ratelimit, files, mail, messages, i18n, signals, testing, telemetry, health, contrib",
               "rule": "No separate module per tiny package. Interfaces belong to consuming Core capability, not private internal packages."
             },
             "id": "core"
@@ -19620,8 +21443,8 @@
             "cells": {
               "family": "Output tags",
               "flow": "templates.render; security.csrf",
-              "items": "autoescape, csrf_token, debug, lorem, now, spaceless, templatetag, url, widthratio",
-              "rule": "debug/lorem disabled in production templates by policy; CSRF token comes from request context; URL reversing uses named routes."
+              "items": "autoescape, csrf_token, debug, lorem, now, spaceless, templatetag, url, querystring, widthratio",
+              "rule": "debug disabled in production; CSRF token comes from request context; URL reversing uses named routes; querystring copies/encodes multivalue params."
             },
             "id": "output"
           },
@@ -20176,33 +21999,33 @@
           },
           {
             "cells": {
-              "contract": "BeforeStart, OnSuccess, OnFailure, OnRetry, AfterReturn; Reject/Requeue, Replace(signature), Ignore, Revocation; lifecycle signals",
-              "field": "Task hooks and controls",
-              "flow": "Hook error policy explicit; terminal persistence cannot be undone by observer hook failure; Replace persists continuation intent before acknowledging parent."
+              "contract": "Hook error policy explicit; terminal persistence cannot be undone by observer hook failure; Replace persists continuation intent before acknowledging parent.",
+              "field": "BeforeStart, OnSuccess, OnFailure, OnRetry, AfterReturn; Reject/Requeue, Replace(signature), Ignore, Revocation; lifecycle signals",
+              "flow": "async.callbacks; async.cancel; async.worker"
             },
             "id": "hooks"
           },
           {
             "cells": {
-              "contract": "Exact task-name routes then ordered pattern routes then default; queue declaration; priority buckets; worker queue selection; stamps and immutable routing options",
-              "field": "Routing",
-              "flow": "Unknown queue rejected unless declared auto-create policy; priority is best effort between available tasks, not preemption of running work."
+              "contract": "Unknown queue rejected unless declared auto-create policy; priority is best effort between available tasks, not preemption of running work.",
+              "field": "Routing: exact task-name routes then ordered patterns then default; queue declaration; priority buckets; worker queue selection; immutable routing options",
+              "flow": "async.publish; redis.async-adapter"
             },
             "id": "routes"
           },
           {
             "cells": {
-              "contract": "Bounded connect/publish retries with jitter; publish confirmation; stable task ID for retries; expiry checked before retry; unknown outcome surfaced with task ID",
-              "field": "Producer reliability",
-              "flow": "Dedupe window/record TTL must cover replay window. No claim broker acceptance means execution or Redis fsync across failover."
+              "contract": "Dedupe window/record TTL must cover replay window. No claim broker acceptance means execution or Redis fsync across failover.",
+              "field": "Producer reliability: bounded connect/publish retries with jitter; publish confirmation; stable task ID; expiry checked before retry; unknown outcome surfaced with task ID",
+              "flow": "async.publish; async.outbox"
             },
             "id": "publish"
           },
           {
             "cells": {
-              "contract": "Worker heartbeat/offline, task lifecycle, retries, progress, queue depth, inspect active/reserved/scheduled/stats/registered; authenticated control API",
-              "field": "Events and remote control",
-              "flow": "No arbitrary remote code execution; control authorization separate from task enqueue; monitor event stream not authoritative result store."
+              "contract": "No arbitrary remote code execution; control authorization separate from task enqueue; monitor event stream not authoritative result store.",
+              "field": "Events/control: worker heartbeat/offline, task lifecycle, retries, progress, queue depth, inspect active/reserved/scheduled/stats/registered; authenticated control API",
+              "flow": "async.monitor; async.results; async.cancel"
             },
             "id": "observability"
           }
@@ -20554,7 +22377,7 @@
           {
             "cells": {
               "behavior": "Group header plus body; body dispatch when expected distinct successful members settle; durable callback claim and intent",
-              "failure": "Default fail-fast logical failure with failed IDs; already running headers continue; no callback success on missing/ignored/expired header results.",
+              "failure": "Default waits for all header terminals, then fails with failed IDs if any unsuccessful. No callback success on missing/ignored/expired header results.",
               "flow": "async.chord",
               "op": "Chord"
             },
@@ -20767,6 +22590,15 @@
           },
           {
             "cells": {
+              "default": "empty",
+              "effect": "Resolve distinct AEAD key from configured secret provider/env reference; never use ordinary Async JSON for plaintext reset secrets. Synchronous mail does not require this key.",
+              "key": "GOGO_RESET_DELIVERY_KEY_REF",
+              "required": "Durable password-reset mail selected"
+            },
+            "id": "delivery-key"
+          },
+          {
+            "cells": {
               "default": "300s; bypass",
               "effect": "Do not inherit bypass for sessions, auth, rate-limit security gates or Async state; these default unavailable/deny.",
               "key": "GOGO_CACHE_TTL; GOGO_CACHE_FAILURE_POLICY",
@@ -20839,10 +22671,10 @@
           },
           {
             "cells": {
-              "default": "30s; 1s",
-              "effect": "Occurrence timezone/DST/misfire policy mandatory; same-task occurrence ID on retries; no guarantee exact wall-clock fire time.",
-              "key": "GOGO_SCHEDULER_LEASE; GOGO_SCHEDULER_POLL",
-              "required": "Beat/delay dispatcher"
+              "default": "30s; 1s; 64",
+              "effect": "Occurrence policies mandatory; stable task ID on retry. Hash task/workflow IDs to fixed family partitions; shard-count change requires drained migration, not live config reload.",
+              "key": "GOGO_SCHEDULER_LEASE; GOGO_SCHEDULER_POLL; GOGO_ASYNC_PARTITIONS",
+              "required": "Beat/delay dispatcher; partitions for Async Redis"
             },
             "id": "schedule"
           },
@@ -20935,7 +22767,7 @@
           },
           {
             "cells": {
-              "fields": "key_digest char(64) PK; payload jsonb; version bigint; expires_at; created_at; updated_at",
+              "fields": "key_digest char(64) PK; payload jsonb; version bigint; expires_at; created_at; updated_at; deleted_at/tombstone_until nullable",
               "invariants": "Digest of random bearer key, never plaintext cookie secret; expiry index; CAS on version; deletion/tombstone prevents stale request resurrection.",
               "record": "gogo_sessions / sessions"
             },
@@ -20956,6 +22788,30 @@
               "record": "gogo_password_resets / auth"
             },
             "id": "reset"
+          },
+          {
+            "cells": {
+              "fields": "id UUID; reset_id FK; ciphertext bytea; nonce; key_id; expires_at; state; lease/fence; attempts; accepted_at nullable",
+              "invariants": "AEAD-encrypted reset link/recipient; additional data binds reset ID, purpose and expiry. Restricted relay; token + intent atomic. Purge ciphertext at accepted/expired horizon; no raw token in ordinary outbox.",
+              "record": "gogo_sensitive_mail / optional durable auth mail"
+            },
+            "id": "delivery"
+          },
+          {
+            "cells": {
+              "fields": "id UUID; scope_hash; action; key_digest; request_digest; response_status; response_headers JSON; response_body JSON; object_key JSON; created_at; expires_at",
+              "invariants": "Unique(scope_hash,action,key_digest); claim and final response in same mutation transaction; stable response only contains allowed fields. Expiry >= configured client replay window; existing response reauthorized before replay.",
+              "record": "gogo_idempotency / API and optional Admin operation receipts"
+            },
+            "id": "idempotency"
+          },
+          {
+            "cells": {
+              "fields": "id UUID; namespace; exact_key_digests JSON or version_scope; available_at; lease_token; lease_until; attempts; delivered_at nullable",
+              "invariants": "Business update and invalidation intent same PostgreSQL transaction; Core management relay needs no Async module; atomic target dedupe prevents duplicate version bumps; cleanup after delivered replay horizon.",
+              "record": "gogo_cache_invalidations / optional Core cache durability"
+            },
+            "id": "cache-intent"
           },
           {
             "cells": {
@@ -21068,17 +22924,17 @@
           },
           {
             "cells": {
-              "data": "Task state, fence, lease, attempt, result/error, tombstone and durable local intent set share hash slot",
-              "key": "<namespace>:task:{task-id}:state / intents",
-              "retention": "Full result 24h default; tombstone >=7d; lease not task TTL; active tasks/intents retained until settled or explicit expired-terminal transition."
+              "data": "Hash(task-id) modulo 64 fixed partitions; state/fence/lease/result/tombstone and pending-intent index updated in same script/slot",
+              "key": "<namespace>:{task-pNN}:<task-id>:state / intents; :pending-intents",
+              "retention": "Full result 24h default; tombstone >=7d; active tasks/intents retained. Relay polls all 64 known indexes; no cross-slot index publication gap."
             },
             "id": "task"
           },
           {
             "cells": {
-              "data": "DAG snapshot, expected child IDs, distinct terminal map/count, failure policy, callback claim and local dispatch intents",
-              "key": "<namespace>:workflow:{workflow-id}:state / members / intents",
-              "retention": "All workflow atomic keys share slot; retain at least until all members terminal plus replay safety horizon; cleanup never discards active barrier."
+              "data": "Hash(workflow-id) modulo 64; DAG/member outcomes/callback claim and partition intent index atomic in one slot",
+              "key": "<namespace>:{workflow-pNN}:<workflow-id>:state / members / intents; :pending-intents",
+              "retention": "Retain until members terminal plus replay horizon; callback delivery and cleanup tracked; fixed partition changes require drain/reconciliation migration."
             },
             "id": "workflow"
           },
@@ -21620,16 +23476,6 @@
           },
           {
             "cells": {
-              "flow": "core.lifecycle",
-              "included": "graceful shutdown; readiness; resource lifecycle; hook errors",
-              "name": "Drain requests and shut down resources",
-              "owner": "core/app.Lifecycle; core/http.Server",
-              "parent": "Gogo Core / Application and configuration"
-            },
-            "id": "core.lifecycle"
-          },
-          {
-            "cells": {
               "flow": "tools.project",
               "included": "startproject; templates; optional modules; public imports; environment templates",
               "name": "Generate a client project",
@@ -21897,16 +23743,6 @@
               "parent": "Gogo Core / HTTP and routing"
             },
             "id": "http.responses"
-          },
-          {
-            "cells": {
-              "flow": "http.generic",
-              "included": "list/detail views; editing views; date archive views; mixins via composition; decorators; shortcut helpers",
-              "name": "Serve generic list, detail, edit and date views",
-              "owner": "core/http.GenericView",
-              "parent": "Gogo Core / HTTP and routing"
-            },
-            "id": "http.generic"
           },
           {
             "cells": {
@@ -22553,8 +24389,8 @@
               "flow": "contrib.admindocs",
               "included": "admindocs; model reference; view reference; template tags; staff-only documentation",
               "name": "Generate developer-facing model and route reference",
-              "owner": "core/contrib/admindocs; admin",
-              "parent": "Gogo Core / Contrib applications"
+              "owner": "admin/admindocs",
+              "parent": "Gogo Admin / History and extensions"
             },
             "id": "contrib.admindocs"
           },
@@ -22567,16 +24403,6 @@
               "parent": "Developer tools and operations / Verification and release"
             },
             "id": "testing.suite"
-          },
-          {
-            "cells": {
-              "flow": "operations.health",
-              "included": "health; liveness; readiness; startup; role-specific dependencies; degraded service",
-              "name": "Report startup, readiness and liveness independently",
-              "owner": "core/health",
-              "parent": "Developer tools and operations / Runtime operations"
-            },
-            "id": "operations.health"
           },
           {
             "cells": {
@@ -22797,6 +24623,96 @@
               "parent": "Gogo Async / Beat and periodic scheduling"
             },
             "id": "async.delayed"
+          },
+          {
+            "cells": {
+              "flow": "http.generic",
+              "included": "list/detail views; editing views; date archive views; mixins via composition; decorators; shortcut helpers",
+              "name": "Serve generic list, detail, edit and date views",
+              "owner": "core/http.GenericView",
+              "parent": "Gogo Core / HTTP and routing"
+            },
+            "id": "http.generic"
+          },
+          {
+            "cells": {
+              "flow": "operations.health",
+              "included": "health; liveness; readiness; startup; role-specific dependencies; degraded service",
+              "name": "Report startup, readiness and liveness independently",
+              "owner": "core/health",
+              "parent": "Developer tools and operations / Runtime operations"
+            },
+            "id": "operations.health"
+          },
+          {
+            "cells": {
+              "flow": "core.lifecycle",
+              "included": "graceful shutdown; readiness; resource lifecycle; hook errors",
+              "name": "Drain requests and shut down resources",
+              "owner": "core/app.Lifecycle; core/http.Server",
+              "parent": "Gogo Core / Application and configuration"
+            },
+            "id": "core.lifecycle"
+          },
+          {
+            "cells": {
+              "flow": "api.idempotency",
+              "included": "idempotency keys; concurrent requests; response replay; uncertain commits; retention",
+              "name": "Claim and replay an idempotent mutation safely",
+              "owner": "core/api.Idempotency; core/db",
+              "parent": "Gogo Core / REST APIs and serializers"
+            },
+            "id": "api.idempotency"
+          },
+          {
+            "cells": {
+              "flow": "cache.invalidate",
+              "included": "postcommit invalidation; cache versions; durable invalidation; stale window; cache stampede",
+              "name": "Invalidate derived cache entries after mutation",
+              "owner": "core/cache.Invalidation; core/db.OnCommit",
+              "parent": "Gogo Core / Storage and shared services"
+            },
+            "id": "cache.invalidate"
+          },
+          {
+            "cells": {
+              "flow": "email.sensitive-delivery",
+              "included": "secret-bearing mail; encrypted durable intent; SMTP ambiguity; token expiry; delivery key rotation",
+              "name": "Deliver encrypted single-use reset mail",
+              "owner": "core/auth.SensitiveMailRelay; core/mail",
+              "parent": "Gogo Core / Storage and shared services"
+            },
+            "id": "email.sensitive-delivery"
+          },
+          {
+            "cells": {
+              "flow": "redis.reconcile",
+              "included": "Redis failover; intent repair; state gaps; outbox replay; barrier reconciliation; durability limits",
+              "name": "Reconcile lost acknowledgements and Redis failover",
+              "owner": "async/redis.Reconciler",
+              "parent": "Connectors / Redis Async integration"
+            },
+            "id": "redis.reconcile"
+          },
+          {
+            "cells": {
+              "flow": "map.client-journey",
+              "included": "client usage; project structure; app creation; models/views/serializers; optional Admin; optional Async",
+              "name": "Developer journey: app, API, Admin and background workflow",
+              "owner": "Generated client project using public Gogo APIs",
+              "parent": "Review map"
+            },
+            "id": "map.client-journey"
+          },
+          {
+            "cells": {
+              "flow": "operations.scale",
+              "included": "horizontal scaling; connection budgets; queue isolation; read replicas; hot partitions; backpressure; capacity limits",
+              "name": "Scale web, workers and storage independently",
+              "owner": "core/http; async.Worker; deployment integration",
+              "parent": "Developer tools and operations / Runtime operations"
+            },
+            "id": "operations.scale"
           }
         ],
         "schemaVersion": 3,
@@ -22806,7 +24722,7 @@
       }
     }
   ],
-  "createdAt": "2026-09-05T12:42:29Z",
+  "createdAt": "2026-09-05T12:49:11Z",
   "id": "gogo-complete-framework-architecture",
   "schemaVersion": 3,
   "summary": "Developer-readable feature trees and explicit flows for the proposed Go framework. PostgreSQL and Redis are the initial backends. All symbols are design targets; no framework implementation or architecture approval is claimed.",
