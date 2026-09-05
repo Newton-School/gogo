@@ -2,6 +2,7 @@ package templates
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 )
 
@@ -46,18 +47,39 @@ func lex(source string) ([]token, error) {
 		if kind == "comment" {
 			continue
 		}
-		if kind == "tag" && content == "verbatim" {
-			stop = strings.Index(source, "{% endverbatim %}")
-			if stop < 0 {
-				return nil, fmt.Errorf("templates: unclosed verbatim")
+		if kind == "tag" {
+			words := strings.Fields(content)
+			if len(words) > 0 && (words[0] == "comment" || words[0] == "verbatim") {
+				closing := "end" + words[0]
+				if words[0] == "verbatim" && len(words) > 1 {
+					closing += " " + strings.Join(words[1:], " ")
+				}
+				start, end := rawEnd(source, closing)
+				if start < 0 {
+					return nil, fmt.Errorf("templates: unclosed %s", words[0])
+				}
+				if words[0] == "verbatim" {
+					tokens = append(tokens, token{"text", source[:start]})
+				}
+				source = source[end:]
+				continue
 			}
-			tokens = append(tokens, token{"text", source[:stop]})
-			source = source[stop+len("{% endverbatim %}"):]
-			continue
 		}
 		tokens = append(tokens, token{kind, content})
 	}
 	return tokens, nil
+}
+
+func rawEnd(source, closing string) (int, int) {
+	parts := strings.Fields(closing)
+	for i := range parts {
+		parts[i] = regexp.QuoteMeta(parts[i])
+	}
+	match := regexp.MustCompile(`\{%\s*` + strings.Join(parts, `\s+`) + `\s*%\}`).FindStringIndex(source)
+	if match == nil {
+		return -1, -1
+	}
+	return match[0], match[1]
 }
 func parse(source string) ([]node, error) {
 	tokens, err := lex(source)
@@ -108,7 +130,15 @@ func (p *parser) sequence(stops map[string]bool) ([]node, string, error) {
 			if stop == "" && err == nil {
 				err = fmt.Errorf("templates: unclosed for")
 			}
-		case "block", "with", "autoescape", "filter", "spaceless", "comment", "partialdef", "ifchanged":
+		case "ifchanged":
+			n.children, stop, err = p.sequence(map[string]bool{"else": true, "endifchanged": true})
+			if stop == "else" {
+				n.alternate, stop, err = p.sequence(map[string]bool{"endifchanged": true})
+			}
+			if stop == "" && err == nil {
+				err = fmt.Errorf("templates: unclosed ifchanged")
+			}
+		case "block", "with", "autoescape", "filter", "spaceless", "comment", "partialdef":
 			n.children, stop, err = p.sequence(map[string]bool{"end" + kind: true})
 			if stop == "" && err == nil {
 				err = fmt.Errorf("templates: unclosed %s", kind)

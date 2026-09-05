@@ -104,6 +104,7 @@ func New(config Config) *Engine {
 	}
 	config.Tags = tags
 	config.Processors = append([]Processor(nil), config.Processors...)
+	config.Libraries = append([]string(nil), config.Libraries...)
 	return &Engine{config: config, cache: map[string]cached{}}
 }
 func validName(name string) bool {
@@ -193,7 +194,7 @@ func (e *Engine) Render(ctx context.Context, name string, values Context) (strin
 	if err != nil {
 		return "", ErrRender
 	}
-	var out bytes.Buffer
+	out := boundedOutput{ctx: ctx, remaining: 16 << 20}
 	if err = t.Execute(&out, r.values); err != nil {
 		return "", ErrRender
 	}
@@ -222,9 +223,35 @@ type renderer struct {
 	values            map[string]any
 	count, iterations int
 	autoescape        bool
+	cycles            map[*node]*cycleState
+	namedCycles       map[string]*cycleState
+	lastCycle         *cycleState
+	changed           map[*node]any
+}
+
+type boundedOutput struct {
+	bytes.Buffer
+	ctx       context.Context
+	remaining int
+}
+
+func (b *boundedOutput) Write(p []byte) (int, error) {
+	if err := b.ctx.Err(); err != nil {
+		return 0, err
+	}
+	if len(p) > b.remaining {
+		return 0, ErrRender
+	}
+	b.remaining -= len(p)
+	return b.Buffer.Write(p)
 }
 
 func (r *renderer) emit(out *strings.Builder, value any) error {
+	var err error
+	value, err = projectValue(value, 0)
+	if err != nil {
+		return err
+	}
 	if value == nil {
 		value = ""
 	}

@@ -2,6 +2,7 @@ package templates
 
 import (
 	"fmt"
+	"math/big"
 	"reflect"
 	"sort"
 	"strconv"
@@ -37,6 +38,10 @@ func (r *renderer) eval(expression string, data Context) (any, error) {
 		value, err = filter(r.ctx, value, arg)
 		if err != nil {
 			return nil, ErrRender
+		}
+		value, err = projectValue(value, 0)
+		if err != nil {
+			return nil, err
 		}
 	}
 	return value, nil
@@ -195,10 +200,12 @@ func (r *renderer) condition(expression string, data Context) (bool, error) {
 			}
 			result := false
 			switch word {
-			case "==", "is":
+			case "==":
+				result = equalValues(left, right)
+			case "is":
 				result = reflect.DeepEqual(left, right)
 			case "!=":
-				result = !reflect.DeepEqual(left, right)
+				result = !equalValues(left, right)
 			case "in":
 				result = contains(right, left)
 			default:
@@ -227,15 +234,9 @@ func (r *renderer) condition(expression string, data Context) (bool, error) {
 	return truthy(v), err
 }
 func compare(a, b any) (int, bool) {
-	if x, ok := number(a); ok {
-		if y, ok := number(b); ok {
-			if x < y {
-				return -1, true
-			}
-			if x > y {
-				return 1, true
-			}
-			return 0, true
+	if x, ok := exactNumber(a); ok {
+		if y, ok := exactNumber(b); ok {
+			return x.Cmp(y), true
 		}
 	}
 	if x, ok := a.(string); ok {
@@ -250,6 +251,30 @@ func compare(a, b any) (int, bool) {
 	}
 	return 0, false
 }
+func equalValues(a, b any) bool {
+	if x, ok := exactNumber(a); ok {
+		if y, ok := exactNumber(b); ok {
+			return x.Cmp(y) == 0
+		}
+	}
+	return reflect.DeepEqual(a, b)
+}
+func exactNumber(value any) (*big.Rat, bool) {
+	if value == nil {
+		return nil, false
+	}
+	v := reflect.ValueOf(value)
+	switch v.Kind() {
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		return new(big.Rat).SetInt64(v.Int()), true
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		return new(big.Rat).SetInt(new(big.Int).SetUint64(v.Uint())), true
+	case reflect.Float32, reflect.Float64:
+		rat := new(big.Rat).SetFloat64(v.Float())
+		return rat, rat != nil
+	}
+	return nil, false
+}
 func contains(collection, item any) bool {
 	if s, ok := collection.(string); ok {
 		return strings.Contains(s, fmt.Sprint(item))
@@ -261,13 +286,13 @@ func contains(collection, item any) bool {
 	switch v.Kind() {
 	case reflect.Map:
 		for _, key := range v.MapKeys() {
-			if reflect.DeepEqual(key.Interface(), item) {
+			if equalValues(key.Interface(), item) {
 				return true
 			}
 		}
 	case reflect.Slice, reflect.Array:
 		for i := 0; i < v.Len(); i++ {
-			if reflect.DeepEqual(v.Index(i).Interface(), item) {
+			if equalValues(v.Index(i).Interface(), item) {
 				return true
 			}
 		}

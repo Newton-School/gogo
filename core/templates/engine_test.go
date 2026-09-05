@@ -86,3 +86,56 @@ func TestConditionAndContextIsolation(t *testing.T) {
 		t.Fatal(out, err, data)
 	}
 }
+
+func TestCommentsSkipInvalidTemplateSyntaxAndNamedVerbatim(t *testing.T) {
+	engine := New(Config{})
+	out, err := engine.RenderString(context.Background(), `a{% comment "explanation" %}{{ broken {% nonsense {% endcomment %}b{%verbatim literal%}{{ raw }}{% endverbatim %}{% endverbatim literal %}c`, nil)
+	if err != nil || out != `ab{{ raw }}{% endverbatim %}c` {
+		t.Fatal(out, err)
+	}
+}
+
+func TestNumericConditionsDoNotLoseIntegerPrecision(t *testing.T) {
+	engine := New(Config{})
+	out, err := engine.RenderString(context.Background(), `{% for item in items %}{% if forloop.counter == 1 %}first{% endif %}{% endfor %}{% if high > low %}greater{% endif %}{% if high == low %}wrong{% endif %}`, Context{"items": []string{"a", "b"}, "high": int64(9007199254740993), "low": int64(9007199254740992)})
+	if err != nil || out != "firstgreater" {
+		t.Fatal(out, err)
+	}
+}
+
+func TestExtensionResultsNeverInvokeApplicationMethods(t *testing.T) {
+	engine := New(Config{Tags: map[string]Tag{"opaque": func(context.Context, Context, []any) (any, error) { return methodValue{}, nil }}, Filters: map[string]Filter{"opaque": func(context.Context, any, any) (any, error) { return methodValue{}, nil }}})
+	out, err := engine.RenderString(context.Background(), `{% opaque %}{{ value|opaque|upper }}{% opaque as object %}{{ object }}`, Context{"value": "safe"})
+	if err != nil || strings.Contains(out, "secret") {
+		t.Fatal(out, err)
+	}
+}
+
+func TestFinalOutputHasBoundIncludingDynamicValues(t *testing.T) {
+	engine := New(Config{})
+	_, err := engine.RenderString(context.Background(), `{% for item in items %}{{ value }}{% endfor %}`, Context{"items": []int{1, 2, 3, 4, 5}, "value": strings.Repeat("x", 4<<20)})
+	if err == nil {
+		t.Fatal("final output exceeded limit through small placeholders")
+	}
+}
+
+func TestStatefulControlTags(t *testing.T) {
+	engine := New(Config{})
+	cases := []struct{ source, want string }{
+		{`{% for value in values %}{% cycle "odd" "even" %}:{% ifchanged value %}{{ value }}{% else %}-{% endifchanged %};{% endfor %}`, "odd:a;even:-;odd:b;"},
+		{`{% cycle "red" "blue" as color silent %}{{ color }}|{% cycle color %}{{ color }}|{% resetcycle color %}{% cycle color %}{{ color }}`, "red|blue|red"},
+		{`{% for value in values %}{% ifchanged %}{{ value }}{% else %}-{% endifchanged %}{% endfor %}`, "a-b"},
+		{`{% for outer in values %}{% for inner in pair %}{% ifchanged inner %}{{ inner }}{% else %}-{% endifchanged %}{% endfor %};{% endfor %}`, "x-;x-;x-;"},
+		{`{% filter upper %}hello {{ name }}{% endfilter %}`, "HELLO WORLD"},
+	}
+	for _, test := range cases {
+		out, err := engine.RenderString(context.Background(), test.source, Context{"values": []string{"a", "a", "b"}, "pair": []string{"x", "x"}, "name": "world"})
+		if err != nil || out != test.want {
+			t.Errorf("%s: got %q want %q (%v)", test.source, out, test.want, err)
+		}
+	}
+	out, err := engine.RenderString(context.Background(), `{% regroup people by team as groups %}{% for group in groups %}{{ group.grouper }}:{{ group.list|length }};{% endfor %}`, Context{"people": []Context{{"team": "A"}, {"team": "A"}, {"team": "B"}, {"team": "A"}}})
+	if err != nil || out != "A:2;B:1;A:1;" {
+		t.Fatal(out, err)
+	}
+}

@@ -52,7 +52,8 @@ func (r *renderer) render(nodes []node, data Context, overrides map[string][]nod
 	if depth >= r.engine.config.MaxDepth {
 		return ErrRender
 	}
-	for _, n := range nodes {
+	for index := range nodes {
+		n := &nodes[index]
 		if err := r.ctx.Err(); err != nil {
 			return err
 		}
@@ -97,6 +98,45 @@ func (r *renderer) render(nodes []node, data Context, overrides map[string][]nod
 			if err = r.render(body, data, overrides, out, depth+1); err != nil {
 				return err
 			}
+		case "cycle":
+			if err := r.cycle(n, data, out); err != nil {
+				return err
+			}
+		case "resetcycle":
+			state := r.lastCycle
+			if n.arg != "" {
+				state = r.namedCycles[n.arg]
+			}
+			if state == nil {
+				return ErrRender
+			}
+			state.index = 0
+		case "ifchanged":
+			if err := r.ifchanged(n, data, overrides, out, depth); err != nil {
+				return err
+			}
+		case "regroup":
+			if err := r.regroup(n.arg, data); err != nil {
+				return err
+			}
+		case "filter":
+			var inner strings.Builder
+			if err := r.render(n.children, data, overrides, &inner, depth+1); err != nil {
+				return err
+			}
+			body, err := r.materialize(inner.String())
+			if err != nil {
+				return err
+			}
+			local := copyContext(data)
+			local["filter_content"] = body
+			value, err := r.eval("filter_content|"+n.arg, local)
+			if err != nil {
+				return err
+			}
+			if err = r.emit(out, value); err != nil {
+				return err
+			}
 		case "for":
 			words := splitQuoted(n.arg, ' ')
 			at := slices.Index(words, "in")
@@ -122,6 +162,8 @@ func (r *renderer) render(nodes []node, data Context, overrides map[string][]nod
 					return err
 				}
 			}
+			previousChanged := r.changed
+			r.changed = map[*node]any{}
 			for i, item := range items {
 				r.iterations++
 				if r.iterations > r.engine.config.MaxIterations {
@@ -144,6 +186,7 @@ func (r *renderer) render(nodes []node, data Context, overrides map[string][]nod
 					return err
 				}
 			}
+			r.changed = previousChanged
 		case "block":
 			names := strings.Fields(n.arg)
 			if len(names) != 1 {
@@ -388,6 +431,10 @@ func (r *renderer) render(nodes []node, data Context, overrides map[string][]nod
 			value, err := tag(r.ctx, copyContext(data), args)
 			if err != nil {
 				return ErrRender
+			}
+			value, err = projectValue(value, 0)
+			if err != nil {
+				return err
 			}
 			if assign != "" {
 				data[assign] = value
