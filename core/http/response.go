@@ -1,0 +1,206 @@
+// Package http adds structured views and lifecycle management to net/http.
+package http
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"github.com/Newton-School/gogo/core/auth"
+	"github.com/Newton-School/gogo/core/db"
+	"github.com/Newton-School/gogo/core/models"
+	"github.com/Newton-School/gogo/core/security"
+	"github.com/Newton-School/gogo/core/templates"
+	"github.com/Newton-School/gogo/core/urls"
+	"io"
+	"net/http"
+	"strings"
+	"time"
+)
+
+type Error struct {
+	Status        int
+	Code, Message string
+	Fields        map[string][]string
+	Cause         error
+}
+
+func (e *Error) Error() string { return e.Code + ": " + e.Message }
+func (e *Error) Unwrap() error { return e.Cause }
+
+var ErrNotFound = &Error{404, "NOT_FOUND", "Not found", nil, nil}
+var ErrConflict = &Error{409, "CONFLICT", "Resource changed", nil, nil}
+var ErrUnavailable = &Error{503, "UNAVAILABLE", "Service unavailable", nil, nil}
+
+func PublicError(err error) *Error {
+	var public *Error
+	if errors.As(err, &public) {
+		if public.Status >= 400 && public.Status <= 599 {
+			return public
+		}
+	}
+	if errors.Is(err, auth.ErrUnauthenticated) {
+		return &Error{401, "UNAUTHENTICATED", "Authentication required", nil, nil}
+	}
+	if errors.Is(err, auth.ErrPermissionDenied) {
+		return &Error{403, "PERMISSION_DENIED", "Permission denied", nil, nil}
+	}
+	if errors.Is(err, db.ErrNoRows) || errors.Is(err, urls.ErrNotFound) {
+		return ErrNotFound
+	}
+	var validation *models.ValidationError
+	if errors.As(err, &validation) {
+		fields := map[string][]string{}
+		for name, items := range validation.Fields {
+			for _, item := range items {
+				fields[name] = append(fields[name], item.Message)
+			}
+		}
+		return &Error{400, "VALIDATION_ERROR", "Invalid input", fields, nil}
+	}
+	if db.IsCode(err, db.UniqueViolation) || db.IsCode(err, db.ForeignKeyViolation) || db.IsCode(err, db.CheckViolation) {
+		return ErrConflict
+	}
+	if db.IsCode(err, db.Unavailable) {
+		return ErrUnavailable
+	}
+	if errors.Is(err, context.DeadlineExceeded) {
+		return &Error{504, "TIMEOUT", "Request timed out", nil, nil}
+	}
+	return &Error{500, "INTERNAL_ERROR", "Internal server error", nil, nil}
+}
+
+type Response struct {
+	Status       int
+	Headers      http.Header
+	Body         []byte
+	Render       func(context.Context) ([]byte, error)
+	ETag         string
+	LastModified time.Time
+}
+
+func Text(status int, value string) Response {
+	return Response{Status: status, Headers: http.Header{"Content-Type": {"text/plain; charset=utf-8"}}, Body: []byte(value)}
+}
+func HTML(status int, value string) Response {
+	return Response{Status: status, Headers: http.Header{"Content-Type": {"text/html; charset=utf-8"}}, Body: []byte(value)}
+}
+func JSON(status int, value any) (Response, error) {
+	b, e := json.Marshal(value)
+	if e != nil {
+		return Response{}, e
+	}
+	return Response{Status: status, Headers: http.Header{"Content-Type": {"application/json"}}, Body: b}, nil
+}
+func Redirect(target string, status int) (Response, error) {
+	if status != 301 && status != 302 && status != 303 && status != 307 && status != 308 {
+		return Response{}, errors.New("invalid redirect status")
+	}
+	if security.SafeNext(target, "") == "" {
+		return Response{}, errors.New("unsafe redirect target")
+	}
+	return Response{Status: status, Headers: http.Header{"Location": {target}}}, nil
+}
+func Template(engine *templates.Engine, name string, data templates.Context, status int) Response {
+	return Response{Status: status, Headers: http.Header{"Content-Type": {"text/html; charset=utf-8"}}, Render: func(ctx context.Context) ([]byte, error) {
+		value, e := engine.Render(ctx, name, data)
+		return []byte(value), e
+	}}
+}
+func (r Response) Write(w http.ResponseWriter, req *http.Request) error {
+	if r.Status == 0 {
+		r.Status = 200
+	}
+	if r.Status < 200 || r.Status > 599 {
+		return errors.New("invalid response status")
+	}
+	for key, values := range r.Headers {
+		if key == "" || strings.ContainsAny(key, " \r\n\t:") {
+			return errors.New("invalid response header")
+		}
+		for _, value := range values {
+			if strings.ContainsAny(value, "\r\n") {
+				return errors.New("invalid response header")
+			}
+		}
+	}
+	if strings.ContainsAny(r.ETag, "\r\n") {
+		return errors.New("invalid ETag")
+	}
+	body := r.Body
+	if r.Render != nil {
+		var err error
+		body, err = r.Render(req.Context())
+		if err != nil {
+			return err
+		}
+	}
+	for key, values := range r.Headers {
+		for _, value := range values {
+			w.Header().Add(key, value)
+		}
+	}
+	if r.ETag != "" {
+		w.Header().Set("ETag", r.ETag)
+	}
+	if !r.LastModified.IsZero() {
+		w.Header().Set("Last-Modified", r.LastModified.UTC().Format(http.TimeFormat))
+	}
+	if r.Status == 200 && (req.Method == "GET" || req.Method == "HEAD") {
+		etag := req.Header.Get("If-None-Match")
+		notModified := false
+		if etag != "" {
+			for _, v := range strings.Split(etag, ",") {
+				v = strings.TrimSpace(v)
+				if v == "*" || r.ETag != "" && strings.TrimPrefix(v, "W/") == strings.TrimPrefix(r.ETag, "W/") {
+					notModified = true
+				}
+			}
+		} else if !r.LastModified.IsZero() {
+			if since, e := http.ParseTime(req.Header.Get("If-Modified-Since")); e == nil && !r.LastModified.Truncate(time.Second).After(since) {
+				notModified = true
+			}
+		}
+		if notModified {
+			w.WriteHeader(304)
+			return nil
+		}
+	}
+	w.WriteHeader(r.Status)
+	if req.Method == "HEAD" || r.Status == 204 || r.Status == 304 {
+		return nil
+	}
+	_, err := w.Write(body)
+	return err
+}
+
+type View func(*http.Request) (Response, error)
+
+func Adapt(view View) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		response, err := view(r)
+		if err == nil {
+			err = response.Write(w, r)
+		}
+		if err != nil {
+			WriteError(w, r, err)
+		}
+	})
+}
+func WriteError(w http.ResponseWriter, r *http.Request, err error) {
+	public := PublicError(err)
+	value := struct {
+		Code      string              `json:"code"`
+		Detail    string              `json:"detail"`
+		Fields    map[string][]string `json:"fields,omitempty"`
+		RequestID string              `json:"request_id,omitempty"`
+	}{public.Code, public.Message, public.Fields, RequestID(r)}
+	response, _ := JSON(public.Status, value)
+	_ = response.Write(w, r)
+}
+func File(w http.ResponseWriter, r *http.Request, name string, modified time.Time, content io.ReadSeeker) {
+	http.ServeContent(w, r, name, modified, content)
+}
+
+type Router = urls.Router
+
+func NewRouter(routes ...urls.Route) (*Router, error) { return urls.New(routes...) }
