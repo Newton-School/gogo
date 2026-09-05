@@ -347,6 +347,92 @@ func TestRealRedisChordAndDelayedLease(t *testing.T) {
 	}
 }
 
+func TestNestedCanvasRestartAndConcurrentRelays(t *testing.T) {
+	ctx := context.Background()
+	broker, results := backends(t)
+	workflows := &adapter.Workflows{Connection: results.Connection}
+	registry := async.NewRegistry()
+	var calls atomic.Int64
+	add, err := async.Register(registry, "nested.redis_add", 1, func(_ context.Context, _ async.TaskContext, n int) (int, error) { calls.Add(1); return n + 1, nil }, async.TaskOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	sum, err := async.Register(registry, "nested.redis_sum", 1, func(_ context.Context, _ async.TaskContext, values []int) (int, error) {
+		calls.Add(1)
+		n := 0
+		for _, v := range values {
+			n += v
+		}
+		return n, nil
+	}, async.TaskOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	client, err := async.NewClient(async.ClientConfig{Registry: registry, Broker: broker, Results: results, Workflows: workflows})
+	if err != nil {
+		t.Fatal(err)
+	}
+	first, _ := add.Signature(1)
+	next, _ := add.Signature(0)
+	body, _ := sum.Signature(nil)
+	group, err := client.ApplyCanvas(ctx, first.Canvas().Then(async.Parallel(async.Chain(next, next), next.Canvas())).Then(body.Canvas()).Then(next.Canvas()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Reconstruct client, workflow adapter, worker and relays before dispatch;
+	// no in-memory compiler objects are needed for durable graph recovery.
+	workflows = &adapter.Workflows{Connection: results.Connection}
+	client, err = async.NewClient(async.ClientConfig{Registry: registry, Broker: broker, Results: results, Workflows: workflows})
+	if err != nil {
+		t.Fatal(err)
+	}
+	group = async.RestoreGroup(client, group.ID)
+	worker := &async.Worker{Registry: registry, Broker: broker, Results: results, ID: "nested-worker"}
+	relays := []*async.IntentRelay{
+		{Client: client, Sources: []async.IntentStore{results, workflows}, ID: "relay-one"},
+		{Client: client, Sources: []async.IntentStore{results, workflows}, ID: "relay-two"},
+	}
+	for turn := 0; turn < 12; turn++ {
+		var wg sync.WaitGroup
+		for _, relay := range relays {
+			wg.Go(func() {
+				if err := relay.Tick(ctx); err != nil {
+					t.Error(err)
+				}
+			})
+		}
+		wg.Wait()
+		for {
+			d, err := broker.Consume(ctx, async.ConsumeOptions{Queues: []string{"default"}, Consumer: "nested-worker"})
+			if errors.Is(err, async.ErrNotFound) {
+				break
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := worker.Process(ctx, d); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	bounded, cancel := context.WithTimeout(ctx, time.Second)
+	defer cancel()
+	out, err := group.Join(bounded)
+	if err != nil || len(out) != 1 || string(out[0]) != "8" || calls.Load() != 6 {
+		t.Fatal(out, calls.Load(), err)
+	}
+	graph, err := group.Snapshot(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, child := range graph.Children {
+		record, err := results.Lookup(ctx, child.ID)
+		if err != nil || record.Pinned {
+			t.Fatal(record, err)
+		}
+	}
+}
+
 func TestRealPeriodicBeatDurableOccurrence(t *testing.T) {
 	ctx := context.Background()
 	broker, results := backends(t)

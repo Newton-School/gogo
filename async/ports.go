@@ -95,6 +95,7 @@ type Intent struct {
 	WorkflowID string      `json:"workflow_id,omitempty"`
 	TargetID   string      `json:"target_id,omitempty"`
 	Completion *Completion `json:"completion,omitempty"`
+	Failure    *Failure    `json:"failure,omitempty"`
 	Fence      uint64      `json:"fence"`
 	Owner      string      `json:"owner"`
 	LeaseUntil time.Time   `json:"lease_until"`
@@ -129,6 +130,18 @@ type Graph struct {
 	Next            int                   `json:"next"`
 	Revision        uint64                `json:"revision"`
 	CallbackClaimed bool                  `json:"callback_claimed"`
+	Plan            []CanvasNode          `json:"plan,omitempty"`
+	RootNode        string                `json:"root_node,omitempty"`
+}
+
+// CanvasNode is a portable compiled workflow node. Collect nodes execute no
+// application code; they retain ordered dependency outputs in the graph CAS.
+type CanvasNode struct {
+	ID           string     `json:"id"`
+	Kind         string     `json:"kind"`
+	Dependencies []string   `json:"dependencies,omitempty"`
+	Signature    *Signature `json:"signature,omitempty"`
+	Dispatched   bool       `json:"dispatched"`
 }
 
 type WorkflowStore interface {

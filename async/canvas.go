@@ -14,6 +14,7 @@ type Canvas struct {
 	Kind       string
 	Signatures []Signature
 	Callback   *Signature
+	Steps      []Canvas
 }
 
 func Chain(signatures ...Signature) Canvas {
@@ -23,6 +24,9 @@ func Group(signatures ...Signature) Canvas {
 	return Canvas{Kind: "group", Signatures: cloneJSON(signatures)}
 }
 func Chord(header Canvas, body Signature) (Canvas, error) {
+	if header.Kind == "parallel" {
+		return header.Then(body.Canvas()), nil
+	}
 	if header.Kind != "group" {
 		return Canvas{}, ErrInvalid
 	}
@@ -105,6 +109,9 @@ func (c *Client) ApplyCanvas(ctx context.Context, canvas Canvas) (*GroupResult, 
 	if c.config.Workflows == nil {
 		return nil, ErrUnavailable
 	}
+	if canvas.Kind == "sequence" || canvas.Kind == "parallel" || canvas.Kind == "task" {
+		return c.applyNested(ctx, canvas)
+	}
 	if err := c.validateCanvas(canvas); err != nil {
 		return nil, err
 	}
@@ -173,6 +180,9 @@ func (c *Client) advance(graph Graph) (Graph, []Intent, error) {
 	if graph.State.Terminal() {
 		return graph, nil, nil
 	}
+	if graph.Kind == "dag" {
+		return c.advanceNested(graph)
+	}
 	var intents []Intent
 	finish := func(state State, output json.RawMessage) (Graph, []Intent, error) {
 		graph.State = state
@@ -209,13 +219,19 @@ func (c *Client) advance(graph Graph) (Graph, []Intent, error) {
 				return graph, nil, err
 			}
 			if err := d.validate(s.Args); err != nil {
-				graph.Children[graph.Next].Args = s.Args
 				intent := dispatchIntent(graph.ID, graph.Children[graph.Next])
 				intent.Kind = "fail"
 				return graph, []Intent{intent}, nil
 			}
-			graph.Children[graph.Next].Args = s.Args
-			return graph, []Intent{dispatchIntent(graph.ID, graph.Children[graph.Next])}, nil
+			next := graph.Children[graph.Next]
+			next.Args = s.Args
+			if err := next.Validate(); err != nil {
+				intent := dispatchIntent(graph.ID, graph.Children[graph.Next])
+				intent.Kind = "fail"
+				return graph, []Intent{intent}, nil
+			}
+			graph.Children[graph.Next] = next
+			return graph, []Intent{dispatchIntent(graph.ID, next)}, nil
 		}
 	}
 	if graph.CallbackClaimed {
@@ -307,7 +323,13 @@ func (g *GroupResult) Join(ctx context.Context) ([]json.RawMessage, error) {
 				return nil, *graph.Failure
 			}
 			var outputs []json.RawMessage
-			if graph.Kind == "chain" || graph.Kind == "chord" {
+			collectionRoot := false
+			if graph.Kind == "dag" {
+				for _, node := range graph.Plan {
+					collectionRoot = collectionRoot || node.ID == graph.RootNode && node.Kind == "collect"
+				}
+			}
+			if graph.Kind == "chain" || graph.Kind == "chord" || graph.Kind == "dag" && !collectionRoot {
 				return []json.RawMessage{graph.Output}, nil
 			}
 			if err := json.Unmarshal(graph.Output, &outputs); err != nil {
@@ -372,7 +394,10 @@ func (r *IntentRelay) Tick(ctx context.Context) error {
 					var claim Claim
 					claim, err = r.Client.config.Results.Claim(ctx, e, r.ID, lease)
 					if err == nil && claim.Acquired {
-						failure := &Failure{Code: "CALLBACK_INPUT", Message: "Callback input validation failed"}
+						failure := intent.Failure
+						if failure == nil {
+							failure = &Failure{Code: "CALLBACK_INPUT", Message: "Callback input validation failed"}
+						}
 						err = r.Client.config.Results.Transition(ctx, Transition{ID: e.ID, Fence: claim.Record.Fence, Owner: r.ID, State: Failed, Failure: failure, Intents: CompletionIntents(e, Failed, nil, failure)})
 					} else if err == nil && !claim.Duplicate {
 						err = ErrBusy
