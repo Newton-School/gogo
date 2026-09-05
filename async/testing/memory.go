@@ -310,6 +310,24 @@ func (m *Memory) Forget(ctx context.Context, id string) error {
 	m.records[id] = r
 	return nil
 }
+func (m *Memory) ReleasePin(ctx context.Context, id string) error {
+	if err := m.check(ctx, "release_pin"); err != nil {
+		return err
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	r, ok := m.records[id]
+	if !ok {
+		return async.ErrNotFound
+	}
+	if !r.State.Terminal() {
+		return async.ErrPinned
+	}
+	r.Pinned = false
+	r.Revision++
+	m.records[id] = r
+	return nil
+}
 func (m *Memory) ListIntents(ctx context.Context, limit int) ([]async.Intent, error) {
 	if err := m.check(ctx, "intents"); err != nil {
 		return nil, err

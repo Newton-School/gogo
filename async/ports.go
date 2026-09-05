@@ -83,6 +83,7 @@ type ResultStore interface {
 	RecordProgress(context.Context, string, uint64, string, json.RawMessage) error
 	RequestCancel(context.Context, string, string) error
 	Forget(context.Context, string) error
+	ReleasePin(context.Context, string) error
 	IntentStore
 }
 
@@ -92,6 +93,7 @@ type Intent struct {
 	Kind       string      `json:"kind"`
 	Envelope   *Envelope   `json:"envelope,omitempty"`
 	WorkflowID string      `json:"workflow_id,omitempty"`
+	TargetID   string      `json:"target_id,omitempty"`
 	Completion *Completion `json:"completion,omitempty"`
 	Fence      uint64      `json:"fence"`
 	Owner      string      `json:"owner"`
