@@ -6,16 +6,28 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/Newton-School/gogo/core/db"
-	"github.com/Newton-School/gogo/core/models"
+	"slices"
 	"strings"
 	"time"
+
+	"github.com/Newton-School/gogo/core/db"
+	"github.com/Newton-School/gogo/core/models"
 )
 
 type SaveOptions struct {
 	ForceInsert, ForceUpdate bool
 	UpdateFields             []string
 	Raw                      bool
+	// Prepare is optional mutable normalization/validation after save hooks,
+	// defaults and the current table operation's auto-field preparation, before
+	// any value or primary-key encoding. Ordinary Save does not run FullClean.
+	// It receives the full model and must be idempotent: update-to-insert
+	// fallback and parent/child table writes invoke it separately. A later
+	// child preparation must not change an already-written parent's fields.
+	// UpdateFields still controls which fields are written. Raw suppresses
+	// defaults/auto-fields, not this explicit callback. Empty UpdateFields and
+	// bulk operations bypass it. Guard remains a separate read-only boundary.
+	Prepare func(context.Context, models.Record) error
 	// Guard is a read-only final application policy check after hooks/defaults
 	// and field preparation, immediately before each UPDATE/INSERT statement.
 	// It receives the full model record and may run again for fallback/parent
@@ -36,6 +48,10 @@ func (s *Store) Save(ctx context.Context, model models.Model, options SaveOption
 	if s == nil || s.Backend == nil {
 		return errors.New("orm: backend required")
 	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	options.UpdateFields = slices.Clone(options.UpdateFields)
 	record, err := models.Bind(model)
 	if err != nil {
 		return err
@@ -158,7 +174,7 @@ func (s *Store) saveTable(ctx context.Context, record models.Record, options Sav
 	}
 	return true, s.insert(ctx, record, options)
 }
-func (s *Store) prepare(record models.Record, field models.Field, add, raw bool) (any, error) {
+func prepareField(record models.Record, field models.Field, add, raw bool) (any, error) {
 	value, err := record.Get(field.Name)
 	if err != nil {
 		return nil, err
@@ -172,7 +188,31 @@ func (s *Store) prepare(record models.Record, field models.Field, add, raw bool)
 			return nil, err
 		}
 	}
+	return value, nil
+}
+
+// Bulk insertion shares auto-field preparation but deliberately bypasses the
+// SaveOptions lifecycle. Keep encoding outside the mutable preparation phase.
+func (s *Store) prepare(record models.Record, field models.Field, add, raw bool) (any, error) {
+	value, err := prepareField(record, field, add, raw)
+	if err != nil {
+		return nil, err
+	}
 	return encodeField(field, value)
+}
+
+func prepareSave(ctx context.Context, options SaveOptions) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if options.Prepare != nil {
+		err := options.Prepare(ctx, options.guardRecord)
+		if canceled := ctx.Err(); canceled != nil {
+			return canceled
+		}
+		return err
+	}
+	return nil
 }
 func (s *Store) update(ctx context.Context, record models.Record, options SaveOptions) (bool, error) {
 	schema := record.Schema()
@@ -191,11 +231,25 @@ func (s *Store) update(ctx context.Context, record models.Record, options SaveOp
 	}
 	parts := []string{}
 	args := []any{}
+	fields := []models.Field{}
 	for _, f := range schema.Fields {
 		if !f.IsStored() || f.Kind == models.Generated || pkNames[f.Name] || (options.UpdateFields != nil && !selected[f.Name]) {
 			continue
 		}
-		value, err := s.prepare(record, f, false, options.Raw)
+		if _, err := prepareField(record, f, false, options.Raw); err != nil {
+			return false, err
+		}
+		fields = append(fields, f)
+	}
+	if err := prepareSave(ctx, options); err != nil {
+		return false, err
+	}
+	for _, f := range fields {
+		value, err := record.Get(f.Name)
+		if err != nil {
+			return false, err
+		}
+		value, err = encodeField(f, value)
 		if err != nil {
 			return false, err
 		}
@@ -215,6 +269,9 @@ func (s *Store) update(ctx context.Context, record models.Record, options SaveOp
 		if err := options.Guard(ctx, options.guardRecord); err != nil {
 			return false, err
 		}
+	}
+	if err := ctx.Err(); err != nil {
+		return false, err
 	}
 	if len(parts) == 0 {
 		var count int
@@ -251,7 +308,25 @@ func (s *Store) insert(ctx context.Context, record models.Record, options SaveOp
 		if (f.IsAuto() || f.DBDefault != "") && models.IsEmptyValue(value) {
 			continue
 		}
-		value, err = s.prepare(record, f, true, options.Raw)
+		if _, err := prepareField(record, f, true, options.Raw); err != nil {
+			return err
+		}
+	}
+	if err := prepareSave(ctx, options); err != nil {
+		return err
+	}
+	for _, f := range schema.Fields {
+		if !f.IsStored() || f.Kind == models.Generated {
+			continue
+		}
+		value, err := record.Get(f.Name)
+		if err != nil {
+			return err
+		}
+		if (f.IsAuto() || f.DBDefault != "") && models.IsEmptyValue(value) {
+			continue
+		}
+		value, err = encodeField(f, value)
 		if err != nil {
 			return err
 		}
@@ -278,6 +353,9 @@ func (s *Store) insert(ctx context.Context, record models.Record, options SaveOp
 		if err := options.Guard(ctx, options.guardRecord); err != nil {
 			return err
 		}
+	}
+	if err := ctx.Err(); err != nil {
+		return err
 	}
 	_, err = s.returning(ctx, record, query, args, names)
 	return err
