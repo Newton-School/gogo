@@ -138,3 +138,32 @@ func TestFileOutboxNeverTraversesEntriesOrDisclosesPaths(t *testing.T) {
 		t.Fatal("path leaked")
 	}
 }
+
+type failingConsoleWriter struct{}
+
+func (failingConsoleWriter) Write([]byte) (int, error) {
+	return 0, errors.New("private writer error includes synthetic-token")
+}
+func TestDevelopmentOutputFailureCannotClaimAcceptanceOrLeakWriterError(t *testing.T) {
+	console, _ := NewConsole(failingConsoleWriter{}, Limits{})
+	receipt, err := console.Send(context.Background(), testMessage())
+	if !errors.Is(err, ErrTransport) || strings.Contains(err.Error(), "synthetic-token") || receipt.Simulated || receipt.AllAccepted() {
+		t.Fatal("unsafe output error")
+	}
+	directory := t.TempDir()
+	if err := os.Chmod(directory, 0700); err != nil {
+		t.Fatal(err)
+	}
+	outbox, err := NewFile(FileConfig{Directory: directory, MaxBytes: 10})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer outbox.Close()
+	if _, err := outbox.Send(context.Background(), testMessage()); !errors.Is(err, ErrLimit) {
+		t.Fatal("file byte bound ignored")
+	}
+	entries, _ := os.ReadDir(directory)
+	if len(entries) != 0 {
+		t.Fatal("quota failure left an output file")
+	}
+}

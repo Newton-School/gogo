@@ -415,3 +415,41 @@ func TestSMTPResponseAndOperationTimeoutBounds(t *testing.T) {
 		}
 	})
 }
+
+func TestSMTPCompletedContextCannotPoisonReusedConnection(t *testing.T) {
+	f := newSMTPFixture(t, smtpOptions{})
+	backend, err := NewSMTP(f.config())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer backend.Close()
+	for range 30 {
+		ctx, cancel := context.WithCancel(context.Background())
+		r, err := backend.Send(ctx, testMessage())
+		cancel()
+		if err != nil || !r.AllAccepted() {
+			t.Fatal("completed context poisoned connection", err)
+		}
+		<-f.data
+	}
+	if f.connections.Load() != 1 {
+		t.Fatal("healthy pooled connection was replaced")
+	}
+}
+
+func TestSMTPPlaintextRequiresExplicitLoopbackDevelopment(t *testing.T) {
+	f := newSMTPFixture(t, smtpOptions{})
+	config := f.config()
+	config.TLSMode = TLSPlaintext
+	config.TLSConfig = nil
+	config.Development = true
+	backend, err := NewSMTP(config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer backend.Close()
+	r, err := backend.Send(context.Background(), testMessage())
+	if err != nil || !r.AllAccepted() || f.authCount.Load() != 0 {
+		t.Fatal("explicit unauthenticated loopback development failed", err)
+	}
+}
