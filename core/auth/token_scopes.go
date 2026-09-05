@@ -68,11 +68,16 @@ func (p constrainedPolicy) Authorize(ctx context.Context, principal Principal, a
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	if !principal.Authenticated {
-		return ErrUnauthenticated
-	}
-	if !principal.Active || p.policy == nil {
+	if p.policy == nil {
 		return ErrPermissionDenied
+	}
+	if principal.tokenScopes != nil {
+		if !principal.Authenticated {
+			return ErrUnauthenticated
+		}
+		if !principal.Active {
+			return ErrPermissionDenied
+		}
 	}
 	if err := CheckTokenScope(principal, action, resource); err != nil {
 		return err
@@ -86,6 +91,7 @@ func (p constrainedPolicy) Authorize(ctx context.Context, principal Principal, a
 
 // ConstrainPolicy enforces a token ceiling before invoking a custom policy.
 // It never replaces the underlying object's or tenant's authorization.
+// Unconstrained identities retain that policy's explicit anonymous-access rules.
 func ConstrainPolicy(policy Policy) Policy { return constrainedPolicy{policy: policy} }
 
 // Account service operations share the corresponding model permission ceiling;

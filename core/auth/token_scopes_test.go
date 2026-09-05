@@ -118,3 +118,21 @@ func TestAccountServicesApplyTokenScopeBeforeCustomAuthority(t *testing.T) {
 		}
 	}
 }
+
+func TestConstrainPolicyPreservesExplicitAnonymousRules(t *testing.T) {
+	ctx := context.Background()
+	resource := Resource{App: "catalog", Model: "Product"}
+	public := ConstrainPolicy(PolicyFunc(func(context.Context, Principal, string, Resource) error { return nil }))
+	if err := public.Authorize(ctx, Principal{}, "view", resource); err != nil {
+		t.Fatal("scope wrapper replaced public resource policy", err)
+	}
+	if err := ConstrainPolicy(ModelPolicy{}).Authorize(ctx, Principal{}, "view", resource); !errors.Is(err, ErrUnauthenticated) {
+		t.Fatal("default private policy became public", err)
+	}
+	for _, p := range []Principal{{}, {Authenticated: true}} {
+		limited, _ := ConstrainPrincipal(p, []string{"catalog.view_product"})
+		if err := public.Authorize(ctx, limited, "view", resource); err == nil {
+			t.Fatal("invalid token identity became anonymous")
+		}
+	}
+}
