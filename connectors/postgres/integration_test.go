@@ -2,8 +2,11 @@ package postgres_test
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -12,6 +15,7 @@ import (
 	"github.com/Newton-School/gogo/core/db"
 	"github.com/Newton-School/gogo/core/models"
 	"github.com/Newton-School/gogo/core/orm"
+	"github.com/jackc/pgx/v5"
 )
 
 type product struct {
@@ -33,7 +37,48 @@ func openTest(t *testing.T) *postgres.Backend {
 	if dsn == "" {
 		t.Skip("GOGO_TEST_POSTGRES_DSN not set; real PostgreSQL integration not run")
 	}
-	backend, err := postgres.Open(context.Background(), postgres.Config{DSN: dsn, MaxOpen: 5, MaxIdle: 2})
+	parsed, err := pgx.ParseConfig(dsn)
+	if err != nil || parsed.User != "gogo_test" || !(strings.HasPrefix(parsed.Host, "/") || parsed.Host == "127.0.0.1" || parsed.Host == "::1") {
+		t.Fatal("integration tests require the isolated local gogo_test cluster")
+	}
+	ctx := context.Background()
+	owner, err := postgres.Open(ctx, postgres.Config{DSN: dsn, MaxOpen: 5, MaxIdle: 2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var dataDirectory, role string
+	if err := db.QueryRow(ctx, owner, "SELECT current_setting('data_directory'), current_user", nil, &dataDirectory, &role); err != nil {
+		owner.Close()
+		t.Fatal(err)
+	}
+	if role != "gogo_test" || !strings.HasPrefix(filepath.Base(filepath.Dir(dataDirectory)), "gogo-postgres.") {
+		owner.Close()
+		t.Fatal("refusing DDL outside the marked temporary integration cluster")
+	}
+	var token [12]byte
+	if _, err := rand.Read(token[:]); err != nil {
+		owner.Close()
+		t.Fatal(err)
+	}
+	schema := "gogo_test_" + hex.EncodeToString(token[:])
+	quoted, err := owner.Dialect().QuoteIdentifier(schema)
+	if err != nil {
+		owner.Close()
+		t.Fatal(err)
+	}
+	if _, err := owner.Exec(ctx, "CREATE SCHEMA "+quoted); err != nil {
+		owner.Close()
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		defer owner.Close()
+		cleanup, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if _, err := owner.Exec(cleanup, "DROP SCHEMA "+quoted+" CASCADE"); err != nil {
+			t.Errorf("cleanup owned test schema: %v", err)
+		}
+	})
+	backend, err := postgres.Open(ctx, postgres.Config{DSN: dsn, SearchPath: schema, MaxOpen: 5, MaxIdle: 2})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -44,9 +89,6 @@ func setupProducts(t *testing.T) (*postgres.Backend, *orm.Store) {
 	t.Helper()
 	backend := openTest(t)
 	ctx := context.Background()
-	if _, err := backend.Exec(ctx, `DROP TABLE IF EXISTS tests_product`); err != nil {
-		t.Fatal(err)
-	}
 	if err := backend.SchemaEditor().CreateModel(ctx, backend, (&product{}).Schema()); err != nil {
 		t.Fatal(err)
 	}

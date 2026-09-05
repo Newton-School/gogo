@@ -35,6 +35,17 @@ type Record interface {
 	Get(string) (any, error)
 	Set(string, any) error
 }
+
+// Underlying returns the typed model behind a Bind record. Custom Record
+// implementations can expose Model() Model to participate in persistence.
+func Underlying(record Record) (Model, bool) {
+	bound, ok := record.(interface{ Model() Model })
+	if !ok {
+		return nil, false
+	}
+	return bound.Model(), true
+}
+
 type BoundRecord struct {
 	model  Model
 	value  reflect.Value

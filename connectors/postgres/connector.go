@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/Newton-School/gogo/core/db"
+	"github.com/Newton-School/gogo/core/models"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/stdlib"
@@ -18,6 +19,7 @@ import (
 
 type Config struct {
 	DSN, Alias                  string
+	SearchPath                  string
 	MaxOpen, MaxIdle            int
 	ConnectTimeout, MaxLifetime time.Duration
 	Production                  bool
@@ -66,6 +68,12 @@ func Open(ctx context.Context, config Config) (*Backend, error) {
 		config.Alias = "default"
 	}
 	parsed.ConnectTimeout = config.ConnectTimeout
+	if config.SearchPath != "" {
+		if !models.ValidIdentifier(config.SearchPath) {
+			return nil, errors.New("postgres: invalid search path")
+		}
+		parsed.RuntimeParams["search_path"] = config.SearchPath
+	}
 	pool := stdlib.OpenDB(*parsed)
 	pool.SetMaxOpenConns(config.MaxOpen)
 	pool.SetMaxIdleConns(config.MaxIdle)

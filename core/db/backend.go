@@ -77,6 +77,11 @@ type Introspector interface {
 	Tables(context.Context, Executor) ([]string, error)
 }
 
+// MigrationLocker holds a dedicated session lock for the entire migration run.
+type MigrationLocker interface {
+	LockMigrations(context.Context) (func() error, error)
+}
+
 type ErrorCode string
 
 const (
