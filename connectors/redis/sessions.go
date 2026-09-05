@@ -2,6 +2,7 @@ package redis
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"strconv"
@@ -14,6 +15,14 @@ import (
 type Sessions struct {
 	Connection   *Connection
 	TombstoneTTL time.Duration
+}
+
+func validSessionID(id string) bool {
+	if len(id) != 43 {
+		return false
+	}
+	decoded, err := base64.RawURLEncoding.Strict().DecodeString(id)
+	return err == nil && len(decoded) == 32
 }
 
 func (s *Sessions) key(id string) string {
@@ -40,12 +49,16 @@ func (s *Sessions) write(ctx context.Context, r sessions.Record, expected uint64
 	if err := s.valid(); err != nil {
 		return err
 	}
-	if len(r.ID) != 43 || r.Version < 1 {
+	if !validSessionID(r.ID) || r.Version < 1 {
 		return ErrInvalid
 	}
 	if !create && r.Version != expected+1 {
 		return ErrInvalid
 	}
+	id := r.ID
+	// The session ID is a bearer secret. Store only its digest as the lookup
+	// key, never a recoverable copy in the session payload.
+	r.ID = ""
 	b, err := json.Marshal(r)
 	if err != nil || len(b) > 64<<10 {
 		return ErrInvalid
@@ -54,7 +67,7 @@ func (s *Sessions) write(ctx context.Context, r sessions.Record, expected uint64
 	if create {
 		mode = "create"
 	}
-	out, err := s.Connection.Atomic(ctx, sessionWrite, []string{s.key(r.ID)}, mode, strconv.FormatUint(expected, 10), strconv.FormatUint(r.Version, 10), r.ExpiresAt.UnixMilli(), b)
+	out, err := s.Connection.Atomic(ctx, sessionWrite, []string{s.key(id)}, mode, strconv.FormatUint(expected, 10), strconv.FormatUint(r.Version, 10), r.ExpiresAt.UnixMilli(), b)
 	if err != nil {
 		return err
 	}
@@ -82,7 +95,7 @@ func (s *Sessions) Load(ctx context.Context, id string) (sessions.Record, error)
 	if err := s.valid(); err != nil {
 		return r, err
 	}
-	if len(id) != 43 {
+	if !validSessionID(id) {
 		return r, sessions.ErrNotFound
 	}
 	out, err := s.Connection.Atomic(ctx, sessionLoad, []string{s.key(id)})
@@ -99,6 +112,7 @@ func (s *Sessions) Load(ctx context.Context, id string) (sessions.Record, error)
 	if err := json.Unmarshal([]byte(b), &r); err != nil {
 		return r, ErrUnavailable
 	}
+	r.ID = id
 	return r, nil
 }
 
@@ -107,6 +121,9 @@ var sessionDelete = redigo.NewScript(`redis.call('HSET',KEYS[1],'deleted','1','v
 func (s *Sessions) Delete(ctx context.Context, id string) error {
 	if err := s.valid(); err != nil {
 		return err
+	}
+	if !validSessionID(id) {
+		return ErrInvalid
 	}
 	ttl := s.TombstoneTTL
 	if ttl == 0 {

@@ -3,6 +3,7 @@ package redis_test
 import (
 	"context"
 	"errors"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -99,8 +100,12 @@ func TestRealSessionCASAndLogoutTombstone(t *testing.T) {
 	if err := store.Create(ctx, record); err != nil {
 		t.Fatal(err)
 	}
+	payload, err := conn.Client().HGet(ctx, conn.Namespace()+":session:{"+connector.Digest(id)+"}", "payload").Result()
+	if err != nil || strings.Contains(payload, id) {
+		t.Fatal("session bearer persisted in payload", err)
+	}
 	loaded, err := store.Load(ctx, id)
-	if err != nil || loaded.Version != 1 {
+	if err != nil || loaded.Version != 1 || loaded.ID != id {
 		t.Fatal(loaded, err)
 	}
 	record.Version = 2
@@ -123,6 +128,9 @@ func TestRealSessionCASAndLogoutTombstone(t *testing.T) {
 	record.Version = 1
 	if err := store.Create(ctx, record); !errors.Is(err, sessions.ErrConflict) {
 		t.Fatal("resurrected", err)
+	}
+	if err := store.Delete(ctx, strings.Repeat("!", 43)); !errors.Is(err, connector.ErrInvalid) {
+		t.Fatal("invalid ID populated tombstone", err)
 	}
 }
 func TestRealRateLimitAndDurableReadiness(t *testing.T) {
