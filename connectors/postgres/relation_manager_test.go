@@ -131,3 +131,29 @@ func TestScalarRelationHooksRecheckEveryEndpoint(t *testing.T) {
 		})
 	}
 }
+
+func TestRelationManagersBypassModelSaveHooks(t *testing.T) {
+	store, parent, child := setupRelations(t, models.Cascade, false)
+	ctx := context.Background()
+	forbidden := errors.New("instance Save hook must not run")
+	store.BeforeSave = []orm.SaveReceiver{func(context.Context, orm.SaveEvent) error { return forbidden }}
+	store.AfterSave = []orm.SaveReceiver{func(context.Context, orm.SaveEvent) error { return forbidden }}
+	parentRecord, _ := models.Bind(parent)
+	childRecord, _ := models.Bind(child)
+	if err := (orm.RelationManager{Store: store, Source: childRecord, Name: "parent"}).Set(ctx, parentRecord); err != nil {
+		t.Fatal(err)
+	}
+	if err := (orm.RelationManager{Store: store, Source: parentRecord, Name: "child_set"}).Remove(ctx, childRecord); err != nil {
+		t.Fatal(err)
+	}
+	store, post, tags, _ := setupMany(t, false)
+	store.BeforeSave = []orm.SaveReceiver{func(context.Context, orm.SaveEvent) error { return forbidden }}
+	store.AfterSave = []orm.SaveReceiver{func(context.Context, orm.SaveEvent) error { return forbidden }}
+	manager := orm.RelationManager{Store: store, Source: post, Name: "tags"}
+	if err := manager.Add(ctx, tags[0]); err != nil {
+		t.Fatal(err)
+	}
+	if err := manager.Clear(ctx); err != nil {
+		t.Fatal(err)
+	}
+}

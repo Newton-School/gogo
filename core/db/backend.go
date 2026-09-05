@@ -95,6 +95,10 @@ type DeferredSchemaEditor interface {
 	FlushDeferred(context.Context, Executor) error
 }
 
+// ParameterLimiter advertises the maximum bind parameters in one statement.
+// Query planners batch below this connector limit; unknown connectors use 500.
+type ParameterLimiter interface{ MaxParameters() int }
+
 // MigrationLocker holds a dedicated session lock for the entire migration run.
 type MigrationLocker interface {
 	LockMigrations(context.Context) (func() error, error)

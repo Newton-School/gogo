@@ -168,4 +168,32 @@ func TestSelectRelatedNestedAndReverseOneToOne(t *testing.T) {
 	if err := db.Atomic(ctx, b, db.AtomicOptions{}, func(ctx context.Context) error { _, err := query.SelectForUpdateOf("self").All(ctx); return err }); err != nil {
 		t.Fatal("joined root locking failed", err)
 	}
+	store.Backend = b
+	saveMap(t, store, book, map[string]any{"author": mustValue(t, a, "id")})
+	store.Backend = counted
+	for _, selected := range []bool{false, true} {
+		counted.queries.Store(0)
+		eager := orm.For(store, func() *models.MapRecord { r, _ := models.NewRecord(book); return r }).OrderBy("id").PrefetchRelated("author", "author__company")
+		if selected {
+			eager = eager.SelectRelated("author")
+		}
+		rows, err := eager.All(ctx)
+		expected := int32(3)
+		if selected {
+			expected = 2
+		}
+		if err != nil || len(rows) != 3 || counted.queries.Load() != expected {
+			t.Fatal("nested prefetch query count", rows, err, counted.queries.Load(), selected)
+		}
+		for _, i := range []int{0, 2} {
+			author, loaded := orm.RelatedOne(rows[i], "author")
+			if !loaded || author == nil {
+				t.Fatal("author cache missing")
+			}
+			company, loaded := orm.RelatedOne(author, "company")
+			if !loaded || company == nil || mustValue(t, company, "name") != "Publisher" {
+				t.Fatal("nested cache not attached to every copy", company, loaded, selected)
+			}
+		}
+	}
 }

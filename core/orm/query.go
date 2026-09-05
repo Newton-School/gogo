@@ -40,6 +40,8 @@ type Query[T models.Model] struct {
 	joined       []joinedRelation
 	scope        QueryScope
 	prepared     bool
+	prefetches   []Prefetch
+	eagerLimit   int
 }
 
 func For[T models.Model](store *Store, factory func() T) Query[T] {
@@ -69,15 +71,28 @@ func (q Query[T]) clone() Query[T] {
 	q.selectAST.DistinctOn = append([]string(nil), q.selectAST.DistinctOn...)
 	q.selectAST.Projections = append([]db.Projection(nil), q.selectAST.Projections...)
 	q.selectAST.GroupBy = append([]string(nil), q.selectAST.GroupBy...)
+	q.selectAST.Where = clonePredicate(q.selectAST.Where)
+	q.selectAST.Having = clonePredicate(q.selectAST.Having)
+	for i := range q.selectAST.Projections {
+		q.selectAST.Projections[i].Expression = cloneExpression(q.selectAST.Projections[i].Expression)
+	}
 	q.selectAST.Joins = append([]db.Join(nil), q.selectAST.Joins...)
+	for i := range q.selectAST.Joins {
+		q.selectAST.Joins[i].Schema = q.selectAST.Joins[i].Schema.Clone()
+		q.selectAST.Joins[i].Where = clonePredicate(q.selectAST.Joins[i].Where)
+	}
 	q.selectAST.LockOf = append([]string(nil), q.selectAST.LockOf...)
 	q.relatedPaths = append([]string(nil), q.relatedPaths...)
 	q.joined = append([]joinedRelation(nil), q.joined...)
+	q.prefetches = clonePrefetches(q.prefetches)
 	return q
 }
 func (q Query[T]) Filter(predicates ...db.Predicate) Query[T] {
 	q = q.clone()
 	children := append([]db.Predicate{q.selectAST.Where}, predicates...)
+	for i := range children {
+		children[i] = clonePredicate(children[i])
+	}
 	q.selectAST.Where = db.Predicate{Connector: "AND", Children: children}
 	return q
 }
@@ -178,6 +193,9 @@ func (q Query[T]) Iterator(ctx context.Context) (*Iterator[T], error) {
 	if q.err != nil {
 		return nil, q.err
 	}
+	if len(q.prefetches) > 0 {
+		return nil, errors.New("orm: collection prefetch requires All; streaming prefetch needs an explicit chunked query")
+	}
 	if q.selectAST.ForUpdate && !db.InTransaction(ctx, q.store.Backend.Alias()) {
 		return nil, errors.New("orm: SelectForUpdate requires Atomic")
 	}
@@ -271,6 +289,9 @@ func (i *Iterator[T]) Close() error {
 	return i.rows.Close()
 }
 func (q Query[T]) All(ctx context.Context) ([]T, error) {
+	if len(q.prefetches) > 0 {
+		return q.allPrefetched(ctx)
+	}
 	iterator, err := q.Iterator(ctx)
 	if err != nil {
 		return nil, err
@@ -333,6 +354,8 @@ func (q Query[T]) Count(ctx context.Context) (int64, error) {
 	return count, err
 }
 func (q Query[T]) Exists(ctx context.Context) (bool, error) {
+	q = q.clone()
+	q.prefetches = nil
 	_, err := q.First(ctx)
 	if errors.Is(err, ErrNotFound) {
 		return false, nil
@@ -348,6 +371,7 @@ func (q Query[T]) Values(ctx context.Context, fields ...string) ([]map[string]an
 	}
 	q = q.clone()
 	q.relatedPaths = nil
+	q.prefetches = nil
 	if len(fields) > 0 {
 		q.selectAST.Fields = append([]string(nil), fields...)
 	}

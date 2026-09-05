@@ -31,6 +31,8 @@ type Backend struct {
 	capabilities db.Capabilities
 }
 
+func (*Backend) MaxParameters() int { return 65535 }
+
 func Open(ctx context.Context, config Config) (*Backend, error) {
 	if config.DSN == "" {
 		return nil, errors.New("postgres: DSN is required")
