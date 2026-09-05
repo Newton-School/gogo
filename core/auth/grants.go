@@ -212,7 +212,12 @@ func (a *Accounts) SetUserPermissions(ctx context.Context, userID string, values
 		}
 		for _, id := range ids {
 			link := &UserPermission{UserID: user.ID, PermissionID: id}
-			if err := a.store.Save(ctx, link, orm.SaveOptions{ForceInsert: true}); err != nil {
+			if err := a.store.Save(ctx, link, orm.SaveOptions{ForceInsert: true, Guard: func(context.Context, models.Record) error {
+				if link.UserID != userID || link.PermissionID != id {
+					return ErrPermissionDenied
+				}
+				return nil
+			}}); err != nil {
 				return err
 			}
 			if link.UserID != userID || link.PermissionID != id {
@@ -242,6 +247,18 @@ func (a *Accounts) SetUserPermissions(ctx context.Context, userID string, values
 func (a *Accounts) saveUser(ctx context.Context, user *User, options orm.SaveOptions) error {
 	id, identifier, encoded, version := user.ID, user.Identifier, storedHash(user), user.AuthVersion
 	active, staff, superuser := user.Active, user.Staff, user.Superuser
+	guard := options.Guard
+	options.Guard = func(ctx context.Context, record models.Record) error {
+		if guard != nil {
+			if err := guard(ctx, record); err != nil {
+				return err
+			}
+		}
+		if user.ID != id || user.Identifier != identifier || storedHash(user) != encoded || user.AuthVersion != version || user.Active != active || user.Staff != staff || user.Superuser != superuser {
+			return ErrPermissionDenied
+		}
+		return nil
+	}
 	if err := a.store.Save(ctx, user, options); err != nil {
 		return err
 	}

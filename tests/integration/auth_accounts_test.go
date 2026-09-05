@@ -11,6 +11,7 @@ import (
 	"example.com/gogo-integration/internal/testservice"
 	"github.com/Newton-School/gogo/core/auth"
 	"github.com/Newton-School/gogo/core/contrib/contenttypes"
+	"github.com/Newton-School/gogo/core/db"
 	"github.com/Newton-School/gogo/core/migrations"
 	"github.com/Newton-School/gogo/core/models"
 	"github.com/Newton-School/gogo/core/orm"
@@ -235,5 +236,77 @@ func TestPostgresAccountsPermissionsAndCredentialInvalidation(t *testing.T) {
 	}
 	if _, err := actor.Authenticate(ctx, inactive.Identifier, "fixture inactive password"); !errors.Is(err, auth.ErrCredentials) {
 		t.Fatal("inactive user authenticated", err)
+	}
+	group, err := accounts.CreateGroup(operatorCtx, " Fixture editors ")
+	if err != nil || group.Name != "Fixture editors" {
+		t.Fatal("group creation", err)
+	}
+	if _, err := accounts.CreateGroup(operatorCtx, "Fixture editors"); err == nil {
+		t.Fatal("group name uniqueness missing")
+	}
+	if err := accounts.SetGroupPermissions(operatorCtx, group.ID, []int64{publish.ID}); err != nil {
+		t.Fatal(err)
+	}
+	if err := accounts.SetUserGroups(ctx, user.ID, []string{group.ID}); !errors.Is(err, auth.ErrPermissionDenied) {
+		t.Fatal("untrusted group assignment", err)
+	}
+	for _, memberID := range []string{user.ID, inactive.ID} {
+		if err := accounts.SetUserGroups(operatorCtx, memberID, []string{group.ID}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	memberOne, err := accounts.LoadPrincipal(ctx, user.ID)
+	if err != nil || len(memberOne.Permissions) != 1 || memberOne.Permissions[0] != "catalog.publish_asset" {
+		t.Fatal("group grant not resolved", err, memberOne.Permissions)
+	}
+	memberTwo, err := accounts.LoadPrincipal(ctx, inactive.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := accounts.SetUserGroups(operatorCtx, user.ID, []string{group.ID}); err != nil {
+		t.Fatal(err)
+	}
+	if err := accounts.SetGroupPermissions(operatorCtx, group.ID, []int64{publish.ID}); err != nil {
+		t.Fatal(err)
+	}
+	noOp, _ := accounts.LoadPrincipal(ctx, user.ID)
+	if noOp.AuthVersion != memberOne.AuthVersion {
+		t.Fatal("no-op group changes invalidated member sessions")
+	}
+	rollback := errors.New("fixture outer rollback")
+	if err := db.Atomic(ctx, backend, db.AtomicOptions{}, func(txCtx context.Context) error {
+		txCtx = auth.WithPrincipal(txCtx, auth.FromContext(operatorCtx))
+		if err := accounts.SetGroupPermissions(txCtx, group.ID, []int64{permission.ID}); err != nil {
+			return err
+		}
+		return rollback
+	}); !errors.Is(err, rollback) {
+		t.Fatal(err)
+	}
+	afterRollback, err := accounts.LoadPrincipal(ctx, user.ID)
+	if err != nil || afterRollback.AuthVersion != memberOne.AuthVersion || afterRollback.Permissions[0] != "catalog.publish_asset" {
+		t.Fatal("outer rollback leaked group changes", err)
+	}
+	if err := accounts.SetGroupPermissions(operatorCtx, group.ID, []int64{permission.ID}); err != nil {
+		t.Fatal(err)
+	}
+	firstUpdated, _ := accounts.LoadPrincipal(ctx, user.ID)
+	secondUpdated, _ := accounts.LoadPrincipal(ctx, inactive.ID)
+	if firstUpdated.AuthVersion != memberOne.AuthVersion+1 || secondUpdated.AuthVersion != memberTwo.AuthVersion+1 || firstUpdated.Permissions[0] != "catalog.view_asset" {
+		t.Fatal("group change did not atomically invalidate all member sessions")
+	}
+	if err := accounts.SetUserGroups(operatorCtx, user.ID, nil); err != nil {
+		t.Fatal(err)
+	}
+	removed, _ := accounts.LoadPrincipal(ctx, user.ID)
+	if len(removed.Permissions) != 0 || removed.AuthVersion != firstUpdated.AuthVersion+1 {
+		t.Fatal("membership removal retained group grants")
+	}
+	if err := accounts.SetGroupPermissions(operatorCtx, group.ID, nil); err != nil {
+		t.Fatal(err)
+	}
+	remaining, _ := accounts.LoadPrincipal(ctx, inactive.ID)
+	if len(remaining.Permissions) != 0 || remaining.AuthVersion != secondUpdated.AuthVersion+1 {
+		t.Fatal("group revocation did not invalidate remaining member")
 	}
 }
