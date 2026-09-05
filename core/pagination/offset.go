@@ -14,6 +14,7 @@ type Mode string
 const (
 	PageNumber  Mode = "page"
 	LimitOffset Mode = "offset"
+	CursorMode  Mode = "cursor"
 )
 
 type Config struct {
@@ -40,7 +41,7 @@ func New(config Config) (*Paginator, error) {
 	if config.MaxOffset == 0 {
 		config.MaxOffset = 1_000_000
 	}
-	if config.Mode != PageNumber && config.Mode != LimitOffset || config.DefaultSize < 1 || config.MaxSize < config.DefaultSize || config.MaxSize > 200 || config.MaxOffset < 1 || config.MaxOffset > int(^uint(0)>>1)-201 {
+	if config.Mode != PageNumber && config.Mode != LimitOffset && config.Mode != CursorMode || config.DefaultSize < 1 || config.MaxSize < config.DefaultSize || config.MaxSize > 200 || config.MaxOffset < 1 || config.MaxOffset > int(^uint(0)>>1)-201 {
 		return nil, ErrInvalid
 	}
 	return &Paginator{config: config}, nil
@@ -58,7 +59,7 @@ func (p *Paginator) Parse(values url.Values) (Page, error) {
 		if !exists {
 			continue
 		}
-		if len(items) != 1 || key == "cursor" || p.config.Mode == PageNumber && (key == "limit" || key == "offset") || p.config.Mode == LimitOffset && (key == "page" || key == "page_size") {
+		if len(items) != 1 || key == "cursor" && (p.config.Mode != CursorMode || items[0] == "" || len(items[0]) > MaxCursorBytes) || p.config.Mode == PageNumber && (key == "limit" || key == "offset") || p.config.Mode == LimitOffset && (key == "page" || key == "page_size") || p.config.Mode == CursorMode && (key == "page" || key == "limit" || key == "offset") {
 			return Page{}, ErrInvalid
 		}
 	}
@@ -82,10 +83,13 @@ func (p *Paginator) Parse(values url.Values) (Page, error) {
 		return value, nil
 	}
 	var err error
-	if p.config.Mode == PageNumber {
+	if p.config.Mode == PageNumber || p.config.Mode == CursorMode {
 		result.Size, err = read("page_size", result.Size)
 		if err != nil || result.Size < 1 || result.Size > p.config.MaxSize {
 			return Page{}, ErrInvalid
+		}
+		if p.config.Mode == CursorMode {
+			return result, nil
 		}
 		page, err := read("page", 1)
 		if err != nil || page < 1 || page-1 > p.config.MaxOffset/result.Size {
@@ -108,7 +112,7 @@ func (p *Paginator) Parse(values url.Values) (Page, error) {
 // Links emits relative links, never a client-supplied Host. It preserves only
 // the query already validated by the caller and does not mutate it.
 func (p *Paginator) Links(values url.Values, page Page, hasMore bool) (next, previous string) {
-	if p == nil || page.Size < 1 || page.Size > p.config.MaxSize || page.Offset < 0 || page.Offset > p.config.MaxOffset {
+	if p == nil || p.config.Mode == CursorMode || page.Size < 1 || page.Size > p.config.MaxSize || page.Offset < 0 || page.Offset > p.config.MaxOffset {
 		return "", ""
 	}
 	link := func(offset int) string {

@@ -35,6 +35,7 @@ type ResourceConfig struct {
 	AllowField    func(context.Context, auth.Principal, models.Record, string) (bool, error)
 	Filters       FilterConfig
 	Pagination    pagination.Config
+	Cursor        *ResourceCursorOptions
 	IncludeCount  bool
 	SelectRelated []string
 }
@@ -48,6 +49,7 @@ type Resource struct {
 	schema    models.Schema
 	filters   *FilterBackend
 	paginator *pagination.Paginator
+	cursor    *resourceCursor
 }
 
 func NewResource(config ResourceConfig) (*Resource, error) {
@@ -82,7 +84,16 @@ func NewResource(config ResourceConfig) (*Resource, error) {
 			}
 		}
 	}
-	return &Resource{config: config, schema: schema, filters: filters, paginator: paginator}, nil
+	resource := &Resource{config: config, schema: schema, filters: filters, paginator: paginator}
+	if config.Pagination.Mode == pagination.CursorMode {
+		resource.cursor, err = resource.newCursor(config.Cursor)
+		if err != nil {
+			return nil, err
+		}
+	} else if config.Cursor != nil {
+		return nil, errors.New("api: cursor settings require cursor pagination mode")
+	}
+	return resource, nil
 }
 
 // Routes returns Django-style named patterns for inclusion in an app urls.go.
@@ -165,8 +176,10 @@ func (s *Resource) request(r *http.Request) (resourceRequest, error) {
 	return resourceRequest{ctx: ctx, query: query}, ctx.Err()
 }
 
+const maxResourceQueryBytes = 16 << 10
+
 func readQuery(r *http.Request) (url.Values, error) {
-	if len(r.URL.RawQuery) > 16<<10 {
+	if len(r.URL.RawQuery) > maxResourceQueryBytes {
 		return nil, invalidQuery()
 	}
 	values, err := url.ParseQuery(r.URL.RawQuery)
@@ -174,6 +187,17 @@ func readQuery(r *http.Request) (url.Values, error) {
 		return nil, invalidQuery()
 	}
 	return values, nil
+}
+
+// Navigation must fit the same request budget as the page it links to. URL
+// canonicalization and adding a signed cursor can expand an accepted query.
+func validateNavigation(next, previous string) error {
+	for _, link := range []string{next, previous} {
+		if len(link) > maxResourceQueryBytes+1 {
+			return invalidQuery()
+		}
+	}
+	return nil
 }
 
 type Collection struct {
@@ -202,6 +226,9 @@ func (s *Resource) ListHandler() http.Handler {
 			return nil, mediaError(400, "INVALID_PAGINATION", "Invalid pagination parameters")
 		}
 		query := request.query.Filter(options.Predicate).OrderBy(options.Ordering...)
+		if s.cursor != nil {
+			return s.cursorList(request, values, options, page, query)
+		}
 		result := Collection{Results: []Values{}}
 		if s.config.IncludeCount {
 			count, err := query.Count(request.ctx)
@@ -226,6 +253,9 @@ func (s *Resource) ListHandler() http.Handler {
 			result.Results = append(result.Results, value)
 		}
 		result.Next, result.Previous = s.paginator.Links(values, page, hasMore)
+		if err := validateNavigation(result.Next, result.Previous); err != nil {
+			return nil, err
+		}
 		return result, request.ctx.Err()
 	})
 }

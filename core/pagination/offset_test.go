@@ -59,3 +59,22 @@ func TestPaginationConfigurationBounds(t *testing.T) {
 		}
 	}
 }
+
+func TestCursorPageSizeParsingDoesNotEnableOffsetNavigation(t *testing.T) {
+	p, err := New(Config{Mode: CursorMode})
+	if err != nil {
+		t.Fatal(err)
+	}
+	page, err := p.Parse(url.Values{"cursor": {"opaque-token"}, "page_size": {"7"}})
+	if err != nil || page.Size != 7 || page.Offset != 0 {
+		t.Fatal(page, err)
+	}
+	for _, values := range []url.Values{{"page": {"1"}}, {"offset": {"0"}}, {"limit": {"2"}}, {"cursor": {""}}, {"cursor": {"one", "two"}}, {"page_size": {"201"}}} {
+		if _, err := p.Parse(values); err != ErrInvalid {
+			t.Fatal("invalid cursor pagination accepted", values, err)
+		}
+	}
+	if next, previous := p.Links(url.Values{}, page, true); next != "" || previous != "" {
+		t.Fatal("unsigned cursor navigation emitted")
+	}
+}

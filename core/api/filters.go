@@ -12,6 +12,7 @@ import (
 	"github.com/Newton-School/gogo/core/db"
 	"github.com/Newton-School/gogo/core/models"
 	"github.com/Newton-School/gogo/core/orm"
+	"github.com/Newton-School/gogo/core/pagination"
 )
 
 // Filter maps one public query parameter to one explicitly allowed model
@@ -137,7 +138,11 @@ func (f *FilterBackend) Parse(ctx context.Context, values url.Values) (QueryOpti
 			return QueryOptions{}, invalidQuery()
 		}
 		for _, item := range items {
-			if !utf8.ValidString(item) || len(item) > 4096 || strings.ContainsRune(item, 0) {
+			maximum := 4096
+			if key == "cursor" {
+				maximum = pagination.MaxCursorBytes
+			}
+			if !utf8.ValidString(item) || len(item) > maximum || strings.ContainsRune(item, 0) {
 				return QueryOptions{}, invalidQuery()
 			}
 		}

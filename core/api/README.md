@@ -27,10 +27,30 @@ with AND and configured text fields with OR. Query operands are typed but do
 not execute model save validators; partial email/URL/text operands are valid.
 Ordering always adds every primary-key component as a unique tie-breaker.
 
-Pagination currently supports page-number (`page`, `page_size`) and limit/offset
-(`limit`, `offset`), default size 50 and maximum 200. Invalid, mixed, duplicate
-or undeclared parameters return 400. Navigation is relative and does not trust
-the request Host. Signed-cursor resource integration remains pending.
+Pagination supports page-number (`page`, `page_size`), limit/offset (`limit`,
+`offset`), and forward-only signed cursors (`cursor`, `page_size`), default size
+50 and maximum 200. Invalid, mixed, duplicate or undeclared parameters return
+400. Navigation is relative and does not trust the request Host. Requests and
+generated navigation have the same 16 KiB query budget; an over-budget link
+fails the whole response instead of returning unusable navigation.
+
+For `pagination.CursorMode`, supply `ResourceCursorOptions` with a purpose-bound
+`security.Signer`, unique resource `Name`, semantic `Version`, explicit
+`ImmutableFields`, and a `ScopeIdentity` callback returning the current
+tenant/visibility-policy version. Every allowed ordering field and every
+primary-key component must be a non-null scalar, guaranteed immutable across
+**all** writes, and directly exposed by the serializer. A field policy that
+hides a cursor key fails navigation closed. Positions are signed, not encrypted;
+never configure secret values as cursor keys.
+
+Cursors bind that resource/version/scope, the verified principal and permission
+ceiling, filters, ordering and page size. Expired, forged or rebound cursors
+return 400 before querying model rows. Keyset comparisons preserve exact large
+integer and decimal values and add primary keys to break ordering ties. Earlier
+insertions do not shift subsequent pages, but results are not a database
+snapshot: concurrent inserts, deletes and visibility changes can change the
+traversal. `IncludeCount` counts the full scoped filtered collection in a
+separate read. Cursor navigation currently returns only `next`, not `previous`.
 
 Missing or out-of-scope details return 404. For custom detail decoders return
 `ErrInvalidKey` for malformed input; retain provider/context errors so failures
@@ -39,5 +59,5 @@ Object or representation failure returns no partial list. Responses are JSON,
 private/no-store, and support GET/HEAD; an unacceptable Accept header returns
 406. Callback panic values, SQL, and provider error text are not rendered.
 
-Generic writes, signed-cursor resource navigation, custom action metadata,
+Generic writes, reverse-cursor navigation, custom action metadata,
 OpenAPI and browsable documentation are not implemented by this resource yet.
