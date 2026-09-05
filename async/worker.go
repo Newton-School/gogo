@@ -36,6 +36,7 @@ type Worker struct {
 	initErr     error
 	activityMu  sync.Mutex
 	active      map[string]TaskActivity
+	instanceID  string
 	slots       chan struct{}
 	taskSlots   map[string]chan struct{}
 	rateMu      sync.Mutex

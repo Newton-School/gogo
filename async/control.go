@@ -30,7 +30,10 @@ type TaskActivity struct {
 	Retries   int
 }
 type WorkerSnapshot struct {
-	ID          string
+	ID string
+	// InstanceID addresses one Run/RunOnce lifetime. It is public, independent
+	// of its secret monitoring lease, and must not be reused after restart.
+	InstanceID  string
 	Queues      []string
 	Registered  []string
 	Concurrency int
@@ -41,7 +44,7 @@ type WorkerSnapshot struct {
 func (w *Worker) Snapshot() WorkerSnapshot {
 	w.activityMu.Lock()
 	defer w.activityMu.Unlock()
-	out := WorkerSnapshot{ID: w.ID, Queues: append([]string(nil), w.Queues...), Concurrency: w.Concurrency, At: time.Now().UTC()}
+	out := WorkerSnapshot{ID: w.ID, InstanceID: w.instanceID, Queues: append([]string(nil), w.Queues...), Concurrency: w.Concurrency, At: time.Now().UTC()}
 	if w.Registry != nil {
 		out.Registered = w.Registry.Names()
 	}

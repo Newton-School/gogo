@@ -23,8 +23,10 @@ if owner and (not expires or not tonumber(expires) or (status~='online' and stat
 if ARGV[1]=='claim' then
  if owner and owner~=ARGV[2] and status=='online' and tonumber(expires)>now then return 'CONFLICT' end
 elseif not owner or owner~=ARGV[2] or status~='online' then return 'LOST' end
+if owner==ARGV[2] and (redis.call('HGET',KEYS[1],'instance') or '')~=ARGV[5] then return 'CONFLICT' end
+if owner and owner~=ARGV[2] and ARGV[5]~='' and redis.call('HGET',KEYS[1],'instance')==ARGV[5] then return 'CONFLICT' end
 local state='online';local untilAt=now+tonumber(ARGV[4]);if ARGV[1]=='release' then state='offline';untilAt=now end
-redis.call('HSET',KEYS[1],'owner',ARGV[2],'snapshot',ARGV[3],'status',state,'observed',string.format('%.0f',now),'expires',string.format('%.0f',untilAt))
+redis.call('HSET',KEYS[1],'owner',ARGV[2],'instance',ARGV[5],'snapshot',ARGV[3],'status',state,'observed',string.format('%.0f',now),'expires',string.format('%.0f',untilAt))
 redis.call('PEXPIRE',KEYS[1],86400000)
 return 'OK'
 `)
@@ -51,7 +53,7 @@ func (w *Workers) write(ctx context.Context, operation string, lease async.Worke
 	if err != nil {
 		return async.ErrInvalid
 	}
-	result, err := w.Connection.Atomic(ctx, workerWrite, []string{w.key(lease.WorkerID)}, operation, connector.Digest(lease.Token), data, ttl.Milliseconds())
+	result, err := w.Connection.Atomic(ctx, workerWrite, []string{w.key(lease.WorkerID)}, operation, connector.Digest(lease.Token), data, ttl.Milliseconds(), snapshot.InstanceID)
 	if err != nil {
 		return err
 	}

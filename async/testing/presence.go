@@ -40,6 +40,12 @@ func (m *Memory) writeWorker(ctx context.Context, operation string, lease async.
 	} else if !exists || old.token != token || old.value.Status != async.PresenceOnline {
 		return async.ErrLeaseLost
 	}
+	if exists && old.token == token && old.value.Snapshot.InstanceID != snapshot.InstanceID {
+		return async.ErrConflict
+	}
+	if exists && old.token != token && snapshot.InstanceID != "" && old.value.Snapshot.InstanceID == snapshot.InstanceID {
+		return async.ErrConflict
+	}
 	status, expires := async.PresenceOnline, now.Add(ttl)
 	if operation == "release_worker" {
 		status, expires = async.PresenceOffline, now

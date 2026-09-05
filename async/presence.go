@@ -41,7 +41,9 @@ func (WorkerLease) MarshalJSON() ([]byte, error) { return nil, ErrDenied }
 // WorkerPresenceStore is a trusted backend port; application reads use Control.
 // Claim excludes another live instance. Renew/Release compare exact ownership
 // and never overwrite a replacement instance. Store a digest of the ownership
-// token, not its plaintext. A late renewal may restore the
+// token, not its plaintext. The optional public Snapshot.InstanceID cannot
+// change under the same owner; a new runner uses both a new instance and lease.
+// A late renewal may restore the
 // same instance if no replacement claimed it. Stored JSON remains opaque, and
 // lost/offline records are retained for at most 24 hours since the last write.
 // Missing is ErrNotFound, ownership loss ErrLeaseLost, live collision ErrConflict.
@@ -63,6 +65,9 @@ func ValidWorkerID(id string) bool { return workerIDPattern.MatchString(id) }
 // explicit snapshot excludes arguments, outputs, headers and identity secrets.
 func ValidateWorkerSnapshot(snapshot WorkerSnapshot) error {
 	if !ValidWorkerID(snapshot.ID) || snapshot.At.IsZero() || snapshot.Concurrency < 1 || snapshot.Concurrency > 1024 || len(snapshot.Queues) < 1 || len(snapshot.Queues) > 64 || len(snapshot.Registered) > 4096 || len(snapshot.Active) > 1024 {
+		return ErrInvalid
+	}
+	if snapshot.InstanceID != "" && !idPattern.MatchString(snapshot.InstanceID) {
 		return ErrInvalid
 	}
 	unique := map[string]bool{}
@@ -109,9 +114,28 @@ func (w *Worker) startPresence(ctx context.Context) (func(), error) {
 	if err != nil {
 		return nil, err
 	}
+	instance, err := NewID()
+	if err != nil {
+		return nil, err
+	}
+	w.activityMu.Lock()
+	if w.instanceID != "" {
+		w.activityMu.Unlock()
+		return nil, ErrConflict
+	}
+	w.instanceID = instance
+	w.activityMu.Unlock()
+	clearInstance := func() {
+		w.activityMu.Lock()
+		if w.instanceID == instance {
+			w.instanceID = ""
+		}
+		w.activityMu.Unlock()
+	}
 	lease := WorkerLease{WorkerID: w.ID, Token: token}
 	snapshot := w.Snapshot()
 	if err := ValidateWorkerLease(lease, snapshot, w.Lease); err != nil {
+		clearInstance()
 		return nil, err
 	}
 	timeout := min(w.Heartbeat, 5*time.Second)
@@ -119,6 +143,7 @@ func (w *Worker) startPresence(ctx context.Context) (func(), error) {
 	err = w.Presence.ClaimWorker(callCtx, lease, snapshot, w.Lease)
 	cancel()
 	if err != nil {
+		clearInstance()
 		return nil, err
 	}
 	child, stop := context.WithCancel(ctx)
@@ -147,6 +172,7 @@ func (w *Worker) startPresence(ctx context.Context) (func(), error) {
 		}
 	}()
 	return func() {
+		defer clearInstance()
 		stop()
 		<-done
 		callCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), timeout)
