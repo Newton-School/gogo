@@ -15,7 +15,11 @@ This is an execution ledger, not a requirements document or an AgentFlow complet
 - Chrome desktop inspection has covered the Admin dashboard, product list and change form. A synthetic product save was verified afterward in PostgreSQL and its audit row. Browser history, inline, responsive and complete accessibility review remain open. Stale assets found in Chrome drove content-hashed asset URLs and cache-policy regressions.
 - Independent reviews have identified and driven fixes for session cache headers, Admin deletion scope, audit snapshots, response-write failure handling and scaffold path confinement. Nested multi-alias transaction-context repair passes fake-backend and real PostgreSQL A/B/A rollback regressions; this does not close the complete transaction catalog audit.
 - API serializers now have explicit model allowlists, nested/list/dictionary validation, PATCH presence rules, plain/scalar/file codecs, bounded parsers and negotiation. Independent review findings for scalar-object leaks, collection directions, media-parameter specificity and decoded UTF-8 handling have regressions. Resource routing, schema generation and idempotent persistence are still pending.
-- Shared session/cookie/fallback flash storage has consume-once, plain-text/tag, size/level, privacy, tamper, failed-response and late-header tests. Independent review drove eager cookie-capacity checks and late Peek denial; Admin integration is underway.
+- Shared session/cookie/fallback flash storage has consume-once, plain-text/tag, size/level, privacy, tamper, failed-response and late-header tests. Independent review drove eager cookie-capacity checks and late Peek denial; Admin writes now emit generic success notices after persistence.
+- Authenticated-session middleware reloads current grants and account version. Real Redis tests cover login rotation, logout revocation, stale-write rejection and version invalidation. Independent review closed current-response CSRF rotation and account-switch flash leakage. Built-in account storage and credential HTTP endpoints remain pending.
+- Startup/shutdown has race-tested ownership, prevalidated resource selection, lifetime-aware readiness, deadline-bounded cleanup and redacted callback-panic handling. Non-cooperative Go callbacks can outlive deadlines; timeout does not prove they stopped. Command cleanup runs on callback failure and panic.
+- Bulk create/update, named-constraint upsert, scoped forward/reverse relation managers, automatic intermediary schemas and scoped join-row deletion have real PostgreSQL tests. Complete many-to-many managers, eager loading and expression catalogs remain open.
+- Nested Async canvases persist ordered barriers and dispatch intents. Cancellation preserves active execution leases, and delayed-task replay retention includes the original schedule horizon. Independent review drove empty dependent-group control-edge regressions. Task replacement and remaining worker/control catalogs are still open.
 - The strict cross-module integration gate passed against disposable supported PostgreSQL and Redis, followed by workspace vet and build checks. This is local conformance evidence, not deployment or exhaustive compatibility evidence.
 
 ## Verification entry points
@@ -46,7 +50,7 @@ Service availability and skipped tests must always be reported separately from a
 | `models-legacy` | Inspect an existing database and map legacy tables | Pending implementation or audit |
 | `models-schema` | Declare a model and generate typed accessors | Partial code; full conformance pending |
 | `models-validate` | Validate an instance before persistence | Partial code; full conformance pending |
-| `orm-bulk` | Create, update and upsert batches | Pending implementation or audit |
+| `orm-bulk` | Create, update and upsert batches | Partial code; full conformance pending |
 | `orm-cardinality` | Handle missing, singular and multiple rows | Partial code; full conformance pending |
 | `orm-delete` | Collect and delete related objects safely | Partial code; full conformance pending |
 | `orm-eager` | Load joins and collections without hidden N+1 queries | Pending implementation or audit |
@@ -54,12 +58,12 @@ Service availability and skipped tests must always be reported separately from a
 | `orm-locking` | Coordinate concurrent writers | Partial code; full conformance pending |
 | `orm-native` | Use explicit native SQL and inspect query performance | Partial code; full conformance pending |
 | `orm-operation-catalog` | Query, expression and lookup inventory | Partial code; full conformance pending |
-| `orm-relations` | Read and mutate related objects | Pending implementation or audit |
+| `orm-relations` | Read and mutate related objects | Partial code; full conformance pending |
 | `orm-routing` | Route reads, writes and migrations to database aliases | Pending implementation or audit |
 | `orm-save` | Insert or update a model with transaction hooks | Partial code; full conformance pending |
 | `orm-select` | Build, execute and materialize a query | Partial code; full conformance pending |
 | `orm-transactions` | Commit, nest or roll back a transaction | Partial code; full conformance pending |
-| `orm-upsert` | Resolve create-or-update races safely | Pending implementation or audit |
+| `orm-upsert` | Resolve create-or-update races safely | Partial code; full conformance pending |
 | `postgres-connect` | Open and manage a PostgreSQL connection alias | Partial code; full conformance pending |
 | `postgres-execute` | Compile PostgreSQL SQL and execute it safely | Partial code; full conformance pending |
 | `postgres-extensions` | Use PostgreSQL-specific model and query features | Pending implementation or audit |
