@@ -57,15 +57,21 @@ func (r ScheduleRule) Validate() error {
 }
 
 type Calendar interface {
+	// Next is a trusted, prompt, side-effect-free calculation. Beat validates
+	// the returned instant before building intents; it cannot forcibly stop
+	// a custom calculation that does not return.
 	Next(ScheduleRule, time.Time) (time.Time, error)
 }
 
 func (r ScheduleRule) Next(after time.Time) (time.Time, error) {
+	if !validScheduleInstant(after) {
+		return time.Time{}, ErrInvalid
+	}
 	if err := r.Validate(); err != nil {
 		return time.Time{}, err
 	}
 	if r.Kind == "interval" {
-		return after.Add(r.Interval).UTC(), nil
+		return checkedOccurrence(after, after.Add(r.Interval))
 	}
 	if r.Kind != "cron" {
 		return time.Time{}, ErrUnavailable
@@ -75,12 +81,15 @@ func (r ScheduleRule) Next(after time.Time) (time.Time, error) {
 		return time.Time{}, err
 	}
 	location, _ := time.LoadLocation(r.Timezone)
+	parts := strings.Fields(r.Expression)
 	for next, limit := after.UTC().Truncate(time.Minute).Add(time.Minute), after.AddDate(5, 0, 0); next.Before(limit); next = next.Add(time.Minute) {
+		if !validScheduleInstant(next) {
+			return time.Time{}, ErrInvalid
+		}
 		local := next.In(location)
 		dom := fields[2][local.Day()]
 		dow := fields[4][int(local.Weekday())]
 		day := dom && dow
-		parts := strings.Fields(r.Expression)
 		if parts[2] != "*" && parts[4] != "*" {
 			day = dom || dow
 		}
@@ -108,6 +117,9 @@ func sameWallMinute(a, b time.Time) bool {
 }
 func parseCron(expression string) ([5]map[int]bool, error) {
 	var fields [5]map[int]bool
+	if len(expression) > 1024 {
+		return fields, ErrInvalid
+	}
 	parts := strings.Fields(expression)
 	if len(parts) != 5 {
 		return fields, ErrInvalid
@@ -146,12 +158,18 @@ func parseCron(expression string) ([5]map[int]bool, error) {
 			if start < mins[i] || end > maxs[i] || start > end {
 				return fields, ErrInvalid
 			}
-			for n := start; n <= end; n += step {
+			for n := start; n <= end; {
 				value := n
 				if i == 4 && n == 7 {
 					value = 0
 				}
 				fields[i][value] = true
+				// Compare the small remaining range before adding an untrusted
+				// step. Large positive steps must not wrap into other matches.
+				if step > end-n {
+					break
+				}
+				n += step
 			}
 		}
 	}
@@ -201,19 +219,56 @@ type Beat struct {
 	Calendars map[string]Calendar
 }
 
-func (b *Beat) next(rule ScheduleRule, after time.Time) (time.Time, error) {
+func validScheduleInstant(value time.Time) bool {
+	year := value.UTC().Year()
+	return !value.IsZero() && year >= 0 && year <= 9999
+}
+
+func checkedOccurrence(after, next time.Time) (time.Time, error) {
+	if !validScheduleInstant(after) || !validScheduleInstant(next) || !next.After(after) {
+		return time.Time{}, ErrInvalid
+	}
+	return next.UTC(), nil
+}
+
+func (b *Beat) next(ctx context.Context, rule ScheduleRule, after time.Time) (next time.Time, err error) {
+	defer func() {
+		if recover() != nil {
+			next, err = time.Time{}, ErrUnavailable
+			if ctx.Err() != nil {
+				err = ctx.Err()
+			}
+		}
+	}()
+	if err := ctx.Err(); err != nil {
+		return time.Time{}, err
+	}
+	if !validScheduleInstant(after) {
+		return time.Time{}, ErrInvalid
+	}
 	if rule.Kind == "cron" || rule.Kind == "interval" {
-		return rule.Next(after)
+		next, err = rule.Next(after)
+	} else {
+		calendar := b.Calendars[rule.Kind]
+		if calendar == nil {
+			return time.Time{}, ErrUnavailable
+		}
+		next, err = calendar.Next(rule, after)
 	}
-	calendar := b.Calendars[rule.Kind]
-	if calendar == nil {
-		return time.Time{}, ErrUnavailable
+	if ctx.Err() != nil {
+		return time.Time{}, ctx.Err()
 	}
-	return calendar.Next(rule, after)
+	if err != nil {
+		return time.Time{}, err
+	}
+	return checkedOccurrence(after, next)
 }
 func (b *Beat) Tick(ctx context.Context) error {
-	if b.Client == nil || b.Store == nil || b.ID == "" {
+	if ctx == nil || b == nil || b.Client == nil || b.Store == nil || b.ID == "" {
 		return ErrInvalid
+	}
+	if err := ctx.Err(); err != nil {
+		return err
 	}
 	lease := b.Lease
 	if lease == 0 {
@@ -231,14 +286,17 @@ func (b *Beat) Tick(ctx context.Context) error {
 		if err := schedule.Validate(); err != nil {
 			return err
 		}
+		if !validScheduleInstant(schedule.ObservedAt) || !validScheduleInstant(schedule.NextDue) {
+			return ErrInvalid
+		}
 		now := schedule.ObservedAt
 		due := schedule.NextDue
-		next, err := b.next(schedule.Rule, due)
+		next, err := b.next(ctx, schedule.Rule, due)
 		if err != nil {
 			return err
 		}
 		if schedule.Rule.FixedDelay {
-			next, err = b.next(schedule.Rule, now)
+			next, err = b.next(ctx, schedule.Rule, now)
 			if err != nil {
 				return err
 			}
@@ -253,13 +311,13 @@ func (b *Beat) Tick(ctx context.Context) error {
 		}
 		if schedule.Misfire == "skip" && !next.After(now) {
 			skipped = true
-			next, err = b.next(schedule.Rule, now)
+			next, err = b.next(ctx, schedule.Rule, now)
 			if err != nil {
 				return err
 			}
 		}
 		if schedule.Misfire == "coalesce" && !next.After(now) {
-			next, err = b.next(schedule.Rule, now)
+			next, err = b.next(ctx, schedule.Rule, now)
 			if err != nil {
 				return err
 			}
@@ -287,10 +345,13 @@ func (b *Beat) Tick(ctx context.Context) error {
 				break
 			}
 			due = next
-			next, err = b.next(schedule.Rule, due)
+			next, err = b.next(ctx, schedule.Rule, due)
 			if err != nil {
 				return err
 			}
+		}
+		if err := ctx.Err(); err != nil {
+			return err
 		}
 		if err := b.Store.CommitOccurrence(ctx, schedule, next, lastID, intents); err != nil {
 			return err
