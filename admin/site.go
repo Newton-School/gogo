@@ -57,6 +57,7 @@ type ModelAdmin struct {
 	ResolveRelation   func(context.Context, models.Field, []string) ([]any, error)
 	SaveModel         func(context.Context, ScopedStore, Object) (Object, error)
 	SaveRelated       func(context.Context, ScopedStore, Object, *http.Request) error
+	userForms         bool
 }
 type Config struct {
 	Name, Header, Title, IndexTitle, Prefix, SiteURL, LoginURL string

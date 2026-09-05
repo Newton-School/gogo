@@ -21,9 +21,9 @@ type AccountStoreConfig struct {
 }
 
 // AccountStore adapts the default account models without exposing a generic
-// credential/grant write path. Existing users currently support status-flag
-// changes only. User creation, identifier/password forms, group/permission
-// editors and account deletion are deliberately not exposed by this adapter.
+// credential/grant write path. User creation and password changes use explicit
+// domain methods, never generic hash assignment. Group/permission editors and
+// account deletion are not generic record writes.
 // Applications using a custom user model provide their own domain-backed Store.
 type AccountStore struct {
 	base     *ORMStore
@@ -59,13 +59,15 @@ func NewAccountStore(config AccountStoreConfig) (*AccountStore, error) {
 // implements the credential and session-principal backend contracts.
 func (s *AccountStore) Accounts() *auth.Accounts { return s.accounts }
 
-// UserAdmin returns conservative stock options for existing default users.
+// UserAdmin returns stock options for default users, including separate
+// creation and privileged password forms.
 // Identifier and account metadata are readonly; hashes never enter display
 // records. Global Site policy must still allow view/change, while the Accounts
 // authority independently approves the exact submitted flag effect at save.
 func (s *AccountStore) UserAdmin() ModelAdmin {
 	return ModelAdmin{
-		Schema: (&auth.User{}).Schema(),
+		Schema:    (&auth.User{}).Schema(),
+		userForms: true,
 		Fieldsets: []Fieldset{
 			{Name: "Identity", Fields: []string{"identifier"}},
 			{Name: "Account status", Fields: []string{"active", "staff", "superuser"}, Description: "Changing account status requires explicit account-management authority."},
@@ -80,7 +82,7 @@ func (s *AccountStore) UserAdmin() ModelAdmin {
 		Ordering:          []string{"identifier"},
 		ConstraintChecker: s.base.config.Store,
 		Authorize: func(_ context.Context, _ auth.Principal, action string, _ Object) error {
-			if action != "view" && action != "change" {
+			if action != "view" && action != "change" && action != "add" {
 				return auth.ErrPermissionDenied
 			}
 			return nil

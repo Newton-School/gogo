@@ -289,7 +289,10 @@ func TestAdminAccountFlagsRequireExactAuthorityAndAtomicAudit(t *testing.T) {
 		t.Fatal("account store discarded the scoped principal's token ceiling", err)
 	}
 	check(2, true, 1)
-	for _, path := range []string{"/admin/gogo_auth/user/add/", strings.TrimSuffix(link[1], "change/") + "delete/"} {
+	if response := request(manager, "GET", "/admin/gogo_auth/user/add/", nil, nil); response.Code != 200 {
+		t.Fatal("declared account creation form unavailable", response.Code)
+	}
+	for _, path := range []string{strings.TrimSuffix(link[1], "change/") + "delete/"} {
 		if response := request(manager, "GET", path, nil, nil); response.Code != 403 {
 			t.Fatal("unsupported account mutation exposed", response.Code)
 		}

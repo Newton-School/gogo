@@ -121,6 +121,9 @@ func (s *Site) serve(w http.ResponseWriter, r *http.Request) {
 	if len(parts) == 3 && parts[2] == "add" {
 		action = "add"
 	}
+	if options.userForms && len(parts) == 4 && parts[3] == "password" {
+		action = "change"
+	}
 	if r.Method == "POST" && len(parts) == 4 {
 		action = "change"
 		if parts[3] == "delete" {
@@ -144,7 +147,13 @@ func (s *Site) serve(w http.ResponseWriter, r *http.Request) {
 			s.list(w, r, p, options, store)
 		}
 	case len(parts) == 3 && parts[2] == "add":
-		s.form(w, r, p, options, store, "")
+		if options.userForms {
+			s.userCreateForm(w, r, p, options, store)
+		} else {
+			s.form(w, r, p, options, store, "")
+		}
+	case options.userForms && len(parts) == 4 && parts[3] == "password":
+		s.userPasswordForm(w, r, p, options, store, parts[2])
 	case len(parts) == 4 && parts[3] == "change":
 		s.form(w, r, p, options, store, parts[2])
 	case len(parts) == 4 && parts[3] == "delete":
@@ -699,7 +708,7 @@ func (s *Site) form(w http.ResponseWriter, r *http.Request, p auth.Principal, op
 	if invalidForm {
 		status = 400
 	}
-	s.render(w, r, p, "form.html", templates.Context{"title": title, "form": formHTML, "inlines": inlineHTML, "readonly": readonlyValues, "edit_token": token, "relation_token": relationToken, "can_change": canChange, "can_add": s.allowed(r.Context(), p, "add", options, Object{}) == nil, "can_delete": id != "" && s.allowed(r.Context(), p, "delete", options, object) == nil, "delete_url": s.modelURL(options) + url.PathEscape(id) + "/delete/", "history_url": s.modelURL(options) + url.PathEscape(id) + "/history/", "has_object": id != ""}, status)
+	s.render(w, r, p, "form.html", templates.Context{"title": title, "form": formHTML, "inlines": inlineHTML, "readonly": readonlyValues, "edit_token": token, "relation_token": relationToken, "can_change": canChange, "can_add": s.allowed(r.Context(), p, "add", options, Object{}) == nil, "can_delete": id != "" && s.allowed(r.Context(), p, "delete", options, object) == nil, "delete_url": s.modelURL(options) + url.PathEscape(id) + "/delete/", "history_url": s.modelURL(options) + url.PathEscape(id) + "/history/", "has_object": id != "", "can_manage_password": options.userForms && id != "" && canChange, "user_password_url": s.modelURL(options) + url.PathEscape(id) + "/password/"}, status)
 }
 
 var errInvalidForm = errors.New("invalid form")
