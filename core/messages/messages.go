@@ -321,7 +321,7 @@ func Middleware(config Config) (func(http.Handler) http.Handler, error) {
 				}
 				remaining := q.messages[q.consumed:]
 				if config.Mode == Session {
-					return session.Set(sessionKey, remaining)
+					return persistSessionMessages(session, remaining)
 				}
 				cookie := &http.Cookie{Name: config.CookieName, Path: "/", Secure: config.Secure, HttpOnly: true, SameSite: http.SameSiteLaxMode}
 				private := false
@@ -346,12 +346,12 @@ func Middleware(config Config) (func(http.Handler) http.Handler, error) {
 					if config.Mode != Fallback {
 						return ErrLimit
 					}
-					if err := session.Set(sessionKey, remaining); err != nil {
+					if err := persistSessionMessages(session, remaining); err != nil {
 						return err
 					}
 					token = ""
 				} else if session != nil {
-					if err := session.Set(sessionKey, []Message{}); err != nil {
+					if err := persistSessionMessages(session, nil); err != nil {
 						return err
 					}
 				}
@@ -372,6 +372,18 @@ func Middleware(config Config) (func(http.Handler) http.Handler, error) {
 			}
 		})
 	}, nil
+}
+
+func persistSessionMessages(session *sessions.Session, remaining []Message) error {
+	if len(remaining) > 0 {
+		return session.Set(sessionKey, remaining)
+	}
+	// Flush already removed the old identity and its message key. Writing an
+	// empty array would create a new anonymous session solely for housekeeping.
+	// Pop changes state only when an existing queue actually needs removal.
+	var discarded []Message
+	_, err := session.Pop(sessionKey, &discarded)
+	return err
 }
 
 type writer struct {
