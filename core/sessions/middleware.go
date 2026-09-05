@@ -62,7 +62,10 @@ func Middleware(config MiddlewareConfig) (func(http.Handler) http.Handler, error
 				if err := session.Persist(r.Context(), config.Store, config.Now(), config.TTL); err != nil {
 					return err
 				}
-				if session.Accessed() || session.modified || session.flushed || stale {
+				// A loaded session may be read after headers by streaming code,
+				// or through Snapshot rather than Get. Declare the cookie cache
+				// dependency before either can expose account-specific content.
+				if record.ID != "" || session.Accessed() || session.modified || session.flushed || stale {
 					w.Header().Add("Vary", "Cookie")
 				}
 				if session.modified || session.flushed || stale {

@@ -130,6 +130,63 @@ func TestRotationWithoutAtomicConditionalDeleteFailsClosed(t *testing.T) {
 		t.Fatal("unsupported rotation deleted original", err)
 	}
 }
+
+func TestLoadedSessionDeclaresCookieVaryBeforeSnapshotOrStreamingReads(t *testing.T) {
+	ctx := context.Background()
+	store := &memoryStore{}
+	record := Record{ID: "loaded-session", Version: 1, ExpiresAt: time.Now().Add(time.Hour), Data: map[string]json.RawMessage{"private": json.RawMessage(`"account-specific-content"`)}}
+	if err := store.Create(ctx, record); err != nil {
+		t.Fatal(err)
+	}
+	signer, err := security.NewSigner(security.SigningKey{ID: "fixture", Value: []byte(strings.Repeat("k", 32))}, nil, "session-late-read-test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	signed, err := signer.Sign([]byte(record.ID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	middleware, err := Middleware(MiddlewareConfig{Store: store, Signer: signer})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, mode := range []string{"snapshot", "stream-get", "stream-snapshot"} {
+		t.Run(mode, func(t *testing.T) {
+			r := httptest.NewRequest("GET", "/", nil)
+			r.AddCookie(&http.Cookie{Name: "gogo_session", Value: signed})
+			w := httptest.NewRecorder()
+			middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				session, _ := FromContext(r.Context())
+				if strings.HasPrefix(mode, "stream-") {
+					if err := http.NewResponseController(w).Flush(); err != nil {
+						t.Fatal(err)
+					}
+				}
+				var content string
+				if mode == "stream-get" {
+					_, err = session.Get("private", &content)
+				} else {
+					err = json.Unmarshal(session.Snapshot().Data["private"], &content)
+				}
+				if err != nil {
+					t.Fatal(err)
+				}
+				_, _ = w.Write([]byte(content))
+			})).ServeHTTP(w, r)
+			response := w.Result()
+			if w.Code != 200 || w.Body.String() != "account-specific-content" || !strings.Contains(response.Header.Get("Vary"), "Cookie") || len(response.Cookies()) != 0 {
+				t.Fatal(w.Code, response.Header, w.Body.String())
+			}
+		})
+	}
+	// A genuinely anonymous request that never touches session data still
+	// remains cacheable without an unnecessary Cookie variation.
+	w := httptest.NewRecorder()
+	middleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte("public")) })).ServeHTTP(w, httptest.NewRequest("GET", "/", nil))
+	if w.Result().Header.Get("Vary") != "" || len(w.Result().Cookies()) != 0 {
+		t.Fatal("anonymous response varied unnecessarily", w.Result().Header)
+	}
+}
 func TestVersionConflictAndClone(t *testing.T) {
 	ctx := context.Background()
 	m := &memoryStore{}
