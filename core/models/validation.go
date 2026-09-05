@@ -65,6 +65,64 @@ func (e *ValidationError) Merge(field string, err error) {
 }
 func Invalid(code, message string) error { return FieldError{Code: code, Message: message} }
 
+// IsValidationOnly reports whether every leaf in a wrapped or joined error is
+// an explicit FieldError or ValidationError. Unlike errors.As, it rejects a
+// validation error joined with a provider outage or cancellation. Transport
+// boundaries should use this before disclosing field errors as client input
+// failures. Nil, malformed, cyclic or overlarge error trees are not validation.
+func IsValidationOnly(err error) bool {
+	_, ok := validationLeaves(err)
+	return ok
+}
+
+func validationLeaves(err error) ([]error, bool) {
+	var leaves []error
+	nodes := 0
+	var visit func(error, int) bool
+	visit = func(err error, depth int) bool {
+		nodes++
+		if err == nil || depth > 64 || nodes > 1024 {
+			return false
+		}
+		switch value := err.(type) {
+		case FieldError:
+			leaves = append(leaves, value)
+			return true
+		case *FieldError:
+			if value == nil {
+				return false
+			}
+			leaves = append(leaves, *value)
+			return true
+		case *ValidationError:
+			if value == nil {
+				return false
+			}
+			leaves = append(leaves, value)
+			return true
+		case interface{ Unwrap() []error }:
+			children := value.Unwrap()
+			if len(children) == 0 || len(children) > 1024 {
+				return false
+			}
+			for _, child := range children {
+				if !visit(child, depth+1) {
+					return false
+				}
+			}
+			return true
+		case interface{ Unwrap() error }:
+			return visit(value.Unwrap(), depth+1)
+		default:
+			return false
+		}
+	}
+	if err == nil || !visit(err, 0) {
+		return nil, false
+	}
+	return leaves, true
+}
+
 type CleanOptions struct {
 	Exclude                     []string
 	SkipUnique, SkipConstraints bool
@@ -91,6 +149,22 @@ func FullClean(ctx context.Context, record Record, options CleanOptions, checker
 		exclude[name] = true
 	}
 	validation := &ValidationError{}
+	merge := func(field string, err error) error {
+		if canceled := ctx.Err(); canceled != nil {
+			return errors.Join(validationIfAny(validation), canceled)
+		}
+		if err == nil {
+			return nil
+		}
+		leaves, onlyValidation := validationLeaves(err)
+		if !onlyValidation {
+			return errors.Join(validationIfAny(validation), err)
+		}
+		for _, leaf := range leaves {
+			validation.Merge(field, leaf)
+		}
+		return nil
+	}
 	for _, f := range record.Schema().Fields {
 		if exclude[f.Name] || !f.IsStored() || f.Kind == Generated {
 			continue
@@ -99,8 +173,14 @@ func FullClean(ctx context.Context, record Record, options CleanOptions, checker
 		if err == nil {
 			value, err = f.Clean(ctx, value)
 		}
+		if canceled := ctx.Err(); canceled != nil {
+			return errors.Join(validationIfAny(validation), canceled)
+		}
 		if err == nil {
 			err = record.Set(f.Name, value)
+		}
+		if canceled := ctx.Err(); canceled != nil {
+			return errors.Join(validationIfAny(validation), canceled)
 		}
 		if err == nil && (f.Kind == ForeignKey || f.Kind == OneToOne) && value != nil {
 			if relations, ok := checker.(RelationChecker); ok {
@@ -109,11 +189,15 @@ func FullClean(ctx context.Context, record Record, options CleanOptions, checker
 				err = errors.New("models: database relation checker is required")
 			}
 		}
-		validation.Merge(f.Name, err)
+		if err := merge(f.Name, err); err != nil {
+			return err
+		}
 	}
 	if bound, ok := record.(*BoundRecord); ok {
 		if cleaner, ok := bound.model.(Cleaner); ok {
-			validation.Merge(NonFieldErrors, cleaner.Clean(ctx))
+			if err := merge(NonFieldErrors, cleaner.Clean(ctx)); err != nil {
+				return err
+			}
 		}
 	}
 	currentExclusions := func() []string {
@@ -134,13 +218,8 @@ func FullClean(ctx context.Context, record Record, options CleanOptions, checker
 				continue
 			}
 			err := stage.check(ctx, record, currentExclusions())
-			if err != nil {
-				var ve *ValidationError
-				var fe FieldError
-				if !errors.As(err, &ve) && !errors.As(err, &fe) {
-					return errors.Join(validationIfAny(validation), err)
-				}
-				validation.Merge(NonFieldErrors, err)
+			if err := merge(NonFieldErrors, err); err != nil {
+				return err
 			}
 		}
 	} else {
@@ -386,7 +465,14 @@ func (f Field) Clean(ctx context.Context, value any) (any, error) {
 		}
 	}
 	for _, validator := range f.Validators {
-		if err := validator(ctx, value); err != nil {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		err := validator(ctx, value)
+		if canceled := ctx.Err(); canceled != nil {
+			return nil, canceled
+		}
+		if err != nil {
 			return nil, err
 		}
 	}
