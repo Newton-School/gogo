@@ -622,6 +622,9 @@ func (s *Site) form(w http.ResponseWriter, r *http.Request, p auth.Principal, op
 					return err
 				}
 				parentValid := modelForm.IsValid()
+				if err := modelForm.Err(); err != nil {
+					return err
+				}
 				inlines, err = s.loadInlines(ctx, r, p, options, object, true)
 				if err != nil {
 					return err

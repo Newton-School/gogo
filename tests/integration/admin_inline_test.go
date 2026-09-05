@@ -3,6 +3,7 @@ package integration_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -35,6 +36,24 @@ type adminWatcher struct {
 	ID        int64
 	ProductID *int64
 	Tenant    string
+}
+
+type inlineValidationChecker struct {
+	store   *orm.Store
+	failure error
+}
+
+func (c *inlineValidationChecker) ValidateUnique(ctx context.Context, r models.Record, excluded []string) error {
+	if c.failure != nil {
+		return c.failure
+	}
+	return c.store.ValidateUnique(ctx, r, excluded)
+}
+func (c *inlineValidationChecker) ValidateConstraints(ctx context.Context, r models.Record, excluded []string) error {
+	return c.store.ValidateConstraints(ctx, r, excluded)
+}
+func (c *inlineValidationChecker) ValidateRelation(ctx context.Context, r models.Record, field models.Field) error {
+	return c.store.ValidateRelation(ctx, r, field)
 }
 
 func (*adminWatcher) Schema() models.Schema {
@@ -103,7 +122,8 @@ func TestAdminInlineAtomicSaveAndOwnership(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = site.Register(admin.ModelAdmin{Schema: parent.Schema(), Fieldsets: []admin.Fieldset{{Name: "Details", Fields: []string{"name", "secret"}}}, ReadonlyFields: []string{"secret"}, ListDisplay: []string{"name"}, SearchFields: []string{"name"}, ConstraintChecker: store, Inlines: []admin.Inline{{Name: "notes", Schema: child.Schema(), FKName: "product", Fields: []string{"body"}, Maximum: 10, Extra: 1, ConstraintChecker: store}}})
+	inlineChecker := &inlineValidationChecker{store: store}
+	err = site.Register(admin.ModelAdmin{Schema: parent.Schema(), Fieldsets: []admin.Fieldset{{Name: "Details", Fields: []string{"name", "secret"}}}, ReadonlyFields: []string{"secret"}, ListDisplay: []string{"name"}, SearchFields: []string{"name"}, ConstraintChecker: store, Inlines: []admin.Inline{{Name: "notes", Schema: child.Schema(), FKName: "product", Fields: []string{"body"}, Maximum: 10, Extra: 1, ConstraintChecker: inlineChecker}}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -179,6 +199,30 @@ func TestAdminInlineAtomicSaveAndOwnership(t *testing.T) {
 	}
 	body := get.Body.String()
 	values := url.Values{"name": {"Updated parent"}, "notes-TOTAL_FORMS": {"2"}, "notes-INITIAL_FORMS": {"1"}, "notes-0-body": {"Updated child"}, "notes-1-body": {"New child"}, "notes-0-_id": {hidden(body, "notes-0-_id")}, "notes-0-_edit_token": {hidden(body, "notes-0-_edit_token")}, "_edit_token": {hidden(body, "_edit_token")}, "csrfmiddlewaretoken": {hidden(body, "csrfmiddlewaretoken")}}
+	validation := &models.ValidationError{}
+	validation.Add("body", "invalid", "Synthetic inline input rejection")
+	provider := errors.New("synthetic private inline provider details")
+	for _, item := range []struct {
+		failure error
+		status  int
+	}{{validation, 400}, {provider, 503}, {errors.Join(validation, provider), 503}, {errors.Join(validation, context.Canceled), 503}} {
+		inlineChecker.failure = item.failure
+		response := request("POST", link[1], values, get.Result().Cookies())
+		if response.Code != item.status || strings.Contains(response.Body.String(), provider.Error()) {
+			t.Fatal("inline validation classification/secret failure", response.Code, item.status)
+		}
+		if item.status == 503 && strings.Contains(response.Body.String(), "Synthetic inline input rejection") {
+			t.Fatal("joined inline provider error exposed partial validation")
+		}
+		current, err := orm.For(store, func() *adminProduct { return &adminProduct{} }).Filter(orm.Q("id", parent.ID)).Get(ctx)
+		if err != nil || current.Name != "Parent" {
+			t.Fatal("failed inline validation saved parent", err)
+		}
+		if count, err := orm.For(store, func() *adminNote { return &adminNote{} }).Count(ctx); err != nil || count != 1 {
+			t.Fatal("failed inline validation saved child", err)
+		}
+	}
+	inlineChecker.failure = nil
 	post := request("POST", link[1], values, get.Result().Cookies())
 	if post.Code != 303 {
 		t.Fatal(post.Code, post.Body.String())

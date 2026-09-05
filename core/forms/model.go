@@ -35,6 +35,7 @@ type ModelForm struct {
 	relations          map[string][]any
 	relationIdentities map[string][]string
 	prepared           bool
+	validationErr      error
 }
 
 func NewModelForm(ctx context.Context, record models.Record, config ModelFormOptions, options ...Option) (*ModelForm, error) {
@@ -199,13 +200,14 @@ func (m *ModelForm) validateModel(form *Form) error {
 	err := models.FullClean(m.ctx, m.record, models.CleanOptions{Exclude: excluded}, m.options.Checker)
 	if err != nil {
 		var validation *models.ValidationError
-		if errors.As(err, &validation) {
+		if models.IsValidationOnly(err) && errors.As(err, &validation) {
 			for name, values := range validation.Fields {
 				for _, value := range values {
 					form.AddError(name, Error{value.Code, value.Message})
 				}
 			}
 		} else {
+			m.validationErr = modelValidationFailure{cause: err}
 			return Error{"validation_unavailable", "Validation is temporarily unavailable."}
 		}
 	}
@@ -214,9 +216,29 @@ func (m *ModelForm) validateModel(form *Form) error {
 }
 func (m *ModelForm) Instance() models.Record { return m.record }
 
+// Err returns an operational failure from model/constraint validation, distinct
+// from invalid user input in Errors. Call it after IsValid (or directly; cleaning
+// is cached) before mapping invalid input to an HTTP form response. Its message
+// is safe and stable; errors.Is preserves the underlying provider/cancellation
+// identity for trusted handling. Do not render an unwrapped provider error.
+func (m *ModelForm) Err() error {
+	m.Form.fullClean()
+	return m.validationErr
+}
+
+type modelValidationFailure struct{ cause error }
+
+func (modelValidationFailure) Error() string {
+	return "forms: model validation is temporarily unavailable"
+}
+func (e modelValidationFailure) Unwrap() error { return e.cause }
+
 // CheckRelations repeats the scoped resolver and rejects changed identities.
 // Use the final write transaction's context when a custom save pipeline owns it.
 func (m *ModelForm) CheckRelations(ctx context.Context) error {
+	if err := m.Err(); err != nil {
+		return err
+	}
 	if ctx == nil || !m.IsValid() || !m.prepared {
 		return errors.New("forms: valid model form and transaction context required")
 	}
@@ -226,6 +248,9 @@ func (m *ModelForm) CheckRelations(ctx context.Context) error {
 // CleanedRelations returns the validated many-to-many values. Persistence must
 // still call CheckRelations and re-scope these identities within its transaction.
 func (m *ModelForm) CleanedRelations() (map[string][]any, error) {
+	if err := m.Err(); err != nil {
+		return nil, err
+	}
 	if !m.IsValid() || !m.prepared {
 		return nil, errors.New("forms: cannot read invalid model relations")
 	}
@@ -236,6 +261,9 @@ func (m *ModelForm) CleanedRelations() (map[string][]any, error) {
 	return result, nil
 }
 func (m *ModelForm) Save(commit bool) (models.Record, error) {
+	if err := m.Err(); err != nil {
+		return nil, err
+	}
 	if !m.IsValid() || !m.prepared {
 		return nil, errors.New("forms: cannot save invalid model form")
 	}
@@ -260,6 +288,9 @@ func (m *ModelForm) Save(commit bool) (models.Record, error) {
 	return m.record, nil
 }
 func (m *ModelForm) SaveM2M() error {
+	if err := m.Err(); err != nil {
+		return err
+	}
 	if !m.IsValid() || !m.record.State().Persisted {
 		return errors.New("forms: save the valid parent before SaveM2M")
 	}

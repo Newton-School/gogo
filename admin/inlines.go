@@ -279,7 +279,11 @@ func (s *Site) loadInlines(ctx context.Context, r *http.Request, p auth.Principa
 				if err = s.config.Policy.Authorize(ctx, p, action, auth.Resource{App: config.Schema.AppLabel, Model: config.Schema.Name, ID: object.ID, Object: object.Record}); err != nil {
 					return nil, err
 				}
-				if !form.IsValid() {
+				valid := form.IsValid()
+				if err := form.Err(); err != nil {
+					return nil, err
+				}
+				if !valid {
 					state.set.Errors = append(state.set.Errors, forms.Error{Code: "invalid", Message: "Correct the errors in the inline rows."})
 				}
 			}
