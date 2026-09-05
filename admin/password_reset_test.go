@@ -126,3 +126,24 @@ func TestAdminRecoveryRejectsUnsafeConfiguration(t *testing.T) {
 		t.Fatal("missing completion URL")
 	}
 }
+
+func TestAdminResetRequestUsesSharedResponsiveInsets(t *testing.T) {
+	site, _ := newTestSite(t)
+	site.config.LoginURL = "/admin/login/"
+	for _, submitted := range []bool{false, true} {
+		body, err := site.renderPasswordResetRequest(context.Background(), authviews.PasswordResetRequestPage{Title: "Reset password", Submitted: submitted})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(string(body), `<div class="submit-row"><a href="/admin/login/">Back to sign in</a></div>`) {
+			t.Fatal("recovery navigation lost the shared inset")
+		}
+		if submitted {
+			if !strings.Contains(string(body), `<div class="form-row"><p class="muted" role="status">`) || strings.Contains(string(body), `name="identifier"`) {
+				t.Fatal("recovery acknowledgement layout changed form behavior")
+			}
+		} else if !strings.Contains(string(body), `<div class="form-row"><p class="muted">Enter your account identifier`) {
+			t.Fatal("recovery description lost the shared inset")
+		}
+	}
+}
