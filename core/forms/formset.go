@@ -124,7 +124,14 @@ func BindFormSet(ctx context.Context, fields []Field, values url.Values, options
 			set.Deleted = append(set.Deleted, i)
 			continue
 		}
-		if i >= initial && !f.HasChanged() {
+		emptyExtra := true
+		for _, field := range fields {
+			if !empty(f.raw(field)) {
+				emptyExtra = false
+				break
+			}
+		}
+		if i >= initial && emptyExtra {
 			continue
 		}
 		retained++
