@@ -92,6 +92,16 @@ func (s *testScope) Delete(_ context.Context, object Object) error {
 	delete(s.db.records, object.ID)
 	return nil
 }
+func (s *testScope) DeleteAuthorized(ctx context.Context, object Object, authorize func(context.Context, Deletion) error) error {
+	graph, err := s.CollectDeletion(ctx, object)
+	if err != nil {
+		return err
+	}
+	if err = authorize(ctx, graph); err != nil {
+		return err
+	}
+	return s.Delete(ctx, object)
+}
 func (s *testScope) History(_ context.Context, key string, _, _ int) ([]LogEntry, error) {
 	result := []LogEntry{}
 	for _, entry := range s.db.logs {
@@ -238,6 +248,25 @@ func TestAdminScopeAndNoAnonymousMetadata(t *testing.T) {
 	w = perform(site, "GET", "/admin/shop/product/2/change/", principal(), nil, nil)
 	if w.Code != 404 {
 		t.Fatal(w.Code)
+	}
+}
+
+func TestNavigationTracksCurrentPageAndDashboardStartsAtTop(t *testing.T) {
+	site, _ := newTestSite(t)
+	for _, path := range []string{"/admin/shop/product/", "/admin/shop/product/1/change/"} {
+		response := perform(site, "GET", path, principal(), nil, nil)
+		body := response.Body.String()
+		if response.Code != 200 || strings.Contains(body, `class="home-link is-active"`) || !strings.Contains(body, `href="/admin/shop/product/" aria-current="location"`) {
+			t.Fatal(path, response.Code, body)
+		}
+	}
+	response := perform(site, "GET", "/admin/", principal(), nil, nil)
+	if response.Code != 200 || !strings.Contains(response.Body.String(), `class="home-link is-active" href="/admin/" aria-current="page"`) {
+		t.Fatal(response.Code, response.Body.String())
+	}
+	css, err := embedded.ReadFile("internal/assets/admin.css")
+	if err != nil || !strings.Contains(string(css), "margin:0 auto;align-self:start") {
+		t.Fatal("dashboard must not use vertical auto margins", err)
 	}
 }
 func TestAdminSaveReadonlyCSRFVersionAndAudit(t *testing.T) {

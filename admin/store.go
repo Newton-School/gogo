@@ -54,10 +54,24 @@ type ScopedStore interface {
 
 type Deletion struct {
 	Objects   []Object
+	Updates   []RelatedUpdate
 	Protected []string
+}
+
+// RelatedUpdate is a SET_NULL or SET_DEFAULT effect, requiring change permission.
+type RelatedUpdate struct {
+	Object Object
+	Field  string
+	Value  any
 }
 
 // DeleteCollector is required to preview or execute cascaded model deletion.
 type DeleteCollector interface {
 	CollectDeletion(context.Context, Object) (Deletion, error)
+}
+
+// DeletionExecutor authorizes the final locked graph before any mutation. The
+// callback must be called inside the deletion transaction, not on a preview.
+type DeletionExecutor interface {
+	DeleteAuthorized(context.Context, Object, func(context.Context, Deletion) error) error
 }

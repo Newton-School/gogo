@@ -29,10 +29,11 @@ type ORMConfig struct {
 	Factories  map[string]func() models.Model
 	QueryScope func(context.Context, auth.Principal, models.Schema) (QueryScope, error)
 	// ValidateWrite must reject any record that moves outside the actor's scope.
-	ValidateWrite   func(context.Context, auth.Principal, models.Record) error
-	Initialize      func(context.Context, auth.Principal, models.Record) error
-	CollectDeletion func(context.Context, auth.Principal, models.Record) (Deletion, error)
-	DeleteGraph     func(context.Context, auth.Principal, models.Record) error
+	ValidateWrite                       func(context.Context, auth.Principal, models.Record) error
+	Initialize                          func(context.Context, auth.Principal, models.Record) error
+	CollectDeletion                     func(context.Context, auth.Principal, models.Record) (Deletion, error)
+	DeleteGraph                         func(context.Context, auth.Principal, models.Record, func(context.Context, Deletion) error) error
+	DeletionMaxObjects, DeletionMaxWork int
 }
 type ORMStore struct{ config ORMConfig }
 
@@ -175,22 +176,109 @@ func (s *ormScoped) Save(ctx context.Context, object Object) (Object, error) {
 	return objectFromRecord(object.Record)
 }
 func (s *ormScoped) Delete(ctx context.Context, object Object) error {
+	return s.DeleteAuthorized(ctx, object, func(context.Context, Deletion) error { return nil })
+}
+func (s *ormScoped) DeleteAuthorized(ctx context.Context, object Object, authorize func(context.Context, Deletion) error) error {
 	if !db.InTransaction(ctx, s.owner.config.Store.Backend.Alias()) {
 		return errors.New("admin: delete requires transaction")
 	}
-	if s.owner.config.DeleteGraph == nil {
-		return errors.New("admin: deletion graph adapter required")
+	if authorize == nil {
+		return errors.New("admin: deletion authorization callback required")
 	}
 	if err := s.owner.config.ValidateWrite(ctx, s.principal, object.Record); err != nil {
 		return err
 	}
-	return s.owner.config.DeleteGraph(ctx, s.principal, object.Record)
+	if s.owner.config.DeleteGraph != nil {
+		return s.owner.config.DeleteGraph(ctx, s.principal, object.Record, authorize)
+	}
+	collector := s.collector()
+	collector.Authorize = func(ctx context.Context, plan orm.DeletionPlan) error {
+		graph, err := deletionFromPlan(plan)
+		if err != nil {
+			return err
+		}
+		if err = authorize(ctx, graph); err != nil {
+			return err
+		}
+		for _, target := range graph.Objects {
+			if err = s.owner.config.ValidateWrite(ctx, s.principal, target.Record); err != nil {
+				return err
+			}
+		}
+		for _, update := range graph.Updates {
+			// Validate the projected record without mutating the collector snapshot.
+			record, err := models.NewRecord(update.Object.Record.Schema())
+			if err != nil {
+				return err
+			}
+			for _, field := range record.Schema().Fields {
+				if !field.IsStored() {
+					continue
+				}
+				value, err := update.Object.Record.Get(field.Name)
+				if err != nil {
+					return err
+				}
+				if err = record.Set(field.Name, value); err != nil {
+					return err
+				}
+			}
+			if err = record.Set(update.Field, update.Value); err != nil {
+				return err
+			}
+			if err = s.owner.config.ValidateWrite(ctx, s.principal, record); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	_, err := collector.Execute(ctx, object.Record)
+	return err
 }
 func (s *ormScoped) CollectDeletion(ctx context.Context, object Object) (Deletion, error) {
-	if s.owner.config.CollectDeletion == nil {
-		return Deletion{}, errors.New("admin: deletion collector required")
+	if s.owner.config.CollectDeletion != nil {
+		return s.owner.config.CollectDeletion(ctx, s.principal, object.Record)
 	}
-	return s.owner.config.CollectDeletion(ctx, s.principal, object.Record)
+	plan, err := s.collector().Collect(ctx, object.Record)
+	if err != nil {
+		return Deletion{}, err
+	}
+	return deletionFromPlan(plan)
+}
+
+func (s *ormScoped) collector() orm.DeleteCollector {
+	return orm.DeleteCollector{Store: s.owner.config.Store, MaxObjects: s.owner.config.DeletionMaxObjects, MaxWork: s.owner.config.DeletionMaxWork, Scope: func(ctx context.Context, schema models.Schema) (db.Predicate, error) {
+		scope, err := s.owner.config.QueryScope(ctx, s.principal, schema)
+		if err != nil {
+			return db.Predicate{}, err
+		}
+		if scope.Identity == "" {
+			return db.Predicate{}, auth.ErrPermissionDenied
+		}
+		return scope.Predicate, nil
+	}}
+}
+
+func deletionFromPlan(plan orm.DeletionPlan) (Deletion, error) {
+	graph := Deletion{}
+	for _, record := range plan.Objects {
+		object, err := objectFromRecord(record)
+		if err != nil {
+			return Deletion{}, err
+		}
+		graph.Objects = append(graph.Objects, object)
+	}
+	for _, update := range plan.Updates {
+		object, err := objectFromRecord(update.Record)
+		if err != nil {
+			return Deletion{}, err
+		}
+		graph.Updates = append(graph.Updates, RelatedUpdate{Object: object, Field: update.Field, Value: update.Value})
+	}
+	for range plan.Protected {
+		graph.Protected = append(graph.Protected, "Related data prevents deletion.")
+	}
+	return graph, nil
 }
 func (s *ormScoped) Atomic(ctx context.Context, fn func(context.Context) error) error {
 	return db.Atomic(ctx, s.owner.config.Store.Backend, db.AtomicOptions{}, fn)

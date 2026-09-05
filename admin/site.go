@@ -42,6 +42,7 @@ type ModelAdmin struct {
 	ListDisplay, ListDisplayLinks, SearchFields, ListFilter, Ordering []string
 	ListPerPage, ListMaxShowAll                                       int
 	Fieldsets                                                         []Fieldset
+	Inlines                                                           []Inline
 	Columns                                                           []DisplayColumn
 	Actions                                                           []Action
 	SensitiveFields                                                   []string
@@ -128,6 +129,21 @@ func (s *Site) Register(options ModelAdmin) error {
 	if options.ListMaxShowAll == 0 {
 		options.ListMaxShowAll = 1000
 	}
+	if len(options.Fieldsets) > 0 {
+		if len(options.Fields) > 0 {
+			return errors.New("admin: Fields and Fieldsets are mutually exclusive")
+		}
+		seen := map[string]bool{}
+		for _, fieldset := range options.Fieldsets {
+			for _, name := range fieldset.Fields {
+				if seen[name] {
+					return errors.New("admin: duplicate field in fieldsets")
+				}
+				seen[name] = true
+				options.Fields = append(options.Fields, name)
+			}
+		}
+	}
 	if options.ListPerPage < 1 || options.ListPerPage > 1000 || options.ListMaxShowAll < options.ListPerPage || options.ListMaxShowAll > 1000 {
 		return errors.New("admin: invalid pagination bounds")
 	}
@@ -190,6 +206,16 @@ func (s *Site) Register(options ModelAdmin) error {
 	options.SensitiveFields = slices.Clone(options.SensitiveFields)
 	options.Actions = slices.Clone(options.Actions)
 	options.Columns = slices.Clone(options.Columns)
+	options.Fieldsets = append([]Fieldset(nil), options.Fieldsets...)
+	for i := range options.Fieldsets {
+		options.Fieldsets[i].Fields = slices.Clone(options.Fieldsets[i].Fields)
+		options.Fieldsets[i].Classes = slices.Clone(options.Fieldsets[i].Classes)
+	}
+	for i := range options.Inlines {
+		if err := options.Inlines[i].validate(options.Schema); err != nil {
+			return err
+		}
+	}
 	s.models[key] = options
 	return nil
 }

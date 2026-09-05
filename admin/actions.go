@@ -85,10 +85,7 @@ func (s *Site) delete(w http.ResponseWriter, r *http.Request, p auth.Principal, 
 			if len(graph.Protected) > 0 {
 				return ErrConflict
 			}
-			if _, err = s.scopedDeletion(ctx, p, graph, true); err != nil {
-				return err
-			}
-			if err = store.Delete(ctx, current); err != nil {
+			if err = s.executeDeletion(ctx, p, store, current); err != nil {
 				return err
 			}
 			return store.Audit(ctx, LogEntry{ActorID: p.ID, Site: s.config.Name, Model: options.Schema.Key(), ObjectID: current.ID, ObjectLabel: current.Label, Action: "delete", At: time.Now().UTC()})
@@ -110,12 +107,33 @@ func (s *Site) delete(w http.ResponseWriter, r *http.Request, p auth.Principal, 
 			rows = append(rows, target.Label)
 		}
 	}
+	updates := []any{}
+	for _, update := range deletion.Updates {
+		schema := update.Object.Record.Schema()
+		if s.config.Policy.Authorize(r.Context(), p, "view", auth.Resource{App: schema.AppLabel, Model: schema.Name, ID: update.Object.ID, Object: update.Object.Record}) == nil {
+			updates = append(updates, templates.Context{"label": update.Object.Label, "field": update.Field})
+		}
+	}
 	token, err := s.token(p, options, object, "delete")
 	if err != nil {
 		s.failure(w, r, err)
 		return
 	}
-	s.render(w, r, p, "delete.html", templates.Context{"title": "Delete " + object.Label, "objects": rows, "blocked": len(deletion.Protected) > 0, "edit_token": token, "cancel_url": s.modelURL(options) + url.PathEscape(id) + "/change/"}, 200)
+	s.render(w, r, p, "delete.html", templates.Context{"title": "Delete " + object.Label, "objects": rows, "updates": updates, "blocked": len(deletion.Protected) > 0, "edit_token": token, "cancel_url": s.modelURL(options) + url.PathEscape(id) + "/change/"}, 200)
+}
+
+func (s *Site) executeDeletion(ctx context.Context, p auth.Principal, store ScopedStore, object Object) error {
+	executor, ok := store.(DeletionExecutor)
+	if !ok {
+		return errors.New("admin: final locked deletion authorization is required")
+	}
+	return executor.DeleteAuthorized(ctx, object, func(ctx context.Context, graph Deletion) error {
+		if len(graph.Protected) > 0 {
+			return ErrConflict
+		}
+		_, err := s.scopedDeletion(ctx, p, graph, true)
+		return err
+	})
 }
 
 func (s *Site) scopedDeletion(ctx context.Context, p auth.Principal, graph Deletion, lock bool) (Deletion, error) {
@@ -137,6 +155,28 @@ func (s *Site) scopedDeletion(ctx context.Context, p auth.Principal, graph Delet
 			return Deletion{}, err
 		}
 		result.Objects = append(result.Objects, current)
+	}
+	for _, update := range graph.Updates {
+		if update.Object.Record == nil {
+			return Deletion{}, errors.New("invalid deletion update")
+		}
+		schema := update.Object.Record.Schema()
+		field, ok := schema.Field(update.Field)
+		if !ok || field.Relation == nil {
+			return Deletion{}, errors.New("invalid deletion update field")
+		}
+		store, err := s.config.Store.Scope(ctx, p, s.config.Name, schema)
+		if err != nil || store == nil {
+			return Deletion{}, auth.ErrPermissionDenied
+		}
+		current, err := store.Get(ctx, update.Object.ID, lock)
+		if err != nil {
+			return Deletion{}, auth.ErrPermissionDenied
+		}
+		if err = s.config.Policy.Authorize(ctx, p, "change", auth.Resource{App: schema.AppLabel, Model: schema.Name, ID: current.ID, Object: current.Record}); err != nil {
+			return Deletion{}, err
+		}
+		result.Updates = append(result.Updates, RelatedUpdate{Object: current, Field: update.Field, Value: update.Value})
 	}
 	return result, nil
 }

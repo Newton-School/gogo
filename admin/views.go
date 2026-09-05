@@ -171,7 +171,7 @@ func (s *Site) navigation(r *http.Request, p auth.Principal) []any {
 		if !view {
 			link += "add/"
 		}
-		rows = append(rows, templates.Context{"label": name, "app": options.Schema.AppLabel, "url": link, "add_url": s.modelURL(options) + "add/", "can_add": add, "can_view": view})
+		rows = append(rows, templates.Context{"label": name, "app": options.Schema.AppLabel, "url": link, "active": strings.HasPrefix(r.URL.Path, s.modelURL(options)), "add_url": s.modelURL(options) + "add/", "can_add": add, "can_view": view})
 	}
 	return rows
 }
@@ -179,6 +179,7 @@ func (s *Site) render(w http.ResponseWriter, r *http.Request, p auth.Principal, 
 	data["header"] = s.config.Header
 	data["site_title"] = s.config.Title
 	data["prefix"] = s.config.Prefix
+	data["is_overview"] = r.URL.Path == s.config.Prefix
 	data["navigation"] = s.navigation(r, p)
 	data["actor"] = p.ID
 	data["csrf_token"] = security.CSRFToken(r)
@@ -378,6 +379,7 @@ func (s *Site) form(w http.ResponseWriter, r *http.Request, p auth.Principal, op
 		return forms.NewModelForm(ctx, obj.Record, forms.ModelFormOptions{Fields: options.Fields, Exclude: options.Exclude, Readonly: currentReadonly, Overrides: options.FormOverrides, ResolveRelation: options.ResolveRelation, Checker: options.ConstraintChecker}, opts...)
 	}
 	var modelForm *forms.ModelForm
+	var inlines []*inlineState
 	invalidForm := false
 	if r.Method == "POST" {
 		if !canChange {
@@ -418,7 +420,12 @@ func (s *Site) form(w http.ResponseWriter, r *http.Request, p auth.Principal, op
 			if err != nil {
 				return err
 			}
-			if !modelForm.IsValid() {
+			parentValid := modelForm.IsValid()
+			inlines, err = s.loadInlines(ctx, r, p, options, object, true)
+			if err != nil {
+				return err
+			}
+			if !parentValid || !validInlines(inlines) {
 				return errInvalidForm
 			}
 			if options.SaveModel != nil {
@@ -427,6 +434,9 @@ func (s *Site) form(w http.ResponseWriter, r *http.Request, p auth.Principal, op
 				object, err = store.Save(ctx, object)
 			}
 			if err != nil {
+				return err
+			}
+			if err = s.saveInlines(ctx, p, object, inlines); err != nil {
 				return err
 			}
 			if options.SaveRelated != nil {
@@ -467,7 +477,19 @@ func (s *Site) form(w http.ResponseWriter, r *http.Request, p auth.Principal, op
 			return
 		}
 	}
-	formHTML, err := modelForm.Render("div")
+	formHTML, err := s.renderModelForm(r.Context(), options, object, modelForm, readonly)
+	if err != nil {
+		s.failure(w, r, err)
+		return
+	}
+	if inlines == nil {
+		inlines, err = s.loadInlines(r.Context(), r, p, options, object, false)
+		if err != nil {
+			s.failure(w, r, err)
+			return
+		}
+	}
+	inlineHTML, err := s.renderInlines(r.Context(), p, object, inlines)
 	if err != nil {
 		s.failure(w, r, err)
 		return
@@ -479,6 +501,9 @@ func (s *Site) form(w http.ResponseWriter, r *http.Request, p auth.Principal, op
 	}
 	readonlyValues := []any{}
 	for _, name := range readonly {
+		if len(options.Fieldsets) > 0 {
+			continue
+		}
 		value, err := object.Record.Get(name)
 		if err != nil {
 			continue
@@ -493,7 +518,7 @@ func (s *Site) form(w http.ResponseWriter, r *http.Request, p auth.Principal, op
 	if invalidForm {
 		status = 400
 	}
-	s.render(w, r, p, "form.html", templates.Context{"title": title, "form": formHTML, "readonly": readonlyValues, "edit_token": token, "can_change": canChange, "can_add": s.allowed(r.Context(), p, "add", options, Object{}) == nil, "can_delete": id != "" && s.allowed(r.Context(), p, "delete", options, object) == nil, "delete_url": s.modelURL(options) + url.PathEscape(id) + "/delete/", "history_url": s.modelURL(options) + url.PathEscape(id) + "/history/", "has_object": id != ""}, status)
+	s.render(w, r, p, "form.html", templates.Context{"title": title, "form": formHTML, "inlines": inlineHTML, "readonly": readonlyValues, "edit_token": token, "can_change": canChange, "can_add": s.allowed(r.Context(), p, "add", options, Object{}) == nil, "can_delete": id != "" && s.allowed(r.Context(), p, "delete", options, object) == nil, "delete_url": s.modelURL(options) + url.PathEscape(id) + "/delete/", "history_url": s.modelURL(options) + url.PathEscape(id) + "/history/", "has_object": id != ""}, status)
 }
 
 var errInvalidForm = errors.New("invalid form")
