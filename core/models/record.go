@@ -21,6 +21,8 @@ type State struct {
 	Deferred        map[string]bool
 	Related         map[string]any
 	DefaultsApplied bool
+	// Provided distinguishes explicitly bound zero values from omitted values.
+	Provided map[string]bool
 }
 
 func (s *State) Adding() bool { return !s.Persisted }
@@ -111,6 +113,10 @@ func (r *BoundRecord) Set(name string, value any) error {
 		return fmt.Errorf("models: set %s: %w", name, err)
 	}
 	delete(r.State().Deferred, name)
+	if r.State().Provided == nil {
+		r.State().Provided = map[string]bool{}
+	}
+	r.State().Provided[name] = true
 	return nil
 }
 func assign(dst reflect.Value, value any) error {
@@ -204,7 +210,7 @@ func ApplyDefaults(record Record) error {
 		return nil
 	}
 	for _, f := range record.Schema().Fields {
-		if !f.IsStored() {
+		if !f.IsStored() || record.State().Provided[f.Name] {
 			continue
 		}
 		v, err := record.Get(f.Name)

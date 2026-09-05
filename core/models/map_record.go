@@ -33,5 +33,9 @@ func (r *MapRecord) Set(name string, value any) error {
 		return fmt.Errorf("models: unknown field %s", name)
 	}
 	r.values[name] = value
+	if r.state.Provided == nil {
+		r.state.Provided = map[string]bool{}
+	}
+	r.state.Provided[name] = true
 	return nil
 }
