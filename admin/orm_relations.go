@@ -11,9 +11,9 @@ import (
 	"github.com/Newton-School/gogo/core/orm"
 )
 
-func (s *ormScoped) relationManager(object Object, name string) (orm.RelationManager, models.Schema, error) {
+func (s *ormScoped) relationManager(object Object, name string, editable bool) (orm.RelationManager, models.Schema, error) {
 	field, ok := s.schema.Field(name)
-	if !ok || field.Kind != models.ManyToMany || field.Relation == nil || field.Relation.Through != "" || object.Record == nil || object.Record.Schema().Key() != s.schema.Key() {
+	if !ok || field.Kind != models.ManyToMany || field.Relation == nil || editable && field.Relation.Through != "" || object.Record == nil || object.Record.Schema().Key() != s.schema.Key() {
 		return orm.RelationManager{}, models.Schema{}, errors.New("admin: automatic declared many-to-many relation required")
 	}
 	registry := s.owner.config.Store.Registry
@@ -21,7 +21,7 @@ func (s *ormScoped) relationManager(object Object, name string) (orm.RelationMan
 		return orm.RelationManager{}, models.Schema{}, errors.New("admin: complete relation registry required")
 	}
 	target, ok := registry.Get(field.Relation.Target)
-	if !ok || len(target.PKFields()) != 1 {
+	if !ok || editable && len(target.PKFields()) != 1 {
 		return orm.RelationManager{}, models.Schema{}, errors.New("admin: scalar relation target primary key required")
 	}
 	manager := orm.RelationManager{Store: s.owner.config.Store, Source: object.Record, Name: name, Scope: func(ctx context.Context, schema models.Schema) (db.Predicate, error) {
@@ -40,7 +40,7 @@ func (s *ormScoped) relationManager(object Object, name string) (orm.RelationMan
 func (s *ormScoped) InitialRelations(ctx context.Context, object Object, names []string) (map[string][]any, error) {
 	initial := map[string][]any{}
 	for _, name := range names {
-		manager, target, err := s.relationManager(object, name)
+		manager, target, err := s.relationManager(object, name, true)
 		if err != nil {
 			return nil, err
 		}
@@ -73,7 +73,7 @@ func (s *ormScoped) SaveRelations(ctx context.Context, object Object, values map
 	}
 	sort.Strings(names)
 	for _, name := range names {
-		manager, target, err := s.relationManager(object, name)
+		manager, target, err := s.relationManager(object, name, true)
 		if err != nil {
 			return err
 		}
@@ -124,4 +124,31 @@ func (s *ormScoped) SaveRelations(ctx context.Context, object Object, values map
 		}
 	}
 	return nil
+}
+
+func (s *ormScoped) ReadRelations(ctx context.Context, object Object, names []string) (map[string][]Object, error) {
+	result := map[string][]Object{}
+	for _, name := range names {
+		manager, _, err := s.relationManager(object, name, false)
+		if err != nil {
+			return nil, err
+		}
+		result[name] = []Object{}
+		if !object.Record.State().Persisted {
+			continue
+		}
+		manager.MaxObjects = 1000
+		rows, err := manager.All(ctx)
+		if err != nil {
+			return nil, err
+		}
+		for _, record := range rows {
+			object, err := objectFromRecord(record)
+			if err != nil {
+				return nil, err
+			}
+			result[name] = append(result[name], object)
+		}
+	}
+	return result, nil
 }

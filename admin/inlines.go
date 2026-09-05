@@ -367,7 +367,12 @@ func (s *Site) renderInlines(ctx context.Context, p auth.Principal, parent Objec
 			if !state.writable[index] {
 				readonly = append(readonly, state.config.Fields...)
 			}
-			html, err := s.renderModelForm(ctx, ModelAdmin{Schema: state.config.Schema, Fieldsets: []Fieldset{{Fields: state.config.Fields}}}, object, form, readonly)
+			options := ModelAdmin{Schema: state.config.Schema, Fields: state.config.Fields, Fieldsets: []Fieldset{{Fields: state.config.Fields}}, ResolveRelation: state.config.ResolveRelation}
+			values, err := s.readonlyValues(ctx, p, options, object, state.store, readonly)
+			if err != nil {
+				return "", err
+			}
+			html, err := s.renderModelForm(ctx, options, object, form, readonly, values)
 			if err != nil {
 				return "", err
 			}

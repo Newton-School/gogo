@@ -52,12 +52,13 @@ func (s *relationAuditStore) Scope(ctx context.Context, p auth.Principal, site s
 	if err != nil {
 		return nil, err
 	}
-	return relationAuditScope{ScopedStore: store, RelationStore: store.(admin.RelationStore), owner: s}, nil
+	return relationAuditScope{ScopedStore: store, RelationStore: store.(admin.RelationStore), RelationReader: store.(admin.RelationReader), owner: s}, nil
 }
 
 type relationAuditScope struct {
 	admin.ScopedStore
 	admin.RelationStore
+	admin.RelationReader
 	owner *relationAuditStore
 }
 
@@ -356,4 +357,59 @@ func TestAdminManyToManyScopedSaveConflictAndAuditRollback(t *testing.T) {
 		}
 	}
 	store.BeforeSave, store.AfterSave = nil, nil
+	// Readonly relations use scoped batch reads rather than Record.Get on a
+	// non-stored field, and never accept posted relationship replacements.
+	readonlyResolver := func(_ context.Context, _ models.Field, ids []string) ([]any, error) {
+		values := []any{}
+		for _, id := range ids {
+			value, err := strconv.ParseInt(id, 10, 64)
+			if err != nil || value == labels[4].ID {
+				return nil, auth.ErrPermissionDenied
+			}
+			if aliasFirst && value == labels[0].ID {
+				value = labels[1].ID
+			}
+			values = append(values, value)
+		}
+		return values, nil
+	}
+	for _, fieldsets := range []bool{false, true} {
+		readonlySite, err := admin.NewSite(admin.Config{Store: audited, Signer: signer, Policy: policy})
+		if err != nil {
+			t.Fatal(err)
+		}
+		options := admin.ModelAdmin{Schema: article.Schema(), Fields: []string{"name", "labels"}, ReadonlyFields: []string{"labels"}, ListDisplay: []string{"name"}, ConstraintChecker: store, ResolveRelation: readonlyResolver}
+		if fieldsets {
+			options.Fields = nil
+			options.Fieldsets = []admin.Fieldset{{Name: "Article details", Fields: []string{"name", "labels"}}}
+		}
+		if err := readonlySite.Register(options); err != nil {
+			t.Fatal(err)
+		}
+		if err := readonlySite.Register(admin.ModelAdmin{Schema: labels[0].Schema(), Fields: []string{"name"}}); err != nil {
+			t.Fatal(err)
+		}
+		site = readonlySite
+		get = request("GET", link[1], nil, nil)
+		if get.Code != 200 || !strings.Contains(get.Body.String(), "Label [1], Label [2]") || strings.Contains(get.Body.String(), `name="labels"`) {
+			t.Fatal("readonly relation display failed", fieldsets, get.Code, get.Body.String())
+		}
+		for _, id := range []string{"3", "4", "5"} {
+			if strings.Contains(get.Body.String(), "Label ["+id+"]") {
+				t.Fatal("readonly relation disclosed hidden target", fieldsets)
+			}
+		}
+		aliasFirst = true
+		aliased = request("GET", link[1], nil, nil)
+		aliasFirst = false
+		if aliased.Code != 200 || strings.Contains(aliased.Body.String(), "Label [1]") {
+			t.Fatal("readonly resolver substituted identity", aliased.Code)
+		}
+		values := url.Values{"name": {"Readonly relation preserved"}, "labels": {"2"}, "_edit_token": {hidden(get.Body.String(), "_edit_token")}, "csrfmiddlewaretoken": {hidden(get.Body.String(), "csrfmiddlewaretoken")}}
+		post = request("POST", link[1], values, get.Result().Cookies())
+		if post.Code != 303 {
+			t.Fatal("readonly relation blocked scalar edit", fieldsets, post.Code, post.Body.String())
+		}
+		check("Readonly relation preserved", labels[0].ID, labels[1].ID, labels[2].ID)
+	}
 }

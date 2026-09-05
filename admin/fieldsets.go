@@ -2,15 +2,17 @@ package admin
 
 import (
 	"context"
+	"errors"
 	"html/template"
 	"slices"
 	"strings"
 
 	"github.com/Newton-School/gogo/core/forms"
+	"github.com/Newton-School/gogo/core/models"
 	"github.com/Newton-School/gogo/core/templates"
 )
 
-func (s *Site) renderModelForm(ctx context.Context, options ModelAdmin, object Object, form *forms.ModelForm, readonly []string) (template.HTML, error) {
+func (s *Site) renderModelForm(ctx context.Context, options ModelAdmin, object Object, form *forms.ModelForm, readonly []string, readonlyValues map[string]any) (template.HTML, error) {
 	if len(options.Fieldsets) == 0 {
 		return form.Render("div")
 	}
@@ -30,9 +32,16 @@ func (s *Site) renderModelForm(ctx context.Context, options ModelAdmin, object O
 				}
 				rows = append(rows, templates.Context{"label": label, "id": bound.ID, "widget": widget, "help": metadata.HelpText, "errors": bound.Errors, "grouped": bound.Grouped()})
 			} else if slices.Contains(readonly, name) || !metadata.IsEditable() {
-				value, err := object.Record.Get(name)
-				if err != nil {
-					return "", err
+				value, ok := readonlyValues[name]
+				if !ok {
+					if metadata.Kind == models.ManyToMany {
+						return "", errors.New("admin: scoped readonly relation snapshot required")
+					}
+					var err error
+					value, err = object.Record.Get(name)
+					if err != nil {
+						return "", err
+					}
 				}
 				rows = append(rows, templates.Context{"label": label, "value": value, "readonly": true})
 			}

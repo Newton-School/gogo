@@ -640,7 +640,12 @@ func (s *Site) form(w http.ResponseWriter, r *http.Request, p auth.Principal, op
 			return
 		}
 	}
-	formHTML, err := s.renderModelForm(r.Context(), options, object, modelForm, readonly)
+	readonlyDisplay, err := s.readonlyValues(r.Context(), p, options, object, store, readonly)
+	if err != nil {
+		s.failure(w, r, err)
+		return
+	}
+	formHTML, err := s.renderModelForm(r.Context(), options, object, modelForm, readonly, readonlyDisplay)
 	if err != nil {
 		s.failure(w, r, err)
 		return
@@ -680,8 +685,8 @@ func (s *Site) form(w http.ResponseWriter, r *http.Request, p auth.Principal, op
 		if len(options.Fieldsets) > 0 {
 			continue
 		}
-		value, err := object.Record.Get(name)
-		if err != nil {
+		value, ok := readonlyDisplay[name]
+		if !ok {
 			continue
 		}
 		readonlyValues = append(readonlyValues, templates.Context{"label": name, "value": value})

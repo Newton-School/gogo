@@ -61,6 +61,15 @@ type RelationStore interface {
 	InitialRelations(context.Context, Object, []string) (map[string][]any, error)
 	SaveRelations(context.Context, Object, map[string][]any, func(context.Context, RelationChange) error) error
 }
+
+// RelationReader supplies bounded read-only relationship snapshots. Both the
+// source and targets (and explicit intermediary rows) must obey this scoped
+// store's actor/tenant boundary. It must never infer source identity from POST.
+// Site additionally checks target model/object view policy before displaying
+// any labels. The default ORM implementation uses batched relationship reads.
+type RelationReader interface {
+	ReadRelations(context.Context, Object, []string) (map[string][]Object, error)
+}
 type RelationChange struct {
 	Field          string
 	Source         Object
