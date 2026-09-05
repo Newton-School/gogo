@@ -62,7 +62,7 @@ type Select struct {
 	LockOf                               []string
 }
 
-// Join is a resolved schema-bound to-one join. Path is the public relation path;
+// Join is a resolved schema-bound relation join. Path is the public relation path;
 // aliases and endpoint fields are validated identifiers, never SQL fragments.
 type Join struct {
 	Path, Alias, ParentPath  string

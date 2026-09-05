@@ -8,7 +8,7 @@ import (
 
 // GroupBy builds explicit grouped values, not persisted model instances. It
 // resets ordering; apply OrderBy after grouping. Group keys currently name
-// stored root fields or fields on explicitly selected scoped joins. Typed
+// stored root fields or fields on planned scoped FK joins. Typed
 // aggregate annotations, Values, SQLContext and Count operate on these groups.
 // Model materialization, row locks and mutations are not group operations.
 func (q Query[T]) GroupBy(fields ...string) Query[T] {
@@ -55,10 +55,10 @@ func (q Query[T]) prepareModelGrouping() (Query[T], error) {
 			keys = append(keys, field.Name)
 		}
 	}
-	for _, join := range q.selectAST.Joins {
-		for _, field := range join.Schema.Fields {
+	for _, join := range q.joined {
+		for _, field := range join.schema.Fields {
 			if field.IsStored() {
-				keys = append(keys, join.Path+"__"+field.Name)
+				keys = append(keys, join.path+"__"+field.Name)
 			}
 		}
 	}

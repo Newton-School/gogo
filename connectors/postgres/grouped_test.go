@@ -151,7 +151,8 @@ func TestGroupedJoinedKeysKeepIndependentScopesAndNullGroups(t *testing.T) {
 		t.Fatal("nullable joined HAVING key", values, err)
 	}
 	counted.queries.Store(0)
-	if _, err := query.SelectRelated().Values(ctx); err == nil || counted.queries.Load() != 0 {
-		t.Fatal("grouping invented an unscoped join", err)
+	values, err = query.SelectRelated().Values(ctx)
+	if err != nil || counted.queries.Load() != 1 || len(values) != 2 || values[0]["sum"] != int64(10) || values[1]["sum"] != nil {
+		t.Fatal("inferred aggregate join lost target scope after eager selection cleared", values, err)
 	}
 }

@@ -16,8 +16,13 @@ import (
 // Annotate selects named, typed per-row expressions. Their decoded values live
 // in each result's ModelState().Annotations and never become stored model
 // fields. Values can select those names; filters and ordering can refer to
-// them. References to related records require explicit scoped SelectRelated
-// paths. Output declares decoding, not a conversion: use Cast to convert a
+// them. Scalar references to related records require explicit scoped
+// SelectRelated paths. Aggregate arguments and FILTER clauses infer forward and
+// reverse FK joins without hydrating those relations. M2M inference is not yet
+// supported. Multiple visible collections multiply SQL rows; use explicit
+// DistinctAggregate where appropriate. At most 64 relation joins and eight
+// segments per path are inferred. Output declares decoding, not a conversion:
+// use Cast to convert a
 // nonliteral expression. Literal values are bound with their declared SQL type.
 //
 // Existing aliases cannot be redefined. Aggregate annotations implicitly group

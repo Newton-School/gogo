@@ -52,6 +52,8 @@ func FilteredAggregate(expression db.Expression, predicate db.Predicate) db.Expr
 // Aggregate executes one scoped aggregate statement and returns named typed
 // values. Use Func("COALESCE", Sum(...), Value(...)) for an explicit empty-set
 // default. A nullable Output returns nil when its aggregate has no value.
+// Aggregate FK paths are joined with independent target scope. Multiple joined
+// collections retain SQL multiplication semantics unless DISTINCT is explicit.
 // Grouped, annotated, sliced, DISTINCT and locked source queries require a
 // separate subquery execution path and are rejected, never silently rewritten.
 func (q Query[T]) Aggregate(ctx context.Context, expressions map[string]ResultExpression) (map[string]any, error) {
@@ -76,7 +78,8 @@ func (q Query[T]) Aggregate(ctx context.Context, expressions map[string]ResultEx
 			return nil, errors.New("orm: invalid aggregate alias")
 		}
 		spec := expressions[alias]
-		found, err := validateAggregateExpression(spec.Expression, false, 0)
+		expression := cloneExpression(spec.Expression)
+		found, err := validateAggregateExpression(expression, false, 0)
 		if err != nil {
 			return nil, err
 		}
@@ -91,10 +94,11 @@ func (q Query[T]) Aggregate(ctx context.Context, expressions map[string]ResultEx
 			return nil, err
 		}
 		outputs[i] = output
-		projections[i] = db.Projection{Expression: cloneExpression(spec.Expression), Alias: alias}
+		projections[i] = db.Projection{Expression: expression, Alias: alias}
 	}
 	q = q.clone()
 	q.prefetches = nil
+	q.selectAST.Projections = projections
 	q, err := q.prepareRelated(ctx)
 	if err != nil {
 		return nil, err

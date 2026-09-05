@@ -70,8 +70,7 @@ func (q Query[T]) prepareRelated(ctx context.Context) (Query[T], error) {
 		q.selectAST.Where = And(q.selectAST.Where, where)
 	}
 	if len(q.relatedPaths) == 0 {
-		q.prepared = true
-		return q, nil
+		return q.prepareAggregateRelations(ctx)
 	}
 	if q.store.Registry == nil {
 		return q, errors.New("orm: SelectRelated requires a complete model registry")
@@ -164,8 +163,7 @@ func (q Query[T]) prepareRelated(ctx context.Context) (Query[T], error) {
 			parent = currentPath
 		}
 	}
-	q.prepared = true
-	return q, nil
+	return q.prepareAggregateRelations(ctx)
 }
 
 func (q Query[T]) attachJoined(root models.Record, values []any) error {
