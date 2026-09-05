@@ -1,0 +1,364 @@
+// Package orm provides context-aware, immutable queries and model persistence.
+package orm
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"github.com/Newton-School/gogo/core/db"
+	"github.com/Newton-School/gogo/core/models"
+	"github.com/Newton-School/gogo/internal/sqlcompiler"
+	"strings"
+)
+
+var ErrNotFound = errors.New("orm: object does not exist")
+var ErrMultipleObjects = errors.New("orm: multiple objects returned")
+var ErrNotUpdated = errors.New("orm: forced update did not affect a row")
+
+type Store struct {
+	Backend               db.Backend
+	Registry              *models.Registry
+	BeforeSave, AfterSave []SaveReceiver
+}
+
+func New(backend db.Backend, registry *models.Registry) *Store {
+	return &Store{Backend: backend, Registry: registry}
+}
+
+type Query[T models.Model] struct {
+	store     *Store
+	factory   func() T
+	schema    models.Schema
+	selectAST db.Select
+	err       error
+}
+
+func For[T models.Model](store *Store, factory func() T) Query[T] {
+	q := Query[T]{store: store, factory: factory}
+	if store == nil || store.Backend == nil || factory == nil {
+		q.err = errors.New("orm: backend and model factory required")
+		return q
+	}
+	model := factory()
+	record, err := models.Bind(model)
+	if err != nil {
+		q.err = err
+		return q
+	}
+	q.schema = record.Schema()
+	q.selectAST.Table = q.schema.DBTable()
+	for _, f := range q.schema.Fields {
+		if f.IsStored() {
+			q.selectAST.Fields = append(q.selectAST.Fields, f.Name)
+		}
+	}
+	return q.OrderBy(q.schema.Ordering...)
+}
+func (q Query[T]) clone() Query[T] {
+	q.selectAST.Fields = append([]string(nil), q.selectAST.Fields...)
+	q.selectAST.Order = append([]db.Order(nil), q.selectAST.Order...)
+	q.selectAST.DistinctOn = append([]string(nil), q.selectAST.DistinctOn...)
+	q.selectAST.Projections = append([]db.Projection(nil), q.selectAST.Projections...)
+	q.selectAST.GroupBy = append([]string(nil), q.selectAST.GroupBy...)
+	return q
+}
+func (q Query[T]) Filter(predicates ...db.Predicate) Query[T] {
+	q = q.clone()
+	children := append([]db.Predicate{q.selectAST.Where}, predicates...)
+	q.selectAST.Where = db.Predicate{Connector: "AND", Children: children}
+	return q
+}
+func (q Query[T]) Exclude(predicates ...db.Predicate) Query[T] {
+	p := db.Predicate{Connector: "AND", Children: append([]db.Predicate(nil), predicates...), Negated: true}
+	return q.Filter(p)
+}
+func (q Query[T]) OrderBy(names ...string) Query[T] {
+	q = q.clone()
+	q.selectAST.Order = nil
+	for _, name := range names {
+		q.selectAST.Order = append(q.selectAST.Order, db.Order{Field: strings.TrimPrefix(name, "-"), Desc: strings.HasPrefix(name, "-")})
+	}
+	return q
+}
+func (q Query[T]) Reverse() Query[T] {
+	q = q.clone()
+	for i := range q.selectAST.Order {
+		q.selectAST.Order[i].Desc = !q.selectAST.Order[i].Desc
+	}
+	return q
+}
+func (q Query[T]) Limit(limit int) Query[T]   { q = q.clone(); q.selectAST.Limit = &limit; return q }
+func (q Query[T]) Offset(offset int) Query[T] { q = q.clone(); q.selectAST.Offset = &offset; return q }
+func (q Query[T]) Distinct() Query[T]         { q = q.clone(); q.selectAST.Distinct = true; return q }
+func (q Query[T]) DistinctOn(fields ...string) Query[T] {
+	q = q.clone()
+	q.selectAST.DistinctOn = append([]string(nil), fields...)
+	return q
+}
+func (q Query[T]) Only(fields ...string) Query[T] {
+	q = q.clone()
+	q.selectAST.Fields = append([]string(nil), fields...)
+	for _, pk := range q.schema.PKFields() {
+		present := false
+		for _, name := range q.selectAST.Fields {
+			present = present || name == pk.Name
+		}
+		if !present {
+			q.selectAST.Fields = append(q.selectAST.Fields, pk.Name)
+		}
+	}
+	return q
+}
+func (q Query[T]) Defer(fields ...string) Query[T] {
+	q = q.clone()
+	exclude := map[string]bool{}
+	for _, name := range fields {
+		exclude[name] = true
+	}
+	q.selectAST.Fields = nil
+	for _, f := range q.schema.Fields {
+		if f.IsStored() && !exclude[f.Name] {
+			q.selectAST.Fields = append(q.selectAST.Fields, f.Name)
+		}
+	}
+	return q.Only(q.selectAST.Fields...)
+}
+func (q Query[T]) SelectForUpdate(noWait, skipLocked bool) Query[T] {
+	q = q.clone()
+	q.selectAST.ForUpdate = true
+	q.selectAST.NoWait = noWait
+	q.selectAST.SkipLocked = skipLocked
+	return q
+}
+func (q Query[T]) SQL() (string, []any, error) {
+	if q.err != nil {
+		return "", nil, q.err
+	}
+	return sqlcompiler.Select(q.store.Backend.Dialect(), q.schema, q.selectAST)
+}
+func (q Query[T]) Iterator(ctx context.Context) (*Iterator[T], error) {
+	if q.err != nil {
+		return nil, q.err
+	}
+	if q.selectAST.ForUpdate && !db.InTransaction(ctx, q.store.Backend.Alias()) {
+		return nil, errors.New("orm: SelectForUpdate requires Atomic")
+	}
+	statement, args, err := q.SQL()
+	if err != nil {
+		return nil, err
+	}
+	rows, err := db.ExecutorFor(ctx, q.store.Backend).Query(ctx, statement, args...)
+	if err != nil {
+		return nil, err
+	}
+	return &Iterator[T]{rows: rows, query: q}, nil
+}
+
+type Iterator[T models.Model] struct {
+	rows   db.Rows
+	query  Query[T]
+	value  T
+	err    error
+	closed bool
+}
+
+func (i *Iterator[T]) Next() bool {
+	if i.closed || i.err != nil {
+		return false
+	}
+	if !i.rows.Next() {
+		i.err = i.rows.Err()
+		i.Close()
+		return false
+	}
+	model := i.query.factory()
+	record, err := models.Bind(model)
+	if err != nil {
+		i.err = err
+		i.Close()
+		return false
+	}
+	values := make([]any, len(i.query.selectAST.Fields))
+	dest := make([]any, len(values))
+	for index := range values {
+		dest[index] = &values[index]
+	}
+	if err := i.rows.Scan(dest...); err != nil {
+		i.err = err
+		i.Close()
+		return false
+	}
+	record.State().Deferred = map[string]bool{}
+	for _, f := range i.query.schema.Fields {
+		if f.IsStored() {
+			record.State().Deferred[f.Name] = true
+		}
+	}
+	for index, name := range i.query.selectAST.Fields {
+		f, _ := i.query.schema.Field(name)
+		value, err := decodeField(f, values[index])
+		if err == nil {
+			err = record.Set(name, value)
+		}
+		if err != nil {
+			i.err = err
+			i.Close()
+			return false
+		}
+	}
+	record.State().Persisted = true
+	record.State().Database = i.query.store.Backend.Alias()
+	i.value = model
+	return true
+}
+func (i *Iterator[T]) Value() T   { return i.value }
+func (i *Iterator[T]) Err() error { return i.err }
+func (i *Iterator[T]) Close() error {
+	if i.closed {
+		return nil
+	}
+	i.closed = true
+	return i.rows.Close()
+}
+func (q Query[T]) All(ctx context.Context) ([]T, error) {
+	iterator, err := q.Iterator(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer iterator.Close()
+	result := []T{}
+	for iterator.Next() {
+		result = append(result, iterator.Value())
+	}
+	return result, iterator.Err()
+}
+func (q Query[T]) Get(ctx context.Context) (T, error) {
+	var zero T
+	rows, err := q.Limit(2).All(ctx)
+	if err != nil {
+		return zero, err
+	}
+	if len(rows) == 0 {
+		return zero, ErrNotFound
+	}
+	if len(rows) > 1 {
+		return zero, ErrMultipleObjects
+	}
+	return rows[0], nil
+}
+func (q Query[T]) First(ctx context.Context) (T, error) {
+	var zero T
+	rows, err := q.Limit(1).All(ctx)
+	if err != nil {
+		return zero, err
+	}
+	if len(rows) == 0 {
+		return zero, ErrNotFound
+	}
+	return rows[0], nil
+}
+func (q Query[T]) Last(ctx context.Context) (T, error) {
+	if len(q.selectAST.Order) == 0 {
+		names := []string{}
+		for _, f := range q.schema.PKFields() {
+			names = append(names, f.Name)
+		}
+		q = q.OrderBy(names...)
+	}
+	return q.Reverse().First(ctx)
+}
+func (q Query[T]) Count(ctx context.Context) (int64, error) {
+	if q.err != nil {
+		return 0, q.err
+	}
+	statement, args, err := q.SQL()
+	if err != nil {
+		return 0, err
+	}
+	var count int64
+	err = db.QueryRow(ctx, db.ExecutorFor(ctx, q.store.Backend), "SELECT COUNT(*) FROM ("+statement+") AS gogo_count", args, &count)
+	return count, err
+}
+func (q Query[T]) Exists(ctx context.Context) (bool, error) {
+	_, err := q.First(ctx)
+	if errors.Is(err, ErrNotFound) {
+		return false, nil
+	}
+	return err == nil, err
+}
+func (q Query[T]) Values(ctx context.Context, fields ...string) ([]map[string]any, error) {
+	q = q.clone()
+	if len(fields) > 0 {
+		q.selectAST.Fields = append([]string(nil), fields...)
+	}
+	statement, args, err := q.SQL()
+	if err != nil {
+		return nil, err
+	}
+	rows, err := db.ExecutorFor(ctx, q.store.Backend).Query(ctx, statement, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	results := []map[string]any{}
+	for rows.Next() {
+		values := make([]any, len(q.selectAST.Fields))
+		dest := make([]any, len(values))
+		for i := range values {
+			dest[i] = &values[i]
+		}
+		if err := rows.Scan(dest...); err != nil {
+			return nil, err
+		}
+		record := map[string]any{}
+		for i, name := range q.selectAST.Fields {
+			record[name] = values[i]
+		}
+		results = append(results, record)
+	}
+	return results, rows.Err()
+}
+
+type Ref[V any] struct{ Name string }
+
+func Field[V any](name string) Ref[V]    { return Ref[V]{Name: name} }
+func (f Ref[V]) Eq(value V) db.Predicate { return db.Predicate{Field: f.Name, Value: value} }
+func (f Ref[V]) GT(value V) db.Predicate {
+	return db.Predicate{Field: f.Name, Lookup: "gt", Value: value}
+}
+func (f Ref[V]) In(values ...V) db.Predicate {
+	return db.Predicate{Field: f.Name, Lookup: "in", Value: append([]V(nil), values...)}
+}
+func Q(name string, value any) db.Predicate {
+	parts := strings.Split(name, "__")
+	lookup := "exact"
+	if len(parts) == 2 {
+		lookup = parts[1]
+	}
+	return db.Predicate{Field: parts[0], Lookup: lookup, Value: value}
+}
+func And(predicates ...db.Predicate) db.Predicate {
+	return db.Predicate{Connector: "AND", Children: append([]db.Predicate(nil), predicates...)}
+}
+func Or(predicates ...db.Predicate) db.Predicate {
+	return db.Predicate{Connector: "OR", Children: append([]db.Predicate(nil), predicates...)}
+}
+func Not(predicate db.Predicate) db.Predicate {
+	predicate.Negated = !predicate.Negated
+	return predicate
+}
+func F(name string) db.Expression   { return db.Expression{Kind: "field", Name: name} }
+func Value(value any) db.Expression { return db.Expression{Kind: "value", Value: value} }
+func Func(name string, args ...db.Expression) db.Expression {
+	return db.Expression{Kind: "function", Name: name, Args: append([]db.Expression(nil), args...)}
+}
+func Add(left, right db.Expression) db.Expression {
+	return db.Expression{Kind: "binary", Name: "+", Args: []db.Expression{left, right}}
+}
+func (q Query[T]) String() string {
+	sql, _, err := q.SQL()
+	if err != nil {
+		return fmt.Sprintf("Query(error=%v)", err)
+	}
+	return sql
+}
