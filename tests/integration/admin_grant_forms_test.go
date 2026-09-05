@@ -172,6 +172,9 @@ func TestAdminStockGrantFormsEnforceVisibleTokensReadonlyAndAtomicAudit(t *testi
 	userKey := base64.RawURLEncoding.EncodeToString([]byte(`["` + user.ID + `"]`))
 	userPath := "/admin/gogo_auth/user/" + userKey + "/change/"
 	page, values := form(userPath)
+	if !strings.Contains(page.Body.String(), "<h1>selector-user</h1>") {
+		t.Fatal("stock user form did not use the scoped account identifier")
+	}
 	if !strings.Contains(page.Body.String(), `name="groups"`) || !strings.Contains(page.Body.String(), `name="user_permissions"`) || values.Get("_account_grants_token") == "" {
 		t.Fatal("stock selectors or signed visible snapshot missing")
 	}
@@ -252,6 +255,9 @@ func TestAdminStockGrantFormsEnforceVisibleTokensReadonlyAndAtomicAudit(t *testi
 	groupKey := base64.RawURLEncoding.EncodeToString([]byte(`["` + groups[1].ID + `"]`))
 	groupPath := "/admin/gogo_auth/group/" + groupKey + "/change/"
 	page, values = form(groupPath)
+	if !strings.Contains(page.Body.String(), "<h1>Visible new</h1>") {
+		t.Fatal("stock group form did not use the scoped group name")
+	}
 	values.Set("name", groups[1].Name)
 	values["permissions"] = []string{p0}
 	if err := adapter.Accounts().SetGroupPermissions(bootstrap, groups[1].ID, []int64{permissions[1].ID}); err != nil {

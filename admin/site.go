@@ -68,6 +68,11 @@ type Config struct {
 	Signer                                                     *security.Signer
 	CSRF                                                       security.CSRFConfig
 	TemplateLoaders                                            []templates.Loader
+	// ActorLabel supplies read-only, authorized header text for the current
+	// staff identity. The callback must remain immutable and concurrency-safe;
+	// its text is escaped and cannot replace lookup, permission or audit IDs.
+	// Nil preserves the principal ID. Failures never fall back to another user.
+	ActorLabel func(context.Context, auth.Principal) (string, error)
 	// Messages enables generic success notices through installed core/messages
 	// middleware. Notices are best-effort after durable writes and contain no
 	// object data, so cookie storage can be explicitly used by the application.

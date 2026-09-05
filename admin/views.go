@@ -216,6 +216,11 @@ func (s *Site) navigation(r *http.Request, p auth.Principal) []any {
 	return rows
 }
 func (s *Site) render(w http.ResponseWriter, r *http.Request, p auth.Principal, name string, data templates.Context, status int) {
+	actor, err := s.actorLabel(r.Context(), p)
+	if err != nil {
+		s.failure(w, r, err)
+		return
+	}
 	data["header"] = s.config.Header
 	data["site_title"] = s.config.Title
 	data["prefix"] = s.config.Prefix
@@ -223,7 +228,7 @@ func (s *Site) render(w http.ResponseWriter, r *http.Request, p auth.Principal, 
 	data["js_url"] = s.config.Prefix + "assets/admin." + s.jsVersion + ".js"
 	data["is_overview"] = r.URL.Path == s.config.Prefix
 	data["navigation"] = s.navigation(r, p)
-	data["actor"] = p.ID
+	data["actor"] = actor
 	data["csrf_token"] = security.CSRFToken(r)
 	data["site_url"] = s.config.SiteURL
 	data["logout_url"] = s.config.LogoutURL

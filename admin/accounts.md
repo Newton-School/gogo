@@ -1,5 +1,11 @@
 # Default account administration
 
+Stock account and group titles use their scoped identifier/name. Their lookup,
+edit-token and audit IDs remain separate. `Config.ActorLabel` optionally supplies
+authorized header text for the current staff principal; the default is its ID.
+The callback must be read-only and concurrency-safe; its output is escaped and bounded,
+and failure or cancellation aborts rendering without a fallback identity.
+
 Register `AccountStore.UserAdmin()` and `AccountStore.GroupAdmin()` on a Site.
 The same ORM transaction contains the Accounts mutation and the Admin audit.
 Site model/object permissions, row scope, and explicit `Accounts.Authorize`

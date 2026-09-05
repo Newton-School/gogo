@@ -116,8 +116,11 @@ func accountModel(schema models.Schema) bool {
 }
 
 func redactAccount(object Object) (Object, error) {
-	if object.Record == nil || object.Record.Schema().Key() != (&auth.User{}).Schema().Key() {
+	if object.Record == nil {
 		return object, nil
+	}
+	if object.Record.Schema().Key() != (&auth.User{}).Schema().Key() {
+		return labelAccount(object)
 	}
 	// Do not retain the original typed model behind the projection: exposing a
 	// Record with a redacted getter but a credential-bearing Model() is unsafe.
@@ -139,7 +142,37 @@ func redactAccount(object Object) (Object, error) {
 	}
 	record.State().Persisted = object.Record.State().Persisted
 	record.State().Database = object.Record.State().Database
-	return objectFromRecord(record)
+	projected, err := objectFromRecord(record)
+	if err != nil {
+		return Object{}, err
+	}
+	return labelAccount(projected)
+}
+
+// Labels come only from records already returned by the scoped account store.
+// They are presentation text, never lookup keys or auth model String methods.
+func labelAccount(object Object) (Object, error) {
+	field := ""
+	switch object.Record.Schema().Key() {
+	case (&auth.User{}).Schema().Key():
+		field = "identifier"
+	case (&auth.Group{}).Schema().Key():
+		field = "name"
+	default:
+		return object, nil
+	}
+	value, err := object.Record.Get(field)
+	if err != nil {
+		return Object{}, err
+	}
+	label, ok := value.(string)
+	if !ok {
+		return Object{}, errors.New("admin: account display label unavailable")
+	}
+	if label != "" {
+		object.Label = label
+	}
+	return object, nil
 }
 
 func (s *accountScoped) Get(ctx context.Context, key string, lock bool) (Object, error) {

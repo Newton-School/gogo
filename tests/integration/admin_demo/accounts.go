@@ -168,3 +168,17 @@ func newDemoAccountStore(store *orm.Store, scope *demoAccountScope) (*admin.Acco
 func demoAllowedPermissions(scope *demoAccountScope, ids []int64) bool {
 	return !slices.ContainsFunc(ids, func(id int64) bool { return !slices.Contains(scope.grantPermissions, id) })
 }
+
+// The fixture's reviewer identifier is fixed before serving. This is display
+// data for that exact verified staff identity, not a generic user lookup.
+func demoActorLabel(id, identifier string) func(context.Context, auth.Principal) (string, error) {
+	return func(ctx context.Context, p auth.Principal) (string, error) {
+		if err := ctx.Err(); err != nil {
+			return "", err
+		}
+		if id == "" || p.ID != id || !p.Authenticated || !p.Active || !p.Staff {
+			return "", auth.ErrPermissionDenied
+		}
+		return identifier, nil
+	}
+}

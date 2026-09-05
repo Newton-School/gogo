@@ -230,7 +230,7 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	site, err := admin.NewSite(admin.Config{Store: adapter, Signer: signer, Policy: auth.ModelPolicy{}, LoginURL: "/admin/login/", LogoutURL: "/admin/logout/", PasswordChangeURL: "/admin/password-change/", PasswordResetURL: "/admin/password-reset/", Messages: true, CSRF: security.CSRFConfig{MaxBodyBytes: 10 << 20}})
+	site, err := admin.NewSite(admin.Config{Store: adapter, Signer: signer, Policy: auth.ModelPolicy{}, ActorLabel: demoActorLabel(staff.ID, staff.Identifier), LoginURL: "/admin/login/", LogoutURL: "/admin/logout/", PasswordChangeURL: "/admin/password-change/", PasswordResetURL: "/admin/password-reset/", Messages: true, CSRF: security.CSRFConfig{MaxBodyBytes: 10 << 20}})
 	if err != nil {
 		return err
 	}

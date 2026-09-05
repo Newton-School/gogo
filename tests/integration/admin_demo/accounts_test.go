@@ -139,3 +139,16 @@ func TestDemoInvalidMailPortFailsBeforeOpeningServices(t *testing.T) {
 		}
 	}
 }
+
+func TestDemoActorLabelOnlyIdentifiesItsVerifiedReviewer(t *testing.T) {
+	label := demoActorLabel("reviewer", "staff-reviewer")
+	actor := auth.Principal{ID: "reviewer", Authenticated: true, Active: true, Staff: true}
+	if value, err := label(context.Background(), actor); err != nil || value != "staff-reviewer" {
+		t.Fatal("fixture reviewer label failed", err)
+	}
+	for _, p := range []auth.Principal{{ID: "reviewer"}, {ID: "other", Authenticated: true, Active: true, Staff: true}, {ID: "reviewer", Authenticated: true, Active: true}} {
+		if value, err := label(context.Background(), p); value != "" || !errors.Is(err, auth.ErrPermissionDenied) {
+			t.Fatal("fixture disclosed another actor label", err)
+		}
+	}
+}
