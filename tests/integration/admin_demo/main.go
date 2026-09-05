@@ -22,6 +22,7 @@ import (
 	"github.com/Newton-School/gogo/connectors/postgres"
 	"github.com/Newton-School/gogo/core/auth"
 	"github.com/Newton-School/gogo/core/db"
+	"github.com/Newton-School/gogo/core/messages"
 	"github.com/Newton-School/gogo/core/models"
 	"github.com/Newton-School/gogo/core/orm"
 	"github.com/Newton-School/gogo/core/security"
@@ -135,7 +136,7 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	site, err := admin.NewSite(admin.Config{Store: adapter, Signer: signer, Policy: auth.ModelPolicy{AllowSuperuser: true}, CSRF: security.CSRFConfig{MaxBodyBytes: 10 << 20}})
+	site, err := admin.NewSite(admin.Config{Store: adapter, Signer: signer, Policy: auth.ModelPolicy{AllowSuperuser: true}, Messages: true, CSRF: security.CSRFConfig{MaxBodyBytes: 10 << 20}})
 	if err != nil {
 		return err
 	}
@@ -146,10 +147,18 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	handler := headers(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	flashSigner, err := security.NewSigner(security.SigningKey{ID: "fixture", Value: []byte(key)}, nil, "admin-review-messages")
+	if err != nil {
+		return err
+	}
+	flash, err := messages.Middleware(messages.Config{Mode: messages.Cookie, Signer: flashSigner})
+	if err != nil {
+		return err
+	}
+	handler := headers(flash(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		identity := auth.Principal{ID: "review-workspace", Authenticated: true, Active: true, Staff: true, Superuser: true}
 		site.ServeHTTP(w, r.WithContext(auth.WithPrincipal(r.Context(), identity)))
-	}))
+	})))
 	server := &http.Server{Addr: "127.0.0.1:8099", Handler: handler, ReadHeaderTimeout: 5 * time.Second, IdleTimeout: 60 * time.Second}
 	done := make(chan error, 1)
 	go func() { done <- server.ListenAndServe() }()

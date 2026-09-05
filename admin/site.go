@@ -61,6 +61,10 @@ type Config struct {
 	Signer                                                     *security.Signer
 	CSRF                                                       security.CSRFConfig
 	TemplateLoaders                                            []templates.Loader
+	// Messages enables generic success notices through installed core/messages
+	// middleware. Notices are best-effort after durable writes and contain no
+	// object data, so cookie storage can be explicitly used by the application.
+	Messages bool
 }
 type Site struct {
 	config     Config

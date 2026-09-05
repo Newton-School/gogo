@@ -94,6 +94,7 @@ func (s *Site) delete(w http.ResponseWriter, r *http.Request, p auth.Principal, 
 			s.failure(w, r, err)
 			return
 		}
+		s.successMessage(r, "The record was deleted successfully.")
 		http.Redirect(w, r, s.modelURL(options), http.StatusSeeOther)
 		return
 	}
@@ -285,5 +286,6 @@ func (s *Site) action(w http.ResponseWriter, r *http.Request, p auth.Principal, 
 		s.failure(w, r, err)
 		return
 	}
+	s.successMessage(r, "The selected action completed successfully.")
 	http.Redirect(w, r, s.modelURL(options), http.StatusSeeOther)
 }

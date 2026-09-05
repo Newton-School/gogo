@@ -15,6 +15,7 @@ import (
 
 	"github.com/Newton-School/gogo/core/auth"
 	"github.com/Newton-School/gogo/core/forms"
+	"github.com/Newton-School/gogo/core/messages"
 	"github.com/Newton-School/gogo/core/security"
 	"github.com/Newton-School/gogo/core/templates"
 )
@@ -65,6 +66,12 @@ func (s *Site) serve(w http.ResponseWriter, r *http.Request) {
 	if !p.Active || !p.Staff {
 		http.Error(w, "Permission denied", http.StatusForbidden)
 		return
+	}
+	if s.config.Messages {
+		if _, err := messages.Peek(r); err != nil {
+			s.failure(w, r, err)
+			return
+		}
 	}
 	if r.Method != "GET" && r.Method != "HEAD" && r.Method != "POST" {
 		s.method(w)
@@ -195,6 +202,18 @@ func (s *Site) render(w http.ResponseWriter, r *http.Request, p auth.Principal, 
 	data["actor"] = p.ID
 	data["csrf_token"] = security.CSRFToken(r)
 	data["site_url"] = s.config.SiteURL
+	if s.config.Messages {
+		items, err := messages.Consume(r)
+		if err != nil {
+			s.failure(w, r, err)
+			return
+		}
+		rows := []any{}
+		for _, message := range items {
+			rows = append(rows, templates.Context{"level": message.LevelTag(), "text": message.Text, "tags": strings.Join(message.Tags, " ")})
+		}
+		data["messages"] = rows
+	}
 	body, err := s.engine.Render(r.Context(), name, data)
 	if err != nil {
 		s.failure(w, r, err)
@@ -462,6 +481,7 @@ func (s *Site) form(w http.ResponseWriter, r *http.Request, p auth.Principal, op
 			return store.Audit(ctx, LogEntry{ActorID: p.ID, Site: s.config.Name, Model: options.Schema.Key(), ObjectID: object.ID, ObjectLabel: object.Label, Action: action, Changes: diff(before, after), At: time.Now().UTC()})
 		})
 		if err == nil {
+			s.successMessage(r, "The record was saved successfully.")
 			target := s.modelURL(options)
 			if r.PostForm.Has("_continue") {
 				target += url.PathEscape(object.ID) + "/change/"
@@ -533,6 +553,14 @@ func (s *Site) form(w http.ResponseWriter, r *http.Request, p auth.Principal, op
 }
 
 var errInvalidForm = errors.New("invalid form")
+
+func (s *Site) successMessage(r *http.Request, text string) {
+	if s.config.Messages {
+		// The database transaction is already committed. A bounded/full message
+		// queue must not turn a durable write into a retryable HTTP failure.
+		_ = messages.AddPublic(r, messages.Success, text)
+	}
+}
 
 func snapshot(options ModelAdmin, object Object) (map[string]any, error) {
 	values := map[string]any{}
