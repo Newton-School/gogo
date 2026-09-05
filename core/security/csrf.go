@@ -159,12 +159,33 @@ func CSRF(config CSRFConfig) (func(http.Handler) http.Handler, error) {
 
 // RotateCSRF invalidates the browser's CSRF secret on login/credential changes.
 func RotateCSRF(w http.ResponseWriter, config CSRFConfig) error {
+	return rotateCSRF(w, nil, config)
+}
+
+// RotateCSRFRequest updates both the browser secret and the current request's
+// masked token, so a form rendered immediately after login remains usable.
+func RotateCSRFRequest(w http.ResponseWriter, r *http.Request, config CSRFConfig) error {
+	return rotateCSRF(w, r, config)
+}
+
+func rotateCSRF(w http.ResponseWriter, r *http.Request, config CSRFConfig) error {
 	if config.CookieName == "" {
 		config.CookieName = "gogo_csrf"
 	}
 	token, err := RandomToken(32)
 	if err != nil {
 		return err
+	}
+	if r != nil {
+		secret, err := base64.RawURLEncoding.DecodeString(token)
+		if err != nil {
+			return err
+		}
+		maskedToken, err := masked(secret)
+		if err != nil {
+			return err
+		}
+		*r = *r.WithContext(context.WithValue(r.Context(), csrfKey{}, maskedToken))
 	}
 	http.SetCookie(w, &http.Cookie{Name: config.CookieName, Value: token, Path: "/", Secure: config.Secure, HttpOnly: true, SameSite: http.SameSiteLaxMode})
 	return nil

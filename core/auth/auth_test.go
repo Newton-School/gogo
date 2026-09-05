@@ -35,4 +35,8 @@ func TestPolicyAndContextCopies(t *testing.T) {
 	if policy.Authorize(ctx, got, "delete", Resource{App: "catalog", Model: "product"}) == nil {
 		t.Fatal("superuser implicitly bypassed")
 	}
+	got.Superuser = false
+	if err := policy.Authorize(ctx, got, "view", Resource{App: "catalog", Model: "Product"}); err != nil {
+		t.Fatal("Go model name did not resolve lowercase permission codename", err)
+	}
 }

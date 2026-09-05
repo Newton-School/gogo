@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"slices"
+	"strings"
 )
 
 var (
@@ -57,7 +58,7 @@ func (m ModelPolicy) Authorize(ctx context.Context, p Principal, action string, 
 	if m.AllowSuperuser && p.Superuser {
 		return nil
 	}
-	if r.App != "" && r.Model != "" && action != "" && slices.Contains(p.Permissions, r.App+"."+action+"_"+r.Model) {
+	if r.App != "" && r.Model != "" && action != "" && slices.Contains(p.Permissions, r.App+"."+action+"_"+strings.ToLower(r.Model)) {
 		return nil
 	}
 	return ErrPermissionDenied

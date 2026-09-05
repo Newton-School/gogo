@@ -83,6 +83,8 @@ type queue struct {
 	consumed                     int
 	changed, committed, accessed bool
 	minimum                      Level
+	session                      *sessions.Session
+	generation                   uint64
 }
 
 func clone(messages []Message) []Message {
@@ -97,7 +99,17 @@ func current(r *http.Request) (*queue, error) {
 	if !ok {
 		return nil, ErrUnavailable
 	}
+	q.syncIdentity()
 	return q, nil
+}
+
+func (q *queue) syncIdentity() {
+	if q.session != nil && q.session.Generation() != q.generation {
+		q.generation = q.session.Generation()
+		q.messages = nil
+		q.consumed = 0
+		q.changed = true
+	}
 }
 
 // Add keeps content in the configured session; it never puts private text into
@@ -266,6 +278,8 @@ func Middleware(config Config) (func(http.Handler) http.Handler, error) {
 					http.Error(w, "message storage unavailable", 503)
 					return
 				}
+				q.session = session
+				q.generation = session.Generation()
 			}
 			stale := false
 			if config.Mode != Session {
@@ -291,6 +305,7 @@ func Middleware(config Config) (func(http.Handler) http.Handler, error) {
 			}
 			r = r.WithContext(context.WithValue(r.Context(), contextKey{}, q))
 			out := &writer{ResponseWriter: w, persist: func(status int) error {
+				q.syncIdentity()
 				q.committed = true
 				if q.accessed || q.changed || stale {
 					w.Header().Add("Vary", "Cookie")

@@ -49,6 +49,7 @@ func NewID() (string, error) {
 type Session struct {
 	record                                         Record
 	originalID                                     string
+	generation                                     uint64
 	modified, accessed, flushed, rotate, committed bool
 }
 
@@ -100,6 +101,7 @@ func (s *Session) Flush() error {
 		return err
 	}
 	s.flushed = true
+	s.generation++
 	// A later write starts a new anonymous/authenticated session. Never retain
 	// the flushed identity, expiry policy or prior account's data.
 	s.record = Record{Data: map[string]json.RawMessage{}}
@@ -134,6 +136,10 @@ func (s *Session) SetBrowserClose(value bool) error {
 func (s *Session) Modified() bool   { return s.modified }
 func (s *Session) Accessed() bool   { return s.accessed }
 func (s *Session) Snapshot() Record { return Clone(s.record) }
+
+// Generation identifies request-local identity resets. Dependent session-backed
+// state (such as private flash messages) must discard snapshots after it changes.
+func (s *Session) Generation() uint64 { return s.generation }
 
 // Persist must run before response headers. A rotation deletes the old identity
 // before publishing a replacement; provider failures never preserve login silently.
