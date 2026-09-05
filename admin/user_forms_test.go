@@ -14,7 +14,7 @@ func TestUserCredentialFormsPreservePasswordsWithoutEcho(t *testing.T) {
 	password := "  significant credential whitespace  "
 	for _, create := range []bool{true, false} {
 		data := url.Values{"identifier": {"alice"}, "password_mode": {"set"}, "password1": {password}, "password2": {password}}
-		form, err := credentialForm(context.Background(), data, create)
+		form, err := credentialForm(context.Background(), data, create, false)
 		if err != nil || !form.IsValid() || form.Value("password1") != password {
 			t.Fatal("password form changed credential", err)
 		}
@@ -23,18 +23,22 @@ func TestUserCredentialFormsPreservePasswordsWithoutEcho(t *testing.T) {
 			t.Fatal("credential echoed", err)
 		}
 		data.Set("password2", "different")
-		form, _ = credentialForm(context.Background(), data, create)
+		form, _ = credentialForm(context.Background(), data, create, false)
 		if form.IsValid() {
 			t.Fatal("mismatched passwords accepted")
 		}
 	}
-	form, err := credentialForm(context.Background(), url.Values{"password_mode": {"unusable"}, "password1": {""}, "password2": {""}}, false)
+	form, err := credentialForm(context.Background(), url.Values{"password_mode": {"unusable"}, "password1": {""}, "password2": {""}}, false, true)
 	if err != nil || !form.IsValid() {
 		t.Fatal("explicit unusable credential needs a password", err)
 	}
-	form, _ = credentialForm(context.Background(), url.Values{"password_mode": {"set"}, "password1": {""}, "password2": {""}}, false)
+	form, _ = credentialForm(context.Background(), url.Values{"password_mode": {"set"}, "password1": {""}, "password2": {""}}, false, true)
 	if form.IsValid() {
 		t.Fatal("empty new credential accepted")
+	}
+	form, err = credentialForm(context.Background(), url.Values{"identifier": {"alice"}, "password_mode": {"unusable"}, "password1": {""}, "password2": {""}}, true, true)
+	if err != nil || !form.IsValid() {
+		t.Fatal("password-disabled creation requires an invented credential", err)
 	}
 }
 

@@ -98,6 +98,7 @@ func TestAdminUserCreationAndPasswordRequireScopedAuthorityAndAtomicAudit(t *tes
 	}
 	var targetID, hiddenID string
 	retargetWrite, retargetCreation, allowHiddenPassword := false, false, false
+	denyDisabledCreation := false
 	authorityCalls := 0
 	adapter, err := admin.NewAccountStore(admin.AccountStoreConfig{
 		ORM: admin.ORMConfig{Store: store, QueryScope: func(context.Context, auth.Principal, models.Schema) (admin.QueryScope, error) {
@@ -116,6 +117,9 @@ func TestAdminUserCreationAndPasswordRequireScopedAuthorityAndAtomicAudit(t *tes
 			}
 			authorityCalls++
 			if !p.Authenticated || !p.Active {
+				return auth.ErrPermissionDenied
+			}
+			if change.Action == "create_user" && change.Unusable && denyDisabledCreation {
 				return auth.ErrPermissionDenied
 			}
 			if p.ID == "creator" && change.Action == "create_user" && change.Active && !change.Staff && !change.Superuser {
@@ -220,6 +224,22 @@ func TestAdminUserCreationAndPasswordRequireScopedAuthorityAndAtomicAudit(t *tes
 	addData.Set("identifier", "visible-add-only")
 	if response := request(addOnly, "POST", createPath, addData, addPage.Result().Cookies()); response.Code != 303 || response.Header().Get("Location") != "/admin/" {
 		t.Fatal("add-only actor redirected into a forbidden account view", response.Code)
+	}
+	disabledPage := get(actor("creator"), createPath)
+	disabledData := values(disabledPage, "")
+	disabledData.Set("identifier", "visible-password-disabled")
+	disabledData.Set("password_mode", "unusable")
+	denyDisabledCreation = true
+	if response := request(actor("creator"), "POST", createPath, disabledData, disabledPage.Result().Cookies()); response.Code != 403 {
+		t.Fatal("disabled-password creation bypassed its exact delta authority", response.Code)
+	}
+	denyDisabledCreation = false
+	if response := request(actor("creator"), "POST", createPath, disabledData, disabledPage.Result().Cookies()); response.Code != 303 {
+		t.Fatal("explicit disabled-password creation failed", response.Code)
+	}
+	disabled, err := orm.For(store, func() *auth.User { return &auth.User{} }).Filter(orm.Q("identifier", "visible-password-disabled")).Get(ctx)
+	if err != nil || disabled.AuthVersion != 1 || disabled.PasswordHash == nil || auth.HasUsablePassword(*disabled.PasswordHash) || !disabled.Active || disabled.Staff || disabled.Superuser {
+		t.Fatal("disabled creation used a temporary credential transition", err)
 	}
 	// Out-of-scope creation and failed audit both roll back the account insert.
 	for _, mode := range []string{"hidden-created", "visible-audit-failure"} {

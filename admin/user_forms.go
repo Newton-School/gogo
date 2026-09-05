@@ -28,20 +28,21 @@ func invokeAccountMutation(fn func() error) (err error) {
 	return fn()
 }
 
-func credentialForm(ctx context.Context, data url.Values, create bool) (*forms.Form, error) {
+func credentialForm(ctx context.Context, data url.Values, create, allowUnusable bool) (*forms.Form, error) {
 	preserve := false
 	fields := []forms.Field{}
 	if create {
 		fields = append(fields, forms.Field{Name: "identifier", Kind: forms.Char, Label: "Identifier", Required: true, MaxLength: 255, Widget: forms.InputWidget{Attrs: map[string]string{"autocomplete": "username"}}})
-	} else {
+	}
+	if !create || allowUnusable {
 		fields = append(fields, forms.Field{Name: "password_mode", Kind: forms.ChoiceKind, Label: "Password access", Required: true, Initial: "set", Choices: []forms.Choice{{Value: "set", Label: "Set a new password"}, {Value: "unusable", Label: "Disable password authentication"}}})
 	}
-	required := create
+	required := create && !allowUnusable
 	for _, field := range []struct{ name, label string }{{"password1", "Password"}, {"password2", "Confirm password"}} {
 		fields = append(fields, forms.Field{Name: field.name, Kind: forms.Char, Label: field.label, Required: required, Strip: &preserve, MaxLength: 4096, Widget: forms.InputWidget{Type: "password", Attrs: map[string]string{"autocomplete": "new-password"}}})
 	}
 	opts := []forms.Option{forms.WithContext(ctx), forms.WithClean(func(form *forms.Form) error {
-		setting := create || form.Value("password_mode") == "set"
+		setting := required || form.Value("password_mode") == "set"
 		if setting && (form.Value("password1") == "" || form.Value("password1") != form.Value("password2")) {
 			return forms.Error{Code: "password_mismatch", Message: "Enter matching passwords."}
 		}
@@ -53,14 +54,15 @@ func credentialForm(ctx context.Context, data url.Values, create bool) (*forms.F
 	return forms.New(fields, opts...)
 }
 
-func (s *Site) credentialPost(w http.ResponseWriter, r *http.Request, create bool) error {
+func (s *Site) credentialPost(w http.ResponseWriter, r *http.Request, create, allowUnusable bool) error {
 	if err := s.parsePost(w, r); err != nil {
 		return err
 	}
 	fields := []string{"_edit_token", "password1", "password2"}
 	if create {
 		fields = append(fields, "identifier")
-	} else {
+	}
+	if !create || allowUnusable {
 		fields = append(fields, "password_mode")
 	}
 	for _, name := range fields {
@@ -77,10 +79,11 @@ func (s *Site) userCreateForm(w http.ResponseWriter, r *http.Request, p auth.Pri
 		s.failure(w, r, errors.New("user editor unavailable"))
 		return
 	}
+	unusableCreator, allowUnusable := store.(UserWithoutPasswordCreator)
 	object := Object{}
 	var data url.Values
 	if r.Method == http.MethodPost {
-		if err := s.credentialPost(w, r, true); err != nil {
+		if err := s.credentialPost(w, r, true, allowUnusable); err != nil {
 			http.Error(w, "Invalid form", 400)
 			return
 		}
@@ -89,7 +92,7 @@ func (s *Site) userCreateForm(w http.ResponseWriter, r *http.Request, p auth.Pri
 		}
 		data = r.PostForm
 	}
-	form, err := credentialForm(r.Context(), data, true)
+	form, err := credentialForm(r.Context(), data, true, allowUnusable)
 	if err != nil {
 		s.failure(w, r, err)
 		return
@@ -106,7 +109,11 @@ func (s *Site) userCreateForm(w http.ResponseWriter, r *http.Request, p auth.Pri
 				if !form.IsValid() {
 					return errInvalidForm
 				}
-				object, err = editor.CreateUser(ctx, form.Value("identifier").(string), form.Value("password1").(string), auth.CreateUserOptions{})
+				if allowUnusable && form.Value("password_mode") == "unusable" {
+					object, err = unusableCreator.CreateUserWithoutPassword(ctx, form.Value("identifier").(string), auth.CreateUserOptions{})
+				} else {
+					object, err = editor.CreateUser(ctx, form.Value("identifier").(string), form.Value("password1").(string), auth.CreateUserOptions{})
+				}
 				if err != nil {
 					return err
 				}
@@ -173,7 +180,7 @@ func (s *Site) userPasswordForm(w http.ResponseWriter, r *http.Request, p auth.P
 	var data url.Values
 	if r.Method == http.MethodPost {
 		w.Header().Set("X-Gogo-Password-Change", string(auth.PasswordUnchanged))
-		if err := s.credentialPost(w, r, false); err != nil {
+		if err := s.credentialPost(w, r, false, true); err != nil {
 			http.Error(w, "Invalid form", 400)
 			return
 		}
@@ -182,7 +189,7 @@ func (s *Site) userPasswordForm(w http.ResponseWriter, r *http.Request, p auth.P
 		}
 		data = r.PostForm
 	}
-	form, err := credentialForm(r.Context(), data, false)
+	form, err := credentialForm(r.Context(), data, false, true)
 	if err != nil {
 		s.failure(w, r, err)
 		return

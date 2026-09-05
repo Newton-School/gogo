@@ -20,6 +20,13 @@ type UserEditor interface {
 	SetUserUnusablePassword(context.Context, Object) (Object, error)
 }
 
+// UserWithoutPasswordCreator optionally enables the explicit password-disabled
+// creation choice. This must create an unusable credential directly, not a
+// temporary password followed by a second mutation.
+type UserWithoutPasswordCreator interface {
+	CreateUserWithoutPassword(context.Context, string, auth.CreateUserOptions) (Object, error)
+}
+
 var ErrAccountIdentifier = errors.New("admin: invalid account identifier")
 
 func (s *accountScoped) userEditContext(ctx context.Context) (context.Context, error) {
@@ -30,6 +37,14 @@ func (s *accountScoped) userEditContext(ctx context.Context) (context.Context, e
 }
 
 func (s *accountScoped) CreateUser(ctx context.Context, identifier, password string, options auth.CreateUserOptions) (Object, error) {
+	return s.createUser(ctx, identifier, password, options, false)
+}
+
+func (s *accountScoped) CreateUserWithoutPassword(ctx context.Context, identifier string, options auth.CreateUserOptions) (Object, error) {
+	return s.createUser(ctx, identifier, "", options, true)
+}
+
+func (s *accountScoped) createUser(ctx context.Context, identifier, password string, options auth.CreateUserOptions, unusable bool) (Object, error) {
 	ctx, err := s.userEditContext(ctx)
 	if err != nil {
 		return Object{}, err
@@ -49,7 +64,13 @@ func (s *accountScoped) CreateUser(ctx context.Context, identifier, password str
 		}
 		// The domain service owns normalization. Keep its original raw input:
 		// deterministic custom normalizers need not be idempotent.
-		user, err := s.accounts.CreateUser(ctx, identifier, password, options)
+		var user *auth.User
+		var err error
+		if unusable {
+			user, err = s.accounts.CreateUserWithoutPassword(ctx, identifier, options)
+		} else {
+			user, err = s.accounts.CreateUser(ctx, identifier, password, options)
+		}
 		if err != nil {
 			return err
 		}
