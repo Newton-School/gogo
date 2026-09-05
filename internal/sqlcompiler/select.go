@@ -13,6 +13,8 @@ type Compiler struct {
 	Dialect db.Dialect
 	Schema  models.Schema
 	Args    []any
+	Alias   string
+	Joins   map[string]db.Join
 }
 
 func (c *Compiler) bound(value any) string {
@@ -23,11 +25,27 @@ func (c *Compiler) field(name string) (string, error) {
 	if name == "*" {
 		return "*", nil
 	}
-	f, ok := c.Schema.Field(name)
+	schema, alias := c.Schema, c.Alias
+	if position := strings.LastIndex(name, "__"); position >= 0 {
+		join, ok := c.Joins[name[:position]]
+		if !ok {
+			return "", fmt.Errorf("orm: unresolved relation path %s", name[:position])
+		}
+		schema, alias, name = join.Schema, join.Alias, name[position+2:]
+	}
+	f, ok := schema.Field(name)
 	if !ok {
 		return "", fmt.Errorf("orm: unknown field %s", name)
 	}
-	return c.Dialect.QuoteIdentifier(f.DBColumn())
+	column, err := c.Dialect.QuoteIdentifier(f.DBColumn())
+	if err != nil || alias == "" {
+		return column, err
+	}
+	qualifier, err := c.Dialect.QuoteIdentifier(alias)
+	if err != nil {
+		return "", err
+	}
+	return qualifier + "." + column, nil
 }
 func (c *Compiler) Predicate(p db.Predicate) (string, error) {
 	if len(p.Children) > 0 {
@@ -218,10 +236,39 @@ func init() {
 	}
 }
 func Select(dialect db.Dialect, schema models.Schema, query db.Select) (string, []any, error) {
-	c := &Compiler{Dialect: dialect, Schema: schema}
+	c := &Compiler{Dialect: dialect, Schema: schema, Alias: query.Alias, Joins: map[string]db.Join{}}
 	table, err := dialect.QuoteIdentifier(query.Table)
 	if err != nil {
 		return "", nil, err
+	}
+	if query.Alias != "" {
+		alias, err := dialect.QuoteIdentifier(query.Alias)
+		if err != nil {
+			return "", nil, err
+		}
+		table += " AS " + alias
+	}
+	aliases := map[string]bool{query.Alias: true}
+	for _, join := range query.Joins {
+		if query.Alias == "" || join.Path == "" || aliases[join.Alias] {
+			return "", nil, errors.New("orm: joins require a root alias and distinct relation aliases")
+		}
+		if _, exists := c.Joins[join.Path]; exists {
+			return "", nil, errors.New("orm: duplicate join path")
+		}
+		if join.ParentPath != "" {
+			if _, ok := c.Joins[join.ParentPath]; !ok {
+				return "", nil, errors.New("orm: join parent must precede child")
+			}
+		}
+		if _, err := dialect.QuoteIdentifier(join.Alias); err != nil {
+			return "", nil, err
+		}
+		if err := join.Schema.Validate(); err != nil {
+			return "", nil, err
+		}
+		c.Joins[join.Path] = join
+		aliases[join.Alias] = true
 	}
 	fields := []string{}
 	for _, name := range query.Fields {
@@ -264,6 +311,39 @@ func Select(dialect db.Dialect, schema models.Schema, query db.Select) (string, 
 		prefix += "DISTINCT ON (" + strings.Join(names, ", ") + ") "
 	}
 	sql := prefix + strings.Join(fields, ", ") + " FROM " + table
+	for _, join := range query.Joins {
+		parentName := join.ParentField
+		if join.ParentPath != "" {
+			parentName = join.ParentPath + "__" + parentName
+		}
+		left, err := c.field(parentName)
+		if err != nil {
+			return "", nil, err
+		}
+		right, err := c.field(join.Path + "__" + join.TargetField)
+		if err != nil {
+			return "", nil, err
+		}
+		target, err := dialect.QuoteIdentifier(join.Schema.DBTable())
+		if err != nil {
+			return "", nil, err
+		}
+		alias, _ := dialect.QuoteIdentifier(join.Alias)
+		kind := " LEFT JOIN "
+		if join.Inner {
+			kind = " INNER JOIN "
+		}
+		sql += kind + target + " AS " + alias + " ON " + left + "=" + right
+		filter := Compiler{Dialect: dialect, Schema: join.Schema, Alias: join.Alias, Args: c.Args}
+		scope, err := filter.Predicate(join.Where)
+		if err != nil {
+			return "", nil, err
+		}
+		c.Args = filter.Args
+		if scope != "" {
+			sql += " AND (" + scope + ")"
+		}
+	}
 	where, err := c.Predicate(query.Where)
 	if err != nil {
 		return "", nil, err
@@ -331,6 +411,29 @@ func Select(dialect db.Dialect, schema models.Schema, query db.Select) (string, 
 			sql += " FOR NO KEY UPDATE"
 		} else {
 			sql += " FOR UPDATE"
+		}
+		if len(query.LockOf) > 0 {
+			aliases := []string{}
+			for _, path := range query.LockOf {
+				alias := query.Alias
+				if path == "self" {
+					if alias == "" {
+						alias = query.Table
+					}
+				} else {
+					join, ok := c.Joins[path]
+					if !ok {
+						return "", nil, errors.New("orm: lock OF path is not selected")
+					}
+					alias = join.Alias
+				}
+				quoted, err := dialect.QuoteIdentifier(alias)
+				if err != nil {
+					return "", nil, err
+				}
+				aliases = append(aliases, quoted)
+			}
+			sql += " OF " + strings.Join(aliases, ", ")
 		}
 		if query.NoWait {
 			sql += " NOWAIT"

@@ -569,7 +569,7 @@ func (q Query[T]) Delete(ctx context.Context) (map[string]int64, error) {
 			b, _ := recordIdentity(records[j])
 			return a < b
 		})
-		counts, err = (DeleteCollector{Store: q.store}).execute(ctx, records)
+		counts, err = (DeleteCollector{Store: q.store, Scope: q.scope}).execute(ctx, records)
 		return err
 	})
 	if err != nil {

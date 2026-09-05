@@ -31,11 +31,15 @@ func New(backend db.Backend, registry *models.Registry) *Store {
 }
 
 type Query[T models.Model] struct {
-	store     *Store
-	factory   func() T
-	schema    models.Schema
-	selectAST db.Select
-	err       error
+	store        *Store
+	factory      func() T
+	schema       models.Schema
+	selectAST    db.Select
+	err          error
+	relatedPaths []string
+	joined       []joinedRelation
+	scope        QueryScope
+	prepared     bool
 }
 
 func For[T models.Model](store *Store, factory func() T) Query[T] {
@@ -65,6 +69,10 @@ func (q Query[T]) clone() Query[T] {
 	q.selectAST.DistinctOn = append([]string(nil), q.selectAST.DistinctOn...)
 	q.selectAST.Projections = append([]db.Projection(nil), q.selectAST.Projections...)
 	q.selectAST.GroupBy = append([]string(nil), q.selectAST.GroupBy...)
+	q.selectAST.Joins = append([]db.Join(nil), q.selectAST.Joins...)
+	q.selectAST.LockOf = append([]string(nil), q.selectAST.LockOf...)
+	q.relatedPaths = append([]string(nil), q.relatedPaths...)
+	q.joined = append([]joinedRelation(nil), q.joined...)
 	return q
 }
 func (q Query[T]) Filter(predicates ...db.Predicate) Query[T] {
@@ -135,9 +143,34 @@ func (q Query[T]) SelectForUpdate(noWait, skipLocked bool) Query[T] {
 	q.selectAST.SkipLocked = skipLocked
 	return q
 }
+
+// SelectForUpdateOf explicitly limits row locks to self and/or selected to-one
+// paths. SelectForUpdate never silently excludes joined tables from locking.
+func (q Query[T]) SelectForUpdateOf(paths ...string) Query[T] {
+	q = q.clone()
+	q.selectAST.ForUpdate = true
+	q.selectAST.LockOf = append([]string(nil), paths...)
+	return q
+}
+func (q Query[T]) SelectForNoKeyUpdate() Query[T] {
+	q = q.clone()
+	q.selectAST.ForUpdate = true
+	q.selectAST.NoKey = true
+	return q
+}
 func (q Query[T]) SQL() (string, []any, error) {
+	return q.SQLContext(context.Background())
+}
+
+// SQLContext resolves request-scoped predicates without executing a query.
+func (q Query[T]) SQLContext(ctx context.Context) (string, []any, error) {
 	if q.err != nil {
 		return "", nil, q.err
+	}
+	var err error
+	q, err = q.prepareRelated(ctx)
+	if err != nil {
+		return "", nil, err
 	}
 	return sqlcompiler.Select(q.store.Backend.Dialect(), q.schema, q.selectAST)
 }
@@ -148,7 +181,11 @@ func (q Query[T]) Iterator(ctx context.Context) (*Iterator[T], error) {
 	if q.selectAST.ForUpdate && !db.InTransaction(ctx, q.store.Backend.Alias()) {
 		return nil, errors.New("orm: SelectForUpdate requires Atomic")
 	}
-	statement, args, err := q.SQL()
+	q, err := q.prepareRelated(ctx)
+	if err != nil {
+		return nil, err
+	}
+	statement, args, err := sqlcompiler.Select(q.store.Backend.Dialect(), q.schema, q.selectAST)
 	if err != nil {
 		return nil, err
 	}
@@ -200,6 +237,9 @@ func (i *Iterator[T]) Next() bool {
 		}
 	}
 	for index, name := range i.query.selectAST.Fields {
+		if strings.Contains(name, "__") && len(i.query.joined) > 0 {
+			continue
+		}
 		f, _ := i.query.schema.Field(name)
 		value, err := decodeField(f, values[index])
 		if err == nil {
@@ -210,6 +250,11 @@ func (i *Iterator[T]) Next() bool {
 			i.Close()
 			return false
 		}
+	}
+	if err := i.query.attachJoined(record, values); err != nil {
+		i.err = err
+		i.Close()
+		return false
 	}
 	record.State().Persisted = true
 	record.State().Database = i.query.store.Backend.Alias()
@@ -276,7 +321,10 @@ func (q Query[T]) Count(ctx context.Context) (int64, error) {
 	if q.err != nil {
 		return 0, q.err
 	}
-	statement, args, err := q.SQL()
+	if q.selectAST.ForUpdate && !db.InTransaction(ctx, q.store.Backend.Alias()) {
+		return 0, errors.New("orm: SelectForUpdate requires Atomic")
+	}
+	statement, args, err := q.SQLContext(ctx)
 	if err != nil {
 		return 0, err
 	}
@@ -292,11 +340,18 @@ func (q Query[T]) Exists(ctx context.Context) (bool, error) {
 	return err == nil, err
 }
 func (q Query[T]) Values(ctx context.Context, fields ...string) ([]map[string]any, error) {
+	if q.err != nil {
+		return nil, q.err
+	}
+	if q.selectAST.ForUpdate && !db.InTransaction(ctx, q.store.Backend.Alias()) {
+		return nil, errors.New("orm: SelectForUpdate requires Atomic")
+	}
 	q = q.clone()
+	q.relatedPaths = nil
 	if len(fields) > 0 {
 		q.selectAST.Fields = append([]string(nil), fields...)
 	}
-	statement, args, err := q.SQL()
+	statement, args, err := q.SQLContext(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -337,12 +392,19 @@ func (f Ref[V]) In(values ...V) db.Predicate {
 func Q(name string, value any) db.Predicate {
 	parts := strings.Split(name, "__")
 	lookup := "exact"
-	field := parts[0]
-	if len(parts) >= 2 {
+	field := name
+	if len(parts) >= 2 && isLookup(parts[len(parts)-1]) {
 		lookup = parts[len(parts)-1]
 		field = strings.Join(parts[:len(parts)-1], "__")
 	}
 	return db.Predicate{Field: field, Lookup: lookup, Value: value}
+}
+func isLookup(name string) bool {
+	switch name {
+	case "exact", "iexact", "gt", "gte", "lt", "lte", "isnull", "in", "range", "contains", "icontains", "startswith", "istartswith", "endswith", "iendswith", "regex", "iregex":
+		return true
+	}
+	return false
 }
 func And(predicates ...db.Predicate) db.Predicate {
 	return db.Predicate{Connector: "AND", Children: append([]db.Predicate(nil), predicates...)}

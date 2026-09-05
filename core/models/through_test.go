@@ -49,6 +49,16 @@ func TestAutomaticIntermediaryProvenanceAndMapBinding(t *testing.T) {
 	if value, err := bound.Get("source_id"); err != nil || value != nil {
 		t.Fatal(value, err)
 	}
+	record.State().Deferred = map[string]bool{"source_id": true}
+	if _, err := record.Get("source_id"); err == nil {
+		t.Fatal("deferred map field readable")
+	}
+	if err := record.Set("source_id", int64(1)); err != nil {
+		t.Fatal(err)
+	}
+	if record.State().Deferred["source_id"] {
+		t.Fatal("loaded map field remained deferred")
+	}
 }
 
 func TestServerTimestampFieldsAreNotEditable(t *testing.T) {

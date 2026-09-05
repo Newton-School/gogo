@@ -30,6 +30,9 @@ func (r *MapRecord) Get(name string) (any, error) {
 	if _, ok := r.schema.Field(name); !ok {
 		return nil, fmt.Errorf("models: unknown field %s", name)
 	}
+	if r.state.Deferred[name] {
+		return nil, fmt.Errorf("models: field %s is deferred; fetch it explicitly", name)
+	}
 	value, ok := r.values[name]
 	if !ok {
 		return nil, fmt.Errorf("models: field %s has not been loaded", name)
@@ -41,6 +44,7 @@ func (r *MapRecord) Set(name string, value any) error {
 		return fmt.Errorf("models: unknown field %s", name)
 	}
 	r.values[name] = value
+	delete(r.state.Deferred, name)
 	if r.state.Provided == nil {
 		r.state.Provided = map[string]bool{}
 	}

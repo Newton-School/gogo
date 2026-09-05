@@ -1,5 +1,7 @@
 package db
 
+import "github.com/Newton-School/gogo/core/models"
+
 // Expression is a public, data-only SQL expression. A connector never needs
 // access to Gogo's private query-builder implementation.
 type Expression struct {
@@ -27,6 +29,8 @@ type Projection struct {
 }
 type Select struct {
 	Table                                string
+	Alias                                string
+	Joins                                []Join
 	Fields                               []string
 	Where                                Predicate
 	Order                                []Order
@@ -37,4 +41,15 @@ type Select struct {
 	GroupBy                              []string
 	Having                               Predicate
 	ForUpdate, NoWait, SkipLocked, NoKey bool
+	LockOf                               []string
+}
+
+// Join is a resolved schema-bound to-one join. Path is the public relation path;
+// aliases and endpoint fields are validated identifiers, never SQL fragments.
+type Join struct {
+	Path, Alias, ParentPath  string
+	Schema                   models.Schema
+	ParentField, TargetField string
+	Where                    Predicate
+	Inner                    bool
 }
