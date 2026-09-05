@@ -12,8 +12,11 @@ This is an execution ledger, not a requirements document or an AgentFlow complet
 - Disposable PostgreSQL integration covers save and validation branches, schema/migration history and rollback, scoped deletion and relational integrity, and scoped Admin writes with atomic audit.
 - Disposable Redis integration covers cache/session compare-and-swap, rate limits, fenced task execution, delayed dispatch, durable workflow intents, group/chord results, periodic scheduling and recovery.
 - A cross-module PostgreSQL/Redis test covers business/outbox rollback and eventual dispatch.
-- Chrome desktop inspection has covered the Admin dashboard and product list. Form, history, inline, responsive and accessibility review remains open.
-- Independent reviews have identified and driven fixes for session cache headers, Admin deletion scope, audit snapshots, response-write failure handling and scaffold path confinement. A nested multi-alias transaction-context finding is being repaired; do not treat the transaction audit as closed.
+- Chrome desktop inspection has covered the Admin dashboard, product list and change form. A synthetic product save was verified afterward in PostgreSQL and its audit row. Browser history, inline, responsive and complete accessibility review remain open. Stale assets found in Chrome drove content-hashed asset URLs and cache-policy regressions.
+- Independent reviews have identified and driven fixes for session cache headers, Admin deletion scope, audit snapshots, response-write failure handling and scaffold path confinement. Nested multi-alias transaction-context repair passes fake-backend and real PostgreSQL A/B/A rollback regressions; this does not close the complete transaction catalog audit.
+- API serializers now have explicit model allowlists, nested/list/dictionary validation, PATCH presence rules, plain/scalar/file codecs, bounded parsers and negotiation. Independent review findings for scalar-object leaks, collection directions, media-parameter specificity and decoded UTF-8 handling have regressions. Resource routing, schema generation and idempotent persistence are still pending.
+- Shared session/cookie/fallback flash storage has consume-once, plain-text/tag, size/level, privacy, tamper, failed-response and late-header tests. Independent review drove eager cookie-capacity checks and late Peek denial; Admin integration is underway.
+- The strict cross-module integration gate passed against disposable supported PostgreSQL and Redis, followed by workspace vet and build checks. This is local conformance evidence, not deployment or exhaustive compatibility evidence.
 
 ## Verification entry points
 
@@ -97,12 +100,12 @@ Service availability and skipped tests must always be reported separately from a
 | `forms-model` | Save model forms without mass assignment | Partial code; full conformance pending |
 | `templates-catalog` | Template engine, tags, filters and extension points | Partial code; full conformance pending |
 | `templates-render` | Load, inherit and render a template safely | Partial code; full conformance pending |
-| `api-catalog` | REST API feature and serializer catalog | Pending implementation or audit |
+| `api-catalog` | REST API feature and serializer catalog | Partial code; full conformance pending |
 | `api-idempotency` | Claim and replay an idempotent mutation safely | Pending implementation or audit |
 | `api-pagination` | Filter, search, order and paginate without scope leaks | Pending implementation or audit |
 | `api-read` | Serve scoped resource lists and details | Pending implementation or audit |
 | `api-schema` | Generate OpenAPI and typed clients | Pending implementation or audit |
-| `api-serializers` | Parse, validate and serialize typed resources | Pending implementation or audit |
+| `api-serializers` | Parse, validate and serialize typed resources | Partial code; full conformance pending |
 | `api-write` | Create, update or delete a resource | Pending implementation or audit |
 | `admin-access` | Authenticate staff and render the Admin index | Partial code; full conformance pending |
 | `admin-actions` | Execute a custom action or bulk list edit | Partial code; full conformance pending |
@@ -123,7 +126,7 @@ Service availability and skipped tests must always be reported separately from a
 | `static-collect` | Collect, fingerprint and serve static assets | Pending implementation or audit |
 | `email-send` | Build and send a validated email | Pending implementation or audit |
 | `email-sensitive-delivery` | Deliver encrypted single-use reset mail | Pending implementation or audit |
-| `messages-flash` | Store and consume one-time user messages | Pending implementation or audit |
+| `messages-flash` | Store and consume one-time user messages | Partial code; full conformance pending |
 | `i18n-locale` | Resolve locale, translate and format values | Pending implementation or audit |
 | `fixtures-data` | Export and import structured fixtures | Pending implementation or audit |
 | `contrib-admindocs` | Generate developer-facing model and route reference | Pending implementation or audit |
@@ -184,4 +187,3 @@ Service availability and skipped tests must always be reported separately from a
 ## Cross-cutting release gaps
 
 The complete serializer/API/authentication-account flows, remaining ORM/field/migration catalogs, Admin customization and inline combinations, nested Async canvas/control/reconciliation, shared services and contrib packages, operations, deployment examples, reference documentation, and full conformance matrix still require work. Independently audited production readiness, exhaustive Django/Celery compatibility, package publication and deployment have not been established.
-
