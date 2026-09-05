@@ -2,6 +2,7 @@ package forms
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"slices"
@@ -28,11 +29,12 @@ type ModelFormOptions struct {
 }
 type ModelForm struct {
 	*Form
-	record    models.Record
-	options   ModelFormOptions
-	ctx       context.Context
-	relations map[string][]any
-	prepared  bool
+	record             models.Record
+	options            ModelFormOptions
+	ctx                context.Context
+	relations          map[string][]any
+	relationIdentities map[string][]string
+	prepared           bool
 }
 
 func NewModelForm(ctx context.Context, record models.Record, config ModelFormOptions, options ...Option) (*ModelForm, error) {
@@ -88,7 +90,7 @@ func NewModelForm(ctx context.Context, record models.Record, config ModelFormOpt
 			initial[name] = value
 		}
 	}
-	m := &ModelForm{record: record, options: config, ctx: ctx, relations: map[string][]any{}}
+	m := &ModelForm{record: record, options: config, ctx: ctx, relations: map[string][]any{}, relationIdentities: map[string][]string{}}
 	allOptions := []Option{WithInitial(initial)}
 	allOptions = append(allOptions, options...)
 	allOptions = append(allOptions, WithContext(ctx), WithClean(m.validateModel))
@@ -165,6 +167,21 @@ func (m *ModelForm) validateModel(form *Form) error {
 	excluded := []string{}
 	for _, field := range m.record.Schema().Fields {
 		value, ok := form.cleaned[field.Name]
+		if ok && field.Relation != nil {
+			values := []any{value}
+			if field.Kind == models.ManyToMany {
+				values, _ = value.([]any)
+			}
+			keys := []string{}
+			for _, item := range values {
+				key, err := relationValueKey(item)
+				if err != nil {
+					return Error{"invalid_choice", "Select a valid choice."}
+				}
+				keys = append(keys, key)
+			}
+			m.relationIdentities[field.Name] = keys
+		}
 		if !ok || !field.IsStored() {
 			excluded = append(excluded, field.Name)
 			if ok && field.Kind == models.ManyToMany {
@@ -240,6 +257,15 @@ func (m *ModelForm) recheckRelations(ctx context.Context) error {
 		if metadata.Relation == nil {
 			continue
 		}
+		expected := m.relationIdentities[field.Name]
+		if metadata.IsStored() {
+			value, err := m.record.Get(field.Name)
+			if err != nil || !sameRelationKeys(expected, []any{value}) {
+				return Error{"invalid_choice", "The selected relationship changed. Select it again."}
+			}
+		} else if !sameRelationKeys(expected, m.relations[field.Name]) {
+			return Error{"invalid_choice", "The selected relationship changed. Select it again."}
+		}
 		ids := stringValues(m.raw(field))
 		if len(ids) == 0 || len(ids) == 1 && ids[0] == "" {
 			continue
@@ -247,9 +273,61 @@ func (m *ModelForm) recheckRelations(ctx context.Context) error {
 		if m.options.ResolveRelation == nil {
 			return Error{"invalid_choice", "Select a valid choice."}
 		}
-		if _, err := m.options.ResolveRelation(ctx, metadata, ids); err != nil {
+		resolved, err := m.options.ResolveRelation(ctx, metadata, uniqueStrings(ids))
+		if err != nil {
 			return err
+		}
+		// A resolver may use aliases or other mutable lookup values. Rechecking
+		// success alone is insufficient: never save a previously cleaned object
+		// when the same submitted ID now resolves to a different identity.
+		if !sameRelationKeys(expected, resolved) {
+			return Error{"invalid_choice", "The selected relationship changed. Select it again."}
 		}
 	}
 	return nil
+}
+
+func sameRelationKeys(left []string, right []any) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	counts := map[string]int{}
+	for _, key := range left {
+		counts[key]++
+	}
+	for _, value := range right {
+		key, err := relationValueKey(value)
+		if err != nil || counts[key] == 0 {
+			return false
+		}
+		counts[key]--
+	}
+	return true
+}
+
+func relationValueKey(value any) (string, error) {
+	record, ok := value.(models.Record)
+	if !ok {
+		if model, isModel := value.(models.Model); isModel {
+			var err error
+			record, err = models.Bind(model)
+			if err != nil {
+				return "", err
+			}
+			ok = true
+		}
+	}
+	if ok {
+		values := []any{record.Schema().Key()}
+		for _, field := range record.Schema().PKFields() {
+			part, err := record.Get(field.Name)
+			if err != nil {
+				return "", err
+			}
+			values = append(values, part)
+		}
+		value = values
+	}
+	encoded, err := json.Marshal(value)
+	return string(encoded), err
 }

@@ -25,7 +25,13 @@ func WithFiles(v map[string][]*multipart.FileHeader) Option {
 		}
 	}
 }
-func WithInitial(v map[string]any) Option    { return func(f *Form) { f.initial = cloneMap(v) } }
+func WithInitial(v map[string]any) Option {
+	return func(f *Form) {
+		for name, value := range cloneMap(v) {
+			f.initial[name] = value
+		}
+	}
+}
 func WithPrefix(v string) Option             { return func(f *Form) { f.prefix = v } }
 func WithContext(ctx context.Context) Option { return func(f *Form) { f.ctx = ctx } }
 func WithClean(fn func(*Form) error) Option  { return func(f *Form) { f.clean = fn } }

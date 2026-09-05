@@ -182,13 +182,21 @@ func (f Field) toValue(ctx context.Context, raw any) (any, error) {
 			values = []string{}
 		}
 		if f.Kind == ModelMultipleChoice {
+			values = uniqueStrings(values)
 			if len(values) == 0 {
 				return []any{}, nil
 			}
 			if f.Resolve == nil {
 				return nil, f.failure("invalid_choice", "Select a valid choice.")
 			}
-			return f.Resolve(ctx, values)
+			resolved, err := f.Resolve(ctx, values)
+			if err != nil {
+				return nil, err
+			}
+			if len(resolved) != len(values) {
+				return nil, f.failure("invalid_choice", "Select valid choices.")
+			}
+			return resolved, nil
 		}
 		result := make([]any, 0, len(values))
 		for _, x := range values {
@@ -355,6 +363,18 @@ func (f Field) toValue(ctx context.Context, raw any) (any, error) {
 	default:
 		return invalid()
 	}
+}
+
+func uniqueStrings(values []string) []string {
+	seen := map[string]bool{}
+	result := make([]string, 0, len(values))
+	for _, value := range values {
+		if !seen[value] {
+			seen[value] = true
+			result = append(result, value)
+		}
+	}
+	return result
 }
 
 func (f Field) hasChoice(s string) bool {
