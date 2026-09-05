@@ -9,6 +9,7 @@ import (
 	"mime"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 )
 
@@ -67,6 +68,7 @@ func validOrigin(origin string) bool {
 	return e == nil && u.User == nil && u.Host != "" && (u.Scheme == "http" || u.Scheme == "https") && u.RawQuery == "" && u.Fragment == "" && (u.Path == "" || u.Path == "/")
 }
 func CSRF(config CSRFConfig) (func(http.Handler) http.Handler, error) {
+	config.TrustedOrigins = slices.Clone(config.TrustedOrigins)
 	if config.CookieName == "" {
 		config.CookieName = "gogo_csrf"
 	}
