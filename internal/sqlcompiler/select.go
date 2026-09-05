@@ -1,7 +1,6 @@
 package sqlcompiler
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"reflect"
@@ -105,33 +104,28 @@ func (c *Compiler) Predicate(p db.Predicate) (string, error) {
 	if lookup == "" {
 		lookup = "exact"
 	}
+	metadata, hasMetadata := c.predicateField(p)
+	if hasMetadata && metadata.Kind == models.JSON && isJSONLookup(lookup) {
+		p.Lookup = lookup
+		result, err := c.jsonLookup(metadata, p, field)
+		if err != nil {
+			return "", err
+		}
+		if p.Negated {
+			return "NOT (" + result + ")", nil
+		}
+		return result, nil
+	}
 	// JSON equality encodes Go values as JSON literals, including a nil RHS as
 	// JSON null. SQL NULL remains an explicit isnull lookup. In particular the
 	// Go string "null" must compare with a JSON string, not a JSON null scalar.
 	// Value expressions retain their explicitly declared SQL semantics.
 	if lookup == "exact" {
-		name := p.Field
-		if p.Expression != nil {
-			name = ""
-			if p.Expression.Kind == "field" {
-				name = p.Expression.Name
-			}
-		}
-		if metadata, _, metadataErr := c.modelField(name); metadataErr == nil && metadata.Kind == models.JSON {
+		if hasMetadata && metadata.Kind == models.JSON {
 			if _, expression := p.Value.(db.Expression); !expression {
-				value := p.Value
-				if value == nil {
-					value = models.JSONNull
-				}
-				if metadata.Codec != nil {
-					p.Value, err = metadata.Codec.Encode(value)
-				} else {
-					var encoded []byte
-					encoded, err = json.Marshal(value)
-					p.Value = string(encoded)
-				}
+				p.Value, err = jsonLookupValue(metadata, p.Value)
 				if err != nil {
-					return "", fmt.Errorf("orm: invalid JSON lookup value: %w", err)
+					return "", err
 				}
 			}
 		}

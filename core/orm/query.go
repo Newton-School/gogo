@@ -441,7 +441,7 @@ func Q(name string, value any) db.Predicate {
 }
 func isLookup(name string) bool {
 	switch name {
-	case "exact", "iexact", "gt", "gte", "lt", "lte", "isnull", "in", "range", "contains", "icontains", "startswith", "istartswith", "endswith", "iendswith", "regex", "iregex":
+	case "exact", "iexact", "gt", "gte", "lt", "lte", "isnull", "in", "range", "contains", "icontains", "startswith", "istartswith", "endswith", "iendswith", "regex", "iregex", "contained_by", "has_key", "has_keys", "has_any_keys":
 		return true
 	}
 	return false
