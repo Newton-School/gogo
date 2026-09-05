@@ -41,3 +41,53 @@ func TestRejectUnsafeGeneration(t *testing.T) {
 		t.Fatal("traversal accepted")
 	}
 }
+
+func TestValidateEntireTreeBeforeWriting(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "output")
+	err := writeTree(dir, map[string]string{"a.txt": "valid", "z.go": "not Go source"})
+	if err == nil {
+		t.Fatal("invalid source accepted")
+	}
+	if _, err := os.Stat(dir); !os.IsNotExist(err) {
+		t.Fatalf("partial output left behind: %v", err)
+	}
+}
+
+func TestStartAppCannotEscapeProjectThroughSymlinks(t *testing.T) {
+	for _, target := range []string{"apps", "config/apps.go"} {
+		t.Run(target, func(t *testing.T) {
+			dir := filepath.Join(t.TempDir(), "project")
+			if err := StartProject(dir, ProjectOptions{Module: "example.com/project"}); err != nil {
+				t.Fatal(err)
+			}
+			external := t.TempDir()
+			link := filepath.Join(dir, target)
+			// Move only this test's generated fixture out of the link location.
+			if err := os.Rename(link, link+".fixture"); err != nil {
+				t.Fatal(err)
+			}
+			if target == "config/apps.go" {
+				external = filepath.Join(external, "apps.go")
+				b, err := os.ReadFile(link + ".fixture")
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(external, b, 0644); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err := os.Symlink(external, link); err != nil {
+				t.Fatal(err)
+			}
+			if err := StartApp(dir, "catalog"); err == nil {
+				t.Fatal("symlink escape accepted")
+			}
+			if target == "apps" {
+				entries, err := os.ReadDir(external)
+				if err != nil || len(entries) != 0 {
+					t.Fatalf("wrote outside project: %v", err)
+				}
+			}
+		})
+	}
+}

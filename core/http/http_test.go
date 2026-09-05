@@ -3,12 +3,46 @@ package http
 import (
 	"context"
 	"errors"
+	"github.com/Newton-School/gogo/core/orm"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
 )
+
+type failedWriter struct {
+	header          http.Header
+	writes, headers int
+}
+
+func (w *failedWriter) Header() http.Header       { return w.header }
+func (w *failedWriter) WriteHeader(int)           { w.headers++ }
+func (w *failedWriter) Write([]byte) (int, error) { w.writes++; return 0, errors.New("broken pipe") }
+
+func TestAdaptAbortsWriteFailure(t *testing.T) {
+	w := &failedWriter{header: http.Header{}}
+	defer func() {
+		if recover() != http.ErrAbortHandler || w.writes != 1 || w.headers != 1 {
+			t.Errorf("write failure appended another response: %+v", w)
+		}
+	}()
+	Adapt(func(*http.Request) (Response, error) { return Text(200, "body"), nil }).ServeHTTP(w, httptest.NewRequest("GET", "/", nil))
+}
+
+func TestPublicMissingModelAndInvalidHeaderNames(t *testing.T) {
+	if PublicError(orm.ErrNotFound).Status != 404 {
+		t.Fatal("missing ORM model was not mapped to 404")
+	}
+	for _, name := range []string{"", "Bad\x00Name", "Bad(Name", "NonASCIIé"} {
+		response := Text(200, "body")
+		response.Headers[name] = []string{"value"}
+		w := httptest.NewRecorder()
+		if response.Write(w, httptest.NewRequest("GET", "/", nil)) == nil || w.Body.Len() != 0 {
+			t.Fatalf("accepted invalid header %q", name)
+		}
+	}
+}
 
 func TestResponseValidationAndConditional(t *testing.T) {
 	r := httptest.NewRequest("GET", "/", nil)

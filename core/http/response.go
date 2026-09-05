@@ -8,6 +8,7 @@ import (
 	"github.com/Newton-School/gogo/core/auth"
 	"github.com/Newton-School/gogo/core/db"
 	"github.com/Newton-School/gogo/core/models"
+	"github.com/Newton-School/gogo/core/orm"
 	"github.com/Newton-School/gogo/core/security"
 	"github.com/Newton-School/gogo/core/templates"
 	"github.com/Newton-School/gogo/core/urls"
@@ -44,7 +45,7 @@ func PublicError(err error) *Error {
 	if errors.Is(err, auth.ErrPermissionDenied) {
 		return &Error{403, "PERMISSION_DENIED", "Permission denied", nil, nil}
 	}
-	if errors.Is(err, db.ErrNoRows) || errors.Is(err, urls.ErrNotFound) {
+	if errors.Is(err, db.ErrNoRows) || errors.Is(err, orm.ErrNotFound) || errors.Is(err, urls.ErrNotFound) {
 		return ErrNotFound
 	}
 	var validation *models.ValidationError
@@ -114,7 +115,7 @@ func (r Response) Write(w http.ResponseWriter, req *http.Request) error {
 		return errors.New("invalid response status")
 	}
 	for key, values := range r.Headers {
-		if key == "" || strings.ContainsAny(key, " \r\n\t:") {
+		if !validHeaderName(key) {
 			return errors.New("invalid response header")
 		}
 		for _, value := range values {
@@ -177,14 +178,34 @@ type View func(*http.Request) (Response, error)
 
 func Adapt(view View) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		out := &trackedWriter{ResponseWriter: w}
 		response, err := view(r)
 		if err == nil {
-			err = response.Write(w, r)
+			err = response.Write(out, r)
 		}
 		if err != nil {
+			if out.written {
+				// net/http closes an HTTP/1 transfer or resets an HTTP/2
+				// stream. A second response would corrupt the first one.
+				panic(http.ErrAbortHandler)
+			}
 			WriteError(w, r, err)
 		}
 	})
+}
+
+func validHeaderName(name string) bool {
+	if name == "" {
+		return false
+	}
+	for i := range len(name) {
+		c := name[i]
+		if c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || strings.ContainsRune("!#$%&'*+-.^_`|~", rune(c)) {
+			continue
+		}
+		return false
+	}
+	return true
 }
 func WriteError(w http.ResponseWriter, r *http.Request, err error) {
 	public := PublicError(err)
