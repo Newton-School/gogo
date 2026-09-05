@@ -38,6 +38,27 @@ func take(t *testing.T, b async.Broker) async.Delivery {
 	return d
 }
 
+type pointerValidatedOutput struct{ Value int }
+
+func (o *pointerValidatedOutput) Validate() error {
+	if o.Value < 0 {
+		return errors.New("private validation detail")
+	}
+	return nil
+}
+
+func TestPointerOutputValidationInEagerTask(t *testing.T) {
+	task, err := async.Register(async.NewRegistry(), "test.output", 1, func(context.Context, async.TaskContext, int) (pointerValidatedOutput, error) {
+		return pointerValidatedOutput{Value: -1}, nil
+	}, async.TaskOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := task.Apply(context.Background(), 0); !errors.Is(err, async.ErrInvalid) {
+		t.Fatal("pointer output validator was bypassed", err)
+	}
+}
+
 func TestTaskTypedRoundTripAndDuplicate(t *testing.T) {
 	ctx := context.Background()
 	calls := 0

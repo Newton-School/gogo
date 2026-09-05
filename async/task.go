@@ -9,6 +9,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/Newton-School/gogo/core/ratelimit"
 )
 
 type TaskContext struct {
@@ -55,6 +57,17 @@ type TaskOptions struct {
 	Hooks           Hooks
 	Authorize       func(context.Context, TaskContext) error
 	ValidatePayload func(json.RawMessage) error
+	// PerWorkerConcurrency is a local task-type quota, not a distributed lock.
+	// Zero uses the worker's global bound.
+	PerWorkerConcurrency int
+	Rate                 *TaskRate
+}
+
+type TaskRate struct {
+	Limit ratelimit.Limit
+	// Scope is explicitly "worker" or "distributed". Distributed admission
+	// requires Worker.RateLimiter; there is never a silent local fallback.
+	Scope string
 }
 
 type Handler[I, O any] func(context.Context, TaskContext, I) (O, error)
@@ -79,8 +92,15 @@ func NewRegistry() *Registry                        { return &Registry{definitio
 func definitionKey(name string, version int) string { return fmt.Sprintf("%s@%d", name, version) }
 
 func Register[I, O any](r *Registry, name string, version int, handler Handler[I, O], options TaskOptions) (*Task[I, O], error) {
-	if r == nil || !namePattern.MatchString(name) || strings.HasPrefix(name, "gogo.") || version < 1 || options.SoftLimit < 0 || options.HardLimit < 0 || (options.HardLimit > 0 && options.SoftLimit > options.HardLimit) {
+	if r == nil || !namePattern.MatchString(name) || strings.HasPrefix(name, "gogo.") || version < 1 || options.SoftLimit < 0 || options.HardLimit < 0 || (options.HardLimit > 0 && options.SoftLimit > options.HardLimit) || options.PerWorkerConcurrency < 0 || options.PerWorkerConcurrency > 1024 {
 		return nil, ErrInvalid
+	}
+	if options.Rate != nil {
+		rate := *options.Rate
+		if rate.Limit.Validate(1) != nil || rate.Scope != "worker" && rate.Scope != "distributed" {
+			return nil, ErrInvalid
+		}
+		options.Rate = &rate
 	}
 	if options.Queue == "" {
 		options.Queue = "default"
@@ -123,6 +143,9 @@ func Register[I, O any](r *Registry, name string, version int, handler Handler[I
 		if validator, ok := any(value).(interface{ Validate() error }); ok {
 			return validator.Validate()
 		}
+		if validator, ok := any(&value).(interface{ Validate() error }); ok {
+			return validator.Validate()
+		}
 		return nil
 	}
 	if handler != nil {
@@ -135,13 +158,11 @@ func Register[I, O any](r *Registry, name string, version int, handler Handler[I
 			if err != nil {
 				return nil, err
 			}
-			if v, ok := any(out).(interface{ Validate() error }); ok {
-				if err := v.Validate(); err != nil {
-					return nil, ErrInvalid
-				}
-			}
 			b, err := json.Marshal(out)
 			if err != nil || len(b) > MaxPayloadBytes {
+				return nil, ErrInvalid
+			}
+			if err := d.validateOutput(b); err != nil {
 				return nil, ErrInvalid
 			}
 			return b, nil

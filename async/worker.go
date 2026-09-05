@@ -8,6 +8,8 @@ import (
 	"runtime"
 	"sync"
 	"time"
+
+	"github.com/Newton-School/gogo/core/ratelimit"
 )
 
 type Worker struct {
@@ -24,10 +26,15 @@ type Worker struct {
 	OnError     func(error)
 	Executor    Executor
 	Events      EventSink
+	RateLimiter ratelimit.Limiter
 	initOnce    sync.Once
 	initErr     error
 	activityMu  sync.Mutex
 	active      map[string]TaskActivity
+	slots       chan struct{}
+	taskSlots   map[string]chan struct{}
+	rateMu      sync.Mutex
+	rateBuckets map[string]localBucket
 }
 
 func (w *Worker) initialize() error {
@@ -71,10 +78,16 @@ func (w *Worker) defaults() error {
 		w.Queues = []string{"default"}
 	}
 	w.Registry.mu.RLock()
+	w.slots = make(chan struct{}, w.Concurrency)
+	w.taskSlots = map[string]chan struct{}{}
+	w.rateBuckets = map[string]localBucket{}
 	for _, definition := range w.Registry.definitions {
-		if definition.options.HardLimit > 0 && w.Executor == nil {
+		if definition.options.HardLimit > 0 && w.Executor == nil || definition.options.Rate != nil && definition.options.Rate.Scope == "distributed" && w.RateLimiter == nil {
 			w.Registry.mu.RUnlock()
 			return ErrInvalid
+		}
+		if definition.options.PerWorkerConcurrency > 0 {
+			w.taskSlots[definitionKey(definition.name, definition.version)] = make(chan struct{}, definition.options.PerWorkerConcurrency)
 		}
 	}
 	w.Registry.mu.RUnlock()
@@ -137,6 +150,12 @@ func (w *Worker) Process(ctx context.Context, delivery Delivery) error {
 	if err := w.initialize(); err != nil {
 		return err
 	}
+	select {
+	case w.slots <- struct{}{}:
+		defer func() { <-w.slots }()
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 	e, err := DecodeEnvelope(delivery.Body)
 	if err != nil {
 		return w.Broker.Reject(ctx, delivery, "invalid_envelope", false)
@@ -151,6 +170,11 @@ func (w *Worker) Process(ctx context.Context, delivery Delivery) error {
 	if err := w.Registry.validateLinks(Signature{Task: e.Task, Version: e.Version, Args: e.Args, Callbacks: e.Callbacks, Errbacks: e.Errbacks}, 0); err != nil {
 		return w.Broker.Reject(ctx, delivery, "invalid_arguments", false)
 	}
+	release, err := w.admit(ctx, d, e)
+	if err != nil {
+		return err
+	}
+	defer release()
 	claim, err := w.Results.Claim(ctx, e, w.ID, w.Lease)
 	if errors.Is(err, ErrConflict) {
 		return w.Broker.Reject(ctx, delivery, "task_identity_conflict", false)
