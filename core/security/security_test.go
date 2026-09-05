@@ -1,9 +1,10 @@
 package security
 
 import (
-	"context"
+	"bytes"
 	"errors"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -97,5 +98,26 @@ func TestSafeNext(t *testing.T) {
 	if SafeNext("/catalog/?page=2", "/") != "/catalog/?page=2" {
 		t.Fatal("valid rejected")
 	}
-	_ = context.Background()
+}
+
+func TestMultipartCSRFHiddenToken(t *testing.T) {
+	middleware, _ := CSRF(CSRFConfig{MaxBodyBytes: 1 << 20})
+	handler := middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { _, _ = io.WriteString(w, CSRFToken(r)) }))
+	get := httptest.NewRecorder()
+	handler.ServeHTTP(get, httptest.NewRequest("GET", "http://example.test/", nil))
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	_ = writer.WriteField("csrfmiddlewaretoken", get.Body.String())
+	file, _ := writer.CreateFormFile("image", "test.txt")
+	_, _ = file.Write([]byte("file data"))
+	_ = writer.Close()
+	r := httptest.NewRequest("POST", "http://example.test/", &body)
+	r.Header.Set("Content-Type", writer.FormDataContentType())
+	r.Header.Set("Origin", "http://example.test")
+	r.AddCookie(get.Result().Cookies()[0])
+	post := httptest.NewRecorder()
+	handler.ServeHTTP(post, r)
+	if post.Code != 200 {
+		t.Fatal(post.Code, post.Body.String())
+	}
 }

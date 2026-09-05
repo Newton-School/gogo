@@ -18,10 +18,11 @@ var (
 )
 
 type Record struct {
-	ID        string
-	Data      map[string]json.RawMessage
-	ExpiresAt time.Time
-	Version   uint64
+	ID           string
+	Data         map[string]json.RawMessage
+	ExpiresAt    time.Time
+	Version      uint64
+	BrowserClose bool
 }
 type Store interface {
 	Load(context.Context, string) (Record, error)
@@ -46,9 +47,9 @@ func NewID() (string, error) {
 }
 
 type Session struct {
-	record                                                       Record
-	originalID                                                   string
-	modified, accessed, flushed, rotate, committed, browserClose bool
+	record                                         Record
+	originalID                                     string
+	modified, accessed, flushed, rotate, committed bool
 }
 
 func New(record Record) *Session { return &Session{record: Clone(record), originalID: record.ID} }
@@ -121,7 +122,7 @@ func (s *Session) SetBrowserClose(value bool) error {
 	if s.committed {
 		return ErrCommitted
 	}
-	s.browserClose = value
+	s.record.BrowserClose = value
 	s.modified = true
 	return nil
 }

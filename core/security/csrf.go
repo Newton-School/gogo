@@ -6,6 +6,7 @@ import (
 	"crypto/subtle"
 	"encoding/base64"
 	"errors"
+	"mime"
 	"net/http"
 	"net/url"
 	"strings"
@@ -118,9 +119,19 @@ func CSRF(config CSRFConfig) (func(http.Handler) http.Handler, error) {
 					return
 				}
 				token := r.Header.Get("X-CSRFToken")
-				if token == "" && strings.HasPrefix(r.Header.Get("Content-Type"), "application/x-www-form-urlencoded") {
+				mediaType, _, _ := mime.ParseMediaType(r.Header.Get("Content-Type"))
+				if token == "" && (mediaType == "application/x-www-form-urlencoded" || mediaType == "multipart/form-data") {
 					r.Body = http.MaxBytesReader(w, r.Body, config.MaxBodyBytes)
-					if r.ParseForm() != nil {
+					var parseErr error
+					if mediaType == "multipart/form-data" {
+						parseErr = r.ParseMultipartForm(2 << 20)
+						if r.MultipartForm != nil {
+							defer r.MultipartForm.RemoveAll()
+						}
+					} else {
+						parseErr = r.ParseForm()
+					}
+					if parseErr != nil {
 						http.Error(w, "invalid form", 400)
 						return
 					}

@@ -62,8 +62,11 @@ func Middleware(config MiddlewareConfig) (func(http.Handler) http.Handler, error
 				if err := session.Persist(r.Context(), config.Store, config.Now(), config.TTL); err != nil {
 					return err
 				}
-				if session.Accessed() {
+				if session.Accessed() || session.modified || session.flushed || stale {
 					w.Header().Add("Vary", "Cookie")
+				}
+				if session.modified || session.flushed || stale {
+					w.Header().Set("Cache-Control", "private, no-store")
 				}
 				if session.flushed || stale && !session.modified {
 					http.SetCookie(w, &http.Cookie{Name: config.CookieName, Path: "/", MaxAge: -1, Expires: time.Unix(1, 0), Secure: config.Secure, HttpOnly: true, SameSite: http.SameSiteLaxMode})
@@ -73,7 +76,7 @@ func Middleware(config MiddlewareConfig) (func(http.Handler) http.Handler, error
 						return e
 					}
 					cookie := &http.Cookie{Name: config.CookieName, Value: token, Path: "/", Secure: config.Secure, HttpOnly: true, SameSite: http.SameSiteLaxMode}
-					if !session.browserClose {
+					if !session.record.BrowserClose {
 						cookie.Expires = session.record.ExpiresAt
 						cookie.MaxAge = max(1, int(session.record.ExpiresAt.Sub(config.Now())/time.Second))
 					}

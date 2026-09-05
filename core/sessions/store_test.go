@@ -103,7 +103,7 @@ func TestPersistenceBeforeHeadersAndFailureRedaction(t *testing.T) {
 			if w.Code != 503 || len(w.Result().Cookies()) != 0 || strings.Contains(w.Body.String(), "private") || strings.Contains(w.Body.String(), "success") {
 				t.Fatal(w.Code, w.Body)
 			}
-		} else if w.Code != 200 || len(w.Result().Cookies()) != 1 {
+		} else if w.Code != 200 || len(w.Result().Cookies()) != 1 || !strings.Contains(w.Header().Get("Vary"), "Cookie") || w.Header().Get("Cache-Control") != "private, no-store" {
 			t.Fatal(w.Code)
 		}
 	}
@@ -123,5 +123,34 @@ func TestRotationRevokesOldIdentity(t *testing.T) {
 	}
 	if s.Snapshot().ID == "old" {
 		t.Fatal("identity unchanged")
+	}
+}
+
+func TestBrowserCloseSurvivesSubsequentMutation(t *testing.T) {
+	store := &memoryStore{}
+	signer, _ := security.NewSigner(security.SigningKey{ID: "test", Value: []byte(strings.Repeat("a", 32))}, nil, "sessions")
+	mw, _ := Middleware(MiddlewareConfig{Store: store, Signer: signer})
+	handler := mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		session, _ := FromContext(r.Context())
+		if r.URL.Path == "/first" {
+			_ = session.SetBrowserClose(true)
+		}
+		_ = session.Set("value", r.URL.Path)
+		w.WriteHeader(200)
+	}))
+	first := httptest.NewRecorder()
+	handler.ServeHTTP(first, httptest.NewRequest("GET", "http://localhost/first", nil))
+	cookie := first.Result().Cookies()[0]
+	second := httptest.NewRecorder()
+	request := httptest.NewRequest("GET", "http://localhost/second", nil)
+	request.AddCookie(cookie)
+	handler.ServeHTTP(second, request)
+	if second.Code != 200 {
+		t.Fatal(second.Code)
+	}
+	for _, responseCookie := range second.Result().Cookies() {
+		if responseCookie.Name == "gogo_session" && (!responseCookie.Expires.IsZero() || responseCookie.MaxAge != 0) {
+			t.Fatal("browser-close session became persistent")
+		}
 	}
 }
