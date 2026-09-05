@@ -81,6 +81,9 @@ func Open(ctx context.Context, config Config) (*Backend, error) {
 	pool.SetMaxIdleConns(config.MaxIdle)
 	pool.SetConnMaxLifetime(config.MaxLifetime)
 	backend := &Backend{pool: pool, alias: config.Alias, capabilities: db.Capabilities{"returning": true, "on_conflict": true, "transactions": true, "savepoints": true, "row_locks": true, "row_lock_of": true, "row_lock_no_key": true, "json": true, "arrays": true, "ranges": true, "window": true, "regex": true, "distinct_on": true, "filtered_aggregates": true, "conditional_expressions": true, "transactional_ddl": true, "concurrent_indexes": true}}
+	// PostgreSQL's UPDATE command count includes matched rows whose values did
+	// not change. Query.Update must not silently promise this for every driver.
+	backend.capabilities["update_matched_rows"] = true
 	probe, cancel := context.WithTimeout(ctx, config.ConnectTimeout)
 	defer cancel()
 	if err := backend.Ping(probe); err != nil {
