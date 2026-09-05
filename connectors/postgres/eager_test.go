@@ -153,8 +153,8 @@ func TestSelectRelatedNestedAndReverseOneToOne(t *testing.T) {
 	if related, ok := orm.RelatedOne(reverse, "author"); !ok || related == nil {
 		t.Fatal(related, ok)
 	}
-	if _, err := query.SelectRelated("author__company__author").All(ctx); err == nil {
-		t.Fatal("eager cycle accepted")
+	if repeated, err := query.SelectRelated("author__company__author").All(ctx); err != nil || len(repeated) != 2 {
+		t.Fatal("finite repeated-schema path rejected", repeated, err)
 	}
 	failure := errors.New("scoping unavailable")
 	if _, err := query.WithScope(func(_ context.Context, schema models.Schema) (db.Predicate, error) {

@@ -37,14 +37,22 @@ func (b *eagerBudget) take(count int) error {
 	return nil
 }
 
-func clonePrefetches(values []Prefetch) []Prefetch {
+func clonePrefetches(values []Prefetch, depth int) ([]Prefetch, error) {
 	result := append([]Prefetch(nil), values...)
 	for i := range result {
+		next := depth + len(strings.Split(result[i].Path, "__"))
+		if next > 8 {
+			return nil, errors.New("orm: prefetch paths require at most eight relation segments")
+		}
 		result[i].Where = clonePredicate(result[i].Where)
 		result[i].OrderBy = append([]string(nil), result[i].OrderBy...)
-		result[i].Children = clonePrefetches(result[i].Children)
+		var err error
+		result[i].Children, err = clonePrefetches(result[i].Children, next)
+		if err != nil {
+			return nil, err
+		}
 	}
-	return result
+	return result, nil
 }
 func (q Query[T]) PrefetchRelated(paths ...string) Query[T] {
 	q = q.clone()
@@ -56,7 +64,11 @@ func (q Query[T]) PrefetchRelated(paths ...string) Query[T] {
 }
 func (q Query[T]) Prefetch(specs ...Prefetch) Query[T] {
 	q = q.clone()
-	q.prefetches = clonePrefetches(specs)
+	var err error
+	q.prefetches, err = clonePrefetches(specs, 0)
+	if q.err == nil {
+		q.err = err
+	}
 	return q
 }
 
@@ -78,8 +90,11 @@ func (q Query[T]) allPrefetched(ctx context.Context) ([]T, error) {
 	if q.store.Registry == nil {
 		return nil, errors.New("orm: prefetch requires a complete model registry")
 	}
-	nodes, err := compilePrefetches(q.store, q.schema, q.prefetches, map[string]bool{q.schema.Key(): true}, 0)
+	nodes, err := compilePrefetches(q.store, q.schema, q.prefetches, 0)
 	if err != nil {
+		return nil, err
+	}
+	if err := validateSelectedPrefetches(nodes, q.relatedPaths); err != nil {
 		return nil, err
 	}
 	maximum := q.eagerLimit
@@ -119,8 +134,8 @@ func (q Query[T]) allPrefetched(ctx context.Context) ([]T, error) {
 	return objects, nil
 }
 
-func compilePrefetches(store *Store, schema models.Schema, specs []Prefetch, ancestors map[string]bool, depth int) ([]*prefetchNode, error) {
-	if depth > 8 {
+func compilePrefetches(store *Store, schema models.Schema, specs []Prefetch, depth int) ([]*prefetchNode, error) {
+	if depth >= 8 && len(specs) > 0 {
 		return nil, errors.New("orm: prefetch depth exceeds eight")
 	}
 	nodes := []*prefetchNode{}
@@ -165,41 +180,83 @@ func compilePrefetches(store *Store, schema models.Schema, specs []Prefetch, anc
 			if err != nil {
 				return nil, err
 			}
-			if ancestors[binding.target.Key()] {
-				return nil, errors.New("orm: cyclic prefetch path rejected")
+			// Compile filters and ordering even for an empty root result. A
+			// malformed custom query must not depend on whether rows exist.
+			query := For(store, func() *models.MapRecord { record, _ := models.NewRecord(binding.target); return record }).Filter(spec.Where)
+			if spec.OrderBy != nil {
+				query = query.OrderBy(spec.OrderBy...)
+			}
+			if _, _, err := query.SQL(); err != nil {
+				return nil, err
 			}
 			node = &prefetchNode{name: name, attr: attr, binding: binding, where: spec.Where, order: append([]string(nil), spec.OrderBy...)}
 			nodes = append(nodes, node)
 		}
-		next := map[string]bool{}
-		for key, value := range ancestors {
-			next[key] = value
-		}
-		next[node.binding.target.Key()] = true
-		children, err := compilePrefetches(store, node.binding.target, spec.Children, next, depth+1)
+		children, err := compilePrefetches(store, node.binding.target, spec.Children, depth+1)
 		if err != nil {
 			return nil, err
 		}
-		// Independent repeated prefixes may add new children, but must not replace
-		// an already configured child query with a different interpretation.
-		for _, child := range children {
-			duplicate := false
-			for _, existing := range node.children {
-				if existing.attr == child.attr {
-					if existing.name != child.name || !reflect.DeepEqual(existing.where, child.where) || !reflect.DeepEqual(existing.order, child.order) {
-						return nil, errors.New("orm: conflicting nested prefetch queries")
-					}
-					existing.children = append(existing.children, child.children...)
-					duplicate = true
-					break
-				}
-			}
-			if !duplicate {
-				node.children = append(node.children, child)
-			}
+		node.children, err = mergePrefetchNodes(node.children, children)
+		if err != nil {
+			return nil, err
 		}
 	}
 	return nodes, nil
+}
+
+func mergePrefetchNodes(existing, added []*prefetchNode) ([]*prefetchNode, error) {
+	for _, child := range added {
+		var matched *prefetchNode
+		for _, candidate := range existing {
+			if candidate.attr == child.attr {
+				matched = candidate
+				break
+			}
+		}
+		if matched == nil {
+			existing = append(existing, child)
+			continue
+		}
+		if matched.name != child.name || !reflect.DeepEqual(matched.where, child.where) || !reflect.DeepEqual(matched.order, child.order) {
+			return nil, errors.New("orm: conflicting nested prefetch queries")
+		}
+		var err error
+		matched.children, err = mergePrefetchNodes(matched.children, child.children)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return existing, nil
+}
+
+func validateSelectedPrefetches(nodes []*prefetchNode, selected []string) error {
+	paths := map[string]bool{}
+	for _, path := range selected {
+		parts := strings.Split(path, "__")
+		for i := range parts {
+			paths[strings.Join(parts[:i+1], "__")] = true
+		}
+	}
+	var visit func([]*prefetchNode, string) error
+	visit = func(nodes []*prefetchNode, parent string) error {
+		for _, node := range nodes {
+			if node.attr != node.name {
+				continue // ToAttr loads separate instances; their caches do not overlap.
+			}
+			path := node.name
+			if parent != "" {
+				path = parent + "__" + path
+			}
+			if paths[path] && (!reflect.DeepEqual(node.where, db.Predicate{}) || len(node.order) > 0) {
+				return errors.New("orm: custom prefetch conflicts with SelectRelated; use a separate ToAttr")
+			}
+			if err := visit(node.children, path); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	return visit(nodes, "")
 }
 
 func loadPrefetches(ctx context.Context, store *Store, roots []models.Record, nodes []*prefetchNode, scope QueryScope, budget *eagerBudget) error {

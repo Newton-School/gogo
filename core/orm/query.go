@@ -84,7 +84,11 @@ func (q Query[T]) clone() Query[T] {
 	q.selectAST.LockOf = append([]string(nil), q.selectAST.LockOf...)
 	q.relatedPaths = append([]string(nil), q.relatedPaths...)
 	q.joined = append([]joinedRelation(nil), q.joined...)
-	q.prefetches = clonePrefetches(q.prefetches)
+	var err error
+	q.prefetches, err = clonePrefetches(q.prefetches, 0)
+	if q.err == nil {
+		q.err = err
+	}
 	return q
 }
 func (q Query[T]) Filter(predicates ...db.Predicate) Query[T] {

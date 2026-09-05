@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"github.com/Newton-School/gogo/core/db"
+	"github.com/Newton-School/gogo/core/migrations"
 	"github.com/Newton-School/gogo/core/models"
 	"github.com/Newton-School/gogo/core/orm"
+	"strings"
 	"testing"
 )
 
@@ -50,14 +52,133 @@ func TestPrefetchManyToManyScopeCustomOrderAndEmptyCollections(t *testing.T) {
 	if _, err := query.Prefetch(orm.Prefetch{Path: "tags", ToAttr: "tenant"}).All(ctx); err == nil {
 		t.Fatal("cache/model-field conflict accepted")
 	}
-	if _, err := query.PrefetchRelated("tags", "tags__posts").All(ctx); err == nil {
-		t.Fatal("cyclic prefetch accepted")
+	if repeated, err := query.PrefetchRelated("tags", "tags__posts").All(ctx); err != nil || len(repeated) != 2 {
+		t.Fatal("finite repeated-schema prefetch rejected", repeated, err)
 	}
 	if err := (orm.RelationManager{Store: store, Source: rows[0], Name: "tags", Scope: func(context.Context, models.Schema) (db.Predicate, error) { return orm.Q("tenant", 1), nil }}).Clear(ctx); err != nil {
 		t.Fatal(err)
 	}
 	if _, loaded := orm.RelatedMany(rows[0], "visible_tags"); loaded {
 		t.Fatal("mutation retained stale prefetch cache")
+	}
+}
+
+func TestEagerFiniteSelfPathsAndRecursivePrefetchConflicts(t *testing.T) {
+	b := openTest(t)
+	ctx := context.Background()
+	schema := models.Schema{AppLabel: "tests", Name: "Node", Fields: []models.Field{models.BigAutoField("id"), models.IntegerField("tenant"), models.ForeignKeyField("parent", models.Relation{Target: "tests.Node", OnDelete: models.Cascade, RelatedName: "children"}, models.Nullable)}}
+	registry := &models.Registry{}
+	if err := registry.Register(schema); err != nil {
+		t.Fatal(err)
+	}
+	if err := registry.Freeze(); err != nil {
+		t.Fatal(err)
+	}
+	engine := migrations.Executor{Backend: b, Editor: b.SchemaEditor(), Migrations: []migrations.Migration{{App: "tests", Name: "0001", Operations: []migrations.Operation{migrations.CreateModel(schema)}}}}
+	if err := engine.Apply(ctx, ""); err != nil {
+		t.Fatal(err)
+	}
+	store := orm.New(b, registry)
+	a := saveMap(t, store, schema, map[string]any{"tenant": 1, "parent": nil})
+	bNode := saveMap(t, store, schema, map[string]any{"tenant": 1, "parent": mustValue(t, a, "id")})
+	c := saveMap(t, store, schema, map[string]any{"tenant": 1, "parent": mustValue(t, bNode, "id")})
+	counted := &countedBackend{Backend: b}
+	store.Backend = counted
+	query := orm.For(store, func() *models.MapRecord { r, _ := models.NewRecord(schema); return r }).Filter(orm.Q("id", mustValue(t, c, "id")))
+	for _, prefetch := range []bool{false, true} {
+		counted.queries.Store(0)
+		q := query.SelectRelated("parent__parent__parent")
+		if prefetch {
+			q = query.PrefetchRelated("parent__parent__parent")
+		}
+		rows, err := q.All(ctx)
+		if err != nil || len(rows) != 1 {
+			t.Fatal(rows, err)
+		}
+		var current models.Record = rows[0]
+		for _, expected := range []any{mustValue(t, bNode, "id"), mustValue(t, a, "id"), nil} {
+			related, loaded := orm.RelatedOne(current, "parent")
+			if !loaded || (expected == nil) != (related == nil) {
+				t.Fatal("self relation cache missing", related, loaded)
+			}
+			if related != nil && mustValue(t, related, "id") != expected {
+				t.Fatal("wrong self relation identity")
+			}
+			current = related
+		}
+		want := int32(1)
+		if prefetch {
+			want = 3
+		}
+		if counted.queries.Load() != want {
+			t.Fatal("self relation query count", counted.queries.Load(), want)
+		}
+	}
+	// A cycle in database rows is not a cycle in the finite query plan.
+	if err := a.Set("parent", mustValue(t, c, "id")); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Save(ctx, a, orm.SaveOptions{UpdateFields: []string{"parent"}}); err != nil {
+		t.Fatal(err)
+	}
+	eight := strings.TrimSuffix(strings.Repeat("parent__", 8), "__")
+	for _, prefetch := range []bool{false, true} {
+		q := query.SelectRelated(eight)
+		if prefetch {
+			q = query.PrefetchRelated(eight)
+		}
+		rows, err := q.All(ctx)
+		if err != nil || len(rows) != 1 {
+			t.Fatal("bounded database cycle failed", rows, err)
+		}
+		var current models.Record = rows[0]
+		for range 8 {
+			var loaded bool
+			current, loaded = orm.RelatedOne(current, "parent")
+			if !loaded || current == nil {
+				t.Fatal("explicit eight-segment path truncated")
+			}
+		}
+		if _, loaded := orm.RelatedOne(current, "parent"); loaded {
+			t.Fatal("unrequested cyclic edge loaded")
+		}
+		counted.queries.Store(0)
+		q = query.SelectRelated(eight + "__parent")
+		if prefetch {
+			q = query.PrefetchRelated(eight + "__parent")
+		}
+		if _, err := q.All(ctx); err == nil || counted.queries.Load() != 0 {
+			t.Fatal("excessive path reached SQL", err)
+		}
+	}
+	for _, depth := range []int{3, 4} {
+		path := strings.TrimSuffix(strings.Repeat("parent__", depth), "__")
+		counted.queries.Store(0)
+		if _, err := query.Prefetch(orm.Prefetch{Path: path, Where: orm.Q("tenant", 1)}, orm.Prefetch{Path: path, Where: orm.Q("tenant", 2)}).All(ctx); err == nil || counted.queries.Load() != 0 {
+			t.Fatal("deep conflicting cache queries accepted", depth, err)
+		}
+		counted.queries.Store(0)
+		if _, err := query.Prefetch(orm.Prefetch{Path: path}, orm.Prefetch{Path: path}).All(ctx); err != nil || counted.queries.Load() != int32(depth+1) {
+			t.Fatal("identical deep paths not merged", depth, counted.queries.Load(), err)
+		}
+	}
+	counted.queries.Store(0)
+	if _, err := query.SelectRelated("parent__parent").Prefetch(orm.Prefetch{Path: "parent__parent", Where: orm.Q("tenant", 2)}).All(ctx); err == nil || counted.queries.Load() != 0 {
+		t.Fatal("custom prefetch overwrote selected cache", err)
+	}
+	rows, err := query.SelectRelated("parent").Prefetch(orm.Prefetch{Path: "parent", ToAttr: "alternative", Where: orm.Q("tenant", 2)}).All(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if parent, loaded := orm.RelatedOne(rows[0], "parent"); !loaded || parent == nil {
+		t.Fatal("separate prefetch erased selected parent")
+	}
+	if parent, loaded := orm.RelatedOne(rows[0], "alternative"); !loaded || parent != nil {
+		t.Fatal("custom ToAttr cache missing")
+	}
+	counted.queries.Store(0)
+	if _, err := query.Filter(orm.Q("id", -1)).Prefetch(orm.Prefetch{Path: "parent", Where: orm.Q("unknown", 1)}).All(ctx); err == nil || counted.queries.Load() != 0 {
+		t.Fatal("invalid custom query depended on root rows", err)
 	}
 }
 

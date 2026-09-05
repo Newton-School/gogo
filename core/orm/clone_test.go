@@ -6,6 +6,14 @@ import (
 	"testing"
 )
 
+func TestPrefetchRejectsCyclicSpecificationBeforeCloning(t *testing.T) {
+	children := []Prefetch{{Path: "parent"}}
+	children[0].Children = children
+	if _, err := clonePrefetches(children, 0); err == nil {
+		t.Fatal("cyclic prefetch specification accepted")
+	}
+}
+
 func TestQueryPredicateSnapshotsMutableValues(t *testing.T) {
 	values := []int64{1, 2}
 	inner := map[string]any{"ids": values}

@@ -75,7 +75,6 @@ func (q Query[T]) prepareRelated(ctx context.Context) (Query[T], error) {
 			return q, errors.New("orm: eager paths require one to eight relation segments")
 		}
 		parent := ""
-		ancestors := map[string]bool{q.schema.Key(): true}
 		for _, name := range names {
 			if !models.ValidIdentifier(name) {
 				return q, errors.New("orm: invalid eager relation name")
@@ -84,8 +83,7 @@ func (q Query[T]) prepareRelated(ctx context.Context) (Query[T], error) {
 			if parent != "" {
 				currentPath = parent + "__" + name
 			}
-			if existing, ok := resolved[currentPath]; ok {
-				ancestors[existing.Key()] = true
+			if _, ok := resolved[currentPath]; ok {
 				parent = currentPath
 				continue
 			}
@@ -101,10 +99,9 @@ func (q Query[T]) prepareRelated(ctx context.Context) (Query[T], error) {
 			if binding.through != nil || binding.reverse && binding.field.Kind != models.OneToOne {
 				return q, errors.New("orm: SelectRelated supports to-one paths only")
 			}
-			if ancestors[binding.target.Key()] {
-				return q, errors.New("orm: cyclic eager path rejected")
-			}
-			ancestors[binding.target.Key()] = true
+			// Repeating a schema is valid for a finite, explicit self/reverse
+			// path. Each path owns a distinct join alias; the segment bound
+			// prevents unbounded traversal without rejecting self relations.
 			join := db.Join{Path: currentPath, Alias: fmt.Sprintf("gogo_join_%d", len(q.joined)+1), ParentPath: parent, Schema: binding.target}
 			if binding.reverse {
 				key, err := relationTargetField(parentSchema, binding.field)
