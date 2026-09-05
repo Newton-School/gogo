@@ -458,7 +458,7 @@ func (r *IntentRelay) Tick(ctx context.Context) error {
 						if state != Failed && state != Revoked && state != Expired {
 							return ErrInvalid
 						}
-						err = r.Client.config.Results.Transition(ctx, Transition{ID: e.ID, Fence: claim.Record.Fence, Owner: r.ID, State: state, Failure: failure, Intents: CompletionIntents(e, state, nil, failure)})
+						err = r.Client.transitionTerminal(ctx, e, Transition{ID: e.ID, Fence: claim.Record.Fence, Owner: r.ID, State: state, Failure: failure})
 					} else if err == nil && !claim.Duplicate {
 						err = ErrBusy
 					}
@@ -557,8 +557,8 @@ func (d *DelayedDispatcher) Tick(ctx context.Context) error {
 					state = Revoked
 				}
 				failure := &Failure{Code: string(state), Message: "Task was not executed"}
-				transition := Transition{ID: item.Envelope.ID, Fence: claim.Record.Fence, Owner: d.ID, State: state, Failure: failure, Intents: CompletionIntents(item.Envelope, state, nil, failure)}
-				if err := d.Client.config.Results.Transition(ctx, transition); err != nil {
+				transition := Transition{ID: item.Envelope.ID, Fence: claim.Record.Fence, Owner: d.ID, State: state, Failure: failure}
+				if err := d.Client.transitionTerminal(ctx, item.Envelope, transition); err != nil {
 					return err
 				}
 			}

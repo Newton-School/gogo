@@ -1,11 +1,37 @@
 package async
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"reflect"
 	"time"
 )
+
+func (w *Worker) terminalIntents(parent Envelope, transition Transition) ([]Intent, error) {
+	intents := CompletionIntents(parent, transition.State, transition.Output, transition.Failure)
+	linked, err := w.linkedIntents(parent, transition)
+	if err != nil {
+		return nil, err
+	}
+	return append(intents, linked...), nil
+}
+
+// transitionTerminal uses the same durable callback policy for coordinator
+// outcomes as for worker outcomes. Expiry, cancellation and invalid successor
+// input must not silently discard declared errbacks.
+func (c *Client) transitionTerminal(ctx context.Context, envelope Envelope, transition Transition) error {
+	if !transition.State.Terminal() {
+		return ErrInvalid
+	}
+	worker := &Worker{Registry: c.config.Registry, Clock: c.config.Clock}
+	intents, err := worker.terminalIntents(envelope, transition)
+	if err != nil {
+		return err
+	}
+	transition.Intents = intents
+	return c.config.Results.Transition(ctx, transition)
+}
 
 func (r *Registry) validateLinks(s Signature, depth int) error {
 	if depth > 16 || len(s.Callbacks)+len(s.Errbacks) > 32 {

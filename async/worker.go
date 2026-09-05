@@ -339,12 +339,10 @@ func (w *Worker) Process(ctx context.Context, delivery Delivery) error {
 		transition.Output = nil
 		transition.Failure = &Failure{Code: string(state), Message: "Task execution did not complete successfully"}
 	}
-	transition.Intents = CompletionIntents(e, transition.State, transition.Output, transition.Failure)
-	linked, err := w.linkedIntents(e, transition)
+	transition.Intents, err = w.terminalIntents(e, transition)
 	if err != nil {
 		return err
 	}
-	transition.Intents = append(transition.Intents, linked...)
 	if err := w.Results.Transition(ctx, transition); err != nil {
 		return err
 	}

@@ -95,5 +95,5 @@ func (r *IntentRelay) cancelTask(ctx context.Context, intent Intent, lease time.
 		return nil
 	}
 	failure := &Failure{Code: "REVOKED", Message: "Workflow task cancellation was recorded"}
-	return r.Client.config.Results.Transition(ctx, Transition{ID: envelope.ID, Fence: claim.Record.Fence, Owner: r.ID, State: Revoked, Failure: failure, Intents: CompletionIntents(record.Envelope, Revoked, nil, failure)})
+	return r.Client.transitionTerminal(ctx, record.Envelope, Transition{ID: envelope.ID, Fence: claim.Record.Fence, Owner: r.ID, State: Revoked, Failure: failure})
 }

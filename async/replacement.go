@@ -170,13 +170,11 @@ func (r *IntentRelay) completeReplacement(ctx context.Context, intent Intent) er
 			completion.Failure = &Failure{Code: "REPLACEMENT_OUTPUT", Message: "Replacement output did not satisfy the original task result schema"}
 		}
 		transition := Transition{ID: record.Envelope.ID, State: completion.State, Output: completion.Output, Failure: completion.Failure}
-		transition.Intents = CompletionIntents(record.Envelope, transition.State, transition.Output, transition.Failure)
 		worker := &Worker{Registry: r.Client.config.Registry, Clock: r.Client.config.Clock}
-		linked, err := worker.linkedIntents(record.Envelope, transition)
+		transition.Intents, err = worker.terminalIntents(record.Envelope, transition)
 		if err != nil {
 			return Transition{}, err
 		}
-		transition.Intents = append(transition.Intents, linked...)
 		completed, terminal = record, transition
 		return transition, nil
 	})
