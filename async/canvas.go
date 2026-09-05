@@ -176,7 +176,16 @@ func dispatchIntent(source string, e Envelope) Intent {
 	return Intent{ID: StableID(source, "dispatch-"+e.ID), SourceID: source, Kind: "publish", Envelope: &e}
 }
 
-func (c *Client) advance(graph Graph) (Graph, []Intent, error) {
+func (c *Client) advance(graph Graph) (next Graph, intents []Intent, err error) {
+	defer func() {
+		if err == nil {
+			intents = append(intents, replacementCompletionIntents(next)...)
+		}
+	}()
+	return c.advanceGraph(graph)
+}
+
+func (c *Client) advanceGraph(graph Graph) (Graph, []Intent, error) {
 	if graph.State.Terminal() {
 		return graph, graphUnpins(graph), nil
 	}
@@ -367,6 +376,8 @@ type IntentRelay struct {
 	ID        string
 	BatchSize int
 	Lease     time.Duration
+	OnError   func(error)
+	Events    EventSink
 }
 
 func (r *IntentRelay) Tick(ctx context.Context) error {
@@ -398,6 +409,15 @@ func (r *IntentRelay) Tick(ctx context.Context) error {
 				continue
 			}
 			switch intent.Kind {
+			case "replace":
+				err = r.createReplacement(ctx, intent)
+			case "replacement_complete":
+				err = r.completeReplacement(ctx, intent)
+			case "cancel_workflow":
+				if intent.Envelope == nil || r.Client.config.Workflows == nil {
+					return ErrInvalid
+				}
+				err = r.Client.config.Workflows.CancelGraph(ctx, intent.WorkflowID, intent.Envelope.Scope, r.Client.advance)
 			case "cancel":
 				err = r.cancelTask(ctx, intent, lease)
 			case "fail":
@@ -442,6 +462,11 @@ func (r *IntentRelay) Tick(ctx context.Context) error {
 				return ErrInvalid
 			}
 			if err != nil {
+				// Cancellation can precede replacement graph creation. Retain
+				// it for retry without blocking graph dispatch in this batch.
+				if intent.Kind == "cancel_workflow" && errors.Is(err, ErrNotFound) {
+					continue
+				}
 				return err
 			}
 			if err := source.MarkIntentDelivered(ctx, intent.SourceID, intent.ID, intent.Fence, r.ID); err != nil {

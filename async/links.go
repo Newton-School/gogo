@@ -78,6 +78,7 @@ func (w *Worker) linkedIntents(parent Envelope, t Transition) ([]Intent, error) 
 			eta = created.Add(bound.Options.Countdown)
 		}
 		e := Envelope{ProtocolVersion: ProtocolVersion, ID: id, Task: bound.Task, Version: bound.Version, Args: bound.Args, CreatedAt: created, Queue: queue, MaxRetries: definition.options.Retry.MaxRetries, ETA: eta, ExpiresAt: bound.Options.ExpiresAt, Priority: bound.Options.Priority, Scope: parent.Scope, Principal: parent.Principal, ParentID: parent.ID, RootID: parent.RootID, Headers: bound.Options.Headers, Stamps: bound.Options.Stamps, Callbacks: bound.Callbacks, Errbacks: bound.Errbacks}
+		e.ReplacementDepth = parent.ReplacementDepth
 		if e.RootID == "" {
 			e.RootID = parent.ID
 		}

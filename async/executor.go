@@ -26,11 +26,12 @@ type ProcessExecutor struct {
 	MaxOutputBytes int
 }
 type childResponse struct {
-	Output    json.RawMessage `json:"output,omitempty"`
-	Failure   *Failure        `json:"failure,omitempty"`
-	Retry     bool            `json:"retry"`
-	Countdown *time.Duration  `json:"countdown,omitempty"`
-	ETA       time.Time       `json:"eta,omitempty"`
+	Output      json.RawMessage `json:"output,omitempty"`
+	Failure     *Failure        `json:"failure,omitempty"`
+	Retry       bool            `json:"retry"`
+	Countdown   *time.Duration  `json:"countdown,omitempty"`
+	ETA         time.Time       `json:"eta,omitempty"`
+	Replacement *Canvas         `json:"replacement,omitempty"`
 }
 type boundedBuffer struct {
 	bytes.Buffer
@@ -76,6 +77,12 @@ func (p *ProcessExecutor) Execute(ctx context.Context, e Execution) (json.RawMes
 	if err := decodeJSON(stdout.Bytes(), &response); err != nil {
 		return nil, ErrInvalid
 	}
+	if response.Replacement != nil {
+		if response.Retry || response.Failure != nil || len(response.Output) != 0 {
+			return nil, ErrInvalid
+		}
+		return nil, Replace(*response.Replacement)
+	}
 	if response.Retry {
 		return nil, &RetryRequest{Cause: response.Failure, Countdown: response.Countdown, ETA: response.ETA}
 	}
@@ -114,7 +121,7 @@ func (r *Registry) ServeChild(ctx context.Context, input io.Reader, output io.Wr
 	}
 	tc := execution.TaskContext
 	e := execution.Envelope
-	if tc.ID != e.ID || tc.Scope != e.Scope || tc.Principal != e.Principal || tc.Retries != e.Retries {
+	if tc.ID != e.ID || tc.Scope != e.Scope || tc.Principal != e.Principal || tc.Retries != e.Retries || tc.ReplacementDepth != e.ReplacementDepth {
 		return ErrInvalid
 	}
 	response := func() (response childResponse) {
@@ -142,6 +149,10 @@ func (r *Registry) ServeChild(ctx context.Context, input io.Reader, output io.Wr
 			return childResponse{Output: value}
 		}
 		failure := &Failure{Code: "FAILED", Message: "Task subprocess handler failed"}
+		var replacement *ReplacementRequest
+		if errors.As(err, &replacement) {
+			return childResponse{Replacement: &replacement.Canvas}
+		}
 		var retry *RetryRequest
 		if errors.As(err, &retry) {
 			return childResponse{Failure: failure, Retry: true, Countdown: retry.Countdown, ETA: retry.ETA}

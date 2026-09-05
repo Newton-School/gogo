@@ -37,7 +37,7 @@ func (w *Worker) admit(ctx context.Context, d *definition, envelope Envelope) (f
 			release()
 			return nil, err
 		}
-		if err == nil && (current.State.Terminal() || current.CancelRequested) || !envelope.ExpiresAt.IsZero() && !w.Clock().Before(envelope.ExpiresAt) {
+		if err == nil && (current.State.Terminal() || current.CancelRequested || current.ReplacementID != "") || !envelope.ExpiresAt.IsZero() && !w.Clock().Before(envelope.ExpiresAt) {
 			return release, nil
 		}
 		allowed, retryAfter, err := w.allowRate(ctx, key, *d.options.Rate)

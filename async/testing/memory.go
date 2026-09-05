@@ -252,6 +252,42 @@ func (m *Memory) Transition(ctx context.Context, t async.Transition) error {
 	}
 	return nil
 }
+
+func (m *Memory) ResolveReplacement(ctx context.Context, id, workflowID string, finalize func(async.Record) (async.Transition, error)) (bool, error) {
+	if err := m.check(ctx, "resolve_replacement"); err != nil {
+		return false, err
+	}
+	if finalize == nil {
+		return false, async.ErrInvalid
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	record, exists := m.records[id]
+	if !exists {
+		return false, async.ErrNotFound
+	}
+	if record.ReplacementID != workflowID || workflowID == "" {
+		return false, async.ErrConflict
+	}
+	if record.State.Terminal() {
+		return false, nil
+	}
+	transition, err := finalize(copyOf(record))
+	if err != nil {
+		return false, err
+	}
+	next, err := async.ApplyReplacementOutcome(record, workflowID, transition, m.Clock(), 24*time.Hour, 7*24*time.Hour)
+	if err != nil {
+		return false, err
+	}
+	m.records[id] = next
+	for _, intent := range transition.Intents {
+		if _, exists := m.intents[intent.ID]; !exists {
+			m.intents[intent.ID] = copyOf(intent)
+		}
+	}
+	return true, nil
+}
 func (m *Memory) RecordProgress(ctx context.Context, id string, fence uint64, owner string, b json.RawMessage) error {
 	if err := m.check(ctx, "progress"); err != nil {
 		return err
@@ -289,6 +325,11 @@ func (m *Memory) RequestCancel(ctx context.Context, id, scope string) error {
 	r.CancelRequested = true
 	r.Revision++
 	m.records[id] = r
+	for _, intent := range async.ReplacementCancellationIntents(r) {
+		if _, exists := m.intents[intent.ID]; !exists {
+			m.intents[intent.ID] = copyOf(intent)
+		}
+	}
 	return nil
 }
 func (m *Memory) Forget(ctx context.Context, id string) error {

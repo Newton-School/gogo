@@ -34,7 +34,7 @@ func ClaimRecord(record Record, e Envelope, owner string, now time.Time, lease t
 	if record.Digest != e.Digest() {
 		return Claim{}, ErrConflict
 	}
-	if record.State.Terminal() || e.Retries < record.Envelope.Retries {
+	if record.State.Terminal() || record.ReplacementID != "" || e.Retries < record.Envelope.Retries {
 		return Claim{Record: record, Duplicate: true}, nil
 	}
 	if e.Retries > record.Envelope.Retries {
@@ -67,6 +67,31 @@ func ApplyTransition(record Record, t Transition, now time.Time, resultTTL, tomb
 	if err := ValidateLease(record, t.Fence, t.Owner, now); err != nil {
 		return Record{}, err
 	}
+	if t.ReplacementID != "" {
+		if t.ID != record.Envelope.ID || t.State != Running || len(t.Intents) != 1 || t.Intents[0].Kind != "replace" || t.Intents[0].Graph == nil || t.Intents[0].Graph.ID != t.ReplacementID || t.Intents[0].Graph.OriginTaskID != t.ID || t.Intents[0].Graph.OriginDigest != record.Digest || len(t.Output) != 0 || t.Next != nil || t.Failure != nil {
+			return Record{}, ErrInvalid
+		}
+		graph := t.Intents[0].Graph
+		if !idPattern.MatchString(t.ReplacementID) || graph.Scope != record.Envelope.Scope || graph.State != Running || graph.Revision != 1 || graph.Kind != "dag" || graph.RootNode == "" || graph.Members == nil || len(graph.Members) != 0 || t.Intents[0].SourceID != t.ID || t.Intents[0].WorkflowID != t.ReplacementID {
+			return Record{}, ErrInvalid
+		}
+		if record.CancelRequested {
+			return Record{}, ErrCanceled
+		}
+		record = cloneJSON(record)
+		record.ReplacementID = t.ReplacementID
+		for _, child := range graph.Children {
+			record.ReplayUntil = later(record.ReplayUntil, later(child.ETA, child.ExpiresAt))
+		}
+		record.Revision++
+		record.Owner = ""
+		record.LeaseUntil = time.Time{}
+		return record, nil
+	}
+	return applyOutcome(record, t, now, resultTTL, tombstoneTTL)
+}
+
+func applyOutcome(record Record, t Transition, now time.Time, resultTTL, tombstoneTTL time.Duration) (Record, error) {
 	if t.ID != record.Envelope.ID || (!t.State.Terminal() && t.State != RetryWait) {
 		return Record{}, ErrInvalid
 	}
@@ -101,6 +126,18 @@ func ApplyTransition(record Record, t Transition, now time.Time, resultTTL, tomb
 		record.TombstoneUntil = later(now, record.ReplayUntil).Add(tombstoneTTL)
 	}
 	return record, nil
+}
+
+// ApplyReplacementOutcome is the backend-neutral replacement completion CAS.
+// Its caller must persist the new revision and transition intents atomically.
+func ApplyReplacementOutcome(record Record, workflowID string, t Transition, now time.Time, resultTTL, tombstoneTTL time.Duration) (Record, error) {
+	if record.ReplacementID == "" || record.ReplacementID != workflowID || record.State != Running || record.Owner != "" || !record.LeaseUntil.IsZero() {
+		return Record{}, ErrConflict
+	}
+	if !t.State.Terminal() || t.Next != nil || t.ReplacementID != "" || record.CancelRequested && t.State != Revoked {
+		return Record{}, ErrInvalid
+	}
+	return applyOutcome(record, t, now, resultTTL, tombstoneTTL)
 }
 
 func CompletionIntents(e Envelope, state State, output json.RawMessage, failure *Failure) []Intent {

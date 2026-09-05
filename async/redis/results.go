@@ -289,13 +289,59 @@ func (r *Results) RequestCancel(ctx context.Context, id, scope string) error {
 		expected := record.Revision
 		record.CancelRequested = true
 		record.Revision++
-		err = r.cas(ctx, expected, record, "update", 0, "", 0, nil)
+		err = r.cas(ctx, expected, record, "update", 0, "", 0, async.ReplacementCancellationIntents(record))
 		if errors.Is(err, async.ErrConflict) {
 			continue
 		}
 		return err
 	}
 	return async.ErrBusy
+}
+
+func (r *Results) ResolveReplacement(ctx context.Context, id, workflowID string, finalize func(async.Record) (async.Transition, error)) (bool, error) {
+	if err := r.valid(); err != nil {
+		return false, err
+	}
+	if finalize == nil || workflowID == "" {
+		return false, async.ErrInvalid
+	}
+	resultTTL, tombstoneTTL := r.ResultTTL, r.TombstoneTTL
+	if resultTTL == 0 {
+		resultTTL = 24 * time.Hour
+	}
+	if tombstoneTTL == 0 {
+		tombstoneTTL = 7 * 24 * time.Hour
+	}
+	for attempt := 0; attempt < 16; attempt++ {
+		record, err := r.read(ctx, id)
+		if err != nil {
+			return false, err
+		}
+		if record.ReplacementID != workflowID {
+			return false, async.ErrConflict
+		}
+		if record.State.Terminal() {
+			return false, nil
+		}
+		transition, err := finalize(record)
+		if err != nil {
+			return false, err
+		}
+		now, err := connector.ServerTime(ctx, r.Connection.Client())
+		if err != nil {
+			return false, err
+		}
+		next, err := async.ApplyReplacementOutcome(record, workflowID, transition, now, resultTTL, tombstoneTTL)
+		if err != nil {
+			return false, err
+		}
+		err = r.cas(ctx, record.Revision, next, "update", 0, "", 0, transition.Intents)
+		if errors.Is(err, async.ErrConflict) {
+			continue
+		}
+		return err == nil, err
+	}
+	return false, async.ErrBusy
 }
 func (r *Results) Forget(ctx context.Context, id string) error {
 	for attempt := 0; attempt < 16; attempt++ {

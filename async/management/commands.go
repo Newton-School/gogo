@@ -203,7 +203,7 @@ func Commands(f Factories) []core.Command {
 				}
 				// Status never prints task arguments, headers, principal, progress
 				// or result payload; result access is an explicit separate action.
-				return json.NewEncoder(invocation.Stdout).Encode(map[string]any{"task_id": args[1], "state": record.State, "retries": record.Envelope.Retries, "delivery_count": record.DeliveryCount, "cancellation_requested": record.CancelRequested})
+				return json.NewEncoder(invocation.Stdout).Encode(map[string]any{"task_id": args[1], "state": record.State, "retries": record.Envelope.Retries, "delivery_count": record.DeliveryCount, "cancellation_requested": record.CancelRequested, "replacement_id": record.ReplacementID})
 			}
 		}}, core.Command{Name: "queues", Help: "Inspect declared queue counters through the scope policy", Resources: append([]string(nil), f.ClientResources...), OpenResources: true, Validate: func(args []string) error {
 			if len(args) < 2 || len(args) > 65 || args[0] != "inspect" {

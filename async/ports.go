@@ -57,6 +57,9 @@ type Record struct {
 	TombstoneUntil   time.Time       `json:"tombstone_until,omitempty"`
 	ReplayUntil      time.Time       `json:"replay_until,omitempty"`
 	Pinned           bool            `json:"pinned"`
+	// ReplacementID owns logical completion while execution has yielded. The
+	// state remains RUNNING, but no worker lease or slot is retained.
+	ReplacementID string `json:"replacement_id,omitempty"`
 }
 
 type Claim struct {
@@ -65,14 +68,22 @@ type Claim struct {
 	Duplicate bool
 }
 type Transition struct {
-	ID      string
-	Fence   uint64
-	Owner   string
-	State   State
-	Output  json.RawMessage
-	Failure *Failure
-	Next    *Envelope
-	Intents []Intent
+	ID            string
+	Fence         uint64
+	Owner         string
+	State         State
+	Output        json.RawMessage
+	Failure       *Failure
+	Next          *Envelope
+	Intents       []Intent
+	ReplacementID string
+}
+
+// ReplacementStore completes a yielded task with the current record revision.
+// finalize is a pure transition builder and may run again after a CAS conflict.
+// A terminal matching replacement is an idempotent no-op.
+type ReplacementStore interface {
+	ResolveReplacement(context.Context, string, string, func(Record) (Transition, error)) (bool, error)
 }
 
 type ResultStore interface {
@@ -98,6 +109,7 @@ type Intent struct {
 	Completion *Completion `json:"completion,omitempty"`
 	Failure    *Failure    `json:"failure,omitempty"`
 	State      State       `json:"state,omitempty"`
+	Graph      *Graph      `json:"graph,omitempty"`
 	Fence      uint64      `json:"fence"`
 	Owner      string      `json:"owner"`
 	LeaseUntil time.Time   `json:"lease_until"`
@@ -136,6 +148,8 @@ type Graph struct {
 	CancelRequested  bool                  `json:"cancel_requested"`
 	Plan             []CanvasNode          `json:"plan,omitempty"`
 	RootNode         string                `json:"root_node,omitempty"`
+	OriginTaskID     string                `json:"origin_task_id,omitempty"`
+	OriginDigest     string                `json:"origin_digest,omitempty"`
 }
 
 // CanvasNode is a portable compiled workflow node. Collect nodes execute no

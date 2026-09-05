@@ -14,19 +14,20 @@ import (
 )
 
 type TaskContext struct {
-	ID            string
-	Retries       int
-	DeliveryCount int64
-	Fence         uint64
-	WorkerID      string
-	WorkflowID    string
-	ParentID      string
-	RootID        string
-	Scope         string
-	Principal     string
-	Headers       map[string]string
-	Stamps        map[string]string
-	progress      func(context.Context, json.RawMessage) error
+	ID               string
+	Retries          int
+	DeliveryCount    int64
+	Fence            uint64
+	WorkerID         string
+	WorkflowID       string
+	ParentID         string
+	RootID           string
+	Scope            string
+	Principal        string
+	Headers          map[string]string
+	Stamps           map[string]string
+	ReplacementDepth int
+	progress         func(context.Context, json.RawMessage) error
 }
 
 func (t TaskContext) Progress(ctx context.Context, value any) error {
@@ -39,7 +40,8 @@ func (t TaskContext) Progress(ctx context.Context, value any) error {
 	}
 	return t.progress(ctx, b)
 }
-func (t TaskContext) Retry(err error) error { return Retry(err) }
+func (t TaskContext) Retry(err error) error       { return Retry(err) }
+func (t TaskContext) Replace(canvas Canvas) error { return Replace(canvas) }
 
 type Hooks struct {
 	BeforeStart func(context.Context, TaskContext) error

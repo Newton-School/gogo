@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"math/rand/v2"
+	"reflect"
 	"runtime"
 	"sync"
 	"time"
@@ -13,9 +14,12 @@ import (
 )
 
 type Worker struct {
-	Registry    *Registry
-	Broker      Broker
-	Results     ResultStore
+	Registry *Registry
+	Broker   Broker
+	Results  ResultStore
+	// Client enables Replace. It must use this exact Registry and ResultStore;
+	// its WorkflowStore is the durable replacement coordination authority.
+	Client      *Client
 	ID          string
 	Queues      []string
 	Concurrency int
@@ -45,6 +49,12 @@ func (w *Worker) initialize() error {
 func (w *Worker) defaults() error {
 	if w.Registry == nil || w.Broker == nil || w.Results == nil {
 		return ErrInvalid
+	}
+	if w.Client != nil {
+		_, supported := w.Results.(ReplacementStore)
+		if !supported || w.Client.config.Registry != w.Registry || w.Client.config.Workflows == nil || !reflect.TypeOf(w.Results).Comparable() || w.Client.config.Results != w.Results {
+			return ErrInvalid
+		}
 	}
 	if w.ID == "" {
 		id, err := NewID()
@@ -211,7 +221,7 @@ func (w *Worker) Process(ctx context.Context, delivery Delivery) error {
 	w.activity(e)
 	defer w.inactive(e.ID)
 	w.event(ctx, e, "task_started", Running)
-	tc := TaskContext{ID: e.ID, Retries: e.Retries, DeliveryCount: record.DeliveryCount, Fence: record.Fence, WorkerID: w.ID, WorkflowID: e.WorkflowID, ParentID: e.ParentID, RootID: e.RootID, Scope: e.Scope, Principal: e.Principal, Headers: cloneJSON(e.Headers), Stamps: cloneJSON(e.Stamps)}
+	tc := TaskContext{ID: e.ID, Retries: e.Retries, DeliveryCount: record.DeliveryCount, Fence: record.Fence, WorkerID: w.ID, WorkflowID: e.WorkflowID, ParentID: e.ParentID, RootID: e.RootID, Scope: e.Scope, Principal: e.Principal, Headers: cloneJSON(e.Headers), Stamps: cloneJSON(e.Stamps), ReplacementDepth: e.ReplacementDepth}
 	tc.progress = func(ctx context.Context, b json.RawMessage) error {
 		return w.Results.RecordProgress(ctx, e.ID, tc.Fence, w.ID, b)
 	}
@@ -280,12 +290,30 @@ func (w *Worker) Process(ctx context.Context, delivery Delivery) error {
 			runErr = context.Canceled
 		}
 	}
+	var replacement *ReplacementRequest
+	if state == Succeeded && errors.As(runErr, &replacement) {
+		graph, err := w.prepareReplacement(ctx, e, d, replacement.Canvas)
+		if err != nil {
+			state, output = Failed, nil
+			runErr = Failure{Code: "REPLACEMENT_INVALID", Message: "Task replacement could not be prepared"}
+		} else {
+			err = w.yieldReplacement(ctx, e, record, graph)
+			if errors.Is(err, ErrCanceled) {
+				state, output, runErr = Revoked, nil, context.Canceled
+			} else if err != nil {
+				return err
+			} else {
+				w.event(ctx, e, "task_replaced", Running)
+				return w.Broker.Ack(ctx, delivery)
+			}
+		}
+	}
 	transition := Transition{ID: e.ID, Fence: tc.Fence, Owner: w.ID, State: state, Output: output}
 	if runErr != nil {
 		if state == Succeeded {
 			state = Failed
 		}
-		if state == Failed {
+		if state == Failed && replacement == nil {
 			if eta, ok := d.options.Retry.Next(runErr, e.Retries, w.Clock(), e.ExpiresAt, w.Jitter()); ok {
 				next := cloneJSON(e)
 				next.Retries++
@@ -358,7 +386,7 @@ func (w *Worker) invoke(ctx context.Context, d *definition, tc TaskContext, args
 			ctx, cancel = context.WithTimeout(ctx, d.options.HardLimit)
 			defer cancel()
 		}
-		e := Envelope{ProtocolVersion: ProtocolVersion, ID: tc.ID, Task: d.name, Version: d.version, Args: args, CreatedAt: w.Clock().UTC(), Queue: d.options.Queue, Retries: tc.Retries, MaxRetries: d.options.Retry.MaxRetries, Scope: tc.Scope, Principal: tc.Principal, WorkflowID: tc.WorkflowID, ParentID: tc.ParentID, RootID: tc.RootID, Headers: tc.Headers, Stamps: tc.Stamps}
+		e := Envelope{ProtocolVersion: ProtocolVersion, ID: tc.ID, Task: d.name, Version: d.version, Args: args, CreatedAt: w.Clock().UTC(), Queue: d.options.Queue, Retries: tc.Retries, MaxRetries: d.options.Retry.MaxRetries, Scope: tc.Scope, Principal: tc.Principal, WorkflowID: tc.WorkflowID, ParentID: tc.ParentID, RootID: tc.RootID, Headers: tc.Headers, Stamps: tc.Stamps, ReplacementDepth: tc.ReplacementDepth}
 		output, err := w.Executor.Execute(ctx, Execution{Envelope: e, TaskContext: tc})
 		if err != nil {
 			return nil, err

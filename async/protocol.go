@@ -29,6 +29,7 @@ var (
 	ErrWorkerJoin    = errors.New("async: synchronous result waits inside workers are forbidden")
 	ErrDenied        = errors.New("async: operation denied")
 	ErrUnavailable   = errors.New("async: backend unavailable")
+	ErrCanceled      = errors.New("async: cancellation was recorded")
 )
 
 var namePattern = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9_.-]{0,191}$`)
@@ -53,33 +54,37 @@ func (s State) Terminal() bool { return s == Succeeded || s == Failed || s == Re
 // Envelope is the versioned JSON wire format. IDs never contain secrets.
 // Retries counts explicit application retries, not broker delivery attempts.
 type Envelope struct {
-	ProtocolVersion int               `json:"protocol_version"`
-	ID              string            `json:"task_id"`
-	Task            string            `json:"task_name"`
-	Version         int               `json:"task_version"`
-	Args            json.RawMessage   `json:"args"`
-	CreatedAt       time.Time         `json:"created_at"`
-	Queue           string            `json:"queue"`
-	Retries         int               `json:"retries"`
-	MaxRetries      *int              `json:"max_retries"`
-	ETA             time.Time         `json:"eta,omitempty"`
-	ExpiresAt       time.Time         `json:"expires_at,omitempty"`
-	Priority        int               `json:"priority"`
-	WorkflowID      string            `json:"workflow_id,omitempty"`
-	ParentID        string            `json:"parent_id,omitempty"`
-	RootID          string            `json:"root_id,omitempty"`
-	Scope           string            `json:"scope,omitempty"`
-	Principal       string            `json:"principal,omitempty"`
-	IdempotencyKey  string            `json:"idempotency_key,omitempty"`
-	CorrelationID   string            `json:"correlation_id,omitempty"`
-	Headers         map[string]string `json:"headers,omitempty"`
-	TraceContext    map[string]string `json:"trace_context,omitempty"`
-	Stamps          map[string]string `json:"stamps,omitempty"`
-	Callbacks       []Signature       `json:"callbacks,omitempty"`
-	Errbacks        []Signature       `json:"errbacks,omitempty"`
+	ProtocolVersion  int               `json:"protocol_version"`
+	ID               string            `json:"task_id"`
+	Task             string            `json:"task_name"`
+	Version          int               `json:"task_version"`
+	Args             json.RawMessage   `json:"args"`
+	CreatedAt        time.Time         `json:"created_at"`
+	Queue            string            `json:"queue"`
+	Retries          int               `json:"retries"`
+	MaxRetries       *int              `json:"max_retries"`
+	ETA              time.Time         `json:"eta,omitempty"`
+	ExpiresAt        time.Time         `json:"expires_at,omitempty"`
+	Priority         int               `json:"priority"`
+	WorkflowID       string            `json:"workflow_id,omitempty"`
+	ParentID         string            `json:"parent_id,omitempty"`
+	RootID           string            `json:"root_id,omitempty"`
+	Scope            string            `json:"scope,omitempty"`
+	Principal        string            `json:"principal,omitempty"`
+	IdempotencyKey   string            `json:"idempotency_key,omitempty"`
+	CorrelationID    string            `json:"correlation_id,omitempty"`
+	Headers          map[string]string `json:"headers,omitempty"`
+	TraceContext     map[string]string `json:"trace_context,omitempty"`
+	Stamps           map[string]string `json:"stamps,omitempty"`
+	Callbacks        []Signature       `json:"callbacks,omitempty"`
+	Errbacks         []Signature       `json:"errbacks,omitempty"`
+	ReplacementDepth int               `json:"replacement_depth,omitempty"`
 }
 
 func (e Envelope) Validate() error {
+	if e.ReplacementDepth < 0 || e.ReplacementDepth > MaxReplacementDepth {
+		return ErrInvalid
+	}
 	if e.ProtocolVersion != ProtocolVersion || !idPattern.MatchString(e.ID) || !namePattern.MatchString(e.Task) || e.Version < 1 || !namePattern.MatchString(e.Queue) || e.CreatedAt.IsZero() || e.Retries < 0 || e.Priority < 0 || e.Priority > 9 || !json.Valid(e.Args) {
 		return ErrInvalid
 	}
