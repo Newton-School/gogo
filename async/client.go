@@ -37,6 +37,11 @@ func NewClient(config ClientConfig) (*Client, error) {
 	if config.Registry == nil || config.Broker == nil || config.Results == nil {
 		return nil, ErrInvalid
 	}
+	// Freeze routing and metadata allowlists at construction. The caller may
+	// reuse or edit its configuration slices without racing future dispatches.
+	config.Queues = append([]string(nil), config.Queues...)
+	config.Routes = append([]Route(nil), config.Routes...)
+	config.AllowedHeaders = append([]string(nil), config.AllowedHeaders...)
 	if err := config.Registry.Freeze(false); err != nil {
 		return nil, err
 	}
