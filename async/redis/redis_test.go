@@ -160,3 +160,86 @@ func TestRealRedisRetryIntentDiscoverability(t *testing.T) {
 		t.Fatal(pending, err)
 	}
 }
+
+func TestRealRedisChordAndDelayedLease(t *testing.T) {
+	ctx := context.Background()
+	broker, results := backends(t)
+	workflows := &adapter.Workflows{Connection: results.Connection}
+	schedules := &adapter.Schedules{Connection: results.Connection}
+	registry := async.NewRegistry()
+	member, err := async.Register(registry, "test.member", 1, func(_ context.Context, _ async.TaskContext, n int) (int, error) { return n + 1, nil }, async.TaskOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	calls := 0
+	body, err := async.Register(registry, "test.body", 1, func(_ context.Context, _ async.TaskContext, values []int) (int, error) {
+		calls++
+		return values[0] + values[1], nil
+	}, async.TaskOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	client, err := async.NewClient(async.ClientConfig{Registry: registry, Broker: broker, Results: results, Workflows: workflows, Schedules: schedules})
+	if err != nil {
+		t.Fatal(err)
+	}
+	one, _ := member.Signature(1)
+	two, _ := member.Signature(3)
+	callback, _ := body.Signature(nil)
+	canvas, _ := async.Chord(async.Group(one, two), callback)
+	group, err := client.ApplyCanvas(ctx, canvas)
+	if err != nil {
+		t.Fatal(err)
+	}
+	relay := &async.IntentRelay{Client: client, Sources: []async.IntentStore{results, workflows}, ID: "relay"}
+	worker := &async.Worker{Registry: registry, Broker: broker, Results: results, ID: "worker"}
+	for i := 0; i < 4; i++ {
+		if err := relay.Tick(ctx); err != nil {
+			t.Fatal(err)
+		}
+		for {
+			d, err := broker.Consume(ctx, async.ConsumeOptions{Queues: []string{"default"}, Consumer: "worker"})
+			if errors.Is(err, async.ErrNotFound) {
+				break
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := worker.Process(ctx, d); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	out, err := group.Join(ctx)
+	if err != nil || len(out) != 1 || string(out[0]) != "6" || calls != 1 {
+		t.Fatal(out, calls, err)
+	}
+	graph, _ := group.Snapshot(ctx)
+	for _, e := range graph.Children {
+		record, err := results.Lookup(ctx, e.ID)
+		if err != nil || record.Pinned {
+			t.Fatal(record, err)
+		}
+	}
+	e := taskEnvelope(t)
+	e.ETA = time.Now().Add(-time.Minute)
+	if err := schedules.Schedule(ctx, e); err != nil {
+		t.Fatal(err)
+	}
+	items, err := schedules.LeaseDue(ctx, "scheduler", 10, time.Minute)
+	if err != nil || len(items) != 1 {
+		t.Fatal(items, err)
+	}
+	wrong := items[0]
+	wrong.Owner = "other"
+	if err := schedules.CommitFire(ctx, wrong); !errors.Is(err, async.ErrLeaseLost) {
+		t.Fatal(err)
+	}
+	if err := schedules.CommitFire(ctx, items[0]); err != nil {
+		t.Fatal(err)
+	}
+	items, err = schedules.LeaseDue(ctx, "scheduler", 10, time.Minute)
+	if err != nil || len(items) != 0 {
+		t.Fatal(items, err)
+	}
+}

@@ -1,0 +1,130 @@
+package async_test
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"testing"
+
+	"github.com/Newton-School/gogo/async"
+	fakes "github.com/Newton-School/gogo/async/testing"
+)
+
+func drain(t *testing.T, client *async.Client, worker *async.Worker, backend *fakes.Memory) {
+	t.Helper()
+	ctx := context.Background()
+	relay := &async.IntentRelay{Client: client, Sources: []async.IntentStore{backend}, ID: "relay"}
+	for turn := 0; turn < 12; turn++ {
+		if err := relay.Tick(ctx); err != nil {
+			t.Fatal(err)
+		}
+		for {
+			d, err := backend.Consume(ctx, async.ConsumeOptions{Queues: []string{"default"}, Consumer: "worker"})
+			if errors.Is(err, async.ErrNotFound) {
+				break
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := worker.Process(ctx, d); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+}
+func TestChainForwardingAndRetentionPinRelease(t *testing.T) {
+	ctx := context.Background()
+	task, client, worker, backend := setup(t, func(_ context.Context, _ async.TaskContext, n int) (int, error) { return n + 1, nil }, async.TaskOptions{})
+	first, _ := task.Signature(1)
+	next, _ := task.Signature(0)
+	result, err := client.ApplyCanvas(ctx, async.Chain(first, next, next))
+	if err != nil {
+		t.Fatal(err)
+	}
+	drain(t, client, worker, backend)
+	outputs, err := result.Join(ctx)
+	if err != nil || len(outputs) != 1 || string(outputs[0]) != "4" {
+		t.Fatal(outputs, err)
+	}
+	graph, _ := result.Snapshot(ctx)
+	for _, child := range graph.Children {
+		record, err := backend.Lookup(ctx, child.ID)
+		if err != nil || record.Pinned {
+			t.Fatal(record, err)
+		}
+		if err := backend.Forget(ctx, child.ID); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+func TestChordOrderedBarrierAndDuplicateCompletion(t *testing.T) {
+	ctx := context.Background()
+	registry := async.NewRegistry()
+	calls := 0
+	member, err := async.Register(registry, "test.member", 1, func(_ context.Context, _ async.TaskContext, n int) (int, error) { return n * 2, nil }, async.TaskOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, err := async.Register(registry, "test.body", 1, func(_ context.Context, _ async.TaskContext, values []int) (int, error) {
+		calls++
+		return values[0] + values[1], nil
+	}, async.TaskOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	backend := fakes.NewMemory()
+	client, err := async.NewClient(async.ClientConfig{Registry: registry, Broker: backend, Results: backend, Workflows: backend})
+	if err != nil {
+		t.Fatal(err)
+	}
+	worker := &async.Worker{Registry: registry, Broker: backend, Results: backend, ID: "worker"}
+	one, _ := member.Signature(2)
+	two, _ := member.Signature(3)
+	callback, _ := body.Signature(nil)
+	canvas, err := async.Chord(async.Group(one, two), callback)
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := client.ApplyCanvas(ctx, canvas)
+	if err != nil {
+		t.Fatal(err)
+	}
+	drain(t, client, worker, backend)
+	outputs, err := result.Join(ctx)
+	if err != nil || string(outputs[0]) != "10" || calls != 1 {
+		t.Fatal(outputs, calls, err)
+	}
+	graph, _ := result.Snapshot(ctx)
+	completion := graph.Members[graph.Children[0].ID]
+	if err := backend.RecordMember(ctx, graph.ID, completion, func(async.Graph) (async.Graph, []async.Intent, error) {
+		t.Fatal("duplicate advanced workflow")
+		return async.Graph{}, nil, nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	unknown, _ := async.NewID()
+	if err := backend.RecordMember(ctx, graph.ID, async.Completion{ID: unknown, State: async.Succeeded, Output: json.RawMessage(`1`)}, func(g async.Graph) (async.Graph, []async.Intent, error) { return g, nil, nil }); !errors.Is(err, async.ErrInvalid) {
+		t.Fatal(err)
+	}
+}
+func TestWorkflowEmptyAndTypeMismatch(t *testing.T) {
+	ctx := context.Background()
+	task, client, worker, backend := setup(t, func(_ context.Context, _ async.TaskContext, n int) (int, error) { return n, nil }, async.TaskOptions{})
+	result, err := client.ApplyCanvas(ctx, async.Group())
+	if err != nil {
+		t.Fatal(err)
+	}
+	outputs, err := result.Join(ctx)
+	if err != nil || len(outputs) != 0 {
+		t.Fatal(outputs, err)
+	}
+	s, _ := task.Signature(1)
+	canvas, err := async.Chord(async.Group(s), s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := client.ApplyCanvas(ctx, canvas); !errors.Is(err, async.ErrInvalid) {
+		t.Fatal(err)
+	}
+	drain(t, client, worker, backend)
+}
