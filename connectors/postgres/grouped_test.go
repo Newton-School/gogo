@@ -72,8 +72,7 @@ func TestGroupedAnnotationsHavingTypedNullsAndScopedCounts(t *testing.T) {
 		"stats": orm.Typed(orm.Func("JSON_BUILD_OBJECT", orm.Value("n"), orm.Sum(orm.F("score"))), models.JSONField("out")),
 	})
 	for _, invalid := range []orm.Query[*models.MapRecord]{
-		grouped.Having(orm.Q("score__gt", 1)), grouped.Filter(orm.Q("count__gt", 1)), grouped.OrderBy("score"), grouped.SelectForUpdate(false, false), grouped.Distinct(), base.GroupBy("category", "category"), base.GroupBy("category").Annotate(map[string]orm.ResultExpression{"bad": orm.Typed(orm.Sum(orm.Sum(orm.F("score"))), integer)}), base.GroupBy("category").Annotate(map[string]orm.ResultExpression{"loop": orm.Typed(orm.F("loop"), integer)}), base.GroupBy("category").Annotate(map[string]orm.ResultExpression{"window": orm.Typed(orm.Func("ROW_NUMBER"), integer)}),
-		jsonStats.Filter(orm.Q("stats__n__gt", 1)),
+		grouped.Having(orm.Q("score__gt", 1)), grouped.OrderBy("score"), grouped.SelectForUpdate(false, false), grouped.Distinct(), base.GroupBy("category", "category"), base.GroupBy("category").Annotate(map[string]orm.ResultExpression{"bad": orm.Typed(orm.Sum(orm.Sum(orm.F("score"))), integer)}), base.GroupBy("category").Annotate(map[string]orm.ResultExpression{"loop": orm.Typed(orm.F("loop"), integer)}), base.GroupBy("category").Annotate(map[string]orm.ResultExpression{"window": orm.Typed(orm.Func("ROW_NUMBER"), integer)}),
 		jsonStats.Filter(orm.Q("score__in", []db.Expression{orm.F("stats__n")})),
 		jsonStats.Annotate(map[string]orm.ResultExpression{"nested": orm.Typed(orm.Sum(orm.F("stats__n")), integer)}),
 	} {

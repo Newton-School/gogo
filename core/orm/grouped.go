@@ -24,8 +24,9 @@ func (q Query[T]) GroupBy(fields ...string) Query[T] {
 }
 
 // Having filters explicit or implicit model groups after aggregation. Filter
-// remains a pre-group row predicate and cannot contain aggregate references;
-// it is never silently moved across the grouping boundary.
+// automatically separates ordinary rows from aggregate-dependent conditions.
+// Mixed OR/negated subtrees stay connected; their nonaggregate fields must be
+// valid group keys. Trusted QueryScope predicates always remain before grouping.
 func (q Query[T]) Having(predicates ...db.Predicate) Query[T] {
 	q = q.clone()
 	if len(q.selectAST.GroupBy) == 0 && !q.modelGrouping {

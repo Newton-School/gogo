@@ -23,8 +23,9 @@ import (
 // Existing aliases cannot be redefined. Aggregate annotations implicitly group
 // by each root model's stored fields and explicitly selected to-one joins, so
 // model identity and hydration are preserved. GroupBy instead requests grouped
-// Values, not model instances. Having is the explicit aggregate filter; Filter
-// remains pre-group in this path. Window annotations require a separate window
+// Values, not model instances. Filter routes aggregate-dependent conditions to
+// HAVING while keeping ordinary row conditions before grouping. Having applies
+// an explicit group condition. Window annotations require a separate window
 // execution path. Construction snapshots data and invokes no provider hook.
 func (q Query[T]) Annotate(expressions map[string]ResultExpression) Query[T] {
 	q = q.clone()

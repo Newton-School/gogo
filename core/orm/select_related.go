@@ -8,6 +8,7 @@ import (
 
 	"github.com/Newton-School/gogo/core/db"
 	"github.com/Newton-School/gogo/core/models"
+	"github.com/Newton-School/gogo/internal/sqlcompiler"
 )
 
 // QueryScope applies trusted application scope independently to every schema.
@@ -38,6 +39,14 @@ func (q Query[T]) prepareRelated(ctx context.Context) (Query[T], error) {
 		return q, q.err
 	}
 	q = q.clone()
+	if q.modelGrouping || len(q.selectAST.GroupBy) > 0 {
+		where, having, err := sqlcompiler.SplitAggregateFilters(q.schema, q.selectAST.Where, q.selectAST.Aliases)
+		if err != nil {
+			return q, err
+		}
+		q.selectAST.Where = where
+		q.selectAST.Having = And(q.selectAST.Having, having)
+	}
 	if q.selectAST.ForUpdate {
 		if err := q.store.Backend.Capabilities().Require("row_locks"); err != nil {
 			return q, err

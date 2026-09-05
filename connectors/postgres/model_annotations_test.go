@@ -73,7 +73,7 @@ func TestModelAggregateAnnotationsPreserveTypedIdentityProjectionAndSave(t *test
 	}
 	counted := &countedBackend{Backend: store.Backend}
 	store.Backend = counted
-	for _, invalid := range []orm.Query[*product]{query.Filter(orm.Q("rows__gt", 0)), query.Distinct(), query.DistinctOn("id"), query.SelectForUpdate(false, false), query.Annotate(map[string]orm.ResultExpression{"bad": orm.Typed(orm.Sum(orm.F("maximum")), models.DecimalField("out", 10, 2))})} {
+	for _, invalid := range []orm.Query[*product]{query.Distinct(), query.DistinctOn("id"), query.SelectForUpdate(false, false), query.Annotate(map[string]orm.ResultExpression{"bad": orm.Typed(orm.Sum(orm.F("maximum")), models.DecimalField("out", 10, 2))})} {
 		if _, err := invalid.All(ctx); err == nil || counted.queries.Load() != 0 {
 			t.Fatal("unsupported model group executed SQL", err)
 		}
