@@ -10,14 +10,82 @@ import (
 	"strings"
 )
 
-type SchemaEditor struct{ Dialect Dialect }
+type SchemaEditor struct {
+	Dialect Dialect
+	schemas map[string]models.Schema
+}
+
+func (e SchemaEditor) WithSchemas(schemas []models.Schema) (db.SchemaEditor, error) {
+	e.schemas = map[string]models.Schema{}
+	for _, schema := range schemas {
+		if err := schema.Validate(); err != nil {
+			return nil, err
+		}
+		e.schemas[schema.Key()] = schema.Clone()
+	}
+	return e, nil
+}
+
+func (e SchemaEditor) relationTarget(field models.Field) (models.Schema, models.Field, error) {
+	if field.Relation == nil {
+		return models.Schema{}, models.Field{}, errors.New("postgres: relation metadata missing")
+	}
+	target, ok := e.schemas[field.Relation.Target]
+	if !ok {
+		return target, models.Field{}, errors.New("postgres: historical relation target schema missing")
+	}
+	keys := field.Relation.TargetFields
+	if len(keys) == 0 {
+		for _, key := range target.PKFields() {
+			keys = append(keys, key.Name)
+		}
+	}
+	if len(keys) != 1 {
+		return target, models.Field{}, errors.New("postgres: scalar relation requires exactly one target field")
+	}
+	value, ok := target.Field(keys[0])
+	if !ok {
+		return target, value, errors.New("postgres: unknown relation target field")
+	}
+	return target, value, nil
+}
 
 func (e SchemaEditor) column(field models.Field) (string, error) {
 	name, err := e.Dialect.QuoteIdentifier(field.DBColumn())
 	if err != nil {
 		return "", err
 	}
-	kind, err := e.Dialect.FieldType(field)
+	typeField := field
+	var reference string
+	if field.Kind == models.ForeignKey || field.Kind == models.OneToOne {
+		target, targetField, err := e.relationTarget(field)
+		if err != nil {
+			return "", err
+		}
+		typeField = targetField
+		switch typeField.Kind {
+		case models.SmallAuto:
+			typeField.Kind = models.SmallInteger
+		case models.Auto:
+			typeField.Kind = models.Integer
+		case models.BigAuto:
+			typeField.Kind = models.BigInteger
+		}
+		if !field.Relation.NoConstraint {
+			table, err := e.Dialect.QuoteIdentifier(target.DBTable())
+			if err != nil {
+				return "", err
+			}
+			column, err := e.Dialect.QuoteIdentifier(targetField.DBColumn())
+			if err != nil {
+				return "", err
+			}
+			// Cascades are owned by the ORM collector. Database NO ACTION prevents
+			// a concurrent or invisible child from bypassing its scope and hooks.
+			reference = " REFERENCES " + table + " (" + column + ") DEFERRABLE INITIALLY DEFERRED"
+		}
+	}
+	kind, err := e.Dialect.FieldType(typeField)
 	if err != nil {
 		return "", err
 	}
@@ -25,7 +93,7 @@ func (e SchemaEditor) column(field models.Field) (string, error) {
 	if !field.Null {
 		sql += " NOT NULL"
 	}
-	if field.Unique {
+	if field.Unique || field.Kind == models.OneToOne {
 		sql += " UNIQUE"
 	}
 	if field.DBDefault != "" {
@@ -37,7 +105,7 @@ func (e SchemaEditor) column(field models.Field) (string, error) {
 	if field.Kind == models.PositiveSmallInteger || field.Kind == models.PositiveInteger || field.Kind == models.PositiveBigInteger {
 		sql += " CHECK (" + name + " >= 0)"
 	}
-	return sql, nil
+	return sql + reference, nil
 }
 func (e SchemaEditor) CreateModel(ctx context.Context, executor db.Executor, schema models.Schema) error {
 	if schema.Unmanaged || schema.Proxy || schema.Abstract {

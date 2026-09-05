@@ -43,6 +43,10 @@ func (e *Executor) SQL(ctx context.Context, key string, reverse bool) ([]Stateme
 	if e.Editor == nil {
 		return nil, errors.New("migrations: schema editor is required for SQL rendering")
 	}
+	resolved, err := e.withHistoricalSchemas(key)
+	if err != nil {
+		return nil, err
+	}
 	recorder := &recordingExecutor{}
 	operations := append([]Operation(nil), migration.Operations...)
 	if reverse {
@@ -55,7 +59,7 @@ func (e *Executor) SQL(ctx context.Context, key string, reverse bool) ([]Stateme
 			recorder.statements = append(recorder.statements, Statement{Comment: "Run data callback " + operation.CodeID})
 			continue
 		}
-		if err := e.run(ctx, recorder, operation, reverse); err != nil {
+		if err := resolved.run(ctx, recorder, operation, reverse); err != nil {
 			return nil, err
 		}
 	}
@@ -306,10 +310,14 @@ func (e *Executor) Reverse(ctx context.Context, target string) (err error) {
 		if !remove[m.Key()] || applied[m.Key()] == "" {
 			continue
 		}
+		migrationEngine, err := e.withHistoricalSchemas(m.Key())
+		if err != nil {
+			return err
+		}
 		run := func(txCtx context.Context) error {
 			executor := db.ExecutorFor(txCtx, e.Backend)
 			for j := len(m.Operations) - 1; j >= 0; j-- {
-				if err := e.run(txCtx, executor, m.Operations[j], true); err != nil {
+				if err := migrationEngine.run(txCtx, executor, m.Operations[j], true); err != nil {
 					return err
 				}
 			}

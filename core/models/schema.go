@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"sort"
 	"strings"
 	"sync"
 )
@@ -325,6 +326,22 @@ func (r *Registry) Get(key string) (Schema, bool) {
 	defer r.mu.RUnlock()
 	s, ok := r.schemas[key]
 	return s.Clone(), ok
+}
+
+// All returns a deterministic, independent snapshot for relation graph walkers.
+func (r *Registry) All() []Schema {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	keys := make([]string, 0, len(r.schemas))
+	for key := range r.schemas {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	result := make([]Schema, 0, len(keys))
+	for _, key := range keys {
+		result = append(result, r.schemas[key].Clone())
+	}
+	return result
 }
 func (r *Registry) Freeze() error {
 	r.mu.Lock()

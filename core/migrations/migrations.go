@@ -87,6 +87,21 @@ type Executor struct {
 }
 type Applied struct{ Key, Checksum string }
 
+func (e *Executor) withHistoricalSchemas(target string) (*Executor, error) {
+	copy := *e
+	if resolver, ok := e.Editor.(db.SchemaResolverEditor); ok {
+		schemas, err := e.State(target)
+		if err != nil {
+			return nil, err
+		}
+		copy.Editor, err = resolver.WithSchemas(schemas)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return &copy, nil
+}
+
 var migrationName = regexp.MustCompile(`^[A-Za-z0-9_]{1,128}$`)
 
 func (e *Executor) Plan(target string) ([]Migration, error) {
@@ -240,11 +255,15 @@ func (e *Executor) Apply(ctx context.Context, target string) (err error) {
 		if _, ok := applied[m.Key()]; ok {
 			continue
 		}
+		migrationEngine, err := e.withHistoricalSchemas(m.Key())
+		if err != nil {
+			return err
+		}
 		sum, _ := m.Checksum()
 		run := func(txCtx context.Context) error {
 			executor := db.ExecutorFor(txCtx, e.Backend)
 			for _, operation := range m.Operations {
-				if err := e.run(txCtx, executor, operation, false); err != nil {
+				if err := migrationEngine.run(txCtx, executor, operation, false); err != nil {
 					return err
 				}
 			}

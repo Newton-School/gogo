@@ -16,9 +16,10 @@ var ErrMultipleObjects = errors.New("orm: multiple objects returned")
 var ErrNotUpdated = errors.New("orm: forced update did not affect a row")
 
 type Store struct {
-	Backend               db.Backend
-	Registry              *models.Registry
-	BeforeSave, AfterSave []SaveReceiver
+	Backend                   db.Backend
+	Registry                  *models.Registry
+	BeforeSave, AfterSave     []SaveReceiver
+	BeforeDelete, AfterDelete []DeleteReceiver
 }
 
 func New(backend db.Backend, registry *models.Registry) *Store {

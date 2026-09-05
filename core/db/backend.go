@@ -77,6 +77,12 @@ type Introspector interface {
 	Tables(context.Context, Executor) ([]string, error)
 }
 
+// SchemaResolverEditor binds historical model metadata to relational DDL. It
+// returns a separate editor so migration state never mutates a shared backend.
+type SchemaResolverEditor interface {
+	WithSchemas([]models.Schema) (SchemaEditor, error)
+}
+
 // MigrationLocker holds a dedicated session lock for the entire migration run.
 type MigrationLocker interface {
 	LockMigrations(context.Context) (func() error, error)
