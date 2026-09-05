@@ -46,6 +46,7 @@ func NewAccountStore(config AccountStoreConfig) (*AccountStore, error) {
 	}
 	factories[(&auth.User{}).Schema().Key()] = func() models.Model { return &auth.User{} }
 	factories[(&auth.Group{}).Schema().Key()] = func() models.Model { return &auth.Group{} }
+	factories[(&auth.Permission{}).Schema().Key()] = func() models.Model { return &auth.Permission{} }
 	config.ORM.Factories = factories
 	base, err := NewORMStore(config.ORM)
 	if err != nil {
@@ -70,6 +71,7 @@ func (s *AccountStore) UserAdmin() ModelAdmin {
 		Fieldsets: []Fieldset{
 			{Name: "Identity", Fields: []string{"identifier"}, Description: "Changing the identifier requires explicit account-management authority and a fresh login for this account."},
 			{Name: "Account status", Fields: []string{"active", "staff", "superuser"}, Description: "Changing account status requires explicit account-management authority."},
+			{Name: "Permissions", Fields: []string{"groups", "user_permissions"}},
 			{Name: "Activity", Fields: []string{"last_login", "created_at", "updated_at", "auth_version"}},
 		},
 		ReadonlyFields:    []string{"last_login", "created_at", "updated_at", "auth_version"},

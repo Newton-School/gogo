@@ -3,6 +3,7 @@
 <form method="post" enctype="multipart/form-data" class="panel edit-form">
 {% csrf_token %}<input type="hidden" name="_edit_token" value="{{ edit_token }}">
 {% if relation_token %}<input type="hidden" name="_relation_token" value="{{ relation_token }}">{% endif %}
+{% if account_grants_token %}<input type="hidden" name="_account_grants_token" value="{{ account_grants_token }}">{% endif %}
 {{ form }}{% for field in readonly %}<div class="form-row readonly"><span class="field-label">{{ field.label }} <small>Read only</small></span><div>{{ field.value|default_if_none:"—" }}</div></div>{% endfor %}
 {{ inlines }}{% if can_change %}<div class="submit-row"><button class="button" type="submit" name="_save">Save</button><button class="secondary" type="submit" name="_continue">Save and continue editing</button>{% if can_add %}<button class="secondary" type="submit" name="_addanother">Save and add another</button>{% endif %}{% if can_delete %}<a class="danger-link" href="{{ delete_url }}">Delete</a>{% endif %}</div>{% endif %}
 </form>{% endblock %}

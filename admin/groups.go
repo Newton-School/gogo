@@ -18,7 +18,7 @@ func (s *AccountStore) GroupAdmin() ModelAdmin {
 	return ModelAdmin{
 		groupForms:  true,
 		Schema:      (&auth.Group{}).Schema(),
-		Fields:      []string{"name"},
+		Fields:      []string{"name", "permissions"},
 		ListDisplay: []string{"name"}, ListDisplayLinks: []string{"name"},
 		SearchFields: []string{"name"}, Ordering: []string{"name"},
 		ConstraintChecker: s.base.config.Store,

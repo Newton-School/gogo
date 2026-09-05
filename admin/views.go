@@ -472,6 +472,12 @@ func (s *Site) form(w http.ResponseWriter, r *http.Request, p auth.Principal, op
 	if !canChange {
 		readonly = append(readonly, options.Fields...)
 	}
+	grantForm, err := s.loadAccountGrantForm(r.Context(), p, options, object, store, readonly, nil)
+	if err != nil {
+		s.failure(w, r, err)
+		return
+	}
+	grantsChanged := false
 	relationInitial, err := s.formRelations(r.Context(), p, options, object, store, readonly)
 	if err != nil {
 		s.failure(w, r, err)
@@ -527,7 +533,13 @@ func (s *Site) form(w http.ResponseWriter, r *http.Request, p auth.Principal, op
 			}
 			overrides[name] = field
 		}
-		return forms.NewModelForm(ctx, obj.Record, forms.ModelFormOptions{Fields: options.Fields, Exclude: options.Exclude, Readonly: currentReadonly, Overrides: overrides, ResolveRelation: options.ResolveRelation, Checker: options.ConstraintChecker}, opts...)
+		modelFields := accountModelFields(options, options.Fields)
+		if len(modelFields) == 0 && (options.userForms || options.groupForms) {
+			for _, pk := range options.Schema.PKFields() {
+				modelFields = append(modelFields, pk.Name)
+			}
+		}
+		return forms.NewModelForm(ctx, obj.Record, forms.ModelFormOptions{Fields: modelFields, Exclude: accountModelFields(options, options.Exclude), Readonly: accountModelFields(options, currentReadonly), Overrides: overrides, ResolveRelation: options.ResolveRelation, Checker: options.ConstraintChecker}, opts...)
 	}
 	var modelForm *forms.ModelForm
 	var inlines []*inlineState
@@ -570,6 +582,19 @@ func (s *Site) form(w http.ResponseWriter, r *http.Request, p auth.Principal, op
 				if options.GetReadonlyFields != nil {
 					currentReadonly = append(currentReadonly, options.GetReadonlyFields(ctx, object)...)
 				}
+				grantForm, err = s.loadAccountGrantForm(ctx, p, options, object, store, currentReadonly, r.PostForm)
+				if err != nil {
+					return err
+				}
+				if len(grantForm.before) > 0 {
+					grantObject, err := grantForm.version(object)
+					if err != nil {
+						return err
+					}
+					if err := s.checkToken(r.PostForm.Get("_account_grants_token"), p, options, grantObject, "account-grants:"+action); err != nil {
+						return err
+					}
+				}
 				relationInitial, err = s.formRelations(ctx, p, options, object, store, currentReadonly)
 				if err != nil {
 					return err
@@ -590,6 +615,7 @@ func (s *Site) form(w http.ResponseWriter, r *http.Request, p auth.Principal, op
 				if err := addRelationSnapshot(before, options, relationInitial); err != nil {
 					return err
 				}
+				accountGrantSnapshot(before, grantForm.before)
 				var err error
 				modelForm, err = makeForm(ctx, object, true)
 				if err != nil {
@@ -600,7 +626,7 @@ func (s *Site) form(w http.ResponseWriter, r *http.Request, p auth.Principal, op
 				if err != nil {
 					return err
 				}
-				if !parentValid || !validInlines(inlines) {
+				if !parentValid || !validInlines(inlines) || !grantForm.form.IsValid() {
 					return errInvalidForm
 				}
 				if options.SaveModel != nil {
@@ -622,6 +648,13 @@ func (s *Site) form(w http.ResponseWriter, r *http.Request, p auth.Principal, op
 						return err
 					}
 				}
+				if len(grantForm.before) > 0 {
+					object, err = store.(AccountGrantEditor).SaveAccountGrants(ctx, object, grantForm.selected(), s.accountGrantAuthority(p))
+					if err != nil {
+						return err
+					}
+					grantsChanged = grantForm.changed()
+				}
 				after, snapshotErr := snapshot(options, object)
 				if snapshotErr != nil {
 					return snapshotErr
@@ -633,13 +666,14 @@ func (s *Site) form(w http.ResponseWriter, r *http.Request, p auth.Principal, op
 				if err = addRelationSnapshot(after, options, relationAfter); err != nil {
 					return err
 				}
+				accountGrantSnapshot(after, grantForm.selected())
 				return store.Audit(ctx, LogEntry{ActorID: p.ID, Site: s.config.Name, Model: options.Schema.Key(), ObjectID: object.ID, ObjectLabel: object.Label, Action: action, Changes: diff(before, after), At: time.Now().UTC()})
 			})
 		}
 		if options.userForms || options.groupForms {
 			err = invokeAccountMutation(save)
 			state := accountOutcome(err)
-			if err == nil && object.Version == originalVersion {
+			if err == nil && object.Version == originalVersion && !grantsChanged {
 				state = auth.PasswordUnchanged
 			}
 			w.Header().Set("X-Gogo-Account-Change", string(state))
@@ -697,7 +731,10 @@ func (s *Site) form(w http.ResponseWriter, r *http.Request, p auth.Principal, op
 		s.failure(w, r, err)
 		return
 	}
-	formHTML, err := s.renderModelForm(r.Context(), options, object, modelForm, readonly, readonlyDisplay)
+	for name, value := range grantForm.readonly {
+		readonlyDisplay[name] = value
+	}
+	formHTML, err := s.renderModelFormWithExtra(r.Context(), options, object, modelForm, readonly, readonlyDisplay, grantForm.form)
 	if err != nil {
 		s.failure(w, r, err)
 		return
@@ -720,6 +757,19 @@ func (s *Site) form(w http.ResponseWriter, r *http.Request, p auth.Principal, op
 		return
 	}
 	relationToken := ""
+	grantToken := ""
+	if len(grantForm.before) > 0 {
+		grantObject, err := grantForm.version(object)
+		if err != nil {
+			s.failure(w, r, err)
+			return
+		}
+		grantToken, err = s.token(p, options, grantObject, "account-grants:"+action)
+		if err != nil {
+			s.failure(w, r, err)
+			return
+		}
+	}
 	if len(relationInitial) > 0 {
 		relationObject, err := relationVersion(object, relationInitial)
 		if err != nil {
@@ -751,7 +801,7 @@ func (s *Site) form(w http.ResponseWriter, r *http.Request, p auth.Principal, op
 	if invalidForm {
 		status = 400
 	}
-	s.render(w, r, p, "form.html", templates.Context{"title": title, "form": formHTML, "inlines": inlineHTML, "readonly": readonlyValues, "edit_token": token, "relation_token": relationToken, "can_change": canChange, "can_add": s.allowed(r.Context(), p, "add", options, Object{}) == nil, "can_delete": id != "" && s.allowed(r.Context(), p, "delete", options, object) == nil, "delete_url": s.modelURL(options) + url.PathEscape(id) + "/delete/", "history_url": s.modelURL(options) + url.PathEscape(id) + "/history/", "has_object": id != "", "can_manage_password": options.userForms && id != "" && canChange, "user_password_url": s.modelURL(options) + url.PathEscape(id) + "/password/"}, status)
+	s.render(w, r, p, "form.html", templates.Context{"title": title, "form": formHTML, "inlines": inlineHTML, "readonly": readonlyValues, "edit_token": token, "relation_token": relationToken, "account_grants_token": grantToken, "can_change": canChange, "can_add": s.allowed(r.Context(), p, "add", options, Object{}) == nil, "can_delete": id != "" && s.allowed(r.Context(), p, "delete", options, object) == nil, "delete_url": s.modelURL(options) + url.PathEscape(id) + "/delete/", "history_url": s.modelURL(options) + url.PathEscape(id) + "/history/", "has_object": id != "", "can_manage_password": options.userForms && id != "" && canChange, "user_password_url": s.modelURL(options) + url.PathEscape(id) + "/password/"}, status)
 }
 
 var errInvalidForm = errors.New("invalid form")

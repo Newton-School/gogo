@@ -248,18 +248,23 @@ func (s *Site) Register(options ModelAdmin) error {
 		}
 		displays[column.Name] = true
 	}
+	for name := range options.FormOverrides {
+		if stockGrantField(options, name) {
+			return errors.New("admin: stock account grant FormOverrides are unsupported; use the scoped account grant ports")
+		}
+	}
 	groups := [][]string{options.Fields, options.Exclude, options.ReadonlyFields, options.ListDisplay, options.ListDisplayLinks, options.SearchFields, options.ListFilter, options.Ordering, options.SensitiveFields}
-	for _, group := range groups {
+	for groupIndex, group := range groups {
 		for _, name := range group {
 			name = strings.TrimPrefix(name, "-")
-			if _, ok := options.Schema.Field(name); !ok && !displays[name] {
+			if _, ok := options.Schema.Field(name); !ok && !displays[name] && !(groupIndex < 3 && stockGrantField(options, name)) {
 				return fmt.Errorf("admin: unknown configured field %s", name)
 			}
 		}
 	}
 	for _, fieldset := range options.Fieldsets {
 		for _, name := range fieldset.Fields {
-			if _, ok := options.Schema.Field(name); !ok {
+			if _, ok := options.Schema.Field(name); !ok && !stockGrantField(options, name) {
 				return fmt.Errorf("admin: unknown fieldset field %s", name)
 			}
 		}

@@ -25,6 +25,9 @@ func (s *Site) readonlyValues(ctx context.Context, p auth.Principal, options Mod
 	}
 	relations := []string{}
 	for _, name := range names {
+		if stockGrantField(options, name) {
+			continue
+		}
 		if _, exists := values[name]; exists {
 			continue
 		}
