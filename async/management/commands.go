@@ -228,7 +228,11 @@ func Commands(f Factories) []core.Command {
 				// or result payload; result access is an explicit separate action.
 				return json.NewEncoder(invocation.Stdout).Encode(map[string]any{"task_id": args[1], "state": record.State, "retries": record.Envelope.Retries, "delivery_count": record.DeliveryCount, "cancellation_requested": record.CancelRequested, "replacement_id": record.ReplacementID})
 			}
-		}}, core.Command{Name: "queues", Help: "Inspect declared queue counters through the scope policy", Resources: append([]string(nil), f.ClientResources...), OpenResources: true, Validate: func(args []string) error {
+		}}, core.Command{Name: "queues", Help: "Inspect declared queues or a bounded redacted quarantine page", Resources: append([]string(nil), f.ClientResources...), OpenResources: true, Validate: func(args []string) error {
+			if len(args) > 0 && args[0] == "quarantine" {
+				_, _, _, err := quarantineArguments(args)
+				return err
+			}
 			if len(args) < 2 || len(args) > 65 || args[0] != "inspect" {
 				return async.ErrInvalid
 			}
@@ -243,6 +247,17 @@ func Commands(f Factories) []core.Command {
 				client, err := f.Client(ctx, invocation)
 				if err != nil {
 					return err
+				}
+				if args[0] == "quarantine" {
+					queue, after, limit, err := quarantineArguments(args)
+					if err != nil {
+						return err
+					}
+					page, err := (async.Control{Client: client}).InspectQuarantine(ctx, queue, after, limit)
+					if err != nil {
+						return err
+					}
+					return json.NewEncoder(invocation.Stdout).Encode(page)
 				}
 				stats, err := (async.Control{Client: client}).InspectQueues(ctx, args[1:])
 				if err != nil {
@@ -267,6 +282,29 @@ func Commands(f Factories) []core.Command {
 		}})
 	}
 	return commands
+}
+
+// queues quarantine <queue> [cursor|- [limit]] deliberately performs no replay
+// or deletion. A dash selects the start when specifying a smaller page bound.
+func quarantineArguments(args []string) (queue, after string, limit int, err error) {
+	if len(args) < 2 || len(args) > 4 || args[0] != "quarantine" || !queueName.MatchString(args[1]) {
+		return "", "", 0, async.ErrInvalid
+	}
+	queue, limit = args[1], 100
+	if len(args) >= 3 && args[2] != "-" {
+		after = args[2]
+	}
+	if !async.ValidEventCursor(after) {
+		return "", "", 0, async.ErrInvalid
+	}
+	if len(args) == 4 {
+		value, parseErr := strconv.Atoi(args[3])
+		if parseErr != nil || value < 1 || value > 1000 || strconv.Itoa(value) != args[3] {
+			return "", "", 0, async.ErrInvalid
+		}
+		limit = value
+	}
+	return queue, after, limit, nil
 }
 
 func poll(tick func(context.Context) error) func(context.Context) error {

@@ -4,6 +4,8 @@ package testing
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"sort"
@@ -18,20 +20,21 @@ type reserved struct {
 	at       time.Time
 }
 type Memory struct {
-	mu          sync.Mutex
-	Clock       func() time.Time
-	Fail        func(string) error
-	records     map[string]async.Record
-	intents     map[string]async.Intent
-	graphs      map[string]async.Graph
-	workflowIDs []string
-	delayed     map[string]async.DelayedItem
-	workers     map[string]workerPresence
-	controls    map[string]map[string]workerControl
-	queue       []async.Delivery
-	pending     map[string]reserved
-	quarantine  []async.Delivery
-	sequence    int64
+	mu                  sync.Mutex
+	Clock               func() time.Time
+	Fail                func(string) error
+	records             map[string]async.Record
+	intents             map[string]async.Intent
+	graphs              map[string]async.Graph
+	workflowIDs         []string
+	delayed             map[string]async.DelayedItem
+	workers             map[string]workerPresence
+	controls            map[string]map[string]workerControl
+	queue               []async.Delivery
+	pending             map[string]reserved
+	quarantine          []async.QuarantineRecord
+	quarantineNamespace string
+	sequence            int64
 }
 
 func NewMemory() *Memory {
@@ -99,13 +102,34 @@ func (m *Memory) Reject(ctx context.Context, d async.Delivery, reason string, re
 	if err := m.check(ctx, "reject"); err != nil {
 		return err
 	}
+	if !async.ValidQuarantineReason(reason) {
+		return async.ErrInvalid
+	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	reserved, exists := m.pending[d.Receipt]
+	if !exists {
+		return nil
+	}
+	if reserved.delivery.Queue != d.Queue {
+		return async.ErrInvalid
+	}
+	d = reserved.delivery
 	if requeue {
 		m.queue = append(m.queue, copyOf(d))
 	} else {
-		safe := d
-		safe.Body = nil
+		if m.quarantineNamespace == "" {
+			id, err := async.NewID()
+			if err != nil {
+				return err
+			}
+			m.quarantineNamespace = id
+		}
+		digest := sha256.Sum256(d.Body)
+		safe := async.QuarantineRecord{ID: async.StableID("quarantine", d.Receipt), Queue: d.Queue, SourceReceipt: d.Receipt, Reason: reason, Digest: hex.EncodeToString(digest[:]), FirstSeen: m.Clock().UTC(), Priority: -1}
+		if err := async.ValidateQuarantineRecord(safe); err != nil {
+			return err
+		}
 		m.quarantine = append(m.quarantine, safe)
 	}
 	delete(m.pending, d.Receipt)
