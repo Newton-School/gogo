@@ -216,14 +216,17 @@ func translate(err error, commit bool) error {
 	if err == nil {
 		return nil
 	}
-	if errors.Is(err, sql.ErrNoRows) {
+	if !commit && errors.Is(err, sql.ErrNoRows) {
 		return db.ErrNoRows
-	}
-	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-		return &db.Error{Code: db.Canceled, Message: "Database operation canceled", Cause: err}
 	}
 	var pg *pgconn.PgError
 	if errors.As(err, &pg) {
+		// A server can explicitly report that a statement/transaction outcome
+		// is unknown. Connection-exception SQLSTATEs cannot confirm COMMIT
+		// rollback either; preserve the same conservative recovery contract.
+		if commit && (strings.HasPrefix(pg.Code, "08") || pg.Code == "40003") {
+			return &db.Error{Code: db.UnknownCommit, Message: "Commit outcome is unknown; reconcile before retry"}
+		}
 		code := db.Unavailable
 		switch pg.Code {
 		case "23505":
@@ -243,8 +246,19 @@ func translate(err error, commit bool) error {
 		}
 		return &db.Error{Code: code, Constraint: pg.ConstraintName, Message: "PostgreSQL operation failed (" + pg.Code + ")"}
 	}
+	if commit && errors.Is(err, pgx.ErrTxCommitRollback) {
+		// pgx received a ROLLBACK command tag in response to COMMIT. This
+		// specific result is positive rollback evidence, unlike ErrTxDone.
+		return &db.Error{Code: db.Unavailable, Message: "PostgreSQL transaction rolled back instead of committing"}
+	}
 	if commit {
+		// pgx's database/sql wrapper forwards the transaction context to
+		// COMMIT. Cancellation/timeout can arrive after submission and lose
+		// the acknowledgement. A raw context error is not rollback proof.
 		return &db.Error{Code: db.UnknownCommit, Message: "Commit outcome is unknown; reconcile before retry"}
+	}
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return &db.Error{Code: db.Canceled, Message: "Database operation canceled", Cause: err}
 	}
 	return &db.Error{Code: db.Unavailable, Message: "PostgreSQL operation unavailable"}
 }
