@@ -61,7 +61,7 @@ func seedPreflightIntent(t *testing.T, connection *connector.Connection, family 
 	t.Helper()
 	e := codecEnvelope(t)
 	intent := async.Intent{ID: async.StableID(e.ID, "intent"), SourceID: e.ID, Kind: "publish", Envelope: &e}
-	backend := intentBackend{connection, family}
+	backend := intentBackend{connection, family, &partitionRotation{}}
 	keys := backend.keys(e.ID)
 	raw, err := marshalDocument(opaqueDocument{ID: intent.ID, SourceID: e.ID}, intent)
 	if err != nil {

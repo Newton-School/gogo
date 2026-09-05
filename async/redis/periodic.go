@@ -78,8 +78,13 @@ func (s *Schedules) LeaseSchedules(ctx context.Context, owner string, limit int,
 	if ctx == nil || !s.valid() || owner == "" || limit < 1 || limit > 1000 || lease < time.Millisecond {
 		return nil, async.ErrInvalid
 	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	var out []async.PeriodicSchedule
-	for p := 0; p < 64 && len(out) < limit; p++ {
+	start := s.periodicRotation.start()
+	for offset := 0; offset < 64 && len(out) < limit; offset++ {
+		p := (start + offset) % 64
 		values, err := s.Connection.Atomic(ctx, periodicLease, s.periodicKeys(p), owner, limit-len(out), lease.Milliseconds())
 		if err != nil {
 			return nil, err
@@ -209,7 +214,9 @@ func (s *Schedules) Disable(ctx context.Context, id string, expected uint64) err
 	p.Revision++
 	return s.UpsertSchedule(ctx, p, expected)
 }
-func (s *Schedules) intentBackend() intentBackend { return intentBackend{s.Connection, "schedule"} }
+func (s *Schedules) intentBackend() intentBackend {
+	return intentBackend{s.Connection, "schedule", &s.intentRotation}
+}
 func (s *Schedules) ListIntents(ctx context.Context, limit int) ([]async.Intent, error) {
 	return s.intentBackend().list(ctx, limit)
 }

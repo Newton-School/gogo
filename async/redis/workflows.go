@@ -13,7 +13,12 @@ import (
 	redigo "github.com/redis/go-redis/v9"
 )
 
-type Workflows struct{ Connection *connector.Connection }
+// Workflows must not be copied after use; intent discovery keeps a local
+// atomic partition rotation independently from durable graph inventory cursors.
+type Workflows struct {
+	Connection     *connector.Connection
+	intentRotation partitionRotation
+}
 
 func (w *Workflows) keys(id string) []string {
 	index, _ := w.Connection.PartitionIndex("workflow", connector.Partition(id), "pending-intents")
@@ -165,7 +170,9 @@ func (w *Workflows) CancelGraph(ctx context.Context, id, scope string, advance f
 	}
 	return async.ErrBusy
 }
-func (w *Workflows) intentBackend() intentBackend { return intentBackend{w.Connection, "workflow"} }
+func (w *Workflows) intentBackend() intentBackend {
+	return intentBackend{w.Connection, "workflow", &w.intentRotation}
+}
 func (w *Workflows) ListIntents(ctx context.Context, limit int) ([]async.Intent, error) {
 	return w.intentBackend().list(ctx, limit)
 }

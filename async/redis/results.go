@@ -16,10 +16,13 @@ import (
 	redigo "github.com/redis/go-redis/v9"
 )
 
+// Results must not be copied after use. Reuse one configured backend instance
+// so bounded intent discovery retains its local partition rotation.
 type Results struct {
-	Connection   *connector.Connection
-	ResultTTL    time.Duration
-	TombstoneTTL time.Duration
+	Connection     *connector.Connection
+	ResultTTL      time.Duration
+	TombstoneTTL   time.Duration
+	intentRotation partitionRotation
 }
 
 func (r *Results) valid() error {
@@ -420,6 +423,7 @@ func (r *Results) ReleasePin(ctx context.Context, id string) error {
 type intentBackend struct {
 	connection *connector.Connection
 	family     string
+	rotation   *partitionRotation
 }
 
 func (b intentBackend) valid() bool {
@@ -430,7 +434,9 @@ func validIntentIDs(source, id string) bool {
 	return (async.WorkflowInventoryPage{IDs: []string{source}}).Validate(1) == nil && (async.WorkflowInventoryPage{IDs: []string{id}}).Validate(1) == nil
 }
 
-func (r *Results) intentBackend() intentBackend { return intentBackend{r.Connection, "task"} }
+func (r *Results) intentBackend() intentBackend {
+	return intentBackend{r.Connection, "task", &r.intentRotation}
+}
 func (r *Results) ListIntents(ctx context.Context, limit int) ([]async.Intent, error) {
 	return r.intentBackend().list(ctx, limit)
 }
@@ -445,7 +451,7 @@ func (b intentBackend) keys(source string) []string {
 	return []string{b.connection.PartitionKey(b.family, source, "intents"), index}
 }
 func (b intentBackend) list(ctx context.Context, limit int) ([]async.Intent, error) {
-	if ctx == nil || !b.valid() || limit < 1 || limit > 1000 {
+	if ctx == nil || !b.valid() || b.rotation == nil || limit < 1 || limit > 1000 {
 		return nil, async.ErrInvalid
 	}
 	var out []async.Intent
@@ -453,7 +459,9 @@ func (b intentBackend) list(ctx context.Context, limit int) ([]async.Intent, err
 	if err != nil {
 		return nil, err
 	}
-	for p := 0; p < 64 && len(out) < limit; p++ {
+	start := b.rotation.start()
+	for offset := 0; offset < 64 && len(out) < limit; offset++ {
+		p := (start + offset) % 64
 		index, _ := b.connection.PartitionIndex(b.family, p, "pending-intents")
 		ids, err := b.connection.Client().ZRangeByScore(ctx, index, &redigo.ZRangeBy{Min: "-inf", Max: strconv.FormatInt(now.UnixMilli(), 10), Offset: 0, Count: int64(limit - len(out))}).Result()
 		if err != nil {

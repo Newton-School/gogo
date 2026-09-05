@@ -12,7 +12,12 @@ import (
 	redigo "github.com/redis/go-redis/v9"
 )
 
-type Schedules struct{ Connection *connector.Connection }
+// Schedules must not be copied after use. Delayed, periodic and intent scans
+// rotate independently so one role does not consume another role's fair turn.
+type Schedules struct {
+	Connection                                        *connector.Connection
+	delayedRotation, periodicRotation, intentRotation partitionRotation
+}
 
 func (s *Schedules) valid() bool {
 	return s != nil && s.Connection != nil && s.Connection.Role() != connector.CacheRole
@@ -73,8 +78,13 @@ func (s *Schedules) LeaseDue(ctx context.Context, owner string, limit int, lease
 	if ctx == nil || !s.valid() || owner == "" || limit < 1 || limit > 1000 || lease < time.Millisecond {
 		return nil, async.ErrInvalid
 	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	var out []async.DelayedItem
-	for partition := 0; partition < 64 && len(out) < limit; partition++ {
+	start := s.delayedRotation.start()
+	for offset := 0; offset < 64 && len(out) < limit; offset++ {
+		partition := (start + offset) % 64
 		values, err := s.Connection.Atomic(ctx, scheduleLease, s.keys(partition), owner, limit-len(out), lease.Milliseconds())
 		if err != nil {
 			return nil, err
