@@ -73,6 +73,13 @@ type ConstraintChecker interface {
 	ValidateUnique(context.Context, Record, []string) error
 	ValidateConstraints(context.Context, Record, []string) error
 }
+
+// RelationChecker participates in clean_fields, independently of the optional
+// unique/constraint stages. Backends implement existence checks; application
+// authorization and related-choice scoping remain distinct responsibilities.
+type RelationChecker interface {
+	ValidateRelation(context.Context, Record, Field) error
+}
 type Cleaner interface{ Clean(context.Context) error }
 
 func FullClean(ctx context.Context, record Record, options CleanOptions, checker ConstraintChecker) error {
@@ -94,6 +101,13 @@ func FullClean(ctx context.Context, record Record, options CleanOptions, checker
 		}
 		if err == nil {
 			err = record.Set(f.Name, value)
+		}
+		if err == nil && (f.Kind == ForeignKey || f.Kind == OneToOne) && value != nil {
+			if relations, ok := checker.(RelationChecker); ok {
+				err = relations.ValidateRelation(ctx, record, f)
+			} else {
+				err = errors.New("models: database relation checker is required")
+			}
 		}
 		validation.Merge(f.Name, err)
 	}

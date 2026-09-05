@@ -139,6 +139,7 @@ type Index struct {
 	Method, Condition string
 	Include           []string
 	Concurrent        bool
+	NullsDistinct     *bool
 }
 type Constraint struct {
 	Name, Kind            string
@@ -246,6 +247,36 @@ func (s Schema) Validate() error {
 			}
 		}
 	}
+	constraintNames := map[string]bool{}
+	for _, constraint := range s.Constraints {
+		if !ValidIdentifier(constraint.Name) || constraintNames[constraint.Name] {
+			return errors.New("models: invalid or duplicate constraint name")
+		}
+		constraintNames[constraint.Name] = true
+		for _, name := range constraint.Fields {
+			if !seen[name] {
+				return errors.New("models: constraint references unknown field")
+			}
+		}
+		if constraint.Condition != "" && constraint.Deferrable {
+			return errors.New("models: conditional constraints cannot be deferred")
+		}
+		if strings.ContainsAny(constraint.Condition+constraint.Expression, ";\x00") {
+			return errors.New("models: invalid constraint expression")
+		}
+		switch strings.ToLower(constraint.Kind) {
+		case "unique":
+			if len(constraint.Fields) == 0 {
+				return errors.New("models: unique constraint requires fields")
+			}
+		case "check":
+			if constraint.Expression == "" {
+				return errors.New("models: check constraint requires expression")
+			}
+		default:
+			return errors.New("models: unsupported constraint kind")
+		}
+	}
 	return nil
 }
 func knownKind(k Kind) bool {
@@ -289,10 +320,18 @@ func (s Schema) Clone() Schema {
 	for i := range s.Indexes {
 		s.Indexes[i].Fields = append([]string(nil), s.Indexes[i].Fields...)
 		s.Indexes[i].Include = append([]string(nil), s.Indexes[i].Include...)
+		if s.Indexes[i].NullsDistinct != nil {
+			v := *s.Indexes[i].NullsDistinct
+			s.Indexes[i].NullsDistinct = &v
+		}
 	}
 	s.Constraints = append([]Constraint(nil), s.Constraints...)
 	for i := range s.Constraints {
 		s.Constraints[i].Fields = append([]string(nil), s.Constraints[i].Fields...)
+		if s.Constraints[i].NullsDistinct != nil {
+			v := *s.Constraints[i].NullsDistinct
+			s.Constraints[i].NullsDistinct = &v
+		}
 	}
 	return s
 }

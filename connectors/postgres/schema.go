@@ -136,6 +136,9 @@ func (e SchemaEditor) CreateModel(ctx context.Context, executor db.Executor, sch
 	}
 	parts = append(parts, "PRIMARY KEY ("+strings.Join(pks, ", ")+")")
 	for _, constraint := range schema.Constraints {
+		if strings.EqualFold(constraint.Kind, "unique") && constraint.Condition != "" {
+			continue
+		}
 		sql, err := e.constraint(schema, constraint)
 		if err != nil {
 			return err
@@ -148,6 +151,16 @@ func (e SchemaEditor) CreateModel(ctx context.Context, executor db.Executor, sch
 	for _, index := range schema.Indexes {
 		if err := e.AddIndex(ctx, executor, schema, index); err != nil {
 			return err
+		}
+	}
+	for _, constraint := range schema.Constraints {
+		if strings.EqualFold(constraint.Kind, "unique") && constraint.Condition != "" {
+			if constraint.Deferrable {
+				return errors.New("postgres: conditional unique constraints cannot be deferred")
+			}
+			if err := e.AddIndex(ctx, executor, schema, models.Index{Name: constraint.Name, Fields: constraint.Fields, Unique: true, Condition: constraint.Condition, NullsDistinct: constraint.NullsDistinct}); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
@@ -311,6 +324,29 @@ func (e SchemaEditor) AddIndex(ctx context.Context, executor db.Executor, schema
 		return errors.New("postgres: index needs fields")
 	}
 	prefix += " (" + strings.Join(columns, ", ") + ")"
+	if len(index.Include) > 0 {
+		columns := []string{}
+		for _, name := range index.Include {
+			field, ok := schema.Field(name)
+			if !ok {
+				return errors.New("postgres: unknown included index field")
+			}
+			quoted, err := e.Dialect.QuoteIdentifier(field.DBColumn())
+			if err != nil {
+				return err
+			}
+			columns = append(columns, quoted)
+		}
+		prefix += " INCLUDE (" + strings.Join(columns, ", ") + ")"
+	}
+	if index.NullsDistinct != nil {
+		if !index.Unique {
+			return errors.New("postgres: NULLS DISTINCT option requires a unique index")
+		}
+		if !*index.NullsDistinct {
+			prefix += " NULLS NOT DISTINCT"
+		}
+	}
 	if index.Condition != "" {
 		if strings.ContainsAny(index.Condition, ";\x00") {
 			return errors.New("postgres: invalid index predicate")

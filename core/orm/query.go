@@ -9,6 +9,7 @@ import (
 	"github.com/Newton-School/gogo/core/models"
 	"github.com/Newton-School/gogo/internal/sqlcompiler"
 	"strings"
+	"time"
 )
 
 var ErrNotFound = errors.New("orm: object does not exist")
@@ -20,6 +21,9 @@ type Store struct {
 	Registry                  *models.Registry
 	BeforeSave, AfterSave     []SaveReceiver
 	BeforeDelete, AfterDelete []DeleteReceiver
+	// Timezone supplies the current IANA time zone for date-scoped validation.
+	// Nil uses UTC. It is consulted per operation, not cached across requests.
+	Timezone func(context.Context) *time.Location
 }
 
 func New(backend db.Backend, registry *models.Registry) *Store {
