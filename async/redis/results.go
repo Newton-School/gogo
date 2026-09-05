@@ -23,7 +23,7 @@ type Results struct {
 }
 
 func (r *Results) valid() error {
-	if r.Connection == nil || r.Connection.Role() == connector.CacheRole {
+	if r == nil || r.Connection == nil || r.Connection.Role() == connector.CacheRole {
 		return async.ErrInvalid
 	}
 	resultTTL := r.ResultTTL
@@ -41,7 +41,7 @@ func (r *Results) valid() error {
 }
 func (r *Results) keys(id string) []string {
 	index, _ := r.Connection.PartitionIndex("task", connector.Partition(id), "pending-intents")
-	inventory, _ := r.Connection.PartitionIndex("task", connector.Partition(id), "records")
+	inventory, _ := r.Connection.PartitionIndex("task", connector.Partition(id), "records-v1")
 	return []string{r.Connection.PartitionKey("task", id, "state"), r.Connection.PartitionKey("task", id, "intents"), index, inventory}
 }
 func (r *Results) read(ctx context.Context, id string) (async.Record, error) {
@@ -49,7 +49,7 @@ func (r *Results) read(ctx context.Context, id string) (async.Record, error) {
 	if err := r.valid(); err != nil {
 		return record, err
 	}
-	values, err := r.Connection.Client().HMGet(ctx, r.keys(id)[0], "record", "lease_millis").Result()
+	values, err := r.Connection.Client().HMGet(ctx, r.keys(id)[0], "record", "lease_millis", "revision").Result()
 	if err != nil {
 		return record, err
 	}
@@ -57,6 +57,13 @@ func (r *Results) read(ctx context.Context, id string) (async.Record, error) {
 		return record, async.ErrNotFound
 	}
 	if err := json.Unmarshal([]byte(values[0].(string)), &record); err != nil {
+		return record, async.ErrUnavailable
+	}
+	if values[2] == nil {
+		return record, async.ErrUnavailable
+	}
+	revision, err := strconv.ParseUint(values[2].(string), 10, 64)
+	if err != nil || revision == 0 || revision != record.Revision || strconv.FormatUint(revision, 10) != values[2].(string) {
 		return record, async.ErrUnavailable
 	}
 	if values[1] != nil {
@@ -90,6 +97,8 @@ func (r *Results) Lookup(ctx context.Context, id string) (async.Record, error) {
 }
 
 var recordCAS = redigo.NewScript(`
+local kinds={'hash','hash','zset','zset'}
+for i,key in ipairs(KEYS) do local kind=redis.call('TYPE',key).ok;if kind~='none' and kind~=kinds[i] then error('invalid task key type') end end
 local old=redis.call('HGET',KEYS[1],'revision')
 if not old then old='0' end
 if old~=ARGV[1] then return 'CONFLICT' end
@@ -100,10 +109,19 @@ if ARGV[6]=='live' then
  if lease<=now or redis.call('HGET',KEYS[1],'owner')~=ARGV[7] or redis.call('HGET',KEYS[1],'fence')~=ARGV[8] then return 'LEASE' end
 end
 local newlease=tonumber(ARGV[4]);if ARGV[5]~='0' then newlease=now+tonumber(ARGV[5]) end
+if not newlease or newlease~=math.floor(newlease) or math.abs(newlease)>9007199254740991 then error('invalid task lease') end
+local intents=cjson.decode(ARGV[11])
+if type(intents)~='table' then error('invalid task intent batch') end
+local staged={};local seen={}
+for _,intent in ipairs(intents) do
+ if type(intent)~='table' or intent.format~=1 or type(intent.id)~='string' or #intent.id~=36 or seen[intent.id] or type(intent.source_id)~='string' or intent.source_id~=ARGV[12] or type(intent.payload)~='string' or #intent.payload==0 then error('invalid task intent identity') end
+ seen[intent.id]=true
+ table.insert(staged,{id=intent.id,raw=cjson.encode(intent),index=intent.source_id..':'..intent.id})
+end
 redis.call('HSET',KEYS[1],'record',ARGV[2],'revision',ARGV[3],'lease_millis',newlease,'owner',ARGV[9],'fence',ARGV[10])
-redis.call('SADD',KEYS[4],ARGV[12])
-local intents=cjson.decode(ARGV[11]);for _,intent in ipairs(intents) do
- if redis.call('HEXISTS',KEYS[2],intent.id)==0 then redis.call('HSET',KEYS[2],intent.id,cjson.encode(intent));redis.call('ZADD',KEYS[3],now,intent.source_id..':'..intent.id) end
+redis.call('ZADD',KEYS[4],0,ARGV[12])
+for _,intent in ipairs(staged) do
+ if redis.call('HEXISTS',KEYS[2],intent.id)==0 then redis.call('HSET',KEYS[2],intent.id,intent.raw);redis.call('ZADD',KEYS[3],now,intent.index) end
 end
 return 'OK'
 `)
@@ -111,6 +129,16 @@ return 'OK'
 func (r *Results) cas(ctx context.Context, expected uint64, record async.Record, mode string, oldFence uint64, oldOwner string, lease time.Duration, intents []async.Intent) error {
 	if expected == math.MaxUint64 || record.Revision == 0 {
 		return async.ErrUnavailable
+	}
+	if (async.WorkflowInventoryPage{IDs: []string{record.Envelope.ID}}).Validate(1) != nil {
+		return async.ErrInvalid
+	}
+	seen := map[string]bool{}
+	for _, intent := range intents {
+		if intent.SourceID != record.Envelope.ID || (async.WorkflowInventoryPage{IDs: []string{intent.ID}}).Validate(1) != nil || seen[intent.ID] {
+			return async.ErrInvalid
+		}
+		seen[intent.ID] = true
 	}
 	b, err := json.Marshal(record)
 	if err != nil {
