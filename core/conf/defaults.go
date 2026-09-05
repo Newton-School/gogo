@@ -1,0 +1,45 @@
+package conf
+
+// CoreSchema returns a fresh schema; optional modules may append their own
+// namespaced settings without depending on this package's implementation.
+func CoreSchema() Schema {
+	return Schema{
+		{Name: "GOGO_ENV", Default: "development", Group: "Application", Choices: []string{"development", "test", "production"}},
+		{Name: "GOGO_DEBUG", Default: "false", Group: "Application", Kind: Boolean},
+		{Name: "GOGO_SECRET_KEY", Group: "Security", Sensitive: true, RequiredFor: []string{"signing", "sessions", "auth"}},
+		{Name: "GOGO_SECRET_KEY_FALLBACKS", Group: "Security", Sensitive: true},
+		{Name: "GOGO_ALLOWED_HOSTS", Default: "localhost,127.0.0.1", Group: "Security", Kind: List},
+		{Name: "GOGO_TRUSTED_PROXIES", Group: "Security", Kind: List},
+		{Name: "GOGO_HTTP_ADDR", Default: "127.0.0.1:8000", Group: "HTTP"},
+		{Name: "GOGO_HTTP_READ_HEADER_TIMEOUT", Default: "5s", Group: "HTTP", Kind: Duration, Min: 1},
+		{Name: "GOGO_HTTP_IDLE_TIMEOUT", Default: "60s", Group: "HTTP", Kind: Duration, Min: 1},
+		{Name: "GOGO_MAX_BODY_BYTES", Default: "1048576", Group: "HTTP", Kind: Integer, Min: 1},
+		{Name: "GOGO_MAX_UPLOAD_BYTES", Default: "10485760", Group: "HTTP", Kind: Integer, Min: 1},
+		{Name: "GOGO_DATABASE_URL", Group: "Database", Sensitive: true, RequiredFor: []string{"database"}},
+		{Name: "GOGO_DB_MAX_OPEN", Default: "20", Group: "Database", Kind: Integer, Min: 1},
+		{Name: "GOGO_DB_MAX_IDLE", Default: "5", Group: "Database", Kind: Integer},
+		{Name: "GOGO_DB_MAX_LIFETIME", Default: "30m", Group: "Database", Kind: Duration, Min: 1},
+		{Name: "GOGO_DB_QUERY_TIMEOUT", Default: "5s", Group: "Database", Kind: Duration, Min: 1},
+		{Name: "GOGO_REDIS_URL", Group: "Redis", Sensitive: true, RequiredFor: []string{"redis"}},
+		{Name: "GOGO_REDIS_NAMESPACE", Group: "Redis", RequiredFor: []string{"redis"}},
+		{Name: "GOGO_REDIS_OPERATION_TIMEOUT", Default: "2s", Group: "Redis", Kind: Duration, Min: 1},
+		{Name: "GOGO_SESSION_BACKEND", Default: "postgres", Group: "Sessions", Choices: []string{"postgres", "redis", "cached-db", "signed-cookie"}},
+		{Name: "GOGO_SESSION_TTL", Default: "336h", Group: "Sessions", Kind: Duration, Min: 1},
+		{Name: "GOGO_SESSION_COOKIE_NAME", Default: "gogo_session", Group: "Sessions"},
+		{Name: "GOGO_PASSWORD_RESET_TTL", Default: "1h", Group: "Authentication", Kind: Duration, Min: 1},
+		{Name: "GOGO_AUTH_TOKEN_TTL", Default: "24h", Group: "Authentication", Kind: Duration, Min: 1},
+		{Name: "GOGO_RESET_DELIVERY_KEY_REF", Group: "Authentication", Sensitive: true, RequiredFor: []string{"reset-delivery"}},
+		{Name: "GOGO_CACHE_TTL", Default: "300s", Group: "Cache", Kind: Duration, Min: 1},
+		{Name: "GOGO_CACHE_FAILURE_POLICY", Default: "bypass", Group: "Cache", Choices: []string{"bypass", "fail"}},
+		{Name: "GOGO_SMTP_HOST", Group: "Mail", RequiredFor: []string{"smtp"}},
+		{Name: "GOGO_SMTP_PORT", Default: "587", Group: "Mail", Kind: Integer, Min: 1},
+		{Name: "GOGO_SMTP_USERNAME", Group: "Mail"},
+		{Name: "GOGO_SMTP_PASSWORD", Group: "Mail", Sensitive: true},
+		{Name: "GOGO_MAIL_FROM", Group: "Mail", RequiredFor: []string{"smtp"}},
+		{Name: "GOGO_STORAGE_ROOT", Group: "Files", RequiredFor: []string{"files"}},
+		{Name: "GOGO_STATIC_ROOT", Group: "Files", RequiredFor: []string{"static"}},
+		{Name: "GOGO_MEDIA_PUBLIC", Default: "false", Group: "Files", Kind: Boolean},
+		{Name: "GOGO_LOG_LEVEL", Default: "info", Group: "Operations", Choices: []string{"debug", "info", "warn", "error"}},
+		{Name: "GOGO_SHUTDOWN_GRACE", Default: "30s", Group: "Operations", Kind: Duration, Min: 1},
+	}
+}
