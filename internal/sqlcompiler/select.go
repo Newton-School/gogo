@@ -78,6 +78,7 @@ func (c *Compiler) Predicate(p db.Predicate) (string, error) {
 	if lookup == "" {
 		lookup = "exact"
 	}
+	argumentsBeforeField := len(c.Args)
 	field, err := c.predicateSQL(p, lookup)
 	if err != nil {
 		return "", err
@@ -152,13 +153,37 @@ func (c *Compiler) Predicate(p db.Predicate) (string, error) {
 		if lookup == "range" && v.Len() != 2 {
 			return "", errors.New("orm: range requires two bounds")
 		}
-		if v.Len() == 0 {
+		items := make([]string, 0, v.Len())
+		for i := 0; i < v.Len(); i++ {
+			value := v.Index(i).Interface()
+			if lookup == "in" && value == nil && hasMetadata && metadata.Kind == models.JSON {
+				// A direct nil member represents SQL NULL, not JSON null. Like
+				// Django's IN lookup, it contributes no equality candidates.
+				continue
+			}
+			if expression, ok := value.(db.Expression); ok {
+				item, err := c.Expression(expression)
+				if err != nil {
+					return "", err
+				}
+				items = append(items, item)
+				continue
+			}
+			if hasMetadata && metadata.Kind == models.JSON {
+				value, err = jsonLookupValue(metadata, value)
+				if err != nil {
+					return "", err
+				}
+			}
+			items = append(items, c.bound(value))
+		}
+		if len(items) == 0 {
+			// A JSON extraction or other expression may have bound operands
+			// while compiling the now-unused left side. Remove only those
+			// operands; leaving placeholder holes makes PostgreSQL reject SQL.
+			c.Args = c.Args[:argumentsBeforeField]
 			result = "FALSE"
 		} else {
-			items := make([]string, v.Len())
-			for i := range items {
-				items[i] = c.bound(v.Index(i).Interface())
-			}
 			if lookup == "range" {
 				result = field + " BETWEEN " + items[0] + " AND " + items[1]
 			} else {
