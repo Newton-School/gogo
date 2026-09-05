@@ -2,7 +2,7 @@
 
 ## Active workflow: AgentFlow
 
-The owner selected AgentFlow for Gogo architecture review. The AgentFlow block below and `.agentflow/AGENTFLOW.md` govern architecture, approval, planning, and implementation. The older `.specs/` routing and specification skills retained below are inactive for this project; do not create, read, or update `.specs/` as part of AgentFlow work. Preserve the previous scaffold and skills unless removal is explicitly requested.
+Use only AgentFlow for architecture, approval, planning, and implementation. Treat Gogo as a new product defined by the owner's current requirements. Do not create or use a separate specification workflow.
 
 Gogo is a greenfield Go framework. Its proposed product roots are `core/`, `admin/`, `async/`, and `connectors/`, with private implementation in `internal/`. PostgreSQL and Redis are the initial external backends. Keep future backend contracts public, and keep Admin and Async independently installable. Proposed architecture is not implemented code.
 
@@ -10,40 +10,9 @@ Use feature-parent navigation trees, detailed vertical flowcharts, and structure
 
 Work on the current branch. Use the already-open Chrome browser when browser work is explicitly requested; do not use Playwright or the in-app browser unless requested. Keep secrets and local paths out of committed code and configuration, group ignore/environment files by purpose, and validate required configuration without embedding secrets into binaries.
 
-## Retained prior workflow (inactive)
-
-This root harness applies to the repository, including `backend/`, `frontend/`, `.specs/`, tests, scripts, and `deployment/`. Do not add nested `AGENTS.md` files unless the repository intentionally requires scoped harnesses.
-
-## Required reading order
-
-Before planning or changing product behavior:
-
-1. Read this file completely.
-2. Read every Markdown file under `.agents/rules/` in lexical order when that directory exists.
-3. Read every applicable repository skill completely.
-4. Read the smallest complete set of relevant generated `.specs/*.html#anchor` clauses.
-5. Inspect current code, schemas, migrations, generated artifacts, tests, configuration, infrastructure, and repository state.
-
-Do not begin from assumptions or treat current code behavior as intended when `.specs/` defines the contract.
-
-## Repository skills
-
-- `.agents/skills/maintain-specifications/SKILL.md` — use automatically for every specification task and whenever planning or implementation discovers or changes a product, data, interface, event/job, permission, provider, runtime, migration, client, security, acceptance, or documentation contract.
-- `.agents/skills/create-feature-plan/SKILL.md` — use for feature/change planning and before non-trivial behavior-affecting implementation.
-- `.agents/skills/implement-feature/SKILL.md` — use for end-to-end feature implementation; it must use the planning skill and the specification skill.
-
-## Product and architecture authority
-
-- `.specs/` is the sole authority for intended product behavior and system design. Code and tests show implementation state but do not override it.
-- Cite exact generated `.specs/*.html#anchor` clauses in plans and conformance evidence.
-- Edit specification source modules and regenerate HTML. Never hand-edit generated pages.
-- Preserve the bundled Stride documentation shell and repository-backed `.specs/_inventory.py` coverage. Every automatically discovered runtime source unit and declared entry flow must have one reciprocal focused owner page; the only theme switcher belongs in the top-right bar.
-- If required behavior or architecture is missing, contradictory, or changed, stop dependent work and follow `maintain-specifications`: explain impact, ask the focused owner question, update specs first, regenerate, validate, rate, then plan or implement.
-- Recheck every consumer when shared data, interface, event/job, permission, runtime, provider, migration, client, or security contracts change.
-
 ## Working state
 
-- Keep implementation plans under ignored `.plans/`; plans are execution state, not requirements.
+- Use the repo-local AgentFlow lifecycle for proposals, comments, plans, and evidence.
 - Work on the current branch unless the user explicitly requests another branch/worktree.
 - Preserve unrelated changes and stage only owned files.
 - Commit small, coherent, verified checkpoints when commits are in scope.
@@ -60,7 +29,7 @@ Do not begin from assumptions or treat current code behavior as intended when `.
 
 ## Definition of complete
 
-A feature or plan is complete only when its skill workflow finishes, every applicable test and generation gate passes, migrations/generated artifacts are current, affected specifications and consumers are reconciled, every conformance row is resolved, and no accidental or sensitive file remains.
+A feature is complete only when its approved AgentFlow plan and implementation audit are complete, applicable tests pass, generated artifacts are current, and no accidental or sensitive file remains. An architecture proposal is ready for review when its feature tree, concrete flows, structured contracts, and validation cover the requested scope.
 
 <!-- agentflow:start -->
 ## AgentFlow Harness
