@@ -11,11 +11,22 @@ import (
 )
 
 type Compiler struct {
-	Dialect db.Dialect
-	Schema  models.Schema
-	Args    []any
-	Alias   string
-	Joins   map[string]db.Join
+	Dialect      db.Dialect
+	Schema       models.Schema
+	Args         []any
+	Alias        string
+	Joins        map[string]db.Join
+	Aliases      map[string]db.Projection
+	depth, nodes int
+}
+
+func (c *Compiler) enter() error {
+	c.nodes++
+	if c.depth >= 64 || c.nodes > 8192 {
+		return errors.New("orm: expression tree exceeds the depth or work limit")
+	}
+	c.depth++
+	return nil
 }
 
 func (c *Compiler) bound(value any) string {
@@ -38,6 +49,10 @@ func (c *Compiler) modelField(name string) (models.Field, string, error) {
 	return reference.field, reference.alias, err
 }
 func (c *Compiler) Predicate(p db.Predicate) (string, error) {
+	if err := c.enter(); err != nil {
+		return "", err
+	}
+	defer func() { c.depth-- }()
 	if len(p.Children) > 0 {
 		op := p.Connector
 		if op == "" {
@@ -226,6 +241,10 @@ func (c *Compiler) Predicate(p db.Predicate) (string, error) {
 	return result, nil
 }
 func (c *Compiler) Expression(e db.Expression) (string, error) {
+	if err := c.enter(); err != nil {
+		return "", err
+	}
+	defer func() { c.depth-- }()
 	if e.Filter != nil && (e.Kind != "function" || !IsAggregateFunction(e.Name)) {
 		return "", &db.Error{Code: db.UnsupportedFeature, Message: "FILTER requires an aggregate expression"}
 	}
@@ -317,7 +336,24 @@ func init() {
 	}
 }
 func Select(dialect db.Dialect, schema models.Schema, query db.Select) (string, []any, error) {
-	c := &Compiler{Dialect: dialect, Schema: schema, Alias: query.Alias, Joins: map[string]db.Join{}}
+	c := &Compiler{Dialect: dialect, Schema: schema, Alias: query.Alias, Joins: map[string]db.Join{}, Aliases: map[string]db.Projection{}}
+	if len(query.Aliases) > 128 {
+		return "", nil, errors.New("orm: at most 128 row aliases are supported")
+	}
+	for _, alias := range query.Aliases {
+		_, field := schema.Field(alias.Alias)
+		_, duplicate := c.Aliases[alias.Alias]
+		if !models.ValidIdentifier(alias.Alias) || strings.Contains(alias.Alias, "__") || field || duplicate || alias.Output == nil {
+			return "", nil, errors.New("orm: invalid, duplicate or colliding row alias")
+		}
+		if err := ValidateOutputField(*alias.Output); err != nil {
+			return "", nil, err
+		}
+		if err := ValidateRowExpression(alias.Expression); err != nil {
+			return "", nil, err
+		}
+		c.Aliases[alias.Alias] = alias
+	}
 	table, err := dialect.QuoteIdentifier(query.Table)
 	if err != nil {
 		return "", nil, err
@@ -331,6 +367,9 @@ func Select(dialect db.Dialect, schema models.Schema, query db.Select) (string, 
 	}
 	aliases := map[string]bool{query.Alias: true}
 	for _, join := range query.Joins {
+		if _, collision := c.Aliases[join.Path]; collision {
+			return "", nil, errors.New("orm: row alias collides with relation path")
+		}
 		if query.Alias == "" || join.Path == "" || aliases[join.Alias] {
 			return "", nil, errors.New("orm: joins require a root alias and distinct relation aliases")
 		}
@@ -352,6 +391,7 @@ func Select(dialect db.Dialect, schema models.Schema, query db.Select) (string, 
 		aliases[join.Alias] = true
 	}
 	fields := []string{}
+	selectedAliases := map[string]string{}
 	for _, name := range query.Fields {
 		field, err := c.field(name)
 		if err != nil {
@@ -369,6 +409,21 @@ func Select(dialect db.Dialect, schema models.Schema, query db.Select) (string, 
 			return "", nil, err
 		}
 		fields = append(fields, expression+" AS "+alias)
+		if _, declared := c.Aliases[projection.Alias]; declared {
+			selectedAliases[projection.Alias] = alias
+		}
+	}
+	// A selected expression has one SQL output identity. Re-expanding a bound
+	// literal with different $n parameters makes PostgreSQL treat DISTINCT ON
+	// and ORDER BY as different expressions, even when Go values are equal.
+	orderReference := func(name string) (string, error) {
+		if alias, selected := selectedAliases[name]; selected {
+			return alias, nil
+		}
+		if _, annotation := c.Aliases[strings.SplitN(name, "__", 2)[0]]; annotation && (query.Distinct || len(query.DistinctOn) > 0) {
+			return "", &db.Error{Code: db.UnsupportedFeature, Message: "DISTINCT annotation ordering requires the exact selected annotation; transformed or unselected aliases require a subquery"}
+		}
+		return c.field(name)
 	}
 	if len(fields) == 0 {
 		return "", nil, errors.New("orm: empty select projection")
@@ -383,7 +438,7 @@ func Select(dialect db.Dialect, schema models.Schema, query db.Select) (string, 
 		}
 		names := []string{}
 		for _, name := range query.DistinctOn {
-			field, err := c.field(name)
+			field, err := orderReference(name)
 			if err != nil {
 				return "", nil, err
 			}
@@ -453,7 +508,7 @@ func Select(dialect db.Dialect, schema models.Schema, query db.Select) (string, 
 	if len(query.Order) > 0 {
 		orders := []string{}
 		for _, order := range query.Order {
-			field, err := c.field(order.Field)
+			field, err := orderReference(order.Field)
 			if err != nil {
 				return "", nil, err
 			}

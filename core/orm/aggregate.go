@@ -61,7 +61,7 @@ func (q Query[T]) Aggregate(ctx context.Context, expressions map[string]ResultEx
 	if len(expressions) == 0 || len(expressions) > 128 {
 		return nil, errors.New("orm: aggregate requires between one and 128 named outputs")
 	}
-	if q.selectAST.Limit != nil || q.selectAST.Offset != nil || q.selectAST.Distinct || len(q.selectAST.DistinctOn) > 0 || q.selectAST.ForUpdate || len(q.selectAST.GroupBy) > 0 || len(q.selectAST.Projections) > 0 {
+	if q.selectAST.Limit != nil || q.selectAST.Offset != nil || q.selectAST.Distinct || len(q.selectAST.DistinctOn) > 0 || q.selectAST.ForUpdate || len(q.selectAST.GroupBy) > 0 || len(q.selectAST.Projections) > 0 || len(q.selectAST.Aliases) > 0 {
 		return nil, &db.Error{Code: db.UnsupportedFeature, Message: "Aggregate over sliced, distinct, grouped, annotated or locked queries requires an explicit subquery"}
 	}
 	aliases := make([]string, 0, len(expressions))

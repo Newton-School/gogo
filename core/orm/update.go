@@ -66,7 +66,7 @@ func (q Query[T]) updateSQL(ctx context.Context, values map[string]any) (string,
 		return "", nil, errors.New("orm: Update requires a managed single-table concrete model")
 	}
 	ast := q.selectAST
-	if ast.Limit != nil || ast.Offset != nil || ast.Distinct || len(ast.DistinctOn) > 0 || len(ast.Joins) > 0 || len(q.relatedPaths) > 0 || len(ast.GroupBy) > 0 || len(ast.Projections) > 0 || ast.ForUpdate || ast.Having.Field != "" || ast.Having.Expression != nil || len(ast.Having.Children) > 0 {
+	if ast.Limit != nil || ast.Offset != nil || ast.Distinct || len(ast.DistinctOn) > 0 || len(ast.Joins) > 0 || len(q.relatedPaths) > 0 || len(ast.GroupBy) > 0 || len(ast.Projections) > 0 || len(ast.Aliases) > 0 || ast.ForUpdate || ast.Having.Field != "" || ast.Having.Expression != nil || len(ast.Having.Children) > 0 {
 		return "", nil, errors.New("orm: Update does not support slicing, distinct, joins, grouping or read-lock options")
 	}
 	// Snapshot assignments before trusted scope/codec callbacks execute. Plain

@@ -66,24 +66,30 @@ func ValidateUpdateExpression(expression db.Expression) error {
 	return validateUpdateExpression(expression, 0)
 }
 
+// ValidateRowExpression limits a per-row projection to scalar expressions.
+// Aggregate and window expressions need a different grouping/execution owner.
+func ValidateRowExpression(expression db.Expression) error {
+	return validateUpdateExpression(expression, 0)
+}
+
 func validateUpdateExpression(expression db.Expression, depth int) error {
 	if depth > 64 {
-		return errors.New("orm: update expression exceeds nesting limit")
+		return errors.New("orm: row expression exceeds nesting limit")
 	}
 	if expression.Filter != nil || expression.Distinct {
-		return errors.New("orm: update cannot contain aggregate filters or distinct expressions")
+		return errors.New("orm: row expression cannot contain aggregate filters or distinct expressions")
 	}
 	if expression.Kind == "field" && expression.Name == "*" {
-		return errors.New("orm: update requires concrete field references")
+		return errors.New("orm: row expression requires concrete field references")
 	}
 	if expression.Kind == "function" {
 		name := strings.ToUpper(expression.Name)
 		if IsAggregateFunction(name) {
-			return errors.New("orm: update cannot contain aggregates")
+			return errors.New("orm: row expression cannot contain aggregates")
 		}
 		switch name {
 		case "ROW_NUMBER", "RANK", "DENSE_RANK", "PERCENT_RANK", "CUME_DIST", "NTILE", "LAG", "LEAD", "FIRST_VALUE", "LAST_VALUE", "NTH_VALUE":
-			return errors.New("orm: update cannot contain window functions")
+			return errors.New("orm: row expression cannot contain window functions")
 		}
 	}
 	for _, arg := range expression.Args {
@@ -104,7 +110,7 @@ func validateUpdateExpression(expression db.Expression, depth int) error {
 
 func validateUpdatePredicate(predicate db.Predicate, depth int) error {
 	if depth > 64 {
-		return errors.New("orm: update predicate exceeds nesting limit")
+		return errors.New("orm: row predicate exceeds nesting limit")
 	}
 	if predicate.Expression != nil {
 		if err := validateUpdateExpression(*predicate.Expression, depth+1); err != nil {

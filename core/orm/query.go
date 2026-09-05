@@ -73,13 +73,11 @@ func (q Query[T]) clone() Query[T] {
 	q.selectAST.Fields = append([]string(nil), q.selectAST.Fields...)
 	q.selectAST.Order = append([]db.Order(nil), q.selectAST.Order...)
 	q.selectAST.DistinctOn = append([]string(nil), q.selectAST.DistinctOn...)
-	q.selectAST.Projections = append([]db.Projection(nil), q.selectAST.Projections...)
+	q.selectAST.Projections = cloneProjections(q.selectAST.Projections)
+	q.selectAST.Aliases = cloneProjections(q.selectAST.Aliases)
 	q.selectAST.GroupBy = append([]string(nil), q.selectAST.GroupBy...)
 	q.selectAST.Where = clonePredicate(q.selectAST.Where)
 	q.selectAST.Having = clonePredicate(q.selectAST.Having)
-	for i := range q.selectAST.Projections {
-		q.selectAST.Projections[i].Expression = cloneExpression(q.selectAST.Projections[i].Expression)
-	}
 	q.selectAST.Joins = append([]db.Join(nil), q.selectAST.Joins...)
 	for i := range q.selectAST.Joins {
 		q.selectAST.Joins[i].Schema = q.selectAST.Joins[i].Schema.Clone()
@@ -149,6 +147,10 @@ func (q Query[T]) Defer(fields ...string) Query[T] {
 	q = q.clone()
 	exclude := map[string]bool{}
 	for _, name := range fields {
+		if field, ok := q.schema.Field(name); !ok || !field.IsStored() {
+			q.err = errors.New("orm: Defer requires stored model fields")
+			return q
+		}
 		exclude[name] = true
 	}
 	q.selectAST.Fields = nil
@@ -187,19 +189,39 @@ func (q Query[T]) SQL() (string, []any, error) {
 
 // SQLContext resolves request-scoped predicates without executing a query.
 func (q Query[T]) SQLContext(ctx context.Context) (string, []any, error) {
+	if err := ctx.Err(); err != nil {
+		return "", nil, err
+	}
 	if q.err != nil {
 		return "", nil, q.err
+	}
+	if err := q.checkModelProjection(); err != nil {
+		return "", nil, err
 	}
 	var err error
 	q, err = q.prepareRelated(ctx)
 	if err != nil {
 		return "", nil, err
 	}
-	return sqlcompiler.Select(q.store.Backend.Dialect(), q.schema, q.selectAST)
+	q, err = q.prepareAnnotations(ctx)
+	if err != nil {
+		return "", nil, err
+	}
+	statement, args, err := sqlcompiler.Select(q.store.Backend.Dialect(), q.schema, q.selectAST)
+	if canceled := ctx.Err(); canceled != nil {
+		return "", nil, canceled
+	}
+	return statement, args, err
 }
 func (q Query[T]) Iterator(ctx context.Context) (*Iterator[T], error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	if q.err != nil {
 		return nil, q.err
+	}
+	if err := q.checkModelProjection(); err != nil {
+		return nil, err
 	}
 	if len(q.prefetches) > 0 {
 		return nil, errors.New("orm: collection prefetch requires All; streaming prefetch needs an explicit chunked query")
@@ -211,7 +233,14 @@ func (q Query[T]) Iterator(ctx context.Context) (*Iterator[T], error) {
 	if err != nil {
 		return nil, err
 	}
+	q, err = q.prepareAnnotations(ctx)
+	if err != nil {
+		return nil, err
+	}
 	statement, args, err := sqlcompiler.Select(q.store.Backend.Dialect(), q.schema, q.selectAST)
+	if canceled := ctx.Err(); canceled != nil {
+		return nil, canceled
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -219,11 +248,12 @@ func (q Query[T]) Iterator(ctx context.Context) (*Iterator[T], error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Iterator[T]{rows: rows, query: q}, nil
+	return &Iterator[T]{rows: rows, query: q, ctx: ctx}, nil
 }
 
 type Iterator[T models.Model] struct {
 	rows   db.Rows
+	ctx    context.Context
 	query  Query[T]
 	value  T
 	err    error
@@ -246,7 +276,7 @@ func (i *Iterator[T]) Next() bool {
 		i.Close()
 		return false
 	}
-	values := make([]any, len(i.query.selectAST.Fields))
+	values := make([]any, len(i.query.selectAST.Fields)+len(i.query.selectAST.Projections))
 	dest := make([]any, len(values))
 	for index := range values {
 		dest[index] = &values[index]
@@ -281,6 +311,19 @@ func (i *Iterator[T]) Next() bool {
 		i.err = err
 		i.Close()
 		return false
+	}
+	record.State().Annotations = nil
+	if len(i.query.selectAST.Projections) > 0 {
+		record.State().Annotations = make(map[string]any, len(i.query.selectAST.Projections))
+		for index, projection := range i.query.selectAST.Projections {
+			value, err := i.query.store.decodeAnnotation(i.ctx, projection, values[len(i.query.selectAST.Fields)+index])
+			if err != nil {
+				i.err = err
+				i.Close()
+				return false
+			}
+			record.State().Annotations[projection.Alias] = value
+		}
 	}
 	record.State().Persisted = true
 	record.State().Database = i.query.store.Backend.Alias()
@@ -371,6 +414,9 @@ func (q Query[T]) Exists(ctx context.Context) (bool, error) {
 	return err == nil, err
 }
 func (q Query[T]) Values(ctx context.Context, fields ...string) ([]map[string]any, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	if q.err != nil {
 		return nil, q.err
 	}
@@ -378,20 +424,48 @@ func (q Query[T]) Values(ctx context.Context, fields ...string) ([]map[string]an
 		return nil, errors.New("orm: SelectForUpdate requires Atomic")
 	}
 	q = q.clone()
-	q.relatedPaths = nil
 	q.prefetches = nil
+	// Resolve explicit scoped joins before selecting Values columns. Eager
+	// hydration columns must not leak into the default root-values projection.
+	selected := append([]string(nil), q.selectAST.Fields...)
 	if len(fields) > 0 {
-		q.selectAST.Fields = append([]string(nil), fields...)
+		selected = append([]string(nil), fields...)
+	} else {
+		for _, projection := range q.selectAST.Projections {
+			selected = append(selected, projection.Alias)
+		}
+	}
+	q, err := q.prepareRelated(ctx)
+	if err != nil {
+		return nil, err
+	}
+	q, err = q.prepareAnnotations(ctx)
+	if err != nil {
+		return nil, err
+	}
+	aliases := map[string]db.Projection{}
+	for _, alias := range q.selectAST.Aliases {
+		aliases[alias.Alias] = alias
+	}
+	q.selectAST.Fields, q.selectAST.Projections = nil, nil
+	for _, name := range selected {
+		if alias, ok := aliases[name]; ok {
+			q.selectAST.Projections = append(q.selectAST.Projections, alias)
+		} else {
+			q.selectAST.Fields = append(q.selectAST.Fields, name)
+		}
 	}
 	outputs := make([]models.Field, len(q.selectAST.Fields))
 	for i, name := range q.selectAST.Fields {
-		var err error
-		outputs[i], err = sqlcompiler.OutputField(q.schema, name)
+		outputs[i], err = sqlcompiler.SelectOutputField(q.schema, q.selectAST, name)
 		if err != nil {
 			return nil, err
 		}
 	}
-	statement, args, err := q.SQLContext(ctx)
+	statement, args, err := sqlcompiler.Select(q.store.Backend.Dialect(), q.schema, q.selectAST)
+	if canceled := ctx.Err(); canceled != nil {
+		return nil, canceled
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -402,7 +476,7 @@ func (q Query[T]) Values(ctx context.Context, fields ...string) ([]map[string]an
 	defer rows.Close()
 	results := []map[string]any{}
 	for rows.Next() {
-		values := make([]any, len(q.selectAST.Fields))
+		values := make([]any, len(q.selectAST.Fields)+len(q.selectAST.Projections))
 		dest := make([]any, len(values))
 		for i := range values {
 			dest[i] = &values[i]
@@ -417,6 +491,13 @@ func (q Query[T]) Values(ctx context.Context, fields ...string) ([]map[string]an
 				return nil, err
 			}
 			record[name] = value
+		}
+		for i, projection := range q.selectAST.Projections {
+			value, err := q.store.decodeAnnotation(ctx, projection, values[len(q.selectAST.Fields)+i])
+			if err != nil {
+				return nil, err
+			}
+			record[projection.Alias] = value
 		}
 		results = append(results, record)
 	}

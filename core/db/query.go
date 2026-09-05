@@ -38,18 +38,24 @@ type Order struct {
 type Projection struct {
 	Expression Expression
 	Alias      string
+	// Output is required for named row aliases; scalar aggregate projections
+	// may keep their output metadata in the terminal query owner instead.
+	Output *models.Field
 }
 type Select struct {
-	Table                                string
-	Alias                                string
-	Joins                                []Join
-	Fields                               []string
-	Where                                Predicate
-	Order                                []Order
-	Limit, Offset                        *int
-	Distinct                             bool
-	DistinctOn                           []string
-	Projections                          []Projection
+	Table         string
+	Alias         string
+	Joins         []Join
+	Fields        []string
+	Where         Predicate
+	Order         []Order
+	Limit, Offset *int
+	Distinct      bool
+	DistinctOn    []string
+	Projections   []Projection
+	// Aliases defines typed expressions independently of which are selected.
+	// References expand inside SQL expressions, not as unsafe SQL identifiers.
+	Aliases                              []Projection
 	GroupBy                              []string
 	Having                               Predicate
 	ForUpdate, NoWait, SkipLocked, NoKey bool

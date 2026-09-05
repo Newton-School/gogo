@@ -17,10 +17,13 @@ type Base struct{ state State }
 func (b *Base) ModelState() *State { return &b.state }
 
 type State struct {
-	Persisted       bool
-	Database        string
-	Deferred        map[string]bool
-	Related         map[string]any
+	Persisted bool
+	Database  string
+	Deferred  map[string]bool
+	Related   map[string]any
+	// Annotations contains explicitly selected query expressions. These values
+	// are per-instance snapshots, never model fields or persistence inputs.
+	Annotations     map[string]any
 	DefaultsApplied bool
 	// Provided distinguishes explicitly bound zero values from omitted values.
 	Provided map[string]bool

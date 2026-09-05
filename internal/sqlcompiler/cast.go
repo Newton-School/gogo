@@ -8,6 +8,10 @@ import (
 	"github.com/Newton-School/gogo/core/models"
 )
 
+// ValidateOutputField checks data-only output metadata without compiling SQL
+// or invoking a provider. The same closed type rules apply to casts and aliases.
+func ValidateOutputField(field models.Field) error { return castField(&field, 0) }
+
 func (c *Compiler) cast(expression db.Expression) (string, error) {
 	if len(expression.Args) != 1 || expression.Output == nil || expression.Distinct {
 		return "", errors.New("orm: cast requires one expression and a declared output field")

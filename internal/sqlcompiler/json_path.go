@@ -11,9 +11,10 @@ import (
 )
 
 type fieldReference struct {
-	field models.Field
-	alias string
-	path  []string
+	field      models.Field
+	alias      string
+	path       []string
+	expression *db.Expression
 }
 
 func (c *Compiler) resolveField(name string) (fieldReference, error) {
@@ -23,6 +24,9 @@ func (c *Compiler) resolveField(name string) (fieldReference, error) {
 	schema, alias := c.Schema, c.Alias
 	if field, ok := schema.Field(name); ok {
 		return fieldReference{field: field, alias: alias}, nil
+	}
+	if projection, ok := c.Aliases[name]; ok && projection.Output != nil {
+		return fieldReference{field: *projection.Output, expression: &projection.Expression}, nil
 	}
 	// Resolve only joins already planned with their application scope. JSON
 	// transforms must not invent an unscoped relational join.
@@ -36,6 +40,11 @@ func (c *Compiler) resolveField(name string) (fieldReference, error) {
 		return fieldReference{field: field, alias: alias}, nil
 	}
 	parts := strings.Split(name, "__")
+	if alias == c.Alias {
+		if projection, ok := c.Aliases[parts[0]]; ok && projection.Output != nil && projection.Output.Kind == models.JSON && len(parts) > 1 {
+			return fieldReference{field: *projection.Output, expression: &projection.Expression, path: parts[1:]}, nil
+		}
+	}
 	field, ok := schema.Field(parts[0])
 	if !ok {
 		return fieldReference{}, fmt.Errorf("orm: unknown or unresolved field %s", parts[0])
@@ -47,6 +56,19 @@ func (c *Compiler) resolveField(name string) (fieldReference, error) {
 }
 
 func (c *Compiler) referenceSQL(reference fieldReference, asText bool) (string, error) {
+	if reference.expression != nil {
+		value, err := c.Expression(*reference.expression)
+		if err != nil {
+			return "", err
+		}
+		if len(reference.path) == 0 {
+			return "(" + value + ")", nil
+		}
+		if reference.field.Codec != nil {
+			return "", &db.Error{Code: db.UnsupportedFeature, Message: "JSON path extraction requires the standard JSON codec"}
+		}
+		return c.jsonExtract("("+value+")", reference.path, asText)
+	}
 	column, err := c.Dialect.QuoteIdentifier(reference.field.DBColumn())
 	if err != nil {
 		return "", err
@@ -165,7 +187,20 @@ func (c *Compiler) predicateSQL(p db.Predicate, lookup string) (string, error) {
 // OutputField resolves the type of a schema-bound field or JSON transform for
 // value decoding. It does not compile SQL or evaluate a connector/provider.
 func OutputField(schema models.Schema, name string) (models.Field, error) {
-	reference, err := (&Compiler{Schema: schema}).resolveField(name)
+	return SelectOutputField(schema, db.Select{}, name)
+}
+
+// SelectOutputField includes only aliases and joins explicitly resolved by the
+// query owner. Decoding a path must never invent an unscoped relationship.
+func SelectOutputField(schema models.Schema, query db.Select, name string) (models.Field, error) {
+	c := &Compiler{Schema: schema, Alias: query.Alias, Aliases: map[string]db.Projection{}, Joins: map[string]db.Join{}}
+	for _, alias := range query.Aliases {
+		c.Aliases[alias.Alias] = alias
+	}
+	for _, join := range query.Joins {
+		c.Joins[join.Path] = join
+	}
+	reference, err := c.resolveField(name)
 	if err != nil {
 		return models.Field{}, err
 	}
