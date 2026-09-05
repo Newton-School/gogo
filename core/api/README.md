@@ -61,8 +61,9 @@ private/no-store, and support GET/HEAD; an unacceptable Accept header returns
 
 Explicit JSON creation is available through [CreateHandler](create.md), with
 typed model hooks, mandatory write/audit policies and confirmed transaction
-outcomes. [Durable operation receipts](idempotency.md) are independently
-available but not yet integrated into that HTTP handler.
+outcomes and opt-in [durable operation receipts](idempotency.md). Configure
+`CreateIdempotencyOptions` explicitly to require HTTP operation keys and current
+receipt authorization/redaction; unconfigured handlers reject key headers.
 
-Generic update/delete, HTTP receipt integration, reverse-cursor navigation, custom action metadata,
+Generic update/delete, reverse-cursor navigation, custom action metadata,
 OpenAPI and browsable documentation are not implemented by this resource yet.

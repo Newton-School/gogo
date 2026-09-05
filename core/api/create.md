@@ -3,9 +3,10 @@
 `Resource.CreateHandler(CreateOptions)` builds a POST handler for explicit
 registration in an app's `urls.go`. Read-only `Resource.Routes` never enables
 writes automatically. The initial create endpoint accepts bounded JSON;
-update/delete, nested/file/M2M persistence and HTTP idempotency-key integration
-are separate unfinished paths. It rejects operation-key headers instead of
-silently ignoring a caller's replay expectations.
+update/delete and nested/file/M2M persistence are separate unfinished paths.
+Durable operation keys are explicitly enabled with `CreateOptions.Idempotency`.
+Without that configuration, operation-key headers are rejected. Query arguments
+and conditional `If-Match`/`If-None-Match` headers are not supported on creation.
 
 Provide an explicit input serializer and a factory returning a fresh typed
 model matching the registered schema. `Prepare` supplies server-owned values
@@ -54,4 +55,43 @@ create returns 201 with Location. `X-Gogo-Mutation` reports `unchanged`,
 after-commit callback can produce an error with `committed`; an uncertain
 commit returns 503 with `unknown`, no success body and no Location. This
 endpoint never automatically retries a write: reconcile an unknown result
-before resubmitting.
+before resubmitting. With durable operation keys enabled, retry the same key
+and same arguments to reconcile; never generate a replacement key on error.
+
+## Durable HTTP operation keys
+
+Install `IdempotencyMigrations()` explicitly on the resource backend and set
+`CreateIdempotencyOptions` with a stable mutation-contract `Version`, trusted
+tenant/resource `Scope` and read-only `Redact` policy. A version identifies
+the operation family; do not change it when a user's grants change. Actor
+identity is independently bound by the receipt service. Callbacks must be
+immutable/concurrency-safe and honor cancellation.
+
+Exactly one `Idempotency-Key` is required by default (1–255 printable ASCII
+characters without spaces). `Optional: true` deliberately permits ordinary
+unkeyed writes; it does not infer keys. Method, host, escaped route path and
+parsed JSON are hashed into the operation arguments. `Vary` supplies additional
+application semantics such as middleware-selected locale; never put credentials
+in it. JSON numeric equivalence and exact large integers are preserved.
+
+One transaction claims the key and commits the typed model, audit and bounded
+receipt together. Concurrent identical keys return one logical creation.
+Different arguments under that key return 409; they never run a new mutation.
+Confirmed replays return the original 201 and Location with
+`Idempotency-Replayed: true`. Current model/object add permission, proposed-write
+policy, root row scope, related-target scope and output field visibility are
+checked again under row locks. A hidden/deleted root gives 404, not the old
+receipt. The current grant version does not create a fresh operation identity.
+
+`Redact` receives a current scoped record and a detached original body. It must
+enforce visibility of nested/computed fields and may only remove original
+fields, never recompute values. Resource serializer/field restrictions apply
+additionally. In-memory record changes and nested writes to the root or related
+targets are rechecked before commit. A failed replay cannot update its stored
+receipt or the business object. Read-only callback contracts still prohibit
+unrelated writes; this is not a sandbox for application code.
+
+Retention defaults to 24 hours; expired keys can create new operations. Do not
+use receipts as an indefinite exactly-once guarantee. Physical receipt cleanup
+is not yet provided. See [the receipt contract](idempotency.md) for bounds and
+transaction outcome semantics.

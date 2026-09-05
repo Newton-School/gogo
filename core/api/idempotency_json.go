@@ -16,7 +16,15 @@ const maxReceiptBytes = 1 << 20
 // Clone through bounded JSON, keeping exact number tokens and rejecting
 // duplicate keys, unsupported values and excessive nesting. No custom values
 // survive a callback boundary into the stored receipt.
-func receiptObject(value any) (Values, error) {
+func receiptObject(value any) (result Values, err error) {
+	// Custom JSON marshalers are application code. A panic here, including
+	// before Execute starts a transaction, is invalid JSON, not evidence of an
+	// uncertain commit. Never propagate a marshaler's private panic value.
+	defer func() {
+		if recover() != nil {
+			result, err = nil, errors.New("api: invalid operation JSON")
+		}
+	}()
 	budget := 65536
 	if !validReceiptText(value, 32, &budget) {
 		return nil, errors.New("api: invalid operation JSON")

@@ -185,7 +185,11 @@ func (s *Idempotency) Execute(ctx context.Context, operation Operation, mutate f
 	requestDigest := operationDigest(canonical)
 	ctx, cancel := context.WithTimeout(ctx, s.config.Timeout)
 	defer cancel()
-	err = db.Atomic(ctx, s.store.Backend, db.AtomicOptions{Durable: true}, func(ctx context.Context) error {
+	err = db.Atomic(ctx, s.store.Backend, db.AtomicOptions{Durable: true}, func(ctx context.Context) (err error) {
+		// Contain application panics before control reaches Commit, so Atomic
+		// can return a normal rollback outcome. The outer recovery still treats
+		// a panic in transaction commit/cleanup conservatively as uncertain.
+		defer rollbackMutationPanic(&err)
 		// Register first: a typed error from an inner/other-alias callback is
 		// not proof that THIS outer transaction committed. This marker is.
 		if err := db.OnCommit(ctx, s.store.Backend.Alias(), func(context.Context) error { committed = true; return nil }, false); err != nil {
@@ -268,6 +272,12 @@ func (s *Idempotency) Execute(ctx context.Context, operation Operation, mutate f
 		result = IdempotencyResult{Outcome: MutationUnchanged}
 	}
 	return result, err
+}
+
+func rollbackMutationPanic(err *error) {
+	if recover() != nil {
+		*err = mediaError(503, "MUTATION_CALLBACK_FAILED", "Mutation callback failed")
+	}
 }
 
 func (s *Idempotency) permit(ctx context.Context, operation Operation, key Values) error {

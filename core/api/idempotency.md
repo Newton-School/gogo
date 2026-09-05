@@ -44,12 +44,16 @@ confirmation comes from this outer transaction's own commit marker, not merely
 a callback's error type. Unknown commit acknowledgements return no response
 and `unknown`: retry the same operation identity to reconcile. A failed
 callback/serialization rolls back both mutation and receipt. The service never
-retries mutation callbacks itself. A panic without commit confirmation is
-conservatively unknown and its value is not disclosed.
+retries mutation callbacks itself. Application panics within the transaction
+body become safe callback errors before Commit and roll back normally. A panic
+in transaction commit/cleanup without confirmation remains conservatively
+unknown; no panic value is disclosed.
 
 Retention defaults to 24h and cannot be shorter than Timeout. An expired key
 may perform a new mutation; replay is only guaranteed inside retention. Expiry
 is checked under the same row lock. Administrative physical receipt cleanup
-and Resource HTTP write integration are not provided by this service yet.
+is not provided by this service yet. [Resource creation](create.md) integrates
+these receipts through explicit `CreateIdempotencyOptions`; update/delete
+integration is unfinished.
 Do not expose `IdempotencyRecord` through generic Admin/resources or logs;
 direct JSON serialization and routine formatting are deliberately restricted.

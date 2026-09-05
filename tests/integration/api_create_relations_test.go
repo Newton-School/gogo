@@ -34,6 +34,16 @@ func (*apiCreatedReference) Schema() models.Schema {
 }
 
 func TestPostgresAPIJSONCreateDefaultIdentityAndRelationScopeRechecks(t *testing.T) {
+	for _, receipts := range []bool{false, true} {
+		name := "unkeyed"
+		if receipts {
+			name = "receipts"
+		}
+		t.Run(name, func(t *testing.T) { testAPIJSONCreateRelationScope(t, receipts) })
+	}
+}
+
+func testAPIJSONCreateRelationScope(t *testing.T, receipts bool) {
 	backend := testservice.Postgres(t)
 	ctx := context.Background()
 	target := models.Schema{AppLabel: "shop", Name: "CreateTarget", Fields: []models.Field{
@@ -56,6 +66,13 @@ func TestPostgresAPIJSONCreateDefaultIdentityAndRelationScopeRechecks(t *testing
 	for _, definition := range []models.Schema{target, schema} {
 		if err := editor.CreateModel(ctx, backend, definition); err != nil {
 			t.Fatal(err)
+		}
+	}
+	if receipts {
+		for _, definition := range api.IdempotencySchemas() {
+			if err := backend.SchemaEditor().CreateModel(ctx, backend, definition); err != nil {
+				t.Fatal(err)
+			}
 		}
 	}
 	if _, err := backend.Exec(ctx, `INSERT INTO shop_createtarget (tenant) VALUES ('one'),('two')`); err != nil {
@@ -88,7 +105,7 @@ func TestPostgresAPIJSONCreateDefaultIdentityAndRelationScopeRechecks(t *testing
 		}
 		return nil
 	}}
-	handler, err := resource.CreateHandler(api.CreateOptions{
+	options := api.CreateOptions{
 		Input: input, Factory: func() models.Model { return &apiCreatedReference{} },
 		Prepare: func(ctx context.Context, r models.Record) error { return r.Set("tenant", auth.FromContext(ctx).ID) },
 		ValidateWrite: func(_ context.Context, p auth.Principal, r models.Record) error {
@@ -114,7 +131,19 @@ func TestPostgresAPIJSONCreateDefaultIdentityAndRelationScopeRechecks(t *testing
 		Location: func(_ context.Context, key api.Values) (string, error) {
 			return "/references/" + key["id"].(string) + "/", nil
 		},
-	})
+	}
+	if receipts {
+		options.Idempotency = &api.CreateIdempotencyOptions{Version: "v1", Scope: func(_ context.Context, p auth.Principal) (string, error) { return p.ID, nil },
+			Redact: func(ctx context.Context, _ auth.Principal, _ models.Record, body api.Values) (api.Values, error) {
+				if mode == "receipt_move_target" {
+					_, err := db.ExecutorFor(ctx, backend).Exec(ctx, `UPDATE shop_createtarget SET tenant='two' WHERE id=1`)
+					return body, err
+				}
+				return body, nil
+			},
+		}
+	}
+	handler, err := resource.CreateHandler(options)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -125,12 +154,19 @@ func TestPostgresAPIJSONCreateDefaultIdentityAndRelationScopeRechecks(t *testing
 	call := func(body string) *httptest.ResponseRecorder {
 		r := httptest.NewRequest("POST", "https://example.test/references/", strings.NewReader(body)).WithContext(auth.WithPrincipal(ctx, principal))
 		r.Header.Set("Content-Type", "application/json")
+		if receipts {
+			r.Header.Set("Idempotency-Key", "reference-one")
+		}
 		w := httptest.NewRecorder()
 		handler.ServeHTTP(w, r)
 		return w
 	}
 	var unavailableBody string
-	for _, scenario := range []string{"hidden", "missing", "retarget", "move_target"} {
+	scenarios := []string{"hidden", "missing", "retarget", "move_target"}
+	if receipts {
+		scenarios = append(scenarios, "receipt_move_target")
+	}
+	for _, scenario := range scenarios {
 		mode = scenario
 		body := `{"name":"reference","target":1}`
 		if scenario == "hidden" {
@@ -167,5 +203,18 @@ func TestPostgresAPIJSONCreateDefaultIdentityAndRelationScopeRechecks(t *testing
 	}
 	if w.Code != 201 || body["id"] != createdReferenceID || w.Header().Get("Location") != "/references/"+createdReferenceID+"/" || w.Header().Get("X-Gogo-Mutation") != "committed" {
 		t.Fatal("scoped UUID create failed", w.Code, w.Body.String(), w.Header())
+	}
+	if receipts {
+		original := w.Body.String()
+		mode = "receipt_move_target"
+		w = call(`{"name":"reference","target":1}`)
+		if w.Code != 422 || w.Header().Get("Location") != "" || w.Header().Get("Idempotency-Replayed") != "" {
+			t.Fatal("late receipt target mutation bypassed current scope", w.Code, w.Body.String())
+		}
+		mode = ""
+		w = call(`{"name":"reference","target":1}`)
+		if w.Code != 201 || w.Header().Get("Idempotency-Replayed") != "true" || w.Body.String() != original {
+			t.Fatal("failed replay did not roll back target mutation", w.Code, w.Body.String())
+		}
 	}
 }

@@ -98,6 +98,8 @@ func TestPostgresAPIJSONCreateTypedHooksScopeAtomicAuditAndCSRF(t *testing.T) {
 			product.ID = 1
 		case "after_error":
 			return errors.New("synthetic after-save failure")
+		case "after_panic":
+			panic("synthetic private after-save detail")
 		case "foreign_error":
 			return &db.CommittedCallbackError{Errors: []error{errors.New("foreign transaction")}}
 		case "foreign_unknown":
@@ -217,7 +219,7 @@ func TestPostgresAPIJSONCreateTypedHooksScopeAtomicAuditAndCSRF(t *testing.T) {
 			t.Fatal(test.body, w.Code, w.Body.String())
 		}
 	}
-	for _, failure := range []string{"wrong_scope", "retarget", "after_error", "foreign_error", "foreign_unknown", "audit_error", "audit_write", "late_policy_write", "bad_location", "representation_mutates"} {
+	for _, failure := range []string{"wrong_scope", "retarget", "after_error", "after_panic", "foreign_error", "foreign_unknown", "audit_error", "audit_write", "late_policy_write", "bad_location", "representation_mutates"} {
 		mode = failure
 		w := call(bearer, `{"name":"Must roll back"}`, nil, nil)
 		if w.Code < 400 || w.Header().Get("X-Gogo-Mutation") != "unchanged" || w.Header().Get("Location") != "" {

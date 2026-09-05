@@ -167,11 +167,16 @@ func TestPostgresAPIIdempotencyConcurrentReplayRollbackScopeAndExpiry(t *testing
 		t.Fatal("redactor broadened receipt", result, err)
 	}
 	broaden.Store(false)
+	panicRedact.Store(true)
+	if result, err := service.Execute(ctx, operation, mutate); err == nil || result.Outcome != api.MutationUnchanged || result.Response.Body != nil {
+		t.Fatal("precommit redaction panic reported uncertainty or disclosed receipt", result, err)
+	}
+	panicRedact.Store(false)
 	// Failed writes and invalid serialization roll back both records.
 	for _, mode := range []string{"callback_error", "bad_response", "panic"} {
 		candidate := operation
 		candidate.Key = mode
-		_, err := service.Execute(ctx, candidate, func(ctx context.Context) (api.MutationResponse, error) {
+		result, err := service.Execute(ctx, candidate, func(ctx context.Context) (api.MutationResponse, error) {
 			response, err := mutate(ctx)
 			if err != nil {
 				return response, err
@@ -186,7 +191,7 @@ func TestPostgresAPIIdempotencyConcurrentReplayRollbackScopeAndExpiry(t *testing
 			}
 			return response, nil
 		})
-		if err == nil || count() != 1 {
+		if err == nil || result.Outcome != api.MutationUnchanged || count() != 1 {
 			t.Fatal("failed mutation survived", mode, err)
 		}
 		if strings.Contains(err.Error(), "private") {

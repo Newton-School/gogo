@@ -41,6 +41,7 @@ type CreateOptions struct {
 	Location      func(context.Context, Values) (string, error)
 	MaxBytes      int64
 	Timeout       time.Duration
+	Idempotency   *CreateIdempotencyOptions
 	// Nil uses secure cookies. An explicit config may disable Secure for local
 	// development, but Exempt is not accepted. Verified scoped bearer identities
 	// are exempt; cookie/custom identities always require CSRF protection.
@@ -89,6 +90,10 @@ func (s *Resource) CreateHandler(options CreateOptions) (http.Handler, error) {
 	if _, _, err := s.freshModel(options.Factory); err != nil {
 		return nil, err
 	}
+	operations, err := s.createOperations(options)
+	if err != nil {
+		return nil, err
+	}
 	csrf := security.CSRFConfig{Secure: true, MaxBodyBytes: options.MaxBytes}
 	if options.CSRF != nil {
 		csrf = *options.CSRF
@@ -108,7 +113,7 @@ func (s *Resource) CreateHandler(options CreateOptions) (http.Handler, error) {
 		return nil, err
 	}
 	handler := protect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		result, err := s.createRequest(r, options)
+		result, err := s.createRequest(r, options, operations)
 		w.Header().Set("X-Gogo-Mutation", string(result.Outcome))
 		if err != nil {
 			public := publicMutationError(err)
@@ -117,6 +122,9 @@ func (s *Resource) CreateHandler(options CreateOptions) (http.Handler, error) {
 			}
 			ghttp.WriteError(w, r, public)
 			return
+		}
+		if result.Replayed {
+			w.Header().Set("Idempotency-Replayed", "true")
 		}
 		response, err := ghttp.JSON(result.Response.Status, result.Response.Body)
 		if err != nil {
@@ -167,7 +175,7 @@ func (s *Resource) freshModel(factory func() models.Model) (models.Model, models
 	return model, record, nil
 }
 
-func (s *Resource) createRequest(r *http.Request, options CreateOptions) (result IdempotencyResult, err error) {
+func (s *Resource) createRequest(r *http.Request, options CreateOptions, operations *createIdempotency) (result IdempotencyResult, err error) {
 	result.Outcome = MutationUnchanged
 	defer func() {
 		if recover() != nil {
@@ -179,8 +187,8 @@ func (s *Resource) createRequest(r *http.Request, options CreateOptions) (result
 	if err != nil {
 		return result, err
 	}
-	if r.URL.RawQuery != "" || len(r.Header.Values("Idempotency-Key")) != 0 {
-		return result, mediaError(400, "INVALID_CREATE", "Query parameters and operation keys are not enabled on this endpoint")
+	if r.URL.RawQuery != "" || operations == nil && len(r.Header.Values("Idempotency-Key")) != 0 || len(r.Header.Values("If-Match")) != 0 || len(r.Header.Values("If-None-Match")) != 0 {
+		return result, mediaError(400, "INVALID_CREATE", "Unsupported query, precondition or operation-key policy")
 	}
 	// JSON avoids ambiguous multipart hashes and CSRF's form-body consumption.
 	if len(r.Header.Values("Content-Type")) != 1 || !strings.HasPrefix(strings.ToLower(r.Header.Get("Content-Type")), "application/json") {
@@ -193,9 +201,13 @@ func (s *Resource) createRequest(r *http.Request, options CreateOptions) (result
 	defer parsed.Close()
 	ctx, cancel := context.WithTimeout(request.ctx, options.Timeout)
 	defer cancel()
-	return durableResponse(ctx, s.config.Store.Backend, func(ctx context.Context) (MutationResponse, error) {
+	mutate := func(ctx context.Context) (MutationResponse, error) {
 		return s.createModel(ctx, parsed.Values, options)
-	})
+	}
+	if operations != nil && (!operations.options.Optional || len(r.Header.Values("Idempotency-Key")) != 0) {
+		return operations.execute(r, ctx, parsed.Values, mutate)
+	}
+	return durableResponse(ctx, s.config.Store.Backend, mutate)
 }
 
 func recordIdentity(record models.Record) (Values, error) {
@@ -448,11 +460,11 @@ func durableResponse(ctx context.Context, backend db.Backend, mutate func(contex
 			}
 		}
 	}()
-	err = db.Atomic(ctx, backend, db.AtomicOptions{Durable: true}, func(ctx context.Context) error {
+	err = db.Atomic(ctx, backend, db.AtomicOptions{Durable: true}, func(ctx context.Context) (err error) {
+		defer rollbackMutationPanic(&err)
 		if err := db.OnCommit(ctx, backend.Alias(), func(context.Context) error { committed = true; return nil }, false); err != nil {
 			return err
 		}
-		var err error
 		response, err = mutate(ctx)
 		if err != nil {
 			return err
