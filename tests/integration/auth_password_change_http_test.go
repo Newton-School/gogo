@@ -28,6 +28,22 @@ import (
 	"github.com/Newton-School/gogo/core/sessions"
 )
 
+type passwordChangeHook func(context.Context, string, string) (auth.PasswordChangeResult, error)
+
+func (f passwordChangeHook) ChangeOwnPassword(ctx context.Context, old, replacement string) (auth.PasswordChangeResult, error) {
+	return f(ctx, old, replacement)
+}
+
+type failingVersionedSessionWrites struct{ failingSessionWrites }
+
+func (f failingVersionedSessionWrites) DeleteIfVersion(ctx context.Context, id string, expected uint64) error {
+	versioned, ok := f.Store.(sessions.VersionedDeleter)
+	if !ok {
+		return errors.New("fixture session provider does not support conditional revocation")
+	}
+	return versioned.DeleteIfVersion(ctx, id, expected)
+}
+
 func TestPostgresPasswordChangeHTTPBothSessionProviders(t *testing.T) {
 	for _, provider := range []string{"redis", "postgres"} {
 		t.Run(provider, func(t *testing.T) { runPasswordChangeHTTP(t, provider) })
@@ -318,7 +334,7 @@ func runPasswordChangeHTTP(t *testing.T, provider string) {
 	loginAs(firstClient, third)
 	csrf = token(firstClient, "/change")
 	previousID = sessionID(firstClient)
-	handler = wrap(failingSessionWrites{persistence})
+	handler = wrap(failingVersionedSessionWrites{failingSessionWrites{persistence}})
 	w = call(firstClient, http.MethodPost, "/change", passwordForm(third, fourth), csrf)
 	handler = wrap(persistence)
 	if w.Code != http.StatusServiceUnavailable || w.Header().Get("X-Gogo-Password-Change") != "changed" || len(w.Result().Cookies()) != 0 || strings.Contains(w.Body.String(), "private persistence") {
@@ -348,4 +364,40 @@ func runPasswordChangeHTTP(t *testing.T, provider string) {
 		t.Fatal("unknown transition did not revoke current session", err)
 	}
 	loginAs(firstClient, fifth)
+	// A concurrent request may update the same session during password work.
+	// Rotation must compare the originally loaded version before revoking it;
+	// otherwise it silently replaces newer data with an old request snapshot.
+	csrf = token(firstClient, "/change")
+	previousID = sessionID(firstClient)
+	raced := false
+	changeConfig.PreserveSession = true
+	changeConfig.Changer = passwordChangeHook(func(ctx context.Context, old, replacement string) (auth.PasswordChangeResult, error) {
+		result, err := accounts.ChangeOwnPassword(ctx, old, replacement)
+		if err != nil {
+			return result, err
+		}
+		record, err := persistence.Load(ctx, previousID)
+		if err != nil {
+			return result, err
+		}
+		expected := record.Version
+		record.Version++
+		record.Data["concurrent"] = json.RawMessage(`"fresh state"`)
+		err = persistence.Save(ctx, record, expected)
+		raced = err == nil
+		return result, err
+	})
+	raceChange, err := views.PasswordChange(changeConfig)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mux.Handle("/change-race", raceChange)
+	w = call(firstClient, http.MethodPost, "/change-race", passwordForm(fifth, "fixture sixth password"), csrf)
+	if !raced || w.Code != http.StatusServiceUnavailable || w.Header().Get("X-Gogo-Password-Change") != "changed" || len(w.Result().Cookies()) != 0 {
+		t.Fatal("rotation ignored concurrent session update", raced, w.Code)
+	}
+	record, err = persistence.Load(ctx, previousID)
+	if err != nil || string(record.Data["concurrent"]) != `"fresh state"` || currentAccount().AuthVersion != 6 {
+		t.Fatal("session rotation conflict erased competing data or lost password outcome", err)
+	}
 }
