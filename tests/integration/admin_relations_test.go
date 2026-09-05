@@ -295,14 +295,16 @@ func TestAdminManyToManyScopedSaveConflictAndAuditRollback(t *testing.T) {
 	// after form validation and retention were computed. Final authorization
 	// must re-run the resolver for actual additions/removals, not hidden links
 	// that remain unchanged.
-	audited.beforeRelations = func() { denyFirstAtMutation = true }
-	get = request("GET", link[1], nil, nil)
-	post = request("POST", link[1], postValues(get, "Late resolver denial", "2"), get.Result().Cookies())
-	if post.Code != 403 {
-		t.Fatal("final relation authorization missed resolver change", post.Code, post.Body.String())
+	for _, selected := range [][]string{{"2"}, {"1", "2"}} {
+		audited.beforeRelations = func() { denyFirstAtMutation = true }
+		get = request("GET", link[1], nil, nil)
+		post = request("POST", link[1], postValues(get, "Late resolver denial", selected...), get.Result().Cookies())
+		if post.Code != 403 {
+			t.Fatal("final relation authorization missed resolver change", selected, post.Code, post.Body.String())
+		}
+		audited.beforeRelations, denyFirstAtMutation = nil, false
+		check("Updated", labels[0].ID, labels[1].ID, labels[2].ID)
 	}
-	audited.beforeRelations, denyFirstAtMutation = nil, false
-	check("Updated", labels[0].ID, labels[1].ID, labels[2].ID)
 	audited.fail = true
 	get = request("GET", link[1], nil, nil)
 	post = request("POST", link[1], postValues(get, "Must roll back", "2"), get.Result().Cookies())

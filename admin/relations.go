@@ -199,6 +199,7 @@ func (s *Site) saveFormRelations(ctx context.Context, p auth.Principal, options 
 	if err != nil {
 		return err
 	}
+	submittedChecks := map[string]func(context.Context) error{}
 	for _, name := range names {
 		field, _ := options.Schema.Field(name)
 		target, ok := s.models[field.Relation.Target]
@@ -209,7 +210,7 @@ func (s *Site) saveFormRelations(ctx context.Context, p auth.Principal, options 
 		if err != nil || targetStore == nil {
 			return auth.ErrPermissionDenied
 		}
-		eligible := func(value any) (bool, error) {
+		eligible := func(ctx context.Context, value any) (bool, error) {
 			record, err := models.NewRecord(target.Schema)
 			if err != nil {
 				return false, err
@@ -234,8 +235,24 @@ func (s *Site) saveFormRelations(ctx context.Context, p auth.Principal, options 
 			resolved, err := options.ResolveRelation(ctx, field, []string{fmt.Sprint(value)})
 			return err == nil && len(resolved) == 1 && sameChoiceIdentity(value, resolved[0], false), nil
 		}
+		// Snapshot only validated client-submitted scalar IDs before retaining
+		// hidden server-owned links. Recheck even unchanged submitted links at
+		// the mutation boundary: an empty diff is not fresh authorization.
+		submitted := append([]any(nil), values[name]...)
+		submittedChecks[name] = func(ctx context.Context) error {
+			for _, value := range submitted {
+				allowed, err := eligible(ctx, value)
+				if err != nil {
+					return err
+				}
+				if !allowed {
+					return auth.ErrPermissionDenied
+				}
+			}
+			return nil
+		}
 		for _, value := range values[name] {
-			allowed, err := eligible(value)
+			allowed, err := eligible(ctx, value)
 			if err != nil {
 				return err
 			}
@@ -245,7 +262,7 @@ func (s *Site) saveFormRelations(ctx context.Context, p auth.Principal, options 
 			}
 		}
 		for _, value := range current[name] {
-			allowed, err := eligible(value)
+			allowed, err := eligible(ctx, value)
 			if err != nil {
 				return err
 			}
@@ -255,6 +272,13 @@ func (s *Site) saveFormRelations(ctx context.Context, p auth.Principal, options 
 		}
 	}
 	return saver.SaveRelations(ctx, object, values, func(ctx context.Context, change RelationChange) error {
+		check := submittedChecks[change.Field]
+		if check == nil {
+			return auth.ErrPermissionDenied
+		}
+		if err := check(ctx); err != nil {
+			return err
+		}
 		if change.Source.Record == nil || change.Source.Record.Schema().Key() != options.Schema.Key() || change.Source.ID != object.ID {
 			return auth.ErrPermissionDenied
 		}
