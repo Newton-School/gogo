@@ -59,7 +59,7 @@ func SessionMiddleware(loader PrincipalLoader) (func(http.Handler) http.Handler,
 				http.Error(w, "authentication service unavailable", 503)
 				return
 			}
-			if err != nil || !principal.Active || principal.ID != identity.ID || principal.AuthVersion != identity.AuthVersion {
+			if err != nil || !principal.Active || principal.tokenScopes != nil || principal.ID != identity.ID || principal.AuthVersion != identity.AuthVersion {
 				if err := session.Flush(); err != nil {
 					http.Error(w, "authentication service unavailable", 503)
 					return
@@ -80,7 +80,7 @@ func SessionMiddleware(loader PrincipalLoader) (func(http.Handler) http.Handler,
 // Like other request-local operations, Login must not run concurrently with
 // handlers using the same request or session.
 func Login(w http.ResponseWriter, r *http.Request, p Principal, csrf security.CSRFConfig) error {
-	if !p.Authenticated || !p.Active || p.ID == "" || p.AuthVersion == 0 {
+	if !p.Authenticated || !p.Active || p.ID == "" || p.AuthVersion == 0 || p.tokenScopes != nil {
 		return ErrCredentials
 	}
 	session, ok := sessions.FromContext(r.Context())
@@ -120,7 +120,7 @@ func Login(w http.ResponseWriter, r *http.Request, p Principal, csrf security.CS
 // emitting a replacement cookie. A failure cannot undo the credential change.
 func RefreshLogin(w http.ResponseWriter, r *http.Request, verified Principal, csrf security.CSRFConfig) error {
 	current := FromContext(r.Context())
-	if !current.Authenticated || !current.Active || current.ID == "" || current.AuthVersion == 0 ||
+	if current.tokenScopes != nil || verified.tokenScopes != nil || !current.Authenticated || !current.Active || current.ID == "" || current.AuthVersion == 0 ||
 		!verified.Authenticated || !verified.Active || verified.ID != current.ID || verified.AuthVersion <= current.AuthVersion {
 		return ErrCredentials
 	}

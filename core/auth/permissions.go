@@ -19,6 +19,7 @@ type Principal struct {
 	Authenticated, Active, Staff, Superuser bool
 	AuthVersion                             uint64
 	Permissions                             []string
+	tokenScopes                             []string
 }
 
 type Resource struct {
@@ -55,6 +56,9 @@ func (m ModelPolicy) Authorize(ctx context.Context, p Principal, action string, 
 	if !p.Active {
 		return ErrPermissionDenied
 	}
+	if err := CheckTokenScope(p, action, r); err != nil {
+		return err
+	}
 	if m.AllowSuperuser && p.Superuser {
 		return nil
 	}
@@ -68,10 +72,12 @@ type principalKey struct{}
 
 func WithPrincipal(ctx context.Context, p Principal) context.Context {
 	p.Permissions = slices.Clone(p.Permissions)
+	p.tokenScopes = slices.Clone(p.tokenScopes)
 	return context.WithValue(ctx, principalKey{}, p)
 }
 func FromContext(ctx context.Context) Principal {
 	p, _ := ctx.Value(principalKey{}).(Principal)
 	p.Permissions = slices.Clone(p.Permissions)
+	p.tokenScopes = slices.Clone(p.tokenScopes)
 	return p
 }

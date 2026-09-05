@@ -96,6 +96,9 @@ func (a *Accounts) ChangeOwnPassword(ctx context.Context, oldPassword, newPasswo
 		verified = principal
 		verified.AuthVersion = uint64(current.AuthVersion)
 		verified.Authenticated = true
+		// A credential change must not turn a constrained API identity into an
+		// unrestricted session-eligible principal.
+		verified.tokenScopes = actor.tokenScopes
 		return nil
 	})
 	if err != nil {

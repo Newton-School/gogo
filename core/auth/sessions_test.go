@@ -106,6 +106,7 @@ func TestCurrentPrincipalRefreshAndInvalidation(t *testing.T) {
 		{"current", Principal{ID: "account", Active: true, AuthVersion: 3, Permissions: []string{"catalog.view_product"}}, nil, 200, false},
 		{"version", Principal{ID: "account", Active: true, AuthVersion: 4}, nil, 200, true},
 		{"inactive", Principal{ID: "account", AuthVersion: 3}, nil, 200, true},
+		{"constrained-loader", Principal{ID: "account", Active: true, Authenticated: true, AuthVersion: 3, tokenScopes: []string{"catalog.view_product"}}, nil, 200, true},
 		{"missing", Principal{}, ErrUnauthenticated, 200, true},
 		{"outage", Principal{}, errors.New("private connection details"), 503, true},
 	} {

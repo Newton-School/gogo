@@ -113,9 +113,16 @@ func (a *Accounts) permit(ctx context.Context, change AccountChange) error {
 	if a.authorize == nil {
 		return ErrPermissionDenied
 	}
+	if err := checkAccountTokenScope(FromContext(ctx), change); err != nil {
+		return err
+	}
 	change.PermissionIDs = slices.Clone(change.PermissionIDs)
 	change.GroupIDs = slices.Clone(change.GroupIDs)
-	return a.authorize(ctx, change)
+	err := a.authorize(ctx, change)
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
+	return err
 }
 
 func (a *Accounts) Lookup(ctx context.Context, identifier string) (Principal, string, error) {
