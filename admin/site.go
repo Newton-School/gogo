@@ -50,10 +50,13 @@ type ModelAdmin struct {
 	SensitiveFields                                                   []string
 	FormOverrides                                                     map[string]forms.Field
 	ConstraintChecker                                                 models.ConstraintChecker
-	GetReadonlyFields                                                 func(context.Context, Object) []string
-	ResolveRelation                                                   func(context.Context, models.Field, []string) ([]any, error)
-	SaveModel                                                         func(context.Context, ScopedStore, Object) (Object, error)
-	SaveRelated                                                       func(context.Context, ScopedStore, Object, *http.Request) error
+	// Authorize may impose additional model/object restrictions. It runs only
+	// after the site's global policy permits the request and cannot widen it.
+	Authorize         func(context.Context, auth.Principal, string, Object) error
+	GetReadonlyFields func(context.Context, Object) []string
+	ResolveRelation   func(context.Context, models.Field, []string) ([]any, error)
+	SaveModel         func(context.Context, ScopedStore, Object) (Object, error)
+	SaveRelated       func(context.Context, ScopedStore, Object, *http.Request) error
 }
 type Config struct {
 	Name, Header, Title, IndexTitle, Prefix, SiteURL, LoginURL string
@@ -104,6 +107,7 @@ func NewSite(config Config) (*Site, error) {
 	if config.Store == nil || config.Policy == nil || config.Signer == nil {
 		return nil, errors.New("admin: scoped store, policy and signer are required")
 	}
+	config.Policy = auth.ConstrainPolicy(config.Policy)
 	if config.CSRF.Exempt != nil {
 		return nil, errors.New("admin: CSRF exemptions are not allowed")
 	}
@@ -333,5 +337,16 @@ func (s *Site) IsRegistered(key string) bool {
 func (s *Site) Handler() http.Handler                            { s.mu.Lock(); s.frozen = true; s.mu.Unlock(); return s.handler }
 func (s *Site) ServeHTTP(w http.ResponseWriter, r *http.Request) { s.Handler().ServeHTTP(w, r) }
 func (s *Site) allowed(ctx context.Context, p auth.Principal, action string, options ModelAdmin, object Object) error {
-	return s.config.Policy.Authorize(ctx, p, action, auth.Resource{App: options.Schema.AppLabel, Model: options.Schema.Name, ID: object.ID, Object: object.Record})
+	if err := s.config.Policy.Authorize(ctx, p, action, auth.Resource{App: options.Schema.AppLabel, Model: options.Schema.Name, ID: object.ID, Object: object.Record}); err != nil {
+		return err
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if options.Authorize != nil {
+		if err := options.Authorize(ctx, p, action, object); err != nil {
+			return err
+		}
+	}
+	return ctx.Err()
 }
