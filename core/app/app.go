@@ -8,7 +8,6 @@ import (
 	"regexp"
 	"slices"
 	"sync"
-	"sync/atomic"
 )
 
 type Config struct {
@@ -110,21 +109,11 @@ func TopologicalOrder(configs []Config) ([]Config, error) {
 	return order, nil
 }
 
-// Resource has a unique owner. Open must return its closer only on success.
+// Resource has a unique owner. Open returns its acquired resource's closer;
+// a non-nil closer is also honored on error for partially acquired resources.
 type Resource struct {
 	Name string
 	Open func(context.Context) (func(context.Context) error, error)
-}
-type Application struct {
-	Registry  *Registry
-	ordered   []Config
-	configs   []Config
-	closers   []func(context.Context) error
-	closeOnce sync.Once
-	closeErr  error
-	ready     atomic.Bool
-	startOnce sync.Once
-	startErr  error
 }
 
 func Bootstrap(ctx context.Context, configs []Config, resources []Resource, freeze func(*Registry) error) (*Application, error) {
@@ -160,60 +149,4 @@ func Prepare(configs []Config, freeze func(*Registry) error) (*Application, erro
 	}
 	a.Registry.Freeze()
 	return a, nil
-}
-
-func (a *Application) Start(ctx context.Context, resources []Resource) error {
-	a.startOnce.Do(func() { a.startErr = a.start(ctx, resources) })
-	return a.startErr
-}
-func (a *Application) start(ctx context.Context, resources []Resource) error {
-	var err error
-	seen := map[string]bool{}
-	for _, r := range resources {
-		if r.Name == "" || r.Open == nil || seen[r.Name] {
-			err = errors.New("invalid or duplicate resource")
-			break
-		}
-		seen[r.Name] = true
-		var close func(context.Context) error
-		close, err = r.Open(ctx)
-		if err != nil {
-			break
-		}
-		if close != nil {
-			a.closers = append(a.closers, close)
-		}
-	}
-	if err != nil {
-		cleanup := a.Close(context.WithoutCancel(ctx))
-		return errors.Join(err, cleanup)
-	}
-	for _, c := range a.ordered {
-		a.configs = append(a.configs, c)
-		if c.Ready != nil {
-			if err := c.Ready(ctx, a.Registry); err != nil {
-				return errors.Join(fmt.Errorf("ready app %s: %w", c.Label, err), a.Close(context.WithoutCancel(ctx)))
-			}
-		}
-	}
-	a.ready.Store(true)
-	return nil
-}
-func (a *Application) Ready() bool    { return a.ready.Load() }
-func (a *Application) StopAdmission() { a.ready.Store(false) }
-func (a *Application) Close(ctx context.Context) error {
-	a.closeOnce.Do(func() {
-		a.ready.Store(false)
-		var errs []error
-		for i := len(a.configs) - 1; i >= 0; i-- {
-			if f := a.configs[i].Shutdown; f != nil {
-				errs = append(errs, f(ctx))
-			}
-		}
-		for i := len(a.closers) - 1; i >= 0; i-- {
-			errs = append(errs, a.closers[i](ctx))
-		}
-		a.closeErr = errors.Join(errs...)
-	})
-	return a.closeErr
 }

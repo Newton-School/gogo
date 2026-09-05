@@ -18,6 +18,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"time"
 )
 
 const Version = "0.0.0-dev"
@@ -194,10 +195,24 @@ func Call(ctx context.Context, project Project, args []string, options Options) 
 			return err
 		}
 	}
-	err = runner(ctx, invocation, flags.Args())
-	cleanup, cancel := context.WithTimeout(context.WithoutCancel(ctx), settings.Duration("GOGO_SHUTDOWN_GRACE"))
-	defer cancel()
-	return errors.Join(err, application.Close(cleanup))
+	return runAndClose(ctx, application, settings.Duration("GOGO_SHUTDOWN_GRACE"), func() error {
+		return runner(ctx, invocation, flags.Args())
+	})
+}
+
+func runAndClose(ctx context.Context, application *app.Application, grace time.Duration, run func() error) (err error) {
+	if grace <= 0 {
+		grace = app.DefaultShutdownGrace
+	}
+	defer func() {
+		if recover() != nil {
+			err = errors.New("management command callback panicked")
+		}
+		cleanup, cancel := context.WithTimeout(context.WithoutCancel(ctx), grace)
+		defer cancel()
+		err = errors.Join(err, application.Close(cleanup))
+	}()
+	return run()
 }
 func Run(ctx context.Context, project Project, args []string, options Options) int {
 	options = options.defaults()
