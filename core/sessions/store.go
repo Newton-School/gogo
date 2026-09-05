@@ -13,9 +13,10 @@ import (
 )
 
 var (
-	ErrNotFound  = errors.New("session not found")
-	ErrConflict  = errors.New("session changed concurrently")
-	ErrCommitted = errors.New("session response already committed")
+	ErrNotFound            = errors.New("session not found")
+	ErrConflict            = errors.New("session changed concurrently")
+	ErrCommitted           = errors.New("session response already committed")
+	ErrRotationUnsupported = errors.New("session store does not support versioned rotation")
 )
 
 type Record struct {
@@ -30,6 +31,16 @@ type Store interface {
 	Create(context.Context, Record) error
 	Save(context.Context, Record, uint64) error
 	Delete(context.Context, string) error
+}
+
+// VersionedDeleter is required when CycleKey rotates an existing identity.
+// DeleteIfVersion must atomically revoke only the live, unexpired record with
+// the expected version. Missing, changed or already revoked identities return
+// ErrConflict without changing data. A separate Create publishes the new key;
+// no cross-key transaction is assumed. If Create fails, the old key stays
+// revoked and the client must authenticate again. Plain logout uses Delete.
+type VersionedDeleter interface {
+	DeleteIfVersion(context.Context, string, uint64) error
 }
 
 func Clone(r Record) Record {
@@ -173,7 +184,11 @@ func (s *Session) Persist(ctx context.Context, store Store, now time.Time, ttl t
 		return errors.New("session expiry must be in the future")
 	}
 	if s.rotate && s.originalID != "" {
-		if err := store.Delete(ctx, s.originalID); err != nil {
+		versioned, ok := store.(VersionedDeleter)
+		if !ok {
+			return ErrRotationUnsupported
+		}
+		if err := versioned.DeleteIfVersion(ctx, s.originalID, s.record.Version); err != nil {
 			return err
 		}
 		s.record.ID = ""

@@ -19,6 +19,98 @@ import (
 	"github.com/Newton-School/gogo/core/sessions"
 )
 
+func TestPostgresSessionConditionalRevocation(t *testing.T) {
+	ctx := context.Background()
+	backend := testservice.Postgres(t)
+	store, err := postgres.NewSessions(postgres.SessionConfig{Backend: backend})
+	if err != nil {
+		t.Fatal(err)
+	}
+	runner := migrations.Executor{Backend: backend, Editor: backend.SchemaEditor(), Migrations: sessions.Migrations()}
+	if err := runner.Apply(ctx, ""); err != nil {
+		t.Fatal(err)
+	}
+	newRecord := func(version uint64) sessions.Record {
+		id, err := sessions.NewID()
+		if err != nil {
+			t.Fatal(err)
+		}
+		return sessions.Record{ID: id, Version: version, ExpiresAt: time.Now().UTC().Add(time.Hour), Data: map[string]json.RawMessage{"data": json.RawMessage(`"preserved"`)}}
+	}
+	for _, version := range []uint64{1, 9007199254740993, math.MaxInt64} {
+		record := newRecord(version)
+		if err := store.Create(ctx, record); err != nil {
+			t.Fatal(err)
+		}
+		if err := store.DeleteIfVersion(ctx, record.ID, version+1); version < math.MaxInt64 && !errors.Is(err, sessions.ErrConflict) || version == math.MaxInt64 && !errors.Is(err, postgres.ErrSessionRecord) {
+			t.Fatal("wrong version accepted", version, err)
+		}
+		loaded, err := store.Load(ctx, record.ID)
+		if err != nil || loaded.Version != version || string(loaded.Data["data"]) != `"preserved"` {
+			t.Fatal("rejected revoke changed data", err)
+		}
+		if err := store.DeleteIfVersion(ctx, record.ID, version); err != nil {
+			t.Fatal(err)
+		}
+		if err := store.DeleteIfVersion(ctx, record.ID, version); !errors.Is(err, sessions.ErrConflict) {
+			t.Fatal("duplicate revoke accepted", err)
+		}
+		if _, err := store.Load(ctx, record.ID); !errors.Is(err, sessions.ErrNotFound) {
+			t.Fatal(err)
+		}
+		if err := store.Create(ctx, record); !errors.Is(err, sessions.ErrConflict) {
+			t.Fatal("revoked identity recreated", err)
+		}
+	}
+	missing := newRecord(1)
+	if err := store.DeleteIfVersion(ctx, missing.ID, 1); !errors.Is(err, sessions.ErrConflict) {
+		t.Fatal(err)
+	}
+	if err := store.Create(ctx, missing); err != nil {
+		t.Fatal("conditional miss inserted tombstone", err)
+	}
+	digest := sha256.Sum256([]byte(missing.ID))
+	if _, err := backend.Exec(ctx, "UPDATE gogo_sessions SET expires_at=clock_timestamp()-interval '1 second' WHERE key_digest=$1", hex.EncodeToString(digest[:])); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.DeleteIfVersion(ctx, missing.ID, 1); !errors.Is(err, sessions.ErrConflict) {
+		t.Fatal("expired identity revoked as live", err)
+	}
+	for range 8 {
+		record := newRecord(1)
+		if err := store.Create(ctx, record); err != nil {
+			t.Fatal(err)
+		}
+		next := sessions.Clone(record)
+		next.Version = 2
+		start := make(chan struct{})
+		results := make(chan error, 2)
+		go func() { <-start; results <- store.Save(ctx, next, 1) }()
+		go func() { <-start; results <- store.DeleteIfVersion(ctx, record.ID, 1) }()
+		close(start)
+		wins := 0
+		for range 2 {
+			err := <-results
+			if err == nil {
+				wins++
+			} else if !errors.Is(err, sessions.ErrConflict) {
+				t.Fatal(err)
+			}
+		}
+		if wins != 1 {
+			t.Fatal("conditional save/revoke had multiple winners", wins)
+		}
+	}
+	if err := db.Atomic(ctx, backend, db.AtomicOptions{}, func(ctx context.Context) error {
+		if err := store.DeleteIfVersion(ctx, missing.ID, 1); err == nil {
+			t.Fatal("ambient transaction accepted")
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestPostgresSessionStoreCASRevocationAndCleanup(t *testing.T) {
 	ctx := context.Background()
 	backend := testservice.Postgres(t)

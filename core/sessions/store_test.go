@@ -63,6 +63,73 @@ func (m *memoryStore) Delete(_ context.Context, id string) error {
 	delete(m.records, id)
 	return nil
 }
+func (m *memoryStore) DeleteIfVersion(_ context.Context, id string, expected uint64) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.fail {
+		return errors.New("private backend failure")
+	}
+	current, ok := m.records[id]
+	if !ok || current.Version != expected || !current.ExpiresAt.After(time.Now()) {
+		return ErrConflict
+	}
+	delete(m.records, id)
+	return nil
+}
+
+func TestRotationRejectsConcurrentWritesBeforeRevokingIdentity(t *testing.T) {
+	ctx := context.Background()
+	store := &memoryStore{}
+	record := Record{ID: "existing", Version: 1, ExpiresAt: time.Now().Add(time.Hour), Data: map[string]json.RawMessage{"state": json.RawMessage(`"initial"`)}}
+	if err := store.Create(ctx, record); err != nil {
+		t.Fatal(err)
+	}
+	stale := New(record)
+	if err := stale.CycleKey(); err != nil {
+		t.Fatal(err)
+	}
+	newer := Clone(record)
+	newer.Version = 2
+	newer.Data["state"] = json.RawMessage(`"concurrent"`)
+	if err := store.Save(ctx, newer, 1); err != nil {
+		t.Fatal(err)
+	}
+	if err := stale.Persist(ctx, store, time.Now(), time.Hour); !errors.Is(err, ErrConflict) {
+		t.Fatal("stale rotation accepted", err)
+	}
+	actual, err := store.Load(ctx, record.ID)
+	if err != nil || actual.Version != 2 || string(actual.Data["state"]) != `"concurrent"` || len(store.records) != 1 {
+		t.Fatal("newer session changed", actual, err)
+	}
+	current := New(actual)
+	_ = current.CycleKey()
+	if err := current.Persist(ctx, store, time.Now(), time.Hour); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Load(ctx, record.ID); !errors.Is(err, ErrNotFound) {
+		t.Fatal("old key not revoked", err)
+	}
+	if current.Snapshot().ID == record.ID || current.Snapshot().Version != 1 {
+		t.Fatal("new identity not created")
+	}
+}
+
+type withoutVersionedDelete struct{ Store }
+
+func TestRotationWithoutAtomicConditionalDeleteFailsClosed(t *testing.T) {
+	ctx := context.Background()
+	store := &memoryStore{}
+	record := Record{ID: "existing", Version: 1, ExpiresAt: time.Now().Add(time.Hour)}
+	_ = store.Create(ctx, record)
+	session := New(record)
+	_ = session.CycleKey()
+	if err := session.Persist(ctx, withoutVersionedDelete{store}, time.Now(), time.Hour); !errors.Is(err, ErrRotationUnsupported) {
+		t.Fatal(err)
+	}
+	if _, err := store.Load(ctx, record.ID); err != nil {
+		t.Fatal("unsupported rotation deleted original", err)
+	}
+}
 func TestVersionConflictAndClone(t *testing.T) {
 	ctx := context.Background()
 	m := &memoryStore{}

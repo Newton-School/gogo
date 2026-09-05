@@ -200,6 +200,27 @@ tombstone_until=GREATEST(gogo_sessions.tombstone_until,gogo_sessions.expires_at,
 	return err
 }
 
+// DeleteIfVersion conditionally revokes a live identity for key rotation. It
+// never overwrites newer session data or creates a tombstone for a missing key.
+// Replacement creation is a subsequent confirmed write, not an implied atomic
+// cross-key transfer. A failed replacement therefore requires a fresh login.
+func (s *Sessions) DeleteIfVersion(ctx context.Context, id string, expected uint64) error {
+	if err := s.ready(ctx); err != nil {
+		return err
+	}
+	if expected < 1 || expected > math.MaxInt64 {
+		return ErrSessionRecord
+	}
+	digest, err := sessionDigest(id)
+	if err != nil {
+		return ErrSessionRecord
+	}
+	result, err := s.backend.Exec(ctx, `UPDATE gogo_sessions SET payload='{}'::jsonb,updated_at=clock_timestamp(),deleted_at=clock_timestamp(),
+tombstone_until=GREATEST(tombstone_until,expires_at,clock_timestamp()+$3::bigint*interval '1 millisecond')
+WHERE key_digest=$1 AND version=$2 AND deleted_at IS NULL AND expires_at>clock_timestamp()`, digest, int64(expected), s.tombstoneMillis)
+	return sessionWriteResult(result, err)
+}
+
 // ClearExpired removes at most limit expired sessions or elapsed tombstones.
 // SKIP LOCKED permits concurrent maintenance without waiting on live writes.
 // It never removes a still-retained tombstone just because its old expiry passed.
@@ -222,3 +243,4 @@ func (s *Sessions) ClearExpired(ctx context.Context, limit int) (int64, error) {
 }
 
 var _ sessions.Store = (*Sessions)(nil)
+var _ sessions.VersionedDeleter = (*Sessions)(nil)
