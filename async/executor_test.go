@@ -2,6 +2,7 @@ package async_test
 
 import (
 	"context"
+	"errors"
 	"os"
 	"testing"
 	"time"
@@ -40,6 +41,9 @@ func TestProcessExecutorResultAndHardDeadline(t *testing.T) {
 		t.Fatal(err)
 	}
 	executor := &async.ProcessExecutor{Command: []string{binary, "-test.run=^TestTaskChildHelper$"}, Environment: append(os.Environ(), "GOGO_TEST_TASK_CHILD=1")}
+	if errors.Is(executor.Validate(), async.ErrUnavailable) {
+		t.Skip("built-in process-tree isolation is unavailable on this platform")
+	}
 	_ = registry
 	signature, _ := task.Signature(41)
 	id, _ := async.NewID()
@@ -59,6 +63,30 @@ func TestProcessExecutorResultAndHardDeadline(t *testing.T) {
 	_, err = executor.Execute(deadline, async.Execution{Envelope: e, TaskContext: async.TaskContext{ID: id}})
 	if err == nil || time.Since(started) > time.Second {
 		t.Fatal(err, time.Since(started))
+	}
+}
+
+func TestWorkerRejectsInvalidProcessPolicyBeforeReservation(t *testing.T) {
+	ctx := context.Background()
+	task, client, worker, backend := setup(t, func(_ context.Context, _ async.TaskContext, value int) (int, error) {
+		t.Error("handler ran")
+		return value, nil
+	}, async.TaskOptions{})
+	result, err := task.Delay(ctx, client, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	worker.Executor = &async.ProcessExecutor{Command: []string{"unused-invalid-policy"}, PipeDrainTimeout: -time.Second}
+	if err := worker.RunOnce(ctx); !errors.Is(err, async.ErrInvalid) {
+		t.Fatal(err)
+	}
+	delivery, err := backend.Consume(ctx, async.ConsumeOptions{Queues: []string{"default"}, Consumer: "test"})
+	if err != nil {
+		t.Fatal("invalid executor consumed work", err)
+	}
+	envelope, err := async.DecodeEnvelope(delivery.Body)
+	if err != nil || envelope.ID != result.Receipt.ID {
+		t.Fatal(envelope, err)
 	}
 }
 

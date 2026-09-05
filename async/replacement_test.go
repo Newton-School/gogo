@@ -352,6 +352,9 @@ func TestProcessExecutorYieldsWithoutPublishingPrematureSuccess(t *testing.T) {
 		t.Fatal(err)
 	}
 	executor := &async.ProcessExecutor{Command: []string{binary, "-test.run=^TestReplacementProcessChildHelper$"}, Environment: append(os.Environ(), "GOGO_TEST_REPLACEMENT_CHILD=1")}
+	if errors.Is(executor.Validate(), async.ErrUnavailable) {
+		t.Skip("built-in process-tree isolation is unavailable on this platform")
+	}
 	worker := &async.Worker{Registry: registry, Broker: backend, Results: backend, Client: client, Executor: executor, ID: "isolated-worker"}
 	result, err := original.Delay(ctx, client, 0)
 	if err != nil {

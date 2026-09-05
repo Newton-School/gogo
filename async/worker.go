@@ -87,6 +87,11 @@ func (w *Worker) defaults() error {
 	if len(w.Queues) == 0 {
 		w.Queues = []string{"default"}
 	}
+	if validator, ok := w.Executor.(ExecutorValidator); ok {
+		if err := validator.Validate(); err != nil {
+			return err
+		}
+	}
 	w.Registry.mu.RLock()
 	w.slots = make(chan struct{}, w.Concurrency)
 	w.taskSlots = map[string]chan struct{}{}

@@ -18,12 +18,22 @@ type Executor interface {
 	Execute(context.Context, Execution) (json.RawMessage, error)
 }
 
+// ExecutorValidator is checked at worker startup before reserving broker work.
+// Validation must not execute tasks or mutate external state.
+type ExecutorValidator interface {
+	Validate() error
+}
+
 // ProcessExecutor launches only an application-configured command, never a
-// command from a broker message. Context termination kills the isolated child.
+// command from a broker message. On supported platforms context termination
+// kills its isolated process group; this is not a hostile-code sandbox.
 type ProcessExecutor struct {
 	Command        []string
 	Environment    []string
 	MaxOutputBytes int
+	// PipeDrainTimeout bounds inherited stdout/stderr after process exit or
+	// cancellation. Zero uses 250ms. It does not extend task execution time.
+	PipeDrainTimeout time.Duration
 }
 type childResponse struct {
 	Output      json.RawMessage `json:"output,omitempty"`
@@ -44,22 +54,47 @@ func (b *boundedBuffer) Write(p []byte) (int, error) {
 	}
 	return b.Buffer.Write(p)
 }
-func (p *ProcessExecutor) Execute(ctx context.Context, e Execution) (json.RawMessage, error) {
-	if len(p.Command) == 0 || p.Command[0] == "" {
-		return nil, ErrInvalid
-	}
-	payload, err := json.Marshal(e)
-	if err != nil || len(payload) > 2*MaxPayloadBytes {
-		return nil, ErrInvalid
+
+func (p *ProcessExecutor) limits() (int, time.Duration, error) {
+	if p == nil || len(p.Command) == 0 || p.Command[0] == "" {
+		return 0, 0, ErrInvalid
 	}
 	maxBytes := p.MaxOutputBytes
 	if maxBytes == 0 {
 		maxBytes = MaxPayloadBytes
 	}
 	if maxBytes < 1 || maxBytes > MaxPayloadBytes {
+		return 0, 0, ErrInvalid
+	}
+	drain := p.PipeDrainTimeout
+	if drain == 0 {
+		drain = 250 * time.Millisecond
+	}
+	if drain < time.Millisecond || drain > time.Minute {
+		return 0, 0, ErrInvalid
+	}
+	if !processIsolationSupported {
+		return 0, 0, ErrUnavailable
+	}
+	return maxBytes, drain, nil
+}
+
+func (p *ProcessExecutor) Validate() error {
+	_, _, err := p.limits()
+	return err
+}
+
+func (p *ProcessExecutor) Execute(ctx context.Context, e Execution) (json.RawMessage, error) {
+	maxBytes, drain, err := p.limits()
+	if err != nil {
+		return nil, err
+	}
+	payload, err := json.Marshal(e)
+	if err != nil || len(payload) > 2*MaxPayloadBytes {
 		return nil, ErrInvalid
 	}
 	cmd := exec.CommandContext(ctx, p.Command[0], p.Command[1:]...)
+	cmd.WaitDelay = drain
 	if p.Environment != nil {
 		cmd.Env = append([]string(nil), p.Environment...)
 	}
@@ -67,7 +102,7 @@ func (p *ProcessExecutor) Execute(ctx context.Context, e Execution) (json.RawMes
 	stdout := &boundedBuffer{limit: maxBytes}
 	cmd.Stdout = stdout
 	cmd.Stderr = io.Discard
-	if err := cmd.Run(); err != nil {
+	if err := runIsolatedProcess(cmd); err != nil {
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
 		}
