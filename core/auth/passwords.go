@@ -34,6 +34,22 @@ func (p PasswordParams) validate() error {
 func HashPassword(password string) (string, error) {
 	return HashPasswordWith(password, DefaultPasswordParams())
 }
+
+// UnusablePassword creates a unique marker that never authenticates. It is not
+// a hash of an empty password. Use it for accounts without local credentials.
+func UnusablePassword() (string, error) {
+	value := make([]byte, 32)
+	if _, err := rand.Read(value); err != nil {
+		return "", err
+	}
+	return "!" + base64.RawURLEncoding.EncodeToString(value), nil
+}
+
+// HasUsablePassword reports the presence of a local credential, not whether an
+// arbitrary stored hash is well formed. Verification always validates encoding.
+func HasUsablePassword(encoded string) bool {
+	return encoded != "" && !strings.HasPrefix(encoded, "!")
+}
 func HashPasswordWith(password string, p PasswordParams) (string, error) {
 	if len(password) > 4096 {
 		return "", errors.New("password too long")
@@ -88,7 +104,14 @@ func VerifyPassword(password, encoded string) (valid, needsRehash bool, err erro
 	}
 	actual := argon2.IDKey([]byte(password), salt, p.Iterations, p.Memory, p.Parallelism, 32)
 	valid = subtle.ConstantTimeCompare(actual, expected) == 1
-	return valid, valid && p != DefaultPasswordParams(), nil
+	return valid, valid && passwordUpgradeNeeded(p), nil
+}
+
+// Automatic rehashing must not silently lower a client's stronger work factors.
+// Mixed profiles require an explicit operator-chosen migration policy instead.
+func passwordUpgradeNeeded(p PasswordParams) bool {
+	target := DefaultPasswordParams()
+	return p != target && p.Memory <= target.Memory && p.Iterations <= target.Iterations && p.Parallelism <= target.Parallelism
 }
 
 type PasswordValidator func(context.Context, string, Principal) error
@@ -173,7 +196,7 @@ func (a *Authenticator) Authenticate(ctx context.Context, identifier, password s
 	if lookupErr != nil {
 		encoded = a.dummy
 	}
-	valid, rehash, err := VerifyPassword(password, encoded)
+	valid, rehash, err := verifyCredential(password, encoded, a.dummy, VerifyPassword)
 	if err != nil || !valid || lookupErr != nil || !p.Active {
 		return Principal{}, ErrCredentials
 	}
@@ -191,4 +214,14 @@ func (a *Authenticator) Authenticate(ctx context.Context, identifier, password s
 	}
 	p.Authenticated = true
 	return p, nil
+}
+
+// Malformed and unusable credentials must perform the same bounded dummy work
+// as a missing account, rather than becoming a fast account-discovery oracle.
+func verifyCredential(password, encoded, dummy string, verify func(string, string) (bool, bool, error)) (bool, bool, error) {
+	valid, rehash, err := verify(password, encoded)
+	if err != nil {
+		_, _, _ = verify(password, dummy)
+	}
+	return valid, rehash, err
 }
