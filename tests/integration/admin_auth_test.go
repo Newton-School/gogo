@@ -55,7 +55,11 @@ func TestAdminPostgresRedisStaffCredentialWorkflow(t *testing.T) {
 		t.Fatal(err)
 	}
 	operatorCtx := auth.WithPrincipal(ctx, auth.Principal{ID: "fixture-operator", Authenticated: true, Active: true})
-	accounts, err := auth.NewAccounts(auth.AccountsConfig{Store: store, Authorize: func(ctx context.Context, _ auth.AccountChange) error {
+	accounts, err := auth.NewAccounts(auth.AccountsConfig{Store: store, Authorize: func(ctx context.Context, change auth.AccountChange) error {
+		actor := auth.FromContext(ctx)
+		if change.Action == "change_own_password" && actor.Authenticated && actor.Active && actor.ID == change.UserID {
+			return nil
+		}
 		if auth.FromContext(ctx).ID != "fixture-operator" {
 			return auth.ErrPermissionDenied
 		}
@@ -107,7 +111,7 @@ func TestAdminPostgresRedisStaffCredentialWorkflow(t *testing.T) {
 	defer connection.Close()
 	key, _ := security.RandomToken(32)
 	signer, _ := security.NewSigner(security.SigningKey{ID: "fixture", Value: []byte(key)}, nil, "admin-credential-integration")
-	site, err := admin.NewSite(admin.Config{Store: adapter, Signer: signer, Policy: auth.ModelPolicy{}, LoginURL: "/admin/login/", LogoutURL: "/admin/logout/"})
+	site, err := admin.NewSite(admin.Config{Store: adapter, Signer: signer, Policy: auth.ModelPolicy{}, LoginURL: "/admin/login/", LogoutURL: "/admin/logout/", PasswordChangeURL: "/admin/password-change/"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -126,6 +130,10 @@ func TestAdminPostgresRedisStaffCredentialWorkflow(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	passwordChange, err := site.PasswordChangeHandler(authviews.PasswordChangeConfig{Changer: accounts, Limiter: &connector.Limiter{Connection: connection}, RateSecret: []byte(key), PreserveSession: true})
+	if err != nil {
+		t.Fatal(err)
+	}
 	sessionMiddleware, err := sessions.Middleware(sessions.MiddlewareConfig{Store: &connector.Sessions{Connection: connection}, Signer: signer, TTL: time.Hour})
 	if err != nil {
 		t.Fatal(err)
@@ -141,6 +149,7 @@ func TestAdminPostgresRedisStaffCredentialWorkflow(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.Handle("/admin/login/", login)
 	mux.Handle("/admin/logout/", logout)
+	mux.Handle("/admin/password-change/", passwordChange)
 	mux.Handle("/admin/", site)
 	handler := headers(sessionMiddleware(identityMiddleware(mux)))
 	cookies := map[string]*http.Cookie{}
@@ -190,7 +199,7 @@ func TestAdminPostgresRedisStaffCredentialWorkflow(t *testing.T) {
 		t.Fatal("staff sign-in failed", response.Code, response.Header())
 	}
 	list := call("GET", "/admin/shop/product/", nil)
-	if list.Code != 200 || !strings.Contains(list.Body.String(), product.Name) || strings.Contains(list.Body.String(), "Unrelated private product") || !strings.Contains(list.Body.String(), `action="/admin/logout/"`) || strings.Contains(list.Body.String(), `href="/admin/shop/product/add/"`) {
+	if list.Code != 200 || !strings.Contains(list.Body.String(), product.Name) || strings.Contains(list.Body.String(), "Unrelated private product") || !strings.Contains(list.Body.String(), `action="/admin/logout/"`) || !strings.Contains(list.Body.String(), `href="/admin/password-change/"`) || strings.Contains(list.Body.String(), `href="/admin/shop/product/add/"`) {
 		t.Fatal("staff grants/scope/logout UI mismatch", list.Code, list.Body.String())
 	}
 	link := regexp.MustCompile(`href="(/admin/shop/product/[^"]+/change/)"`).FindStringSubmatch(list.Body.String())
@@ -209,6 +218,42 @@ func TestAdminPostgresRedisStaffCredentialWorkflow(t *testing.T) {
 	var auditActor string
 	if err := db.QueryRow(ctx, backend, "SELECT actor_id FROM gogo_admin_log ORDER BY occurred_at DESC LIMIT 1", nil, &auditActor); err != nil || auditActor != staff.ID {
 		t.Fatal("audit actor did not come from persisted session", auditActor, err)
+	}
+	// The branded account route changes only the current identity. The Core
+	// service commits credentials before the explicitly opted-in session refresh.
+	credentialForm := call("GET", "/admin/password-change/", nil)
+	if credentialForm.Code != 200 || !strings.Contains(credentialForm.Body.String(), "Account security") || strings.Contains(credentialForm.Body.String(), "Model navigation") {
+		t.Fatal("branded password form failed", credentialForm.Code)
+	}
+	if response := call("POST", "/admin/password-change/", nil); response.Code != 403 {
+		t.Fatal("password change bypassed CSRF", response.Code)
+	}
+	newPassword := "  changed staff password  "
+	values := url.Values{"old_password": {"incorrect current password"}, "new_password1": {newPassword}, "new_password2": {newPassword}, "csrfmiddlewaretoken": {hidden(credentialForm.Body.String(), "csrfmiddlewaretoken")}, "user_id": {"another-account"}, "superuser": {"true"}}
+	response = call("POST", "/admin/password-change/", values)
+	if response.Code != 400 || response.Header().Get("X-Gogo-Password-Change") != "unchanged" || strings.Contains(response.Body.String(), newPassword) {
+		t.Fatal("password rejection not safe", response.Code)
+	}
+	oldSession := *cookies["gogo_session"]
+	values.Set("old_password", password)
+	values.Set("csrfmiddlewaretoken", hidden(response.Body.String(), "csrfmiddlewaretoken"))
+	response = call("POST", "/admin/password-change/", values)
+	if response.Code != 303 || response.Header().Get("Location") != "/admin/" || response.Header().Get("X-Gogo-Password-Change") != "changed" || cookies["gogo_session"] == nil || cookies["gogo_session"].Value == oldSession.Value {
+		t.Fatal("password change did not rotate confirmed session", response.Code, response.Header())
+	}
+	password = newPassword
+	if response := call("GET", "/admin/shop/product/", nil); response.Code != 200 {
+		t.Fatal("opted-in current login not preserved", response.Code)
+	}
+	retainedSession := cookies["gogo_session"]
+	cookies["gogo_session"] = &oldSession
+	if response := call("GET", "/admin/", nil); response.Code != 303 || cookies["gogo_session"] != nil {
+		t.Fatal("pre-change session replay recovered access", response.Code)
+	}
+	cookies["gogo_session"] = retainedSession
+	persistedStaff, err := orm.For(store, func() *auth.User { return &auth.User{} }).Filter(orm.Q("id", staff.ID)).Get(ctx)
+	if err != nil || persistedStaff.Superuser || !persistedStaff.Staff {
+		t.Fatal("password change mass-assigned account flags", err)
 	}
 	if err := accounts.SetUserPermissions(operatorCtx, staff.ID, nil); err != nil {
 		t.Fatal(err)

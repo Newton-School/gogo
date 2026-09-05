@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"net/url"
 
 	"github.com/Newton-School/gogo/core/auth"
 	authviews "github.com/Newton-School/gogo/core/auth/views"
@@ -87,6 +88,68 @@ func (s *Site) renderLogin(ctx context.Context, page authviews.LoginPage) ([]byt
 		"title": page.Title, "header": s.config.Header, "site_title": s.config.Title,
 		"prefix": s.config.Prefix, "css_url": s.config.Prefix + "assets/admin." + s.cssVersion + ".css",
 		"identifier": page.Identifier, "next": page.Next, "csrf_token": page.CSRFToken, "error": page.Error,
+	})
+	return []byte(body), err
+}
+
+// PasswordChangeHandler provides the Admin presentation and staff boundary for
+// Core's self-service credential flow. It grants no authority over other users.
+// The application mounts Config.PasswordChangeURL explicitly inside sessions
+// and auth.SessionMiddleware. PreserveSession remains an explicit caller policy.
+func (s *Site) PasswordChangeHandler(config authviews.PasswordChangeConfig) (http.Handler, error) {
+	csrf, err := s.accountCSRF(config.CSRF)
+	if err != nil {
+		return nil, err
+	}
+	config.CSRF = csrf
+	if config.SuccessURL == "" {
+		config.SuccessURL = s.config.Prefix
+	}
+	if config.LoginURL == "" {
+		config.LoginURL = s.config.LoginURL
+	}
+	if config.LoginURL == "" {
+		return nil, errors.New("admin: password change requires a login URL")
+	}
+	if config.Render == nil {
+		config.Render = s.renderPasswordChange
+	}
+	handler, err := authviews.PasswordChange(config)
+	if err != nil {
+		return nil, err
+	}
+	loginURL := config.LoginURL
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "private, no-store")
+		w.Header().Add("Vary", "Cookie")
+		p := auth.FromContext(r.Context())
+		if !p.Authenticated {
+			if r.Method == http.MethodGet || r.Method == http.MethodHead {
+				login, _ := url.Parse(loginURL)
+				query := login.Query()
+				query.Set("next", r.URL.RequestURI())
+				login.RawQuery = query.Encode()
+				http.Redirect(w, r, login.String(), http.StatusSeeOther)
+			} else {
+				http.Error(w, "Authentication required", http.StatusUnauthorized)
+			}
+			return
+		}
+		if !p.Active || !p.Staff {
+			http.Error(w, "Permission denied", http.StatusForbidden)
+			return
+		}
+		handler.ServeHTTP(w, r)
+	}), nil
+}
+
+func (s *Site) renderPasswordChange(ctx context.Context, page authviews.PasswordChangePage) ([]byte, error) {
+	// This self-service page does not query model stores or expose navigation
+	// metadata. Core's page contract contains no old/new password values.
+	body, err := s.engine.Render(ctx, "password_change.html", templates.Context{
+		"title": page.Title, "header": s.config.Header, "site_title": s.config.Title, "prefix": s.config.Prefix,
+		"css_url": s.config.Prefix + "assets/admin." + s.cssVersion + ".css", "actor": auth.FromContext(ctx).ID,
+		"csrf_token": page.CSRFToken, "error": page.Error, "logout_url": s.config.LogoutURL,
 	})
 	return []byte(body), err
 }

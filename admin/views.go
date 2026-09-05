@@ -218,6 +218,7 @@ func (s *Site) render(w http.ResponseWriter, r *http.Request, p auth.Principal, 
 	data["csrf_token"] = security.CSRFToken(r)
 	data["site_url"] = s.config.SiteURL
 	data["logout_url"] = s.config.LogoutURL
+	data["password_change_url"] = s.config.PasswordChangeURL
 	if s.config.Messages {
 		items, err := messages.Consume(r)
 		if err != nil {

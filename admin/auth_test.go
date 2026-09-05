@@ -126,3 +126,92 @@ func TestAdminSnapshotsSharedCSRFOriginConfiguration(t *testing.T) {
 		t.Fatal("subsequent login inherited caller-mutated origins", credentialCSRF, err)
 	}
 }
+
+type passwordChangerFunc func(context.Context, string, string) (auth.PasswordChangeResult, error)
+
+func (f passwordChangerFunc) ChangeOwnPassword(ctx context.Context, old, password string) (auth.PasswordChangeResult, error) {
+	return f(ctx, old, password)
+}
+
+func TestAdminPasswordChangeReusesCoreWithoutPasswordEchoOrStaffBypass(t *testing.T) {
+	site, _ := newTestSite(t)
+	site.config.LoginURL = "/admin/login/?site=review"
+	site.config.PasswordChangeURL = "/admin/password-change/"
+	var calls int
+	changer := passwordChangerFunc(func(ctx context.Context, old, password string) (auth.PasswordChangeResult, error) {
+		calls++
+		if old != "  current credential  " || password != "  new credential  " {
+			t.Error("significant whitespace changed")
+		}
+		return auth.PasswordChangeResult{State: auth.PasswordUnchanged}, auth.ErrCredentials
+	})
+	handler, err := site.PasswordChangeHandler(authviews.PasswordChangeConfig{Changer: changer, Limiter: loginTestLimiter{}, RateSecret: []byte(strings.Repeat("r", 32))})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range []auth.Principal{{}, {ID: "not-staff", Authenticated: true, Active: true, AuthVersion: 1}, {ID: "inactive", Authenticated: true, Staff: true, AuthVersion: 1}} {
+		request := httptest.NewRequest("GET", "http://example.test/admin/password-change/", nil)
+		request = request.WithContext(auth.WithPrincipal(request.Context(), p))
+		response := httptest.NewRecorder()
+		handler.ServeHTTP(response, request)
+		want := 403
+		if !p.Authenticated {
+			want = 303
+			location, _ := url.Parse(response.Header().Get("Location"))
+			if location.Query().Get("site") != "review" || location.Query().Get("next") != "/admin/password-change/" {
+				t.Fatal("unsafe account redirect")
+			}
+		}
+		if response.Code != want || strings.Contains(response.Body.String(), "old_password") || calls != 0 {
+			t.Fatal("staff gate bypassed")
+		}
+	}
+	p := auth.Principal{ID: "staff-reviewer", Authenticated: true, Active: true, Staff: true, AuthVersion: 1}
+	session := sessions.New(sessions.Record{})
+	get := httptest.NewRequest("GET", "http://example.test/admin/password-change/", nil)
+	get = get.WithContext(auth.WithPrincipal(sessions.WithSession(get.Context(), session), p))
+	form := httptest.NewRecorder()
+	handler.ServeHTTP(form, get)
+	if form.Code != 200 || strings.Contains(form.Body.String(), "Model navigation") {
+		t.Fatal("password form queried model presentation", form.Code)
+	}
+	for _, required := range []string{`name="old_password"`, `name="new_password1"`, `name="new_password2"`, `autocomplete="current-password"`, `autocomplete="new-password"`, site.cssVersion} {
+		if !strings.Contains(form.Body.String(), required) {
+			t.Fatal("missing account form element", required)
+		}
+	}
+	values := url.Values{"old_password": {"  current credential  "}, "new_password1": {"  new credential  "}, "new_password2": {"  new credential  "}, "csrfmiddlewaretoken": {hidden(t, form.Body.String(), "csrfmiddlewaretoken")}, "user_id": {"another-account"}, "superuser": {"true"}}
+	post := httptest.NewRequest("POST", "http://example.test/admin/password-change/", strings.NewReader(values.Encode()))
+	post.RemoteAddr = "192.0.2.10:3200"
+	post.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	for _, cookie := range form.Result().Cookies() {
+		post.AddCookie(cookie)
+	}
+	post = post.WithContext(auth.WithPrincipal(sessions.WithSession(post.Context(), session), p))
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, post)
+	if response.Code != 400 || calls != 1 || response.Header().Get("X-Gogo-Password-Change") != "unchanged" || strings.Contains(response.Body.String(), "current credential") || strings.Contains(response.Body.String(), "new credential") {
+		t.Fatal("credential rejection leaked input or lost outcome", response.Code)
+	}
+	body, err := site.renderPasswordChange(auth.WithPrincipal(context.Background(), p), authviews.PasswordChangePage{Title: `<script>bad()</script>`, Error: `<img src=x onerror=bad()>`, CSRFToken: "masked"})
+	if err != nil || strings.Contains(string(body), "<script>") || strings.Contains(string(body), "<img") {
+		t.Fatal("password renderer escape")
+	}
+}
+
+func TestAdminPasswordChangeLinkAndConfiguration(t *testing.T) {
+	site, _ := newTestSite(t)
+	site.config.PasswordChangeURL = "/admin/password-change/"
+	response := perform(site, "GET", "/admin/", principal(), nil, nil)
+	if response.Code != 200 || !strings.Contains(response.Body.String(), `href="/admin/password-change/"`) {
+		t.Fatal("missing password change header link")
+	}
+	config := site.config
+	config.PasswordChangeURL = "//attacker.test"
+	if _, err := NewSite(config); err == nil {
+		t.Fatal("unsafe password change URL")
+	}
+	if _, err := site.PasswordChangeHandler(authviews.PasswordChangeConfig{CSRF: security.CSRFConfig{Exempt: func(*http.Request) bool { return true }}}); err == nil {
+		t.Fatal("account CSRF exemption")
+	}
+}

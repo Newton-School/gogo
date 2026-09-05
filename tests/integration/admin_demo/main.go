@@ -148,7 +148,11 @@ func run() error {
 	if err := auth.SyncPermissions(ctx, store, registry, nil); err != nil {
 		return err
 	}
-	accounts, err := auth.NewAccounts(auth.AccountsConfig{Store: store, Authorize: func(ctx context.Context, _ auth.AccountChange) error {
+	accounts, err := auth.NewAccounts(auth.AccountsConfig{Store: store, Authorize: func(ctx context.Context, change auth.AccountChange) error {
+		actor := auth.FromContext(ctx)
+		if change.Action == "change_own_password" && actor.Authenticated && actor.Active && actor.ID == change.UserID {
+			return nil
+		}
 		if auth.FromContext(ctx).ID != "fixture-bootstrap" {
 			return auth.ErrPermissionDenied
 		}
@@ -223,7 +227,7 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	site, err := admin.NewSite(admin.Config{Store: adapter, Signer: signer, Policy: auth.ModelPolicy{}, LoginURL: "/admin/login/", LogoutURL: "/admin/logout/", Messages: true, CSRF: security.CSRFConfig{MaxBodyBytes: 10 << 20}})
+	site, err := admin.NewSite(admin.Config{Store: adapter, Signer: signer, Policy: auth.ModelPolicy{}, LoginURL: "/admin/login/", LogoutURL: "/admin/logout/", PasswordChangeURL: "/admin/password-change/", Messages: true, CSRF: security.CSRFConfig{MaxBodyBytes: 10 << 20}})
 	if err != nil {
 		return err
 	}
@@ -283,9 +287,14 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	passwordChange, err := site.PasswordChangeHandler(authviews.PasswordChangeConfig{Changer: accounts, Limiter: &connector.Limiter{Connection: connection}, RateSecret: []byte(key), PreserveSession: true})
+	if err != nil {
+		return err
+	}
 	mux := http.NewServeMux()
 	mux.Handle("/admin/login/", login)
 	mux.Handle("/admin/logout/", logout)
+	mux.Handle("/admin/password-change/", passwordChange)
 	mux.Handle("/admin/", site)
 	handler := headers(sessionMiddleware(identityMiddleware(flash(mux))))
 	server := &http.Server{Addr: "127.0.0.1:8099", Handler: handler, ReadHeaderTimeout: 5 * time.Second, IdleTimeout: 60 * time.Second}

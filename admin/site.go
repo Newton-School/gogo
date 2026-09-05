@@ -57,7 +57,7 @@ type ModelAdmin struct {
 }
 type Config struct {
 	Name, Header, Title, IndexTitle, Prefix, SiteURL, LoginURL string
-	LogoutURL                                                  string
+	LogoutURL, PasswordChangeURL                               string
 	Store                                                      Store
 	Policy                                                     auth.Policy
 	Signer                                                     *security.Signer
@@ -112,6 +112,9 @@ func NewSite(config Config) (*Site, error) {
 	}
 	if config.LogoutURL != "" && security.SafeNext(config.LogoutURL, "") == "" {
 		return nil, errors.New("admin: logout URL must be local")
+	}
+	if config.PasswordChangeURL != "" && security.SafeNext(config.PasswordChangeURL, "") == "" {
+		return nil, errors.New("admin: password change URL must be local")
 	}
 	templatesFS, _ := fs.Sub(embedded, "internal/templates")
 	loaders := append([]templates.Loader(nil), config.TemplateLoaders...)
