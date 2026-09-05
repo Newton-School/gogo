@@ -59,5 +59,10 @@ Object or representation failure returns no partial list. Responses are JSON,
 private/no-store, and support GET/HEAD; an unacceptable Accept header returns
 406. Callback panic values, SQL, and provider error text are not rendered.
 
-Generic writes, reverse-cursor navigation, custom action metadata,
+Explicit JSON creation is available through [CreateHandler](create.md), with
+typed model hooks, mandatory write/audit policies and confirmed transaction
+outcomes. [Durable operation receipts](idempotency.md) are independently
+available but not yet integrated into that HTTP handler.
+
+Generic update/delete, HTTP receipt integration, reverse-cursor navigation, custom action metadata,
 OpenAPI and browsable documentation are not implemented by this resource yet.

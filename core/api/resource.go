@@ -27,6 +27,8 @@ type ResourceConfig struct {
 	// Scope must encode ALL countable/listable row visibility, including object
 	// rules, before pagination. Object/field callbacks are defense-in-depth;
 	// they cannot remove hidden rows from an aggregate or navigation metadata.
+	// Scope is a trusted read-only predicate supplier: it must not mutate models,
+	// grants or database state, including via nested domain calls.
 	Scope          func(context.Context, auth.Principal, models.Schema) (db.Predicate, error)
 	AllowAnonymous bool
 	// AllowField runs before reading/computing each declared output field.
@@ -40,7 +42,7 @@ type ResourceConfig struct {
 	SelectRelated []string
 }
 
-// Resource currently exposes read-only list/detail handlers. Authentication is
+// Resource exposes list/detail and explicit opt-in mutation handlers. Authentication is
 // supplied by an explicit surrounding session/bearer/application middleware;
 // handlers never trust identity fields in a body, query, or header themselves.
 // Permission callbacks and the ORM store are trusted application dependencies.
@@ -124,6 +126,10 @@ type resourceRequest struct {
 }
 
 func (s *Resource) request(r *http.Request) (resourceRequest, error) {
+	return s.requestAction(r, "view")
+}
+
+func (s *Resource) requestAction(r *http.Request, action string) (resourceRequest, error) {
 	if s == nil {
 		return resourceRequest{}, ghttp.ErrUnavailable
 	}
@@ -132,13 +138,13 @@ func (s *Resource) request(r *http.Request) (resourceRequest, error) {
 		return resourceRequest{}, err
 	}
 	p := auth.FromContext(ctx)
-	if !p.Authenticated && !s.config.AllowAnonymous {
+	if !p.Authenticated && (action != "view" || !s.config.AllowAnonymous) {
 		return resourceRequest{}, auth.ErrUnauthenticated
 	}
 	if p.Authenticated && !p.Active {
 		return resourceRequest{}, auth.ErrPermissionDenied
 	}
-	if err := s.config.Policy.Authorize(ctx, p, "view", auth.Resource{App: s.schema.AppLabel, Model: s.schema.Name}); err != nil {
+	if err := s.config.Policy.Authorize(ctx, p, action, auth.Resource{App: s.schema.AppLabel, Model: s.schema.Name}); err != nil {
 		return resourceRequest{}, err
 	}
 	if err := ctx.Err(); err != nil {
@@ -321,6 +327,10 @@ func (s *Resource) DetailHandler(key func(*http.Request) (Values, error)) http.H
 }
 
 func (s *Resource) represent(request resourceRequest, record models.Record, hidden bool) (Values, error) {
+	return s.representAction(request, record, "view", hidden)
+}
+
+func (s *Resource) representAction(request resourceRequest, record models.Record, action string, hidden bool) (Values, error) {
 	key := Values{}
 	for _, field := range s.schema.PKFields() {
 		value, err := record.Get(field.Name)
@@ -329,7 +339,7 @@ func (s *Resource) represent(request resourceRequest, record models.Record, hidd
 		}
 		key[field.Name] = value
 	}
-	if err := s.config.Policy.Authorize(request.ctx, auth.FromContext(request.ctx), "view", auth.Resource{App: s.schema.AppLabel, Model: s.schema.Name, ID: key, Object: record}); err != nil {
+	if err := s.config.Policy.Authorize(request.ctx, auth.FromContext(request.ctx), action, auth.Resource{App: s.schema.AppLabel, Model: s.schema.Name, ID: key, Object: record}); err != nil {
 		if hidden && (errors.Is(err, auth.ErrPermissionDenied) || errors.Is(err, auth.ErrUnauthenticated)) {
 			return nil, ghttp.ErrNotFound
 		}
