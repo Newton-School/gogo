@@ -136,7 +136,7 @@ func Login(config LoginConfig) (http.Handler, error) {
 			serveLogin(w, r, config.Render, page, http.StatusBadRequest)
 			return
 		}
-		normalized, normalizeErr := config.NormalizeIdentifier(identifier)
+		normalized, normalizeErr := normalizeAccountIdentifier(config.NormalizeIdentifier, identifier)
 		if normalizeErr != nil || normalized == "" || len(normalized) > 512 {
 			normalized = ""
 		}
@@ -145,7 +145,7 @@ func Login(config LoginConfig) (http.Handler, error) {
 		}
 		// The backend applies its normalizer once. Passing the normalized value
 		// here would apply a custom normalizer twice and change its identity.
-		principal, err := config.Authenticator.Authenticate(r.Context(), identifier, password)
+		principal, err := authenticateCredentials(r.Context(), config.Authenticator, identifier, password)
 		if err != nil && !errors.Is(err, auth.ErrCredentials) && !errors.Is(err, auth.ErrUnauthenticated) && !errors.Is(err, auth.ErrPermissionDenied) && !errors.Is(err, auth.ErrAccountChanged) {
 			failure(r.Context(), config.OnFailure, "unavailable")
 			unavailable(w)
@@ -165,6 +165,24 @@ func Login(config LoginConfig) (http.Handler, error) {
 		}
 		http.Redirect(w, r, page.Next, http.StatusSeeOther)
 	}))), nil
+}
+
+func normalizeAccountIdentifier(normalize func(string) (string, error), value string) (normalized string, err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			normalized, err = "", errors.New("auth views: identity normalization unavailable")
+		}
+	}()
+	return normalize(value)
+}
+
+func authenticateCredentials(ctx context.Context, backend CredentialAuthenticator, identifier, password string) (principal auth.Principal, err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			principal, err = auth.Principal{}, errors.New("auth views: credential backend unavailable")
+		}
+	}()
+	return backend.Authenticate(ctx, identifier, password)
 }
 
 func allowLogin(w http.ResponseWriter, r *http.Request, config LoginConfig, kind, value string, limit ratelimit.Limit) bool {

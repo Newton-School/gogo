@@ -245,3 +245,23 @@ func TestLoginRendererFailureIsNotPartialResponse(t *testing.T) {
 		t.Fatal(w.Code, w.Body.String())
 	}
 }
+
+func TestLoginNormalizationAndCredentialPanicsStayInsideSafeBoundary(t *testing.T) {
+	for _, phase := range []string{"normalizer", "backend"} {
+		config := loginConfig()
+		if phase == "normalizer" {
+			config.NormalizeIdentifier = func(string) (string, error) { panic("private normalization value") }
+		} else {
+			config.Authenticator = credentialsFunc(func(context.Context, string, string) (auth.Principal, error) { panic("private submitted password") })
+		}
+		f := newLoginFixture(t, config)
+		w := f.call("POST", "/login", url.Values{"identifier": {"user"}, "password": {"submitted-password"}}, f.token)
+		want := 503
+		if phase == "normalizer" {
+			want = 401
+		}
+		if w.Code != want || strings.Contains(w.Body.String(), "private") || strings.Contains(w.Body.String(), "submitted-password") {
+			t.Fatal(phase, w.Code, w.Body.String())
+		}
+	}
+}
