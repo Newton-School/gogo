@@ -69,6 +69,7 @@ func (q Query[T]) prepareRelated(ctx context.Context) (Query[T], error) {
 	}
 	q.selectAST.Alias = "gogo_root"
 	resolved := map[string]models.Schema{"": q.schema}
+	outer := map[string]bool{}
 	for _, path := range q.relatedPaths {
 		names := strings.Split(path, "__")
 		if path == "" || len(names) > 8 {
@@ -103,6 +104,11 @@ func (q Query[T]) prepareRelated(ctx context.Context) (Query[T], error) {
 			// path. Each path owns a distinct join alias; the segment bound
 			// prevents unbounded traversal without rejecting self relations.
 			join := db.Join{Path: currentPath, Alias: fmt.Sprintf("gogo_join_%d", len(q.joined)+1), ParentPath: parent, Schema: binding.target}
+			// Required unscoped forward links can use INNER JOIN and participate
+			// in ordinary FOR UPDATE. Nullable ancestors and scoped targets must
+			// stay outer joined, so an absent/hidden target never removes a root.
+			join.Inner = !binding.reverse && !binding.field.Null && q.scope == nil && !outer[parent]
+			outer[currentPath] = !join.Inner
 			if binding.reverse {
 				key, err := relationTargetField(parentSchema, binding.field)
 				if err != nil {

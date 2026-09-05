@@ -197,3 +197,76 @@ func TestSelectRelatedNestedAndReverseOneToOne(t *testing.T) {
 		}
 	}
 }
+
+func TestSelectRelatedRequiredJoinsAndLocking(t *testing.T) {
+	b := openTest(t)
+	ctx := context.Background()
+	company := models.Schema{AppLabel: "tests", Name: "Company", Fields: []models.Field{models.BigAutoField("id"), models.TextField("name")}}
+	author := models.Schema{AppLabel: "tests", Name: "Author", Fields: []models.Field{models.BigAutoField("id"), models.ForeignKeyField("company", models.Relation{Target: company.Key(), OnDelete: models.Cascade})}}
+	book := models.Schema{AppLabel: "tests", Name: "Book", Fields: []models.Field{models.BigAutoField("id"), models.ForeignKeyField("author", models.Relation{Target: author.Key(), OnDelete: models.Cascade})}}
+	note := models.Schema{AppLabel: "tests", Name: "Note", Fields: []models.Field{models.BigAutoField("id"), models.ForeignKeyField("book", models.Relation{Target: book.Key(), OnDelete: models.Cascade}, models.Nullable)}}
+	registry := &models.Registry{}
+	ops := []migrations.Operation{}
+	for _, schema := range []models.Schema{company, author, book, note} {
+		if err := registry.Register(schema); err != nil {
+			t.Fatal(err)
+		}
+		ops = append(ops, migrations.CreateModel(schema))
+	}
+	if err := registry.Freeze(); err != nil {
+		t.Fatal(err)
+	}
+	engine := migrations.Executor{Backend: b, Editor: b.SchemaEditor(), Migrations: []migrations.Migration{{App: "tests", Name: "0001", Operations: ops}}}
+	if err := engine.Apply(ctx, ""); err != nil {
+		t.Fatal(err)
+	}
+	store := orm.New(b, registry)
+	c := saveMap(t, store, company, map[string]any{"name": "Publisher"})
+	a := saveMap(t, store, author, map[string]any{"company": mustValue(t, c, "id")})
+	bookRecord := saveMap(t, store, book, map[string]any{"author": mustValue(t, a, "id")})
+	saveMap(t, store, note, map[string]any{"book": mustValue(t, bookRecord, "id")})
+	saveMap(t, store, note, map[string]any{"book": nil})
+	query := orm.For(store, func() *models.MapRecord { r, _ := models.NewRecord(book); return r }).SelectRelated("author__company")
+	statement, _, err := query.SQL()
+	if err != nil || strings.Count(statement, "INNER JOIN") != 2 || strings.Contains(statement, "LEFT JOIN") {
+		t.Fatal(statement, err)
+	}
+	if err := db.Atomic(ctx, b, db.AtomicOptions{}, func(ctx context.Context) error {
+		_, err := query.SelectForUpdate(false, false).Get(ctx)
+		return err
+	}); err != nil {
+		t.Fatal("required joined rows could not be locked", err)
+	}
+	outerQuery := orm.For(store, func() *models.MapRecord { r, _ := models.NewRecord(note); return r }).SelectRelated("book__author__company").OrderBy("id")
+	statement, _, err = outerQuery.SQL()
+	if err != nil || strings.Count(statement, "LEFT JOIN") != 3 || strings.Contains(statement, "INNER JOIN") {
+		t.Fatal("required descendant erased nullable ancestor", statement, err)
+	}
+	rows, err := outerQuery.All(ctx)
+	if err != nil || len(rows) != 2 {
+		t.Fatal(rows, err)
+	}
+	if related, loaded := orm.RelatedOne(rows[1], "book"); !loaded || related != nil {
+		t.Fatal("nullable root lost", related, loaded)
+	}
+	if err := db.Atomic(ctx, b, db.AtomicOptions{}, func(ctx context.Context) error { _, err := outerQuery.SelectForUpdateOf("self").All(ctx); return err }); err != nil {
+		t.Fatal(err)
+	}
+	scoped := query.WithScope(func(_ context.Context, schema models.Schema) (db.Predicate, error) {
+		if schema.Key() == author.Key() {
+			return orm.Q("id", -1), nil
+		}
+		return db.Predicate{}, nil
+	})
+	statement, _, err = scoped.SQL()
+	if err != nil || strings.Count(statement, "LEFT JOIN") != 2 {
+		t.Fatal("scoped required relation became inner", statement, err)
+	}
+	rows, err = scoped.All(ctx)
+	if err != nil || len(rows) != 1 {
+		t.Fatal("hidden target removed root", rows, err)
+	}
+	if related, loaded := orm.RelatedOne(rows[0], "author"); !loaded || related != nil {
+		t.Fatal("hidden required relation leaked", related, loaded)
+	}
+}
