@@ -42,6 +42,7 @@ type ModelAdmin struct {
 	Fields, Exclude, ReadonlyFields                                   []string
 	AutocompleteFields, RawIDFields                                   []string
 	ListDisplay, ListDisplayLinks, SearchFields, ListFilter, Ordering []string
+	ListEditable                                                      []string
 	ListPerPage, ListMaxShowAll                                       int
 	Fieldsets                                                         []Fieldset
 	Inlines                                                           []Inline
@@ -253,6 +254,9 @@ func (s *Site) Register(options ModelAdmin) error {
 		}
 		displays[column.Name] = true
 	}
+	if err := validateListEditable(options); err != nil {
+		return err
+	}
 	for name := range options.FormOverrides {
 		if stockGrantField(options, name) {
 			return errors.New("admin: stock account grant FormOverrides are unsupported; use the scoped account grant ports")
@@ -289,6 +293,7 @@ func (s *Site) Register(options ModelAdmin) error {
 	options.RawIDFields = slices.Clone(options.RawIDFields)
 	options.ListDisplay = slices.Clone(options.ListDisplay)
 	options.ListDisplayLinks = slices.Clone(options.ListDisplayLinks)
+	options.ListEditable = slices.Clone(options.ListEditable)
 	options.SearchFields = slices.Clone(options.SearchFields)
 	options.ListFilter = slices.Clone(options.ListFilter)
 	options.Ordering = slices.Clone(options.Ordering)

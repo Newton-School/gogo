@@ -18,14 +18,17 @@
   </form>
   {% endif %}
   <form method="post">{% csrf_token %}
+    {% if list_token %}<input type="hidden" name="_list_token" value="{{ list_token }}"><input type="hidden" name="form-TOTAL_FORMS" value="{{ list_form_count }}"><input type="hidden" name="form-INITIAL_FORMS" value="{{ list_form_count }}">{% for row in rows %}<input type="hidden" name="{{ row.prefix }}-_id" value="{{ row.id }}">{% endfor %}{% endif %}
+    {% if list_invalid %}<div class="form-row" role="alert"><p class="error-note">Please correct the errors below. No records were saved.</p>{% for error in list_errors %}<p class="error-note">{{ error.label }}: {{ error.message }}</p>{% endfor %}</div>{% endif %}
     {% if actions %}<div class="action-bar"><label for="action">Action</label><select id="action" name="action"><option value="">Choose an action</option>{% for action in actions %}<option value="{{ action.name }}">{{ action.label }}</option>{% endfor %}</select><button type="submit">Run on selected</button></div>{% endif %}
     <div class="table-scroll"><table>
       <thead><tr>{% if actions %}<th scope="col">Select</th>{% endif %}{% for column in columns %}<th scope="col" aria-sort="{{ column.direction }}">{% if column.url %}<a href="{{ column.url }}">{{ column.label }}</a>{% else %}{{ column.label }}{% endif %}</th>{% endfor %}</tr></thead>
       <tbody>{% for row in rows %}<tr>
         {% if actions %}<td><input type="checkbox" name="_selected" value="{{ row.id }}" aria-label="Select {{ row.id }}"></td>{% endif %}
-        {% for cell in row.cells %}<td>{% if cell.url %}<a href="{{ cell.url }}">{{ cell.value|default_if_none:"—" }}</a>{% else %}{{ cell.value|default_if_none:"—" }}{% endif %}</td>{% endfor %}
+        {% for cell in row.cells %}<td>{% if cell.widget %}{{ cell.widget }}{% elif cell.url %}<a href="{{ cell.url }}">{{ cell.value|default_if_none:"—" }}</a>{% else %}{{ cell.value|default_if_none:"—" }}{% endif %}</td>{% endfor %}
       </tr>{% empty %}<tr><td class="empty-state" colspan="100">No matching records.</td></tr>{% endfor %}</tbody>
     </table></div>
+    {% if list_token %}<div class="submit-row"><button type="submit" name="_save_list" value="1">Save changes</button><span class="muted">Only changed editable rows on this page are saved.</span></div>{% endif %}
   </form>
   <nav class="pagination" aria-label="Pagination"><span>Page {{ page }}</span><div>{% if has_previous %}<a href="{{ previous }}">← Previous</a>{% endif %}{% if has_next %}<a href="{{ next }}">Next →</a>{% endif %}</div></nav>
 </section>

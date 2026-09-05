@@ -204,6 +204,14 @@ func (s *Site) action(w http.ResponseWriter, r *http.Request, p auth.Principal, 
 		http.Error(w, "Invalid form", 400)
 		return
 	}
+	if r.PostForm.Has("_save_list") {
+		if len(options.ListEditable) == 0 {
+			http.Error(w, "List editing is not configured", 400)
+			return
+		}
+		s.list(w, r, p, options, store)
+		return
+	}
 	var selected Action
 	for _, action := range options.Actions {
 		if action.Name == r.PostForm.Get("action") {

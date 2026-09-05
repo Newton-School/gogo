@@ -261,6 +261,13 @@ func (s *Site) index(w http.ResponseWriter, r *http.Request, p auth.Principal) {
 }
 
 func (s *Site) list(w http.ResponseWriter, r *http.Request, p auth.Principal, options ModelAdmin, store ScopedStore) {
+	if r.Method == "POST" {
+		w.Header().Set("X-Gogo-List-Change", "unchanged")
+		if err := s.allowed(r.Context(), p, "change", options, Object{}); err != nil {
+			s.failure(w, r, err)
+			return
+		}
+	}
 	query := ListQuery{Search: r.URL.Query().Get("q"), SearchFields: options.SearchFields, Filters: map[string]string{}, Ordering: options.Ordering, Limit: options.ListPerPage}
 	if len(query.Search) > 256 || query.Search != "" && len(options.SearchFields) == 0 {
 		http.Error(w, "Search is too long", 400)
@@ -315,14 +322,32 @@ func (s *Site) list(w http.ResponseWriter, r *http.Request, p auth.Principal, op
 		s.failure(w, r, errors.New("invalid store page"))
 		return
 	}
+	editing, done := s.prepareListEdit(w, r, p, options, store, result.Objects)
+	if done {
+		return
+	}
 	rows := []any{}
-	for _, object := range result.Objects {
+	for rowIndex, object := range result.Objects {
+		if editing != nil {
+			object = editing.objects[rowIndex]
+		}
 		if err := s.allowed(r.Context(), p, "view", options, object); err != nil {
 			s.failure(w, r, err)
 			return
 		}
 		cells := []any{}
 		for index, name := range options.ListDisplay {
+			if editing != nil && slices.Contains(options.ListEditable, name) {
+				widget, editable, err := s.listEditCell(r.Context(), editing.forms[rowIndex], object, name)
+				if err != nil {
+					s.failure(w, r, err)
+					return
+				}
+				if editable {
+					cells = append(cells, templates.Context{"widget": widget})
+					continue
+				}
+			}
 			var value any
 			found := false
 			for _, column := range options.Columns {
@@ -345,7 +370,7 @@ func (s *Site) list(w http.ResponseWriter, r *http.Request, p auth.Principal, op
 			}
 			cells = append(cells, templates.Context{"value": value, "url": link})
 		}
-		rows = append(rows, templates.Context{"id": object.ID, "url": s.modelURL(options) + url.PathEscape(object.ID) + "/change/", "cells": cells})
+		rows = append(rows, templates.Context{"id": object.ID, "prefix": "form-" + strconv.Itoa(rowIndex), "url": s.modelURL(options) + url.PathEscape(object.ID) + "/change/", "cells": cells})
 	}
 	columns := []any{}
 	for _, name := range options.ListDisplay {
@@ -409,7 +434,15 @@ func (s *Site) list(w http.ResponseWriter, r *http.Request, p auth.Principal, op
 		values.Set("p", strconv.Itoa(next))
 		return "?" + values.Encode()
 	}
-	s.render(w, r, p, "list.html", templates.Context{"title": options.Schema.Name, "columns": columns, "rows": rows, "count": result.Count, "search": query.Search, "has_search": len(options.SearchFields) > 0, "filters": filters, "order": r.URL.Query().Get("o"), "page": page, "previous": pageURL(max(1, page-1)), "next": pageURL(page + 1), "has_previous": page > 1, "has_next": int64(query.Offset+len(rows)) < result.Count, "can_add": s.allowed(r.Context(), p, "add", options, Object{}) == nil, "add_url": s.modelURL(options) + "add/", "actions": actions}, 200)
+	status := 200
+	listToken := ""
+	if editing != nil {
+		listToken = editing.token
+		if !editing.valid {
+			status = 400
+		}
+	}
+	s.render(w, r, p, "list.html", templates.Context{"title": options.Schema.Name, "columns": columns, "rows": rows, "count": result.Count, "search": query.Search, "has_search": len(options.SearchFields) > 0, "filters": filters, "order": r.URL.Query().Get("o"), "page": page, "previous": pageURL(max(1, page-1)), "next": pageURL(page + 1), "has_previous": page > 1, "has_next": int64(query.Offset+len(rows)) < result.Count, "can_add": s.allowed(r.Context(), p, "add", options, Object{}) == nil, "add_url": s.modelURL(options) + "add/", "actions": actions, "list_token": listToken, "list_form_count": len(rows), "list_invalid": editing != nil && !editing.valid, "list_errors": listFormProblems(editing, options.ListEditable)}, status)
 }
 
 type editToken struct{ Actor, Site, Model, ID, Version, Action string }

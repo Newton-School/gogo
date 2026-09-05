@@ -363,6 +363,22 @@ func (s *ormScoped) Atomic(ctx context.Context, fn func(context.Context) error) 
 	return db.Atomic(ctx, s.owner.config.Store.Backend, db.AtomicOptions{}, fn)
 }
 
+func (s *ormScoped) AtomicObserved(ctx context.Context, fn func(context.Context) error, committed func()) error {
+	if fn == nil || committed == nil {
+		return errors.New("admin: transaction body and commit observer required")
+	}
+	backend := s.owner.config.Store.Backend
+	if db.InTransaction(ctx, backend.Alias()) {
+		return errors.New("admin: observed mutation requires an outer transaction")
+	}
+	return db.Atomic(ctx, backend, db.AtomicOptions{}, func(ctx context.Context) error {
+		if err := db.OnCommit(ctx, backend.Alias(), func(context.Context) error { committed(); return nil }, true); err != nil {
+			return err
+		}
+		return fn(ctx)
+	})
+}
+
 func objectFromRecord(record models.Record) (Object, error) {
 	values := []any{}
 	for _, field := range record.Schema().PKFields() {

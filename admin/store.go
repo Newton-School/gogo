@@ -52,6 +52,15 @@ type ScopedStore interface {
 	Atomic(context.Context, func(context.Context) error) error
 }
 
+// ObservedAtomicStore optionally proves the outcome of this exact outer
+// transaction. It must reject an ambient/nested transaction before running fn,
+// call committed only after durable commit and before any user after-commit
+// callbacks, and otherwise preserve Atomic's rollback-on-body-error contract.
+// The witness cannot be inferred from an error returned by application hooks.
+type ObservedAtomicStore interface {
+	AtomicObserved(context.Context, func(context.Context) error, func()) error
+}
+
 // RelationStore keeps automatic many-to-many form effects in the same parent
 // transaction. InitialRelations returns only visible target primary keys.
 // SaveRelations must preserve hidden links, scope all endpoints, and authorize
