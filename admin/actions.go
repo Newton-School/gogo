@@ -139,6 +139,7 @@ func (s *Site) executeDeletion(ctx context.Context, p auth.Principal, store Scop
 
 func (s *Site) scopedDeletion(ctx context.Context, p auth.Principal, graph Deletion, lock bool) (Deletion, error) {
 	result := Deletion{Protected: append([]string(nil), graph.Protected...)}
+	authorized := map[string]Object{}
 	for _, target := range graph.Objects {
 		if target.Record == nil {
 			return Deletion{}, errors.New("invalid deletion graph")
@@ -156,6 +157,17 @@ func (s *Site) scopedDeletion(ctx context.Context, p auth.Principal, graph Delet
 			return Deletion{}, err
 		}
 		result.Objects = append(result.Objects, current)
+		authorized[schema.Key()+":"+current.ID] = current
+	}
+	for _, removal := range graph.JoinRemovals {
+		if removal.Endpoint.Record == nil {
+			return Deletion{}, errors.New("invalid automatic relationship removal")
+		}
+		endpoint, ok := authorized[removal.Endpoint.Record.Schema().Key()+":"+removal.Endpoint.ID]
+		if !ok {
+			return Deletion{}, auth.ErrPermissionDenied
+		}
+		result.JoinRemovals = append(result.JoinRemovals, JoinRemoval{Endpoint: endpoint})
 	}
 	for _, update := range graph.Updates {
 		if update.Object.Record == nil {

@@ -193,7 +193,7 @@ func (s *ormScoped) DeleteAuthorized(ctx context.Context, object Object, authori
 	}
 	collector := s.collector()
 	collector.Authorize = func(ctx context.Context, plan orm.DeletionPlan) error {
-		graph, err := deletionFromPlan(plan)
+		graph, err := s.deletionFromPlan(plan)
 		if err != nil {
 			return err
 		}
@@ -251,7 +251,7 @@ func (s *ormScoped) CollectDeletion(ctx context.Context, object Object) (Deletio
 	if err != nil {
 		return Deletion{}, err
 	}
-	return deletionFromPlan(plan)
+	return s.deletionFromPlan(plan)
 }
 
 func (s *ormScoped) collector() orm.DeleteCollector {
@@ -267,14 +267,55 @@ func (s *ormScoped) collector() orm.DeleteCollector {
 	}}
 }
 
-func deletionFromPlan(plan orm.DeletionPlan) (Deletion, error) {
+func (s *ormScoped) deletionFromPlan(plan orm.DeletionPlan) (Deletion, error) {
 	graph := Deletion{}
+	endpoints := map[string]Object{}
 	for _, record := range plan.Objects {
 		object, err := objectFromRecord(record)
 		if err != nil {
 			return Deletion{}, err
 		}
 		graph.Objects = append(graph.Objects, object)
+		endpoints[record.Schema().Key()+":"+object.ID] = object
+	}
+	for _, removal := range plan.JoinRemovals {
+		registry := s.owner.config.Store.Registry
+		if removal.Record == nil || removal.Endpoint == nil || registry == nil || !registry.IsAutomatic(removal.Record.Schema().Key()) {
+			return Deletion{}, errors.New("admin: invalid automatic intermediary provenance")
+		}
+		schema, ok := registry.Get(removal.Record.Schema().Key())
+		if !ok {
+			return Deletion{}, errors.New("admin: unknown automatic intermediary")
+		}
+		field, ok := schema.Field(removal.Field)
+		if !ok || field.Relation == nil || field.Relation.Target != removal.Endpoint.Schema().Key() || len(field.Relation.TargetFields) != 1 {
+			return Deletion{}, errors.New("admin: invalid automatic intermediary endpoint")
+		}
+		object, err := objectFromRecord(removal.Endpoint)
+		if err != nil {
+			return Deletion{}, err
+		}
+		endpoint, ok := endpoints[removal.Endpoint.Schema().Key()+":"+object.ID]
+		if !ok {
+			return Deletion{}, auth.ErrPermissionDenied
+		}
+		joinValue, err := removal.Record.Get(field.Name)
+		if err != nil {
+			return Deletion{}, err
+		}
+		endpointValue, err := endpoint.Record.Get(field.Relation.TargetFields[0])
+		if err != nil {
+			return Deletion{}, err
+		}
+		left, err := json.Marshal(joinValue)
+		if err != nil {
+			return Deletion{}, err
+		}
+		right, err := json.Marshal(endpointValue)
+		if err != nil || string(left) != string(right) {
+			return Deletion{}, auth.ErrPermissionDenied
+		}
+		graph.JoinRemovals = append(graph.JoinRemovals, JoinRemoval{Endpoint: endpoint})
 	}
 	for _, update := range plan.Updates {
 		object, err := objectFromRecord(update.Record)

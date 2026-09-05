@@ -53,10 +53,17 @@ type ScopedStore interface {
 }
 
 type Deletion struct {
-	Objects   []Object
-	Updates   []RelatedUpdate
-	Protected []string
+	Objects      []Object
+	Updates      []RelatedUpdate
+	Protected    []string
+	JoinRemovals []JoinRemoval
 }
+
+// JoinRemoval removes automatic intermediary links belonging to an endpoint
+// in this same deletion graph. It never grants access to the other endpoint.
+// Trusted stores must verify intermediary provenance and constrain the actual
+// delete by the exact endpoint FK. No internal join identities enter the UI.
+type JoinRemoval struct{ Endpoint Object }
 
 // RelatedUpdate is a SET_NULL or SET_DEFAULT effect, requiring change permission.
 type RelatedUpdate struct {
