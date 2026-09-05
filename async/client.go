@@ -19,6 +19,7 @@ type ClientConfig struct {
 	Results        ResultStore
 	Workflows      WorkflowStore
 	Schedules      ScheduleStore
+	Presence       WorkerPresenceStore
 	Queues         []string
 	Routes         []Route
 	AllowedHeaders []string

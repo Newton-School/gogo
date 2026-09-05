@@ -3,6 +3,7 @@ package async
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"sort"
 	"time"
 )
@@ -94,17 +95,19 @@ func (c Control) InspectQueues(ctx context.Context, queues []string) ([]QueueSta
 	return c.Client.config.Broker.Inspect(ctx, queues)
 }
 func (c Control) InspectWorker(ctx context.Context, worker *Worker) (WorkerSnapshot, error) {
-	if c.Client == nil || worker == nil {
+	if ctx == nil || c.Client == nil || worker == nil {
 		return WorkerSnapshot{}, ErrInvalid
 	}
 	snapshot := worker.Snapshot()
-	if err := c.Client.authorize(ctx, "inspect", "", snapshot.ID); err != nil {
+	if err := c.authorizeInspection(ctx, "", snapshot.ID); err != nil {
 		return WorkerSnapshot{}, err
 	}
 	visible := snapshot.Active[:0]
 	for _, activity := range snapshot.Active {
-		if c.Client.authorize(ctx, "inspect", activity.Scope, activity.ID) == nil {
+		if err := c.authorizeInspection(ctx, activity.Scope, activity.ID); err == nil {
 			visible = append(visible, activity)
+		} else if !errors.Is(err, ErrDenied) {
+			return WorkerSnapshot{}, err
 		}
 	}
 	snapshot.Active = visible

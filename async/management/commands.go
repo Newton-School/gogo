@@ -160,7 +160,20 @@ func Commands(f Factories) []core.Command {
 		}})
 	}
 	if f.Client != nil {
-		commands = append(commands, core.Command{Name: "tasks", Help: "Read scoped task status/result or request revoke", Resources: append([]string(nil), f.ClientResources...), OpenResources: true, Validate: func(args []string) error {
+		commands = append(commands, core.Command{Name: "tasks", Help: "Inspect scoped workers, read task status/result or request revoke", Resources: append([]string(nil), f.ClientResources...), OpenResources: true, Validate: func(args []string) error {
+			if len(args) > 0 && args[0] == "inspect" {
+				if len(args) < 3 || len(args) > 66 || args[1] != "workers" {
+					return async.ErrInvalid
+				}
+				seen := map[string]bool{}
+				for _, id := range args[2:] {
+					if !async.ValidWorkerID(id) || seen[id] {
+						return async.ErrInvalid
+					}
+					seen[id] = true
+				}
+				return nil
+			}
 			if len(args) != 2 || !taskID.MatchString(args[1]) || args[0] != "status" && args[0] != "result" && args[0] != "revoke" {
 				return async.ErrInvalid
 			}
@@ -173,6 +186,16 @@ func Commands(f Factories) []core.Command {
 				}
 				if client == nil {
 					return async.ErrInvalid
+				}
+				if args[0] == "inspect" {
+					workers, err := (async.Control{Client: client}).InspectWorkers(ctx, args[2:])
+					if err != nil && len(workers) == 0 {
+						return err
+					}
+					if writeErr := json.NewEncoder(invocation.Stdout).Encode(map[string]any{"workers": workers, "partial": err != nil}); writeErr != nil {
+						return errors.Join(err, writeErr)
+					}
+					return err
 				}
 				result := async.RestoreResult[json.RawMessage](client, args[1])
 				if args[0] == "revoke" {

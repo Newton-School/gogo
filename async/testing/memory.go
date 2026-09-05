@@ -25,6 +25,7 @@ type Memory struct {
 	intents    map[string]async.Intent
 	graphs     map[string]async.Graph
 	delayed    map[string]async.DelayedItem
+	workers    map[string]workerPresence
 	queue      []async.Delivery
 	pending    map[string]reserved
 	quarantine []async.Delivery

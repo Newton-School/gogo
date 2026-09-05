@@ -30,6 +30,7 @@ type Worker struct {
 	OnError     func(error)
 	Executor    Executor
 	Events      EventSink
+	Presence    WorkerPresenceStore
 	RateLimiter ratelimit.Limiter
 	initOnce    sync.Once
 	initErr     error
@@ -122,6 +123,11 @@ func (w *Worker) Run(ctx context.Context) error {
 	if err := w.initialize(); err != nil {
 		return err
 	}
+	stopPresence, err := w.startPresence(ctx)
+	if err != nil {
+		return err
+	}
+	defer stopPresence()
 	var wg sync.WaitGroup
 	for slot := 0; slot < w.Concurrency; slot++ {
 		wg.Add(1)
@@ -168,6 +174,11 @@ func (w *Worker) RunOnce(ctx context.Context) error {
 	if err := w.initialize(); err != nil {
 		return err
 	}
+	stopPresence, err := w.startPresence(ctx)
+	if err != nil {
+		return err
+	}
+	defer stopPresence()
 	delivery, err := w.Broker.Consume(ctx, ConsumeOptions{Queues: w.Queues, Consumer: w.ID})
 	if errors.Is(err, ErrNotFound) {
 		return nil
