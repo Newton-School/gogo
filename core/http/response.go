@@ -48,8 +48,23 @@ func PublicError(err error) *Error {
 	if errors.Is(err, db.ErrNoRows) || errors.Is(err, orm.ErrNotFound) || errors.Is(err, urls.ErrNotFound) {
 		return ErrNotFound
 	}
+	// A database validation stage can retain field errors alongside a failed
+	// provider check. An outage/timeout is not a completed input validation.
+	if errors.Is(err, context.DeadlineExceeded) {
+		return &Error{504, "TIMEOUT", "Request timed out", nil, nil}
+	}
+	if errors.Is(err, context.Canceled) || db.IsCode(err, db.Unavailable) || db.IsCode(err, db.UnknownCommit) || db.IsCode(err, db.Canceled) {
+		return ErrUnavailable
+	}
+	if db.IsCode(err, db.UniqueViolation) || db.IsCode(err, db.ForeignKeyViolation) || db.IsCode(err, db.CheckViolation) {
+		return ErrConflict
+	}
+	var provider *db.Error
+	if errors.As(err, &provider) {
+		return &Error{500, "INTERNAL_ERROR", "Internal server error", nil, nil}
+	}
 	var validation *models.ValidationError
-	if errors.As(err, &validation) {
+	if errors.As(err, &validation) && models.IsValidationOnly(err) {
 		fields := map[string][]string{}
 		for name, items := range validation.Fields {
 			for _, item := range items {
@@ -57,15 +72,6 @@ func PublicError(err error) *Error {
 			}
 		}
 		return &Error{400, "VALIDATION_ERROR", "Invalid input", fields, nil}
-	}
-	if db.IsCode(err, db.UniqueViolation) || db.IsCode(err, db.ForeignKeyViolation) || db.IsCode(err, db.CheckViolation) {
-		return ErrConflict
-	}
-	if db.IsCode(err, db.Unavailable) {
-		return ErrUnavailable
-	}
-	if errors.Is(err, context.DeadlineExceeded) {
-		return &Error{504, "TIMEOUT", "Request timed out", nil, nil}
 	}
 	return &Error{500, "INTERNAL_ERROR", "Internal server error", nil, nil}
 }
