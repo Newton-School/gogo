@@ -337,10 +337,12 @@ func (f Ref[V]) In(values ...V) db.Predicate {
 func Q(name string, value any) db.Predicate {
 	parts := strings.Split(name, "__")
 	lookup := "exact"
-	if len(parts) == 2 {
-		lookup = parts[1]
+	field := parts[0]
+	if len(parts) >= 2 {
+		lookup = parts[len(parts)-1]
+		field = strings.Join(parts[:len(parts)-1], "__")
 	}
-	return db.Predicate{Field: parts[0], Lookup: lookup, Value: value}
+	return db.Predicate{Field: field, Lookup: lookup, Value: value}
 }
 func And(predicates ...db.Predicate) db.Predicate {
 	return db.Predicate{Connector: "AND", Children: append([]db.Predicate(nil), predicates...)}

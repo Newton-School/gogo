@@ -199,6 +199,9 @@ func TestTransactionsAndSignalFailure(t *testing.T) {
 }
 func TestQueriesBindUntrustedValues(t *testing.T) {
 	_, store := setupProducts(t)
+	if _, _, err := orm.For(store, func() *product { return &product{} }).Filter(orm.Q("name__unknown__exact", "value")).SQL(); err == nil {
+		t.Fatal("unsupported traversal silently discarded path components")
+	}
 	ctx := context.Background()
 	for _, name := range []string{"x%_", "safe", "Robert'); DROP TABLE tests_product;--"} {
 		if err := store.Save(ctx, &product{Name: name, Amount: "1.00"}, orm.SaveOptions{}); err != nil {
