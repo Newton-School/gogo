@@ -30,6 +30,10 @@ func New(backend db.Backend, registry *models.Registry) *Store {
 	return &Store{Backend: backend, Registry: registry}
 }
 
+// Query snapshots built-in slices, maps and plain-data parameters. Custom
+// provider values (Valuer/Marshaler or opaque structs) remain caller-owned and
+// must not be mutated while a query using them can execute. They are never
+// evaluated while building a query or copied by inspecting private state.
 type Query[T models.Model] struct {
 	store        *Store
 	factory      func() T

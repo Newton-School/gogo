@@ -1,6 +1,9 @@
 package orm
 
 import (
+	"database/sql/driver"
+	"encoding"
+	"encoding/json"
 	"github.com/Newton-School/gogo/core/db"
 	"reflect"
 )
@@ -33,7 +36,9 @@ type cloneVisit struct {
 	length  int
 }
 
-// cloneQueryValue snapshots mutable query data without evaluating Valuer hooks.
+// cloneQueryValue snapshots mutable plain query data without evaluating provider
+// hooks. Opaque structs and custom Valuer/Marshaler objects remain caller-owned:
+// copying their internals could copy active locks, resources or encoder state.
 // Cycle tracking preserves cyclic inputs so the eventual encoder can reject them
 // normally, rather than overflowing during query construction.
 func cloneQueryValue(value any) any {
@@ -44,6 +49,9 @@ func cloneQueryValue(value any) any {
 	var copyValue func(reflect.Value) reflect.Value
 	copyValue = func(value reflect.Value) reflect.Value {
 		if !value.IsValid() {
+			return value
+		}
+		if value.Kind() == reflect.Struct && opaqueQueryStruct(value.Type()) || value.Kind() == reflect.Pointer && value.Type().Elem().Kind() == reflect.Struct && opaqueQueryStruct(value.Type().Elem()) {
 			return value
 		}
 		switch value.Kind() {
@@ -106,4 +114,19 @@ func cloneQueryValue(value any) any {
 		}
 	}
 	return copyValue(reflect.ValueOf(value)).Interface()
+}
+
+func opaqueQueryStruct(typ reflect.Type) bool {
+	for _, contract := range []reflect.Type{reflect.TypeFor[driver.Valuer](), reflect.TypeFor[json.Marshaler](), reflect.TypeFor[encoding.TextMarshaler]()} {
+		if typ.Implements(contract) || reflect.PointerTo(typ).Implements(contract) {
+			return true
+		}
+	}
+	for i := 0; i < typ.NumField(); i++ {
+		field := typ.Field(i)
+		if !field.IsExported() || field.Type.Kind() == reflect.Struct && opaqueQueryStruct(field.Type) {
+			return true
+		}
+	}
+	return false
 }

@@ -1,10 +1,39 @@
 package orm
 
 import (
+	"database/sql/driver"
+	"encoding/json"
 	"github.com/Newton-School/gogo/core/db"
 	"reflect"
+	"sync"
 	"testing"
 )
+
+type queryValuer struct{ calls int }
+
+func (v *queryValuer) Value() (driver.Value, error) {
+	v.calls++
+	return "value", nil
+}
+
+func TestQuerySnapshotDoesNotCopyProviderState(t *testing.T) {
+	provider := &queryValuer{}
+	if got := cloneQueryValue(provider); got != provider || provider.calls != 0 {
+		t.Fatal("provider copied or evaluated during construction")
+	}
+	locked := &struct{ Lock sync.Mutex }{}
+	locked.Lock.Lock()
+	defer locked.Lock.Unlock()
+	if got := cloneQueryValue(locked); got != locked {
+		t.Fatal("opaque embedded lock state copied")
+	}
+	raw := json.RawMessage(`{"precise":9007199254740993}`)
+	copy := cloneQueryValue(raw).(json.RawMessage)
+	raw[0] = '['
+	if string(copy) != `{"precise":9007199254740993}` {
+		t.Fatal("plain raw JSON was not snapshotted exactly", string(copy))
+	}
+}
 
 func TestPrefetchRejectsCyclicSpecificationBeforeCloning(t *testing.T) {
 	children := []Prefetch{{Path: "parent"}}
