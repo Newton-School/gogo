@@ -17,7 +17,8 @@ type Workflows struct{ Connection *connector.Connection }
 
 func (w *Workflows) keys(id string) []string {
 	index, _ := w.Connection.PartitionIndex("workflow", connector.Partition(id), "pending-intents")
-	return []string{w.Connection.PartitionKey("workflow", id, "state"), w.Connection.PartitionKey("workflow", id, "intents"), index}
+	records, _ := w.Connection.PartitionIndex("workflow", connector.Partition(id), "records-v1")
+	return []string{w.Connection.PartitionKey("workflow", id, "state"), w.Connection.PartitionKey("workflow", id, "intents"), index, records}
 }
 func (w *Workflows) ReadGraph(ctx context.Context, id string) (async.Graph, error) {
 	var graph async.Graph
@@ -38,20 +39,38 @@ func (w *Workflows) ReadGraph(ctx context.Context, id string) (async.Graph, erro
 }
 
 var graphCAS = redigo.NewScript(`
+local kinds={'hash','hash','zset','zset'}
+for i,key in ipairs(KEYS) do local kind=redis.call('TYPE',key).ok;if kind~='none' and kind~=kinds[i] then error('invalid workflow key type') end end
 local old=redis.call('HGET',KEYS[1],'revision') or '0';if old~=ARGV[1] then return 0 end
+local intents=cjson.decode(ARGV[4])
+if type(intents)~='table' then error('invalid workflow intent batch') end
+local staged={};local seen={}
+for _,intent in ipairs(intents) do
+ if type(intent)~='table' or intent.format~=1 or type(intent.id)~='string' or #intent.id~=36 or seen[intent.id] or type(intent.source_id)~='string' or intent.source_id~=ARGV[5] or type(intent.payload)~='string' or #intent.payload==0 then error('invalid workflow intent identity') end
+ seen[intent.id]=true
+ table.insert(staged,{id=intent.id,raw=cjson.encode(intent),index=intent.source_id..':'..intent.id})
+end
 local tm=redis.call('TIME');local now=tonumber(tm[1])*1000+math.floor(tonumber(tm[2])/1000)
 redis.call('HSET',KEYS[1],'revision',ARGV[2],'graph',ARGV[3])
-local intents=cjson.decode(ARGV[4]);for _,intent in ipairs(intents) do
- if redis.call('HEXISTS',KEYS[2],intent.id)==0 then redis.call('HSET',KEYS[2],intent.id,cjson.encode(intent));redis.call('ZADD',KEYS[3],now,intent.source_id..':'..intent.id) end
+redis.call('ZADD',KEYS[4],0,ARGV[5])
+for _,intent in ipairs(staged) do
+ if redis.call('HEXISTS',KEYS[2],intent.id)==0 then redis.call('HSET',KEYS[2],intent.id,intent.raw);redis.call('ZADD',KEYS[3],now,intent.index) end
 end;return 1
 `)
 
 func (w *Workflows) write(ctx context.Context, expected uint64, g async.Graph, intents []async.Intent) error {
-	if w.Connection == nil || w.Connection.Role() == connector.CacheRole || expected == math.MaxUint64 || g.Revision == 0 {
+	if w.Connection == nil || w.Connection.Role() == connector.CacheRole || expected == math.MaxUint64 || g.Revision == 0 || (async.WorkflowInventoryPage{IDs: []string{g.ID}}).Validate(1) != nil {
 		return async.ErrInvalid
 	}
 	if intents == nil {
 		intents = []async.Intent{}
+	}
+	seen := map[string]bool{}
+	for _, intent := range intents {
+		if intent.SourceID != g.ID || (async.WorkflowInventoryPage{IDs: []string{intent.ID}}).Validate(1) != nil || seen[intent.ID] {
+			return async.ErrInvalid
+		}
+		seen[intent.ID] = true
 	}
 	gb, err := json.Marshal(g)
 	if err != nil || len(gb) > async.MaxWorkflowDurableBytes {
@@ -67,7 +86,7 @@ func (w *Workflows) write(ctx context.Context, expected uint64, g async.Graph, i
 	if err != nil {
 		return err
 	}
-	out, err := w.Connection.Atomic(ctx, graphCAS, w.keys(g.ID), strconv.FormatUint(expected, 10), strconv.FormatUint(g.Revision, 10), gb, ib)
+	out, err := w.Connection.Atomic(ctx, graphCAS, w.keys(g.ID), strconv.FormatUint(expected, 10), strconv.FormatUint(g.Revision, 10), gb, ib, g.ID)
 	if err != nil {
 		return err
 	}

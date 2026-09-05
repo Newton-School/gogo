@@ -18,19 +18,20 @@ type reserved struct {
 	at       time.Time
 }
 type Memory struct {
-	mu         sync.Mutex
-	Clock      func() time.Time
-	Fail       func(string) error
-	records    map[string]async.Record
-	intents    map[string]async.Intent
-	graphs     map[string]async.Graph
-	delayed    map[string]async.DelayedItem
-	workers    map[string]workerPresence
-	controls   map[string]map[string]workerControl
-	queue      []async.Delivery
-	pending    map[string]reserved
-	quarantine []async.Delivery
-	sequence   int64
+	mu          sync.Mutex
+	Clock       func() time.Time
+	Fail        func(string) error
+	records     map[string]async.Record
+	intents     map[string]async.Intent
+	graphs      map[string]async.Graph
+	workflowIDs []string
+	delayed     map[string]async.DelayedItem
+	workers     map[string]workerPresence
+	controls    map[string]map[string]workerControl
+	queue       []async.Delivery
+	pending     map[string]reserved
+	quarantine  []async.Delivery
+	sequence    int64
 }
 
 func NewMemory() *Memory {
@@ -448,6 +449,10 @@ func (m *Memory) CreateGraph(ctx context.Context, g async.Graph, intents []async
 		return async.ErrConflict
 	}
 	m.graphs[g.ID] = copyOf(g)
+	position := sort.SearchStrings(m.workflowIDs, g.ID)
+	m.workflowIDs = append(m.workflowIDs, "")
+	copy(m.workflowIDs[position+1:], m.workflowIDs[position:])
+	m.workflowIDs[position] = g.ID
 	for _, i := range intents {
 		m.intents[i.ID] = copyOf(i)
 	}

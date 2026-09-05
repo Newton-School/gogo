@@ -116,6 +116,7 @@ type Reconciler struct {
 	Relay         *async.IntentRelay
 	Delayed       *async.DelayedDispatcher
 	Results       *Results
+	Workflows     *async.WorkflowReconciler
 	CleanupCursor Cursor
 	CleanupBatch  int
 }
@@ -146,6 +147,11 @@ func (r *Reconciler) Tick(ctx context.Context) error {
 			return err
 		}
 		r.CleanupCursor = cursor
+	}
+	if r.Workflows != nil {
+		if err := r.Workflows.Tick(ctx); err != nil {
+			return err
+		}
 	}
 	return nil
 }
