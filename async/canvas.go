@@ -335,12 +335,15 @@ func (g *GroupResult) Revoke(ctx context.Context) error {
 	return g.client.config.Workflows.CancelGraph(ctx, g.ID, graph.Scope, g.client.advance)
 }
 func (g *GroupResult) Snapshot(ctx context.Context) (Graph, error) {
+	if g == nil || g.client == nil || g.ID == "" {
+		return Graph{}, ErrInvalid
+	}
 	if g.client.config.Workflows == nil {
 		return Graph{}, ErrUnavailable
 	}
 	graph, err := g.client.config.Workflows.ReadGraph(ctx, g.ID)
 	if err != nil {
-		return graph, err
+		return Graph{}, err
 	}
 	if err := g.client.authorize(ctx, "read", graph.Scope, g.ID); err != nil {
 		return Graph{}, err
