@@ -267,7 +267,6 @@ func (w *Worker) Process(ctx context.Context, delivery Delivery) error {
 	record := claim.Record
 	w.activity(e)
 	defer w.inactive(e.ID)
-	w.event(ctx, e, "task_started", Running)
 	tc := TaskContext{ID: e.ID, Retries: e.Retries, DeliveryCount: record.DeliveryCount, Fence: record.Fence, WorkerID: w.ID, WorkflowID: e.WorkflowID, ParentID: e.ParentID, RootID: e.RootID, Scope: e.Scope, Principal: e.Principal, Headers: cloneJSON(e.Headers), Stamps: cloneJSON(e.Stamps), ReplacementDepth: e.ReplacementDepth}
 	tc.progress = func(ctx context.Context, b json.RawMessage) error {
 		if err := w.Results.RecordProgress(ctx, e.ID, tc.Fence, w.ID, b); err != nil {
@@ -288,11 +287,6 @@ func (w *Worker) Process(ctx context.Context, delivery Delivery) error {
 	} else {
 		runCtx, cancel := context.WithCancel(context.WithValue(ctx, workerContextKey{}, true))
 		defer cancel()
-		if d.options.SoftLimit > 0 && w.Executor == nil {
-			var deadlineCancel context.CancelFunc
-			runCtx, deadlineCancel = context.WithTimeout(runCtx, d.options.SoftLimit)
-			defer deadlineCancel()
-		}
 		var heartbeatWG sync.WaitGroup
 		heartbeatWG.Add(1)
 		stopHeartbeat := make(chan struct{})
@@ -321,8 +315,30 @@ func (w *Worker) Process(ctx context.Context, delivery Delivery) error {
 				}
 			}
 		}()
-		output, runErr = w.invoke(runCtx, d, tc, e.Args)
-		if runCtx.Err() != nil && runErr == nil {
+		// Monitoring must not consume an unrenewed lease before execution.
+		// Supervise it under the same cancellation authority as the handler,
+		// then require a fresh fenced renewal before any application hook runs.
+		w.event(runCtx, e, "task_started", Running)
+		current, entryErr := w.Results.Renew(runCtx, e.ID, tc.Fence, w.ID, w.Lease)
+		if entryErr == nil && current.CancelRequested {
+			cancel()
+			runErr = context.Canceled
+		} else if entryErr == nil && !e.ExpiresAt.IsZero() && !w.Clock().Before(e.ExpiresAt) {
+			state, runErr = Expired, context.DeadlineExceeded
+		} else if entryErr == nil && runCtx.Err() == nil {
+			// Preserve the execution budget: optional monitoring time does not
+			// consume a task's configured soft limit.
+			invokeCtx := runCtx
+			if d.options.SoftLimit > 0 && w.Executor == nil {
+				var deadlineCancel context.CancelFunc
+				invokeCtx, deadlineCancel = context.WithTimeout(runCtx, d.options.SoftLimit)
+				defer deadlineCancel()
+			}
+			output, runErr = w.invoke(invokeCtx, d, tc, e.Args)
+			if invokeCtx.Err() != nil && runErr == nil {
+				runErr = invokeCtx.Err()
+			}
+		} else {
 			runErr = runCtx.Err()
 		}
 		close(stopHeartbeat)
@@ -332,7 +348,10 @@ func (w *Worker) Process(ctx context.Context, delivery Delivery) error {
 			return err
 		default:
 		}
-		current, err := w.Results.Lookup(ctx, e.ID)
+		if entryErr != nil {
+			return entryErr
+		}
+		current, err = w.Results.Lookup(ctx, e.ID)
 		if err != nil {
 			return err
 		}
@@ -416,6 +435,9 @@ func (w *Worker) invoke(ctx context.Context, d *definition, tc TaskContext, args
 			err = Failure{Code: "PANIC", Message: "Task handler panicked"}
 		}
 	}()
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	if d.options.HardLimit > 0 && w.Executor == nil {
 		return nil, Failure{Code: "EXECUTOR_REQUIRED", Message: "A subprocess executor is required for a hard limit"}
 	}
@@ -424,10 +446,16 @@ func (w *Worker) invoke(ctx context.Context, d *definition, tc TaskContext, args
 			return nil, ErrDenied
 		}
 	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	if d.options.Hooks.BeforeStart != nil {
 		if err := d.options.Hooks.BeforeStart(ctx, tc); err != nil {
 			return nil, err
 		}
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
 	}
 	if w.Executor != nil {
 		if d.options.HardLimit > 0 {
