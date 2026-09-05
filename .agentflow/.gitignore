@@ -1,0 +1,14 @@
+# Generated documentation output
+index.html
+review.html
+
+# Interrupted local writes
+*.tmp
+.lock
+
+# Local review runtime
+.runtime/
+
+# Python runtime caches
+__pycache__/
+*.py[cod]

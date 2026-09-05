@@ -1,0 +1,30 @@
+{
+  "harnessProfile": "generic",
+  "harnessVersion": "v6",
+  "installedAt": "2026-09-05T12:14:21Z",
+  "managedFiles": {
+    ".agentflow/.gitignore": "b8ae3b31a14aa23ef2c6c55233ef87ed2c190dd24f881ea058b2a56bfb08bf30",
+    ".agentflow/AGENTFLOW.md": "1a44dbc9f76084de6e304fca0c8710d2a393c4e908e1e57bdc2cc9569afc4e76",
+    ".agentflow/agentflow.mk": "ed619a8462d762b8586410a63dc8ce846d105756e01d88ac47d312f702e4e9fe",
+    ".agentflow/references/proposal-format.md": "4aa3e02ac27e3e46b12d07921b0cee6946e584926fab19b5759b9aced1f906e2",
+    ".agentflow/references/review-workflow.md": "8abc1296c6b3e6b04da423f4bc0e3a0d9f2a6941176f51845a8c5f0a30707120",
+    ".agentflow/scripts/agentflow.py": "9f5fe57e949e1679badd42846218ccf66eaf439bc8df0016a923803156d84fd9",
+    ".agentflow/scripts/comment_bridge.py": "a902509bc48209af5661d2e59c71e85493096f493757e7a2e2b6ff12100b7401",
+    ".agentflow/viewer/agentflow-favicon.png": "9adb8b8666520158ac1e384020452bfd9ca1a12b3f71dc749c30525062c23bb3",
+    ".agentflow/viewer/agentflow-mark.png": "e63f0d1784dd7b7a42352f14951b1e44e4ba110409c83203af043e7d3e021c27",
+    ".agentflow/viewer/template.html": "db8b8ad0edaad3cd268dd4c80b6bc090a0e20bb6f63a9bbfdcdb3e67443646d7",
+    ".agents/rules/agentflow-harness.md": "cbe7cb5ab033d3d9e30f3926b14e0b191ae0efb1440d336932a30c5a5eedc2f4",
+    ".agents/skills/apply-agentflow-comments/SKILL.md": "8fb85e14810b38a57642becf567402db51b5237d7b924581fca5f24ded6311bd",
+    ".agents/skills/create-agentflow-plan/SKILL.md": "ca1f2e999a1fa2e8c1bec08e93bb35d1221b301ca8d292c5d2f873f0bebe97e9",
+    ".agents/skills/create-update-agentflow-architecture/SKILL.md": "6a061fd8f66c49f3c469ac3c9d31a7c6de61315bc8423c1da1aa3dda4cfaa5c4",
+    ".agents/skills/implement-agentflow-plan/SKILL.md": "0ddbd4f4799821419263cbb33b23706933dc15afd55b846ec89386b588b7abcc"
+  },
+  "managedMarkers": {
+    "agentflowInstructions": {
+      "path": "AGENTS.md",
+      "sha256": "c2da1fdb83779959c03d634c2139bd6919e2190fd7bc5d9cc2f2b5832b3c5ae5"
+    }
+  },
+  "schemaVersion": 1,
+  "updatedAt": "2026-09-05T12:14:21Z"
+}
