@@ -18,14 +18,16 @@ func (s *Schedules) periodicKeys(partition int) []string {
 	return []string{prefix + "periodic-due", prefix + "periodic-items"}
 }
 
-var periodicUpsert = redigo.NewScript(`
-local raw=redis.call('HGET',KEYS[2],ARGV[1]);local revision='0';if raw then local old=cjson.decode(raw);if old.format~=1 then return redis.error_reply('GOGO_INVALID_PERIODIC_METADATA') end;revision=old.revision end
-if tostring(revision)~=ARGV[2] then return 0 end
-redis.call('HSET',KEYS[2],ARGV[1],ARGV[3]);if ARGV[5]=='1' then redis.call('ZADD',KEYS[1],ARGV[4],ARGV[1]) else redis.call('ZREM',KEYS[1],ARGV[1]) end;return 1
+var periodicUpsert = redigo.NewScript(scheduleMetadataLua + `
+validateScheduleKeys({'zset','hash'})
+local raw=redis.call('HGET',KEYS[2],ARGV[1]);local revision='0';if raw then local old=readSchedule(raw,ARGV[1],true);revision=old.revision end
+if revision~=ARGV[2] then return 0 end
+readSchedule(ARGV[3],ARGV[1],true);local due=scheduleMillis(ARGV[4])
+redis.call('HSET',KEYS[2],ARGV[1],ARGV[3]);if ARGV[5]=='1' then redis.call('ZADD',KEYS[1],due,ARGV[1]) else redis.call('ZREM',KEYS[1],ARGV[1]) end;return 1
 `)
 
 func (s *Schedules) UpsertSchedule(ctx context.Context, p async.PeriodicSchedule, expected uint64) error {
-	if s.Connection == nil || s.Connection.Role() == connector.CacheRole {
+	if ctx == nil || !s.valid() {
 		return async.ErrInvalid
 	}
 	if err := p.Validate(); err != nil {
@@ -58,21 +60,22 @@ func (s *Schedules) UpsertSchedule(ctx context.Context, p async.PeriodicSchedule
 	return nil
 }
 
-var periodicLease = redigo.NewScript(incrementCounterLua + `
+var periodicLease = redigo.NewScript(scheduleMetadataLua + incrementCounterLua + `
+validateScheduleKeys({'zset','hash'})
 local tm=redis.call('TIME');local now=tonumber(tm[1])*1000+math.floor(tonumber(tm[2])/1000)
+local lease=scheduleMillis(now+scheduleMillis(ARGV[3]))
 local ids=redis.call('ZRANGEBYSCORE',KEYS[1],'-inf',now,'LIMIT',0,ARGV[2]);local out={};local updates={}
 for _,id in ipairs(ids) do
  local raw=redis.call('HGET',KEYS[2],id);if not raw then return redis.error_reply('GOGO_MISSING_SCHEDULE') end
- local item=cjson.decode(raw)
- if item.format~=1 then return redis.error_reply('GOGO_INVALID_PERIODIC_METADATA') end
- if item.enabled and (item.lease_millis or 0)<=now then item.owner=ARGV[1];item.fence=incrementCounter(item.fence);item.revision=incrementCounter(item.revision);item.lease_millis=now+tonumber(ARGV[3]);item.observed_millis=now;raw=cjson.encode(item);table.insert(updates,{id=id,raw=raw,lease=item.lease_millis});table.insert(out,raw) end
+ local item=readSchedule(raw,id,true)
+ if item.enabled and item.lease_millis<=now then item.owner=ARGV[1];item.fence=incrementCounter(item.fence);item.revision=incrementCounter(item.revision);item.lease_millis=lease;item.observed_millis=now;raw=cjson.encode(item);table.insert(updates,{id=id,raw=raw,lease=item.lease_millis});table.insert(out,raw) end
 end
 for _,item in ipairs(updates) do redis.call('HSET',KEYS[2],item.id,item.raw);redis.call('ZADD',KEYS[1],item.lease,item.id) end
 return out
 `)
 
 func (s *Schedules) LeaseSchedules(ctx context.Context, owner string, limit int, lease time.Duration) ([]async.PeriodicSchedule, error) {
-	if s.Connection == nil || owner == "" || limit < 1 || limit > 1000 || lease < time.Millisecond {
+	if ctx == nil || !s.valid() || owner == "" || limit < 1 || limit > 1000 || lease < time.Millisecond {
 		return nil, async.ErrInvalid
 	}
 	var out []async.PeriodicSchedule
@@ -92,20 +95,37 @@ func (s *Schedules) LeaseSchedules(ctx context.Context, owner string, limit int,
 	return out, nil
 }
 
-var periodicCommit = redigo.NewScript(`
+var periodicCommit = redigo.NewScript(scheduleMetadataLua + `
+validateScheduleKeys({'zset','hash','hash','zset'})
 local raw=redis.call('HGET',KEYS[2],ARGV[1]);if not raw then return 'MISSING' end
-local old=cjson.decode(raw);local tm=redis.call('TIME');local now=tonumber(tm[1])*1000+math.floor(tonumber(tm[2])/1000)
-if old.format~=1 then return redis.error_reply('GOGO_INVALID_PERIODIC_METADATA') end
-if tostring(old.revision)~=ARGV[2] or tostring(old.fence)~=ARGV[3] or old.owner~=ARGV[4] or (old.lease_millis or 0)<=now then return 'LEASE' end
-redis.call('HSET',KEYS[2],ARGV[1],ARGV[5]);if ARGV[8]=='1' then redis.call('ZADD',KEYS[1],ARGV[6],ARGV[1]) else redis.call('ZREM',KEYS[1],ARGV[1]) end
-local intents=cjson.decode(ARGV[7]);for _,intent in ipairs(intents) do
- if redis.call('HEXISTS',KEYS[3],intent.id)==0 then redis.call('HSET',KEYS[3],intent.id,cjson.encode(intent));redis.call('ZADD',KEYS[4],now,intent.source_id..':'..intent.id) end
+local old=readSchedule(raw,ARGV[1],true);local tm=redis.call('TIME');local now=tonumber(tm[1])*1000+math.floor(tonumber(tm[2])/1000)
+if old.revision~=ARGV[2] or old.fence~=ARGV[3] or old.owner~=ARGV[4] or old.lease_millis<=now then return 'LEASE' end
+readSchedule(ARGV[5],ARGV[1],true);local due=scheduleMillis(ARGV[6])
+local intents=cjson.decode(ARGV[7]);if type(intents)~='table' then error('invalid occurrence intent batch') end
+local staged={};local seen={}
+for _,intent in ipairs(intents) do
+ if type(intent)~='table' or intent.format~=1 or type(intent.id)~='string' or #intent.id~=36 or seen[intent.id] or intent.source_id~=ARGV[1] or type(intent.payload)~='string' or #intent.payload==0 then error('invalid occurrence intent identity') end
+ seen[intent.id]=true;table.insert(staged,{id=intent.id,raw=cjson.encode(intent),index=intent.source_id..':'..intent.id})
+end
+redis.call('HSET',KEYS[2],ARGV[1],ARGV[5]);if ARGV[8]=='1' then redis.call('ZADD',KEYS[1],due,ARGV[1]) else redis.call('ZREM',KEYS[1],ARGV[1]) end
+for _,intent in ipairs(staged) do
+ if redis.call('HEXISTS',KEYS[3],intent.id)==0 then redis.call('HSET',KEYS[3],intent.id,intent.raw);redis.call('ZADD',KEYS[4],now,intent.index) end
 end;return 'OK'
 `)
 
 func (s *Schedules) CommitOccurrence(ctx context.Context, p async.PeriodicSchedule, next time.Time, lastID string, intents []async.Intent) error {
-	if next.IsZero() || !next.After(p.NextDue) || p.Revision == math.MaxUint64 {
+	if ctx == nil || !s.valid() || p.Validate() != nil || p.Owner == "" || p.Fence == 0 || next.IsZero() || !next.After(p.NextDue) || p.Revision == math.MaxUint64 {
 		return async.ErrInvalid
+	}
+	if lastID != "" && !validIntentIDs(p.ID, lastID) {
+		return async.ErrInvalid
+	}
+	seen := map[string]bool{}
+	for _, intent := range intents {
+		if intent.SourceID != p.ID || !validIntentIDs(p.ID, intent.ID) || seen[intent.ID] {
+			return async.ErrInvalid
+		}
+		seen[intent.ID] = true
 	}
 	original := p
 	p.NextDue = next
@@ -144,7 +164,7 @@ func (s *Schedules) CommitOccurrence(ctx context.Context, p async.PeriodicSchedu
 	return nil
 }
 func (s *Schedules) List(ctx context.Context, limit int) ([]async.PeriodicSchedule, error) {
-	if limit < 1 || limit > 1000 || s.Connection == nil {
+	if ctx == nil || !s.valid() || limit < 1 || limit > 1000 {
 		return nil, async.ErrInvalid
 	}
 	var out []async.PeriodicSchedule
@@ -171,7 +191,7 @@ func (s *Schedules) List(ctx context.Context, limit int) ([]async.PeriodicSchedu
 	return out, nil
 }
 func (s *Schedules) Disable(ctx context.Context, id string, expected uint64) error {
-	if s.Connection == nil {
+	if ctx == nil || !s.valid() || !validIntentIDs(id, id) {
 		return async.ErrInvalid
 	}
 	raw, err := s.Connection.Client().HGet(ctx, s.periodicKeys(connector.Partition(id))[1], id).Bytes()
