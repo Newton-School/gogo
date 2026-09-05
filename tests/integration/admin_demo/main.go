@@ -25,6 +25,7 @@ import (
 	authviews "github.com/Newton-School/gogo/core/auth/views"
 	"github.com/Newton-School/gogo/core/contrib/contenttypes"
 	"github.com/Newton-School/gogo/core/db"
+	"github.com/Newton-School/gogo/core/mail"
 	"github.com/Newton-School/gogo/core/messages"
 	"github.com/Newton-School/gogo/core/migrations"
 	"github.com/Newton-School/gogo/core/models"
@@ -76,6 +77,14 @@ func run() error {
 	if identifier == "" {
 		identifier = "staff-reviewer"
 	}
+	smtpPort := 1025
+	if value := os.Getenv("GOGO_ADMIN_DEMO_SMTP_PORT"); value != "" {
+		var err error
+		smtpPort, err = strconv.Atoi(value)
+		if err != nil || smtpPort < 1 || smtpPort > 65535 {
+			return errors.New("GOGO_ADMIN_DEMO_SMTP_PORT must be a valid local capture port")
+		}
+	}
 	parsed, err := pgx.ParseConfig(dsn)
 	if err != nil || parsed.User != "gogo_test" || !(strings.HasPrefix(parsed.Host, "/") || parsed.Host == "127.0.0.1" || parsed.Host == "::1") {
 		return errors.New("the isolated local gogo_test cluster is required")
@@ -120,7 +129,8 @@ func run() error {
 	defer backend.Close()
 	descriptors := []models.Schema{(&Product{}).Schema(), (&ProductNote{}).Schema(), admin.LogSchema()}
 	registry := &models.Registry{}
-	for _, descriptor := range append(append([]models.Schema{}, descriptors...), append(auth.Schemas(), (&contenttypes.ContentType{}).Schema())...) {
+	accountSchemas := append(auth.Schemas(), auth.PasswordResetSchemas()...)
+	for _, descriptor := range append(append([]models.Schema{}, descriptors...), append(accountSchemas, (&contenttypes.ContentType{}).Schema())...) {
 		if err = registry.Register(descriptor); err != nil {
 			return err
 		}
@@ -137,7 +147,8 @@ func run() error {
 			return err
 		}
 	}
-	runner := migrations.Executor{Backend: backend, Editor: backend.SchemaEditor(), Migrations: append(contenttypes.Migrations(), auth.Migrations()...)}
+	accountMigrations := append(auth.Migrations(), auth.PasswordResetMigrations()...)
+	runner := migrations.Executor{Backend: backend, Editor: backend.SchemaEditor(), Migrations: append(contenttypes.Migrations(), accountMigrations...)}
 	if err := runner.Apply(ctx, ""); err != nil {
 		return err
 	}
@@ -148,22 +159,28 @@ func run() error {
 	if err := auth.SyncPermissions(ctx, store, registry, nil); err != nil {
 		return err
 	}
-	accounts, err := auth.NewAccounts(auth.AccountsConfig{Store: store, Authorize: func(ctx context.Context, change auth.AccountChange) error {
-		actor := auth.FromContext(ctx)
-		if change.Action == "change_own_password" && actor.Authenticated && actor.Active && actor.ID == change.UserID {
-			return nil
-		}
-		if auth.FromContext(ctx).ID != "fixture-bootstrap" {
-			return auth.ErrPermissionDenied
-		}
-		return nil
-	}})
+	accountScope := &demoAccountScope{bootstrap: true}
+	adapter, err := newDemoAccountStore(store, accountScope)
 	if err != nil {
 		return err
 	}
+	accounts := adapter.Accounts()
 	bootstrap := auth.WithPrincipal(ctx, auth.Principal{ID: "fixture-bootstrap", Authenticated: true, Active: true})
 	staff, err := accounts.CreateUser(bootstrap, identifier, password, auth.CreateUserOptions{Staff: true})
 	if err != nil {
+		return err
+	}
+	accountScope.reviewerID = staff.ID
+	managedPassword, err := security.RandomToken(32)
+	if err != nil {
+		return err
+	}
+	managed, err := accounts.CreateUser(bootstrap, "managed-fixture-account", managedPassword, auth.CreateUserOptions{})
+	if err != nil {
+		return err
+	}
+	accountScope.managedID = managed.ID
+	if err := accounts.SetUnusablePassword(bootstrap, managed.ID); err != nil {
 		return err
 	}
 	codenames := []string{}
@@ -172,6 +189,7 @@ func run() error {
 			codenames = append(codenames, action+"_"+model)
 		}
 	}
+	codenames = append(codenames, "view_user", "change_user")
 	permissions, err := orm.For(store, func() *auth.Permission { return &auth.Permission{} }).Filter(orm.Q("codename__in", codenames)).All(ctx)
 	if err != nil || len(permissions) != len(codenames) {
 		return errors.New("fixture model permission setup failed")
@@ -183,6 +201,7 @@ func run() error {
 	if err := accounts.SetUserPermissions(bootstrap, staff.ID, grantIDs); err != nil {
 		return err
 	}
+	accountScope.bootstrap = false
 	rows := []Product{{Name: "Workspace notebook", Description: "Lay-flat pages for ideas, planning, and everyday notes.", Price: "18.00", SKU: "NOTE-001", Stock: 120, Published: true}, {Name: "Everyday tote", Description: "A sturdy carryall for daily essentials.", Price: "24.00", SKU: "BAG-002", Stock: 42, Published: true}, {Name: "Ceramic travel mug", Description: "Keep your morning coffee close.", Price: "32.00", SKU: "MUG-003", Stock: 86, Published: true}, {Name: "Desk organizer", Description: "A clear space for focused work.", Price: "46.00", SKU: "DESK-004", Stock: 18, Published: false}, {Name: "Weekly planner", Description: "Make room for what matters this week.", Price: "22.00", SKU: "PLAN-005", Stock: 64, Published: true}, {Name: "Reading lamp", Description: "Warm light for the end of a long day.", Price: "74.00", SKU: "LAMP-006", Stock: 12, Published: false}}
 	for i := range rows {
 		rows[i].Tenant = staff.ID
@@ -195,30 +214,6 @@ func run() error {
 			return err
 		}
 	}
-	adapter, err := admin.NewORMStore(admin.ORMConfig{Store: store, Factories: map[string]func() models.Model{"catalog.Product": func() models.Model { return &Product{} }, "catalog.ProductNote": func() models.Model { return &ProductNote{} }}, QueryScope: func(_ context.Context, p auth.Principal, _ models.Schema) (admin.QueryScope, error) {
-		return admin.QueryScope{Predicate: orm.Q("tenant", p.ID), Identity: p.ID}, nil
-	}, ValidateWrite: func(_ context.Context, p auth.Principal, r models.Record) error {
-		tenant, err := r.Get("tenant")
-		if err != nil || tenant != p.ID {
-			return auth.ErrPermissionDenied
-		}
-		return nil
-	}, Initialize: func(_ context.Context, p auth.Principal, r models.Record) error {
-		if err := r.Set("tenant", p.ID); err != nil {
-			return err
-		}
-		if r.Schema().Key() != "catalog.Product" {
-			return nil
-		}
-		token, err := security.RandomToken(16)
-		if err != nil {
-			return err
-		}
-		return r.Set("sku", strings.ToUpper(token[:8]))
-	}})
-	if err != nil {
-		return err
-	}
 	key, err := security.RandomToken(32)
 	if err != nil {
 		return err
@@ -227,8 +222,25 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	site, err := admin.NewSite(admin.Config{Store: adapter, Signer: signer, Policy: auth.ModelPolicy{}, LoginURL: "/admin/login/", LogoutURL: "/admin/logout/", PasswordChangeURL: "/admin/password-change/", Messages: true, CSRF: security.CSRFConfig{MaxBodyBytes: 10 << 20}})
+	site, err := admin.NewSite(admin.Config{Store: adapter, Signer: signer, Policy: auth.ModelPolicy{}, LoginURL: "/admin/login/", LogoutURL: "/admin/logout/", PasswordChangeURL: "/admin/password-change/", PasswordResetURL: "/admin/password-reset/", Messages: true, CSRF: security.CSRFConfig{MaxBodyBytes: 10 << 20}})
 	if err != nil {
+		return err
+	}
+	userOptions := adapter.UserAdmin()
+	userAuthority := userOptions.Authorize
+	userOptions.Authorize = func(ctx context.Context, p auth.Principal, action string, object admin.Object) error {
+		if err := userAuthority(ctx, p, action, object); err != nil {
+			return err
+		}
+		if action == "change" && object.Record != nil {
+			id, _ := object.Record.Get("id")
+			if id == accountScope.reviewerID {
+				return auth.ErrPermissionDenied
+			}
+		}
+		return nil
+	}
+	if err := site.Register(userOptions); err != nil {
 		return err
 	}
 	if err = site.Register(admin.ModelAdmin{Schema: (&Product{}).Schema(), Fieldsets: []admin.Fieldset{{Name: "Product details", Fields: []string{"name", "description"}}, {Name: "Availability", Fields: []string{"price", "stock", "published"}}, {Name: "Record information", Fields: []string{"sku", "created_at"}, Classes: []string{"collapse"}}}, ReadonlyFields: []string{"sku", "created_at"}, ListDisplay: []string{"name", "sku", "price", "stock", "published"}, ListFilter: []string{"published"}, SearchFields: []string{"name", "sku"}, Ordering: []string{"name"}, ConstraintChecker: store, Inlines: []admin.Inline{{Name: "notes", Schema: (&ProductNote{}).Schema(), FKName: "product", Fields: []string{"body", "created_at"}, Readonly: []string{"created_at"}, Extra: 1, Maximum: 20, CanDelete: true, ConstraintChecker: store}}}); err != nil {
@@ -291,10 +303,37 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	// Recovery mail is accepted only by an explicitly supplied local capture
+	// server. The synthetic .test recipient is never a real external account.
+	smtp, err := mail.NewSMTP(mail.SMTPConfig{Host: "127.0.0.1", Port: smtpPort, TLSMode: mail.TLSPlaintext, Development: true, Timeout: 3 * time.Second})
+	if err != nil {
+		return err
+	}
+	defer smtp.Close()
+	reset, err := auth.NewPasswordReset(auth.PasswordResetConfig{Accounts: accounts, Mail: smtp, From: "gogo-admin@example.test", ResetURL: "http://127.0.0.1:8099/admin/reset-confirm/", Development: true, VerifiedRecipient: func(_ context.Context, principal auth.Principal) (string, error) {
+		if principal.ID != accountScope.reviewerID {
+			return "", auth.ErrPermissionDenied
+		}
+		return "staff-reviewer@example.test", nil
+	}})
+	if err != nil {
+		return err
+	}
+	resetRequest, err := site.PasswordResetRequestHandler(authviews.PasswordResetRequestConfig{Service: reset, NormalizeIdentifier: accounts.NormalizeLoginIdentifier, Limiter: &connector.Limiter{Connection: connection}, RateSecret: []byte(key)})
+	if err != nil {
+		return err
+	}
+	resetConfirm, err := site.PasswordResetConfirmHandler(authviews.PasswordResetConfirmConfig{Service: reset, Limiter: &connector.Limiter{Connection: connection}, RateSecret: []byte(key)})
+	if err != nil {
+		return err
+	}
 	mux := http.NewServeMux()
 	mux.Handle("/admin/login/", login)
 	mux.Handle("/admin/logout/", logout)
 	mux.Handle("/admin/password-change/", passwordChange)
+	mux.Handle("/admin/password-reset/", resetRequest)
+	mux.Handle("/admin/reset-confirm/", resetConfirm)
+	mux.Handle(authviews.PasswordResetConfirmScriptPath(), authviews.PasswordResetConfirmScript())
 	mux.Handle("/admin/", site)
 	handler := headers(sessionMiddleware(identityMiddleware(flash(mux))))
 	server := &http.Server{Addr: "127.0.0.1:8099", Handler: handler, ReadHeaderTimeout: 5 * time.Second, IdleTimeout: 60 * time.Second}
