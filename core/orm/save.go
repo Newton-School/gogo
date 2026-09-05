@@ -15,6 +15,12 @@ type SaveOptions struct {
 	ForceInsert, ForceUpdate bool
 	UpdateFields             []string
 	Raw                      bool
+	// Guard is a read-only final application policy check after hooks/defaults
+	// and field preparation, immediately before each UPDATE/INSERT statement.
+	// It receives the full model record and may run again for fallback/parent
+	// writes. Empty UpdateFields remains a no-op; bulk methods bypass Save.
+	Guard       func(context.Context, models.Record) error
+	guardRecord models.Record
 }
 type SaveEvent struct {
 	Model        models.Model
@@ -34,6 +40,7 @@ func (s *Store) Save(ctx context.Context, model models.Model, options SaveOption
 		return err
 	}
 	schema := record.Schema()
+	options.guardRecord = record
 	if options.ForceInsert && (options.ForceUpdate || len(options.UpdateFields) > 0) {
 		return errors.New("orm: cannot force both insert and update")
 	}
@@ -203,6 +210,11 @@ func (s *Store) update(ctx context.Context, record models.Record, options SaveOp
 		return false, err
 	}
 	args = append(args, keys...)
+	if options.Guard != nil {
+		if err := options.Guard(ctx, options.guardRecord); err != nil {
+			return false, err
+		}
+	}
 	if len(parts) == 0 {
 		var count int
 		err := db.QueryRow(ctx, db.ExecutorFor(ctx, s.Backend), "SELECT 1 FROM "+table+" WHERE "+where, args, &count)
@@ -261,6 +273,11 @@ func (s *Store) insert(ctx context.Context, record models.Record, options SaveOp
 		query += " (" + strings.Join(columns, ", ") + ") VALUES (" + strings.Join(values, ", ") + ")"
 	}
 	query += " RETURNING " + returning
+	if options.Guard != nil {
+		if err := options.Guard(ctx, options.guardRecord); err != nil {
+			return err
+		}
+	}
 	_, err = s.returning(ctx, record, query, args, names)
 	return err
 }
