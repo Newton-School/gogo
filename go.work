@@ -1,0 +1,19 @@
+go 1.26.0
+
+use (
+	.
+	./admin
+	./async
+	./async/redis
+	./connectors/postgres
+	./connectors/redis
+	./tests/integration
+)
+
+// Development-only versions. Release modules contain no local replacements.
+replace github.com/Newton-School/gogo v0.0.0 => .
+replace github.com/Newton-School/gogo/async v0.0.0 => ./async
+replace github.com/Newton-School/gogo/admin v0.0.0 => ./admin
+replace github.com/Newton-School/gogo/connectors/redis v0.0.0 => ./connectors/redis
+replace github.com/Newton-School/gogo/connectors/postgres v0.0.0 => ./connectors/postgres
+replace github.com/Newton-School/gogo/async/redis v0.0.0 => ./async/redis
