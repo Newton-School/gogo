@@ -309,13 +309,14 @@ func (f Field) Clean(ctx context.Context, value any) (any, error) {
 	case JSON:
 		var encoded []byte
 		switch v := value.(type) {
-		case string:
-			encoded = []byte(v)
 		case []byte:
 			encoded = v
 		case json.RawMessage:
 			encoded = v
 		default:
+			// Model values are native JSON values, not form-encoded text.
+			// A Go string remains a JSON string even when it spells "null",
+			// a number, or an object. RawMessage explicitly opts into parsing.
 			encoded, err = json.Marshal(value)
 		}
 		if err != nil || len(encoded) > 1024*1024 || !json.Valid(encoded) {

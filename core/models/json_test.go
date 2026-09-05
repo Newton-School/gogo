@@ -18,7 +18,7 @@ func (*jsonRecord) Schema() Schema {
 
 func TestJSONNullAndRawMessageAssignment(t *testing.T) {
 	field := JSONField("payload", Nullable)
-	for _, value := range []any{JSONNull, json.RawMessage("null"), "null"} {
+	for _, value := range []any{JSONNull, json.RawMessage("null")} {
 		cleaned, err := field.Clean(context.Background(), value)
 		if err != nil || cleaned != JSONNull {
 			t.Fatal("JSON null lost its identity", cleaned, err)
@@ -64,5 +64,24 @@ func TestJSONNullAndRawMessageAssignment(t *testing.T) {
 	rootNull := json.RawMessage("null")
 	if err := record.Set("payload", &rootNull); err != nil || string(model.Payload) != "null" {
 		t.Fatal("non-nil RawMessage pointer lost JSON null", string(model.Payload), err)
+	}
+}
+
+func TestJSONModelCleanPreservesNativeStringsAndIsIdempotent(t *testing.T) {
+	field := JSONField("payload", Nullable, Optional)
+	for _, value := range []string{"hello", "null", "42", "false", `{"native":"string"}`, "{not encoded JSON", ""} {
+		cleaned, err := field.Clean(context.Background(), value)
+		if err != nil || cleaned != value {
+			t.Fatal("native JSON string changed during model validation", value, cleaned, err)
+		}
+		encoded, _ := json.Marshal(value)
+		cleaned, err = field.Clean(context.Background(), json.RawMessage(encoded))
+		if err != nil || cleaned != value {
+			t.Fatal("explicit raw JSON string did not decode", cleaned, err)
+		}
+		cleaned, err = field.Clean(context.Background(), cleaned)
+		if err != nil || cleaned != value {
+			t.Fatal("repeated model validation changed JSON type", cleaned, err)
+		}
 	}
 }

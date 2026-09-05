@@ -3,9 +3,12 @@ package postgres_test
 import (
 	"context"
 	"encoding/json"
+	"net/url"
+	"reflect"
 	"testing"
 
 	"github.com/Newton-School/gogo/core/db"
+	"github.com/Newton-School/gogo/core/forms"
 	"github.com/Newton-School/gogo/core/migrations"
 	"github.com/Newton-School/gogo/core/models"
 	"github.com/Newton-School/gogo/core/orm"
@@ -15,6 +18,61 @@ type jsonRow struct {
 	models.Base
 	ID      int64
 	Payload json.RawMessage
+}
+
+func TestJSONModelFormScalarStringsKeepTheirTypeAcrossValidationAndSave(t *testing.T) {
+	b := openTest(t)
+	ctx := context.Background()
+	schema := (&jsonRow{}).Schema()
+	engine := migrations.Executor{Backend: b, Editor: b.SchemaEditor(), Migrations: []migrations.Migration{{App: "tests", Name: "0001", Operations: []migrations.Operation{migrations.CreateModel(schema)}}}}
+	if err := engine.Apply(ctx, ""); err != nil {
+		t.Fatal(err)
+	}
+	store := orm.New(b, nil)
+	for _, representation := range []string{"map", "raw"} {
+		for _, test := range []struct {
+			name, submitted string
+			want            any
+		}{
+			{"ordinary", `"hello"`, "hello"},
+			{"null_string", `"null"`, "null"},
+			{"numeric_string", `"42"`, "42"},
+			{"object_string", `"{\"native\":\"string\"}"`, `{"native":"string"}`},
+			{"empty_string", `""`, ""},
+			{"literal_null_is_sql_null", `null`, nil},
+		} {
+			t.Run(representation+"/"+test.name, func(t *testing.T) {
+				var model models.Model = &jsonRow{}
+				if representation == "map" {
+					model, _ = models.NewRecord(schema)
+				}
+				record, err := models.Bind(model)
+				if err != nil {
+					t.Fatal(err)
+				}
+				form, err := forms.NewModelForm(ctx, record, forms.ModelFormOptions{Fields: []string{"payload"}, Checker: store}, forms.WithData(url.Values{"payload": {test.submitted}}))
+				if err != nil {
+					t.Fatal(err)
+				}
+				if !form.IsValid() {
+					t.Fatal("JSON scalar rejected by model validation", form.Errors())
+				}
+				if _, err := form.Save(false); err != nil {
+					t.Fatal(err)
+				}
+				if err := models.FullClean(ctx, record, models.CleanOptions{Exclude: []string{"id"}}, store); err != nil {
+					t.Fatal("repeated validation changed JSON semantics", err)
+				}
+				if err := store.Save(ctx, model, orm.SaveOptions{}); err != nil {
+					t.Fatal(err)
+				}
+				loaded, err := orm.For(store, func() *models.MapRecord { r, _ := models.NewRecord(schema); return r }).Filter(orm.Q("id", mustValue(t, record, "id"))).Get(ctx)
+				if err != nil || !reflect.DeepEqual(mustValue(t, loaded, "payload"), test.want) {
+					t.Fatal("model form changed the JSON scalar type", err)
+				}
+			})
+		}
+	}
 }
 
 func (*jsonRow) Schema() models.Schema {
