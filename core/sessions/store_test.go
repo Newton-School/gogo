@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"github.com/Newton-School/gogo/core/security"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -82,6 +83,26 @@ func TestVersionConflictAndClone(t *testing.T) {
 	}
 	if e := a.Set("x", 4); !errors.Is(e, ErrCommitted) {
 		t.Fatal(e)
+	}
+}
+
+func TestVersionExhaustionDoesNotWrapOrWrite(t *testing.T) {
+	ctx := context.Background()
+	store := &memoryStore{}
+	record := Record{ID: "fixture-version", Version: math.MaxUint64, ExpiresAt: time.Now().Add(time.Hour)}
+	if err := store.Create(ctx, record); err != nil {
+		t.Fatal(err)
+	}
+	session := New(record)
+	if err := session.Set("value", "changed"); err != nil {
+		t.Fatal(err)
+	}
+	if err := session.Persist(ctx, store, time.Now(), time.Hour); !errors.Is(err, ErrConflict) {
+		t.Fatal("version exhausted without conflict", err)
+	}
+	stored, err := store.Load(ctx, record.ID)
+	if err != nil || stored.Version != math.MaxUint64 || len(stored.Data) != 0 || session.Snapshot().Version != math.MaxUint64 {
+		t.Fatal("exhaustion changed session", err)
 	}
 }
 func TestPersistenceBeforeHeadersAndFailureRedaction(t *testing.T) {

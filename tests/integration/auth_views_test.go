@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"example.com/gogo-integration/internal/testservice"
+	"github.com/Newton-School/gogo/connectors/postgres"
 	connector "github.com/Newton-School/gogo/connectors/redis"
 	fixture "github.com/Newton-School/gogo/connectors/redis/testing"
 	"github.com/Newton-School/gogo/core/auth"
@@ -35,6 +36,16 @@ func (f failingSessionWrites) Save(context.Context, sessions.Record, uint64) err
 }
 
 func TestPostgresRedisCredentialHTTPWorkflow(t *testing.T) {
+	runCredentialHTTPWorkflow(t, false)
+}
+
+func TestPostgresSessionCredentialHTTPWorkflow(t *testing.T) {
+	runCredentialHTTPWorkflow(t, true)
+}
+
+// Both concrete session providers must satisfy the same credential, rotation,
+// revocation and failed-commit behavior. Redis supplies the atomic rate gate.
+func runCredentialHTTPWorkflow(t *testing.T, postgresSessions bool) {
 	ctx := context.Background()
 	backend := testservice.Postgres(t)
 	registry := &models.Registry{}
@@ -48,6 +59,9 @@ func TestPostgresRedisCredentialHTTPWorkflow(t *testing.T) {
 	}
 	store := orm.New(backend, registry)
 	runner := migrations.Executor{Backend: backend, Editor: backend.SchemaEditor(), Migrations: append(contenttypes.Migrations(), auth.Migrations()...)}
+	if postgresSessions {
+		runner.Migrations = append(runner.Migrations, sessions.Migrations()...)
+	}
 	if err := runner.Apply(ctx, ""); err != nil {
 		t.Fatal(err)
 	}
@@ -76,7 +90,13 @@ func TestPostgresRedisCredentialHTTPWorkflow(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer connection.Close()
-	sessionStore := &connector.Sessions{Connection: connection}
+	var sessionStore sessions.Store = &connector.Sessions{Connection: connection}
+	if postgresSessions {
+		sessionStore, err = postgres.NewSessions(postgres.SessionConfig{Backend: backend})
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
 	secret, err := security.RandomToken(32)
 	if err != nil {
 		t.Fatal(err)

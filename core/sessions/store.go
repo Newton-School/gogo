@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"maps"
+	"math"
 	"time"
 )
 
@@ -187,6 +188,9 @@ func (s *Session) Persist(ctx context.Context, store Store, now time.Time, ttl t
 		return store.Create(ctx, Clone(s.record))
 	}
 	expected := s.record.Version
+	if expected == math.MaxUint64 {
+		return ErrConflict
+	}
 	s.record.Version++
 	return store.Save(ctx, Clone(s.record), expected)
 }
