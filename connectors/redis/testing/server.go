@@ -4,8 +4,10 @@ package testing
 import (
 	"context"
 	"net"
+	"os"
 	"os/exec"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -16,7 +18,15 @@ func Start(t testing.TB) connector.Config {
 	t.Helper()
 	binary, err := exec.LookPath("redis-server")
 	if err != nil {
-		t.Skip("redis-server is required for real adapter conformance")
+		unavailable(t, "redis-server >= 7.2 is required for real adapter conformance")
+		return connector.Config{}
+	}
+	versionCtx, versionCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer versionCancel()
+	version, err := exec.CommandContext(versionCtx, binary, "--version").Output()
+	if err != nil || !supportedVersion(string(version)) {
+		unavailable(t, "redis-server >= 7.2 is required for real adapter conformance")
+		return connector.Config{}
 	}
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -57,4 +67,29 @@ func Start(t testing.TB) connector.Config {
 		case <-time.After(10 * time.Millisecond):
 		}
 	}
+}
+
+func unavailable(t testing.TB, message string) {
+	t.Helper()
+	if os.Getenv("GOGO_TEST_REQUIRE_SERVICES") == "1" {
+		t.Fatal(message)
+	}
+	t.Skip(message)
+}
+
+func supportedVersion(output string) bool {
+	for _, field := range strings.Fields(output) {
+		version, found := strings.CutPrefix(field, "v=")
+		if !found {
+			continue
+		}
+		parts := strings.Split(version, ".")
+		if len(parts) < 2 {
+			return false
+		}
+		major, majorErr := strconv.Atoi(parts[0])
+		minor, minorErr := strconv.Atoi(parts[1])
+		return majorErr == nil && minorErr == nil && (major > 7 || major == 7 && minor >= 2)
+	}
+	return false
 }
