@@ -10,16 +10,18 @@ import (
 
 type jsonContainers struct {
 	Base
-	ID      int64
-	Strings []string
-	Counts  map[string]int64
-	Nested  map[string]any
-	Pointer *[]string
+	ID       int64
+	Strings  []string
+	Counts   map[string]int64
+	Nested   map[string]any
+	Pointer  *[]string
+	Nullable []*string
+	Fixed    map[string][2]string
 }
 
 func (*jsonContainers) Schema() Schema {
 	fields := []Field{BigAutoField("id", WithStructField("ID"))}
-	for _, name := range []string{"Strings", "Counts", "Nested", "Pointer"} {
+	for _, name := range []string{"Strings", "Counts", "Nested", "Pointer", "Nullable", "Fixed"} {
 		fields = append(fields, JSONField(strings.ToLower(name), WithStructField(name), Nullable, Optional))
 	}
 	return Schema{AppLabel: "tests", Name: "JSONContainers", Fields: fields}
@@ -50,7 +52,7 @@ func TestJSONTypedContainersCleanAndAssignment(t *testing.T) {
 	for _, test := range []struct {
 		name  string
 		value any
-	}{{"strings", []any{"partial", json.Number("1")}}, {"counts", map[string]any{"maximum": json.Number("9223372036854775808")}}, {"pointer", []any{"partial", true}}} {
+	}{{"strings", []any{"partial", json.Number("1")}}, {"counts", map[string]any{"maximum": json.Number("9223372036854775808")}}, {"pointer", []any{"partial", true}}, {"strings", []any{nil}}, {"counts", map[string]any{"missing": nil}}, {"pointer", []any{nil}}} {
 		before, _ := record.Get(test.name)
 		encoded, _ := json.Marshal(before)
 		if err := record.Set(test.name, test.value); err == nil {
@@ -67,5 +69,16 @@ func TestJSONTypedContainersCleanAndAssignment(t *testing.T) {
 	}
 	if err := record.Set("pointer", nil); err != nil || model.Pointer != nil {
 		t.Fatal("SQL null pointer", err)
+	}
+	if err := record.Set("nullable", []any{nil, "kept"}); err != nil || len(model.Nullable) != 2 || model.Nullable[0] != nil || model.Nullable[1] == nil || *model.Nullable[1] != "kept" {
+		t.Fatal("nullable element lost JSON null", err)
+	}
+	if err := record.Set("fixed", map[string]any{"pair": []any{"a", "b"}}); err != nil {
+		t.Fatal(err)
+	}
+	for _, value := range []any{map[string]any{"pair": []any{"a", "b", "discarded"}}, map[string]any{"pair": []any{"a"}}, map[string]any{"pair": []any{nil, "b"}}} {
+		if err := record.Set("fixed", value); err == nil || model.Fixed["pair"] != [2]string{"a", "b"} {
+			t.Fatal("fixed-array shape changed silently", err)
+		}
 	}
 }

@@ -69,4 +69,17 @@ func TestJSONTypedContainersCleanSaveAndHydrate(t *testing.T) {
 	if err != nil || !reflect.DeepEqual(loaded.Scopes, []string{"shop.view_product"}) {
 		t.Fatal("typed JSON update failed", err)
 	}
+	// Map records can represent nested nulls, but a []string consumer cannot.
+	// Hydration must reject this representation instead of returning an empty
+	// scope string and later persisting that zero value back into the JSON data.
+	if _, err := b.Exec(ctx, `UPDATE "tests_jsoncontainers" SET "scopes"=$1::jsonb WHERE "id"=$2`, `[null]`, row.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := orm.For(store, func() *jsonContainerRow { return &jsonContainerRow{} }).Filter(orm.Q("id", row.ID)).Get(ctx); err == nil {
+		t.Fatal("JSON null silently became an empty Go string")
+	}
+	mapRow, err := orm.For(store, func() *models.MapRecord { record, _ := models.NewRecord(schema); return record }).Filter(orm.Q("id", row.ID)).Get(ctx)
+	if err != nil || !reflect.DeepEqual(mustValue(t, mapRow, "scopes"), []any{nil}) {
+		t.Fatal("rejected typed hydration changed stored JSON", err)
+	}
 }

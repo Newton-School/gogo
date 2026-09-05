@@ -1,7 +1,6 @@
 package models
 
 import (
-	"bytes"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -183,34 +182,6 @@ func (r *BoundRecord) Set(name string, value any) error {
 	return nil
 }
 
-// JSON cleaning and database decoding use canonical maps/slices and json.Number.
-// Restore declared Go container types through the JSON codec, not scalar string
-// conversion. Decode into a fresh value so a type/overflow error cannot partially
-// overwrite the model. UseNumber also preserves exact numbers inside any values.
-func assignJSONContainer(dst reflect.Value, value any) error {
-	var encoded []byte
-	var err error
-	switch raw := value.(type) {
-	case json.RawMessage:
-		encoded = raw
-	case []byte:
-		encoded = raw
-	default:
-		encoded, err = json.Marshal(value)
-	}
-	if err != nil || !json.Valid(encoded) {
-		return errors.New("invalid JSON container")
-	}
-	fresh := reflect.New(dst.Type())
-	decoder := json.NewDecoder(bytes.NewReader(encoded))
-	decoder.UseNumber()
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(fresh.Interface()); err != nil {
-		return errors.New("JSON value does not match the declared Go container type")
-	}
-	dst.Set(fresh.Elem())
-	return nil
-}
 func assign(dst reflect.Value, value any) error {
 	if value == nil {
 		switch dst.Kind() {
