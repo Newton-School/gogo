@@ -178,7 +178,7 @@ func BulkUpdate[T models.Model](ctx context.Context, store *Store, objects []T, 
 			}
 			for i, name := range returnNames {
 				field, _ := schema.Field(name)
-				value, err := decodeField(field, values[i])
+				value, err := store.decodeField(field, values[i])
 				if err != nil {
 					return err
 				}

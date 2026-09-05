@@ -267,7 +267,7 @@ func (i *Iterator[T]) Next() bool {
 			continue
 		}
 		f, _ := i.query.schema.Field(name)
-		value, err := decodeField(f, values[index])
+		value, err := i.query.store.decodeField(f, values[index])
 		if err == nil {
 			err = record.Set(name, value)
 		}
@@ -412,7 +412,7 @@ func (q Query[T]) Values(ctx context.Context, fields ...string) ([]map[string]an
 		}
 		record := map[string]any{}
 		for i, name := range q.selectAST.Fields {
-			value, err := decodeField(outputs[i], values[i])
+			value, err := q.store.decodeField(outputs[i], values[i])
 			if err != nil {
 				return nil, err
 			}

@@ -328,7 +328,7 @@ func (c DeleteCollector) records(ctx context.Context, schema models.Schema, wher
 		}
 		for i, name := range query.Fields {
 			field, _ := schema.Field(name)
-			value, err := decodeField(field, values[i])
+			value, err := c.Store.decodeField(field, values[i])
 			if err != nil {
 				return nil, err
 			}

@@ -116,7 +116,7 @@ func (q Query[T]) Aggregate(ctx context.Context, expressions map[string]ResultEx
 	}
 	result := make(map[string]any, len(aliases))
 	for i, alias := range aliases {
-		value, err := decodeField(outputs[i], values[i])
+		value, err := q.store.decodeField(outputs[i], values[i])
 		if err == nil {
 			value, err = outputs[i].Clean(ctx, value)
 		}

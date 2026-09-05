@@ -187,7 +187,7 @@ func (q Query[T]) attachJoined(root models.Record, values []any) error {
 		}
 		for index, name := range node.fields {
 			field, _ := node.schema.Field(name)
-			value, err := decodeField(field, values[node.offset+index])
+			value, err := q.store.decodeField(field, values[node.offset+index])
 			if err != nil {
 				return err
 			}

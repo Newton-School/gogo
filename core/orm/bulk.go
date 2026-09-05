@@ -267,7 +267,7 @@ func BulkCreate[T models.Model](ctx context.Context, store *Store, objects []T, 
 			returned := map[string]any{}
 			for i, name := range names {
 				field, _ := schema.Field(name)
-				value, err := decodeField(field, raw[i])
+				value, err := store.decodeField(field, raw[i])
 				if err != nil {
 					return err
 				}

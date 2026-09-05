@@ -301,7 +301,7 @@ func (s *Store) returning(ctx context.Context, record models.Record, query strin
 	}
 	for i, name := range names {
 		field, _ := record.Schema().Field(name)
-		value, err := decodeField(field, values[i])
+		value, err := s.decodeField(field, values[i])
 		if err == nil {
 			err = record.Set(name, value)
 		}
@@ -403,6 +403,19 @@ func decodeField(field models.Field, value any) (any, error) {
 		return result, nil
 	}
 	return value, nil
+}
+
+func (s *Store) decodeField(field models.Field, value any) (any, error) {
+	if value != nil && field.Codec == nil {
+		if decoder, ok := s.Backend.Dialect().(db.FieldValueDecoder); ok {
+			var err error
+			value, err = decoder.DecodeFieldValue(field, value)
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+	return decodeField(field, value)
 }
 func (s *Store) RefreshFromDB(ctx context.Context, model models.Model, fields ...string) error {
 	record, err := models.Bind(model)
