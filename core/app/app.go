@@ -117,19 +117,35 @@ type Resource struct {
 }
 type Application struct {
 	Registry  *Registry
+	ordered   []Config
 	configs   []Config
 	closers   []func(context.Context) error
 	closeOnce sync.Once
 	closeErr  error
 	ready     atomic.Bool
+	startOnce sync.Once
+	startErr  error
 }
 
 func Bootstrap(ctx context.Context, configs []Config, resources []Resource, freeze func(*Registry) error) (*Application, error) {
+	a, err := Prepare(configs, freeze)
+	if err != nil {
+		return nil, err
+	}
+	if err = a.Start(ctx, resources); err != nil {
+		return nil, err
+	}
+	return a, nil
+}
+
+// Prepare registers and freezes descriptors without I/O or Ready hooks. Command
+// resolution and argument validation can therefore happen before any resource opens.
+func Prepare(configs []Config, freeze func(*Registry) error) (*Application, error) {
 	ordered, err := TopologicalOrder(configs)
 	if err != nil {
 		return nil, err
 	}
-	a := &Application{Registry: &Registry{}}
+	a := &Application{Registry: &Registry{}, ordered: ordered}
 	for _, c := range ordered {
 		if c.Register != nil {
 			if err := c.Register(a.Registry); err != nil {
@@ -143,6 +159,15 @@ func Bootstrap(ctx context.Context, configs []Config, resources []Resource, free
 		}
 	}
 	a.Registry.Freeze()
+	return a, nil
+}
+
+func (a *Application) Start(ctx context.Context, resources []Resource) error {
+	a.startOnce.Do(func() { a.startErr = a.start(ctx, resources) })
+	return a.startErr
+}
+func (a *Application) start(ctx context.Context, resources []Resource) error {
+	var err error
 	seen := map[string]bool{}
 	for _, r := range resources {
 		if r.Name == "" || r.Open == nil || seen[r.Name] {
@@ -161,18 +186,18 @@ func Bootstrap(ctx context.Context, configs []Config, resources []Resource, free
 	}
 	if err != nil {
 		cleanup := a.Close(context.WithoutCancel(ctx))
-		return nil, errors.Join(err, cleanup)
+		return errors.Join(err, cleanup)
 	}
-	for _, c := range ordered {
+	for _, c := range a.ordered {
 		a.configs = append(a.configs, c)
 		if c.Ready != nil {
 			if err := c.Ready(ctx, a.Registry); err != nil {
-				return nil, errors.Join(fmt.Errorf("ready app %s: %w", c.Label, err), a.Close(context.WithoutCancel(ctx)))
+				return errors.Join(fmt.Errorf("ready app %s: %w", c.Label, err), a.Close(context.WithoutCancel(ctx)))
 			}
 		}
 	}
 	a.ready.Store(true)
-	return a, nil
+	return nil
 }
 func (a *Application) Ready() bool    { return a.ready.Load() }
 func (a *Application) StopAdmission() { a.ready.Store(false) }
