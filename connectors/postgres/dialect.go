@@ -16,6 +16,13 @@ func (Dialect) QuoteIdentifier(name string) (string, error) {
 	if !models.ValidIdentifier(name) {
 		return "", fmt.Errorf("invalid SQL identifier")
 	}
+	// PostgreSQL's standard identifier limit is 63 bytes. Longer quoted names
+	// are silently truncated by the server, potentially merging two schema or
+	// annotation identities. Refuse them before sending SQL; other connectors
+	// retain their own identifier contracts and limits.
+	if len(name) > 63 {
+		return "", fmt.Errorf("postgres: SQL identifier exceeds 63 bytes")
+	}
 	return `"` + name + `"`, nil
 }
 func (Dialect) Placeholder(index int) string { return fmt.Sprintf("$%d", index) }
