@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"sort"
 	"strings"
 
@@ -153,6 +154,17 @@ func validateAggregateExpression(expression db.Expression, inside bool, depth in
 		}
 	}
 	found := aggregate
+	for _, branch := range expression.Branches {
+		condition, err := validateAggregateCondition(branch.Condition, inside || aggregate, depth+1)
+		if err != nil {
+			return false, err
+		}
+		then, err := validateAggregateExpression(branch.Then, inside || aggregate, depth+1)
+		if err != nil {
+			return false, err
+		}
+		found = found || condition || then
+	}
 	for _, argument := range expression.Args {
 		nested, err := validateAggregateExpression(argument, inside || aggregate, depth+1)
 		if err != nil {
@@ -164,18 +176,50 @@ func validateAggregateExpression(expression db.Expression, inside bool, depth in
 }
 
 func validateAggregateFilter(predicate db.Predicate, depth int) error {
+	_, err := validateAggregateCondition(predicate, true, depth)
+	return err
+}
+
+func validateAggregateCondition(predicate db.Predicate, inside bool, depth int) (bool, error) {
 	if depth > 64 {
-		return errors.New("orm: aggregate filter exceeds depth bound")
+		return false, errors.New("orm: aggregate condition exceeds depth bound")
 	}
+	if predicate.Field != "" && !inside {
+		return false, errors.New("orm: ungrouped conditional field outside aggregate")
+	}
+	found := false
 	if predicate.Expression != nil {
-		if _, err := validateAggregateExpression(*predicate.Expression, true, depth+1); err != nil {
-			return err
+		nested, err := validateAggregateExpression(*predicate.Expression, inside, depth+1)
+		if err != nil {
+			return false, err
+		}
+		found = found || nested
+	}
+	values := []any{predicate.Value}
+	if predicate.Lookup == "in" || predicate.Lookup == "range" {
+		value := reflect.ValueOf(predicate.Value)
+		if value.IsValid() && (value.Kind() == reflect.Slice || value.Kind() == reflect.Array) {
+			values = make([]any, value.Len())
+			for i := range values {
+				values[i] = value.Index(i).Interface()
+			}
+		}
+	}
+	for _, value := range values {
+		if expression, ok := value.(db.Expression); ok {
+			nested, err := validateAggregateExpression(expression, inside, depth+1)
+			if err != nil {
+				return false, err
+			}
+			found = found || nested
 		}
 	}
 	for _, child := range predicate.Children {
-		if err := validateAggregateFilter(child, depth+1); err != nil {
-			return err
+		nested, err := validateAggregateCondition(child, inside, depth+1)
+		if err != nil {
+			return false, err
 		}
+		found = found || nested
 	}
-	return nil
+	return found, nil
 }

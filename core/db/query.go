@@ -16,6 +16,12 @@ type Expression struct {
 	// Filter is a row predicate for an aggregate expression, not a HAVING
 	// predicate. Unsupported dialects must reject it before execution.
 	Filter *Predicate
+	// Branches is the ordered conditional branch list for a CASE expression.
+	Branches []WhenBranch
+}
+type WhenBranch struct {
+	Condition Predicate
+	Then      Expression
 }
 type Predicate struct {
 	Field, Lookup string

@@ -60,6 +60,9 @@ func TestScopedCastsJSONPrecisionNullsAndBackendErrors(t *testing.T) {
 		{orm.Cast(orm.JSONTextPath("payload", "name"), models.CharField("value", models.WithMaxLength(3))), "exact", "Alp", 1},
 		{orm.Cast(orm.JSONTextPath("payload", "encoded"), models.JSONField("value")), "exact", "null", 1},
 		{orm.Cast(orm.JSONTextPath("payload", "encoded"), models.JSONField("value")), "exact", nil, 1},
+		{orm.Cast(orm.Value(7), models.TextField("value")), "exact", "7", 4},
+		{orm.Cast(orm.Value(true), models.TextField("value")), "exact", "true", 4},
+		{orm.Cast(orm.Value(1.5), models.TextField("value")), "exact", "1.5", 4},
 	} {
 		got, err := query.Filter(db.Predicate{Expression: &test.expression, Lookup: test.lookup, Value: test.value}).Count(ctx)
 		if err != nil || got != test.want {

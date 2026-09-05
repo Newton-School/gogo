@@ -80,3 +80,12 @@ func TestCastRejectsDDLTypesAndCyclesBeforeBinding(t *testing.T) {
 		}
 	}
 }
+
+func TestCastPreservesLiteralSourceTypeBeforeConversion(t *testing.T) {
+	text := models.TextField("value")
+	compiler := Compiler{Dialect: castDialect{}}
+	statement, err := compiler.Expression(db.Expression{Kind: "cast", Output: &text, Args: []db.Expression{{Kind: "value", Value: 7}}})
+	if err != nil || statement != `CONVERT(CONVERT($1 AS integer64) AS text)` || !reflect.DeepEqual(compiler.Args, []any{7}) {
+		t.Fatal("integer literal was bound as text", statement, compiler.Args, err)
+	}
+}

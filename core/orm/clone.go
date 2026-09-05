@@ -10,30 +10,78 @@ import (
 )
 
 func clonePredicate(value db.Predicate) db.Predicate {
+	state := &cloneTree{}
+	result := clonePredicateAt(value, state, 0)
+	if state.invalid {
+		return invalidPredicate()
+	}
+	return result
+}
+
+type cloneTree struct {
+	nodes   int
+	invalid bool
+}
+
+func (s *cloneTree) enter(depth int) bool {
+	s.nodes++
+	if depth > 64 || s.nodes > 8192 {
+		s.invalid = true
+	}
+	return !s.invalid
+}
+
+func invalidExpression() db.Expression { return db.Expression{Kind: "invalid_tree"} }
+func invalidPredicate() db.Predicate {
+	expression := invalidExpression()
+	return db.Predicate{Expression: &expression}
+}
+
+func clonePredicateAt(value db.Predicate, state *cloneTree, depth int) db.Predicate {
+	if !state.enter(depth) {
+		return invalidPredicate()
+	}
 	value.Children = append([]db.Predicate(nil), value.Children...)
 	for i := range value.Children {
-		value.Children[i] = clonePredicate(value.Children[i])
+		value.Children[i] = clonePredicateAt(value.Children[i], state, depth+1)
 	}
-	value.Value = cloneQueryValue(value.Value)
+	value.Value = cloneQueryValueAt(value.Value, state, depth+1)
 	if value.Expression != nil {
-		copy := cloneExpression(*value.Expression)
+		copy := cloneExpressionAt(*value.Expression, state, depth+1)
 		value.Expression = &copy
 	}
 	return value
 }
 func cloneExpression(value db.Expression) db.Expression {
-	value.Value = cloneQueryValue(value.Value)
+	state := &cloneTree{}
+	result := cloneExpressionAt(value, state, 0)
+	if state.invalid {
+		return invalidExpression()
+	}
+	return result
+}
+
+func cloneExpressionAt(value db.Expression, state *cloneTree, depth int) db.Expression {
+	if !state.enter(depth) {
+		return invalidExpression()
+	}
+	value.Value = cloneQueryValueAt(value.Value, state, depth+1)
+	value.Branches = append([]db.WhenBranch(nil), value.Branches...)
+	for i := range value.Branches {
+		value.Branches[i].Condition = clonePredicateAt(value.Branches[i].Condition, state, depth+1)
+		value.Branches[i].Then = cloneExpressionAt(value.Branches[i].Then, state, depth+1)
+	}
 	if value.Output != nil {
-		copy := cloneQueryValue(*value.Output).(models.Field)
+		copy := cloneQueryValueAt(*value.Output, state, depth+1).(models.Field)
 		value.Output = &copy
 	}
 	if value.Filter != nil {
-		predicate := clonePredicate(*value.Filter)
+		predicate := clonePredicateAt(*value.Filter, state, depth+1)
 		value.Filter = &predicate
 	}
 	value.Args = append([]db.Expression(nil), value.Args...)
 	for i := range value.Args {
-		value.Args[i] = cloneExpression(value.Args[i])
+		value.Args[i] = cloneExpressionAt(value.Args[i], state, depth+1)
 	}
 	return value
 }
@@ -51,6 +99,10 @@ type cloneVisit struct {
 // Cycle tracking preserves cyclic inputs so the eventual encoder can reject them
 // normally, rather than overflowing during query construction.
 func cloneQueryValue(value any) any {
+	return cloneQueryValueAt(value, &cloneTree{}, 0)
+}
+
+func cloneQueryValueAt(value any, state *cloneTree, depth int) any {
 	if value == nil {
 		return nil
 	}
@@ -59,6 +111,15 @@ func cloneQueryValue(value any) any {
 	copyValue = func(value reflect.Value) reflect.Value {
 		if !value.IsValid() {
 			return value
+		}
+		// RHS expressions can live in Predicate.Value or IN/range containers.
+		// They share the enclosing AST's depth/work bound, not an independent
+		// recursive clone that would preserve a compiler-recursion cycle.
+		if value.Type() == reflect.TypeFor[db.Expression]() {
+			return reflect.ValueOf(cloneExpressionAt(value.Interface().(db.Expression), state, depth+1))
+		}
+		if value.Type() == reflect.TypeFor[db.Predicate]() {
+			return reflect.ValueOf(clonePredicateAt(value.Interface().(db.Predicate), state, depth+1))
 		}
 		if value.Kind() == reflect.Struct && opaqueQueryStruct(value.Type()) || value.Kind() == reflect.Pointer && value.Type().Elem().Kind() == reflect.Struct && opaqueQueryStruct(value.Type().Elem()) {
 			return value

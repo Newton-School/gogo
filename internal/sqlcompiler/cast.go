@@ -20,10 +20,23 @@ func (c *Compiler) cast(expression db.Expression) (string, error) {
 		return "", &db.Error{Code: db.UnsupportedFeature, Message: "Selected dialect does not support cast expressions"}
 	}
 	argumentsBefore := len(c.Args)
-	value, err := c.Expression(expression.Args[0])
+	argument := expression.Args[0]
+	value, err := c.Expression(argument)
 	if err != nil {
 		c.Args = c.Args[:argumentsBefore]
 		return "", err
+	}
+	// PostgreSQL and other typed drivers bind a parameter using the server's
+	// inferred input type. Preserve a native literal's source type before its
+	// requested conversion (e.g. an integer cannot be bound directly as text).
+	if argument.Kind == "value" {
+		if source, known := castLiteralType(argument.Value); known && source.Kind != expression.Output.Kind {
+			value, err = dialect.CastExpression(value, source)
+			if err != nil {
+				c.Args = c.Args[:argumentsBefore]
+				return "", err
+			}
+		}
 	}
 	result, err := dialect.CastExpression(value, *expression.Output)
 	if err == nil && strings.TrimSpace(result) == "" {
@@ -34,6 +47,23 @@ func (c *Compiler) cast(expression db.Expression) (string, error) {
 		return "", err
 	}
 	return result, nil
+}
+
+func castLiteralType(value any) (models.Field, bool) {
+	kind := models.Kind("")
+	switch value.(type) {
+	case string:
+		kind = models.Text
+	case bool:
+		kind = models.Boolean
+	case int, int8, int16, int32, int64, uint8, uint16, uint32:
+		kind = models.BigInteger
+	case float32, float64:
+		kind = models.Float
+	case []byte:
+		kind = models.Binary
+	}
+	return models.Field{Kind: kind}, kind != ""
 }
 
 func castField(field *models.Field, depth int) error {

@@ -230,6 +230,10 @@ func (c *Compiler) Expression(e db.Expression) (string, error) {
 		return "", &db.Error{Code: db.UnsupportedFeature, Message: "FILTER requires an aggregate expression"}
 	}
 	switch e.Kind {
+	case "invalid_tree":
+		return "", errors.New("orm: expression tree exceeds the depth or work limit")
+	case "case":
+		return c.conditional(e)
 	case "cast":
 		return c.cast(e)
 	case "json_path", "json_text_path":
