@@ -3,6 +3,7 @@ package async
 import (
 	"errors"
 	"os"
+	"time"
 
 	"golang.org/x/sys/unix"
 )
@@ -57,18 +58,28 @@ func waitProcessExit(pid int) error {
 	}
 }
 
-func groupHasOnlyExitedProcesses(pid int) bool {
+func inspectProcessGroup(pid int, _ time.Time) (bool, error) {
 	// Darwin reports EPERM for a group containing only unsignalable zombies.
 	// Distinguish it from a live descendant whose credentials deny signalling;
 	// never swallow that genuine cleanup failure.
 	processes, err := unix.SysctlKinfoProcSlice("kern.proc.pgrp", pid)
 	if err != nil {
-		return false
+		return false, err
 	}
+	leader, live := false, false
 	for _, process := range processes {
+		if process.Proc.P_pid == int32(pid) {
+			if process.Eproc.Ppid != int32(os.Getpid()) {
+				return false, unix.ECHILD
+			}
+			leader = true
+		}
 		if process.Proc.P_stat != darwinZombie {
-			return false
+			live = true
 		}
 	}
-	return true
+	if !leader {
+		return false, unix.ECHILD
+	}
+	return !live, nil
 }

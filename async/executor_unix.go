@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"sync"
 	"syscall"
+	"time"
 )
 
 const processIsolationSupported = true
@@ -43,13 +44,10 @@ func runIsolatedProcess(cmd *exec.Cmd) error {
 	mu.Lock()
 	var cleanupErr error
 	if observeErr == nil {
-		cleanupErr = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
-		if errors.Is(cleanupErr, syscall.ESRCH) {
-			cleanupErr = nil
-		}
-		if errors.Is(cleanupErr, syscall.EPERM) && groupHasOnlyExitedProcesses(cmd.Process.Pid) {
-			cleanupErr = nil
-		}
+		// SIGKILL delivery is asynchronous. Do not release this invocation's
+		// slot after merely sending it: observe ordinary group members exit
+		// while the unreaped leader still pins the process-group identity.
+		cleanupErr = drainOwnedProcessGroup(cmd.Process.Pid, 250*time.Millisecond, inspectProcessGroup, func(pid int) error { return syscall.Kill(-pid, syscall.SIGKILL) })
 		if cleanupErr != nil {
 			cleanupErr = fmt.Errorf("clean task process group: %w", cleanupErr)
 		}
@@ -62,4 +60,37 @@ func runIsolatedProcess(cmd *exec.Cmd) error {
 	released = true
 	mu.Unlock()
 	return errors.Join(observeErr, cleanupErr, cmd.Wait())
+}
+
+var errProcessGroupCleanup = errors.New("task process-group cleanup not observed before deadline")
+
+func drainOwnedProcessGroup(pid int, timeout time.Duration, inspect func(int, time.Time) (bool, error), signal func(int) error) error {
+	if pid <= 0 || timeout <= 0 {
+		return ErrInvalid
+	}
+	deadline := time.Now().Add(timeout)
+	for {
+		if !time.Now().Before(deadline) {
+			return errProcessGroupCleanup
+		}
+		signalErr := signal(pid)
+		exited, err := inspect(pid, deadline)
+		if !time.Now().Before(deadline) {
+			return errors.Join(errProcessGroupCleanup, signalErr, err)
+		}
+		if err != nil {
+			return errors.Join(signalErr, err)
+		}
+		if exited {
+			return nil
+		} // Darwin may return EPERM for only zombies.
+		if signalErr != nil && !errors.Is(signalErr, syscall.ESRCH) {
+			return signalErr
+		}
+		remaining := time.Until(deadline)
+		if remaining <= 0 {
+			return errProcessGroupCleanup
+		}
+		time.Sleep(min(time.Millisecond, remaining))
+	}
 }
