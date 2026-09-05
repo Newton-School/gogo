@@ -99,6 +99,13 @@ func (a *Accounts) identifier(value string) (string, error) {
 	return NormalizeIdentifier(value)
 }
 
+// NormalizeLoginIdentifier exposes this backend's exact identity equivalence
+// rule to HTTP throttling. Using a different normalizer for rate buckets lets
+// equivalent spellings bypass a per-identity limit.
+func (a *Accounts) NormalizeLoginIdentifier(value string) (string, error) {
+	return a.identifier(value)
+}
+
 func (a *Accounts) permit(ctx context.Context, change AccountChange) error {
 	if err := ctx.Err(); err != nil {
 		return err
