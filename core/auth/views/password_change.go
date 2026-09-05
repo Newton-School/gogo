@@ -206,7 +206,7 @@ func passwordChangeNeedsLogin(w http.ResponseWriter, r *http.Request, config Pas
 }
 
 func servePasswordChange(w http.ResponseWriter, r *http.Request, render func(context.Context, PasswordChangePage) ([]byte, error), page PasswordChangePage, status int) {
-	body, err := render(r.Context(), page)
+	body, err := renderAccountPage(r.Context(), render, page)
 	if err != nil || len(body) > 1<<20 {
 		unavailable(w)
 		return

@@ -227,7 +227,7 @@ func clearResetSession(w http.ResponseWriter, r *http.Request, csrf security.CSR
 }
 
 func servePasswordResetConfirm(w http.ResponseWriter, r *http.Request, render func(context.Context, PasswordResetConfirmPage) ([]byte, error), page PasswordResetConfirmPage, status int) {
-	body, err := render(r.Context(), page)
+	body, err := renderAccountPage(r.Context(), render, page)
 	if err != nil || len(body) > 1<<20 {
 		unavailable(w)
 		return

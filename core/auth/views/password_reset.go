@@ -125,7 +125,7 @@ func invokeResetRequest(ctx context.Context, service PasswordResetRequester, ide
 }
 
 func servePasswordResetRequest(w http.ResponseWriter, r *http.Request, render func(context.Context, PasswordResetRequestPage) ([]byte, error), page PasswordResetRequestPage, status int) {
-	body, err := render(r.Context(), page)
+	body, err := renderAccountPage(r.Context(), render, page)
 	if err != nil || len(body) > 1<<20 {
 		unavailable(w)
 		return

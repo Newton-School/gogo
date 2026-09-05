@@ -270,7 +270,7 @@ func failure(ctx context.Context, callback func(context.Context, string), code s
 }
 
 func serveLogin(w http.ResponseWriter, r *http.Request, render func(context.Context, LoginPage) ([]byte, error), page LoginPage, status int) {
-	body, err := render(r.Context(), page)
+	body, err := renderAccountPage(r.Context(), render, page)
 	if err != nil || len(body) > 1<<20 {
 		unavailable(w)
 		return
