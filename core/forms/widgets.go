@@ -210,7 +210,7 @@ func safeAttribute(s string) bool {
 		return fieldName.MatchString(s)
 	}
 	switch s {
-	case "class", "title", "placeholder", "autocomplete", "min", "max", "step", "minlength", "maxlength", "rows", "cols", "accept", "pattern", "inputmode":
+	case "class", "title", "placeholder", "autocomplete", "list", "min", "max", "step", "minlength", "maxlength", "rows", "cols", "accept", "pattern", "inputmode":
 		return true
 	}
 	return false

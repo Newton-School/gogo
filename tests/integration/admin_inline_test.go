@@ -2,10 +2,12 @@ package integration_test
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -101,7 +103,24 @@ func TestAdminInlineAtomicSaveAndOwnership(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = site.Register(admin.ModelAdmin{Schema: parent.Schema(), Fieldsets: []admin.Fieldset{{Name: "Details", Fields: []string{"name", "secret"}}}, ReadonlyFields: []string{"secret"}, ListDisplay: []string{"name"}, ConstraintChecker: store, Inlines: []admin.Inline{{Name: "notes", Schema: child.Schema(), FKName: "product", Fields: []string{"body"}, Maximum: 10, Extra: 1, ConstraintChecker: store}}})
+	err = site.Register(admin.ModelAdmin{Schema: parent.Schema(), Fieldsets: []admin.Fieldset{{Name: "Details", Fields: []string{"name", "secret"}}}, ReadonlyFields: []string{"secret"}, ListDisplay: []string{"name"}, SearchFields: []string{"name"}, ConstraintChecker: store, Inlines: []admin.Inline{{Name: "notes", Schema: child.Schema(), FKName: "product", Fields: []string{"body"}, Maximum: 10, Extra: 1, ConstraintChecker: store}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = site.Register(admin.ModelAdmin{Schema: child.Schema(), Fields: []string{"product", "body"}, AutocompleteFields: []string{"product"}, ConstraintChecker: store, ResolveRelation: func(ctx context.Context, _ models.Field, ids []string) ([]any, error) {
+		if len(ids) != 1 {
+			return nil, auth.ErrPermissionDenied
+		}
+		id, err := strconv.ParseInt(ids[0], 10, 64)
+		if err != nil {
+			return nil, auth.ErrPermissionDenied
+		}
+		object, err := orm.For(store, func() *adminProduct { return &adminProduct{} }).Filter(orm.Q("id", id), orm.Q("tenant", auth.FromContext(ctx).ID)).Get(ctx)
+		if err != nil {
+			return nil, auth.ErrPermissionDenied
+		}
+		return []any{object.ID}, nil
+	}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -127,6 +146,27 @@ func TestAdminInlineAtomicSaveAndOwnership(t *testing.T) {
 			t.Fatalf("missing %s in %s", name, body)
 		}
 		return m[1]
+	}
+	hiddenParent := &adminProduct{Tenant: "two", Name: "Hidden parent", Secret: "private"}
+	if err := store.Save(ctx, hiddenParent, orm.SaveOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	lookup := request("GET", "/admin/autocomplete/?app_label=shop&model_name=note&field_name=product&term=Parent", nil, nil)
+	var choices struct{ Results []struct{ ID, Text string } }
+	if lookup.Code != 200 || json.Unmarshal(lookup.Body.Bytes(), &choices) != nil || len(choices.Results) != 1 || choices.Results[0].ID != strconv.FormatInt(parent.ID, 10) {
+		t.Fatal(lookup.Code, lookup.Body.String())
+	}
+	lookupForm := request("GET", "/admin/shop/note/add/", nil, nil)
+	if lookupForm.Code != 200 || !strings.Contains(lookupForm.Body.String(), "data-relation-url") {
+		t.Fatal(lookupForm.Code, lookupForm.Body.String())
+	}
+	forged := url.Values{"product": {strconv.FormatInt(hiddenParent.ID, 10)}, "body": {"Must not create"}, "_edit_token": {hidden(lookupForm.Body.String(), "_edit_token")}, "csrfmiddlewaretoken": {hidden(lookupForm.Body.String(), "csrfmiddlewaretoken")}}
+	denied := request("POST", "/admin/shop/note/add/", forged, lookupForm.Result().Cookies())
+	if denied.Code != 400 || strings.Contains(denied.Body.String(), "Hidden parent") {
+		t.Fatal(denied.Code, denied.Body.String())
+	}
+	if count, err := orm.For(store, func() *adminNote { return &adminNote{} }).Count(ctx); err != nil || count != 1 {
+		t.Fatal("forged relation changed data", count, err)
 	}
 	list := request("GET", "/admin/shop/product/", nil, nil)
 	link := regexp.MustCompile(`href="(/admin/shop/product/[^"]+/change/)"`).FindStringSubmatch(list.Body.String())

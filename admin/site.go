@@ -40,6 +40,7 @@ type ModelAdmin struct {
 	Schema                                                            models.Schema
 	Factory                                                           func() models.Model
 	Fields, Exclude, ReadonlyFields                                   []string
+	AutocompleteFields, RawIDFields                                   []string
 	ListDisplay, ListDisplayLinks, SearchFields, ListFilter, Ordering []string
 	ListPerPage, ListMaxShowAll                                       int
 	Fieldsets                                                         []Fieldset
@@ -75,6 +76,8 @@ type Site struct {
 	handler    http.Handler
 	css        []byte
 	cssVersion string
+	js         []byte
+	jsVersion  string
 }
 
 func NewSite(config Config) (*Site, error) {
@@ -115,6 +118,11 @@ func NewSite(config Config) (*Site, error) {
 	}
 	s.css = css
 	s.cssVersion = fmt.Sprintf("%x", sha256.Sum256(s.css))
+	s.js, err = embedded.ReadFile("internal/assets/admin.js")
+	if err != nil {
+		return nil, err
+	}
+	s.jsVersion = fmt.Sprintf("%x", sha256.Sum256(s.js))
 	csrf, err := security.CSRF(config.CSRF)
 	if err != nil {
 		return nil, err
@@ -123,7 +131,7 @@ func NewSite(config Config) (*Site, error) {
 	s.handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Public embedded assets have no user state and reject unsafe methods.
 		// Do not attach CSRF cookies to shared-cacheable static responses.
-		if r.URL.Path == config.Prefix+"assets/admin.css" || r.URL.Path == config.Prefix+"assets/admin."+s.cssVersion+".css" {
+		if _, _, _, _, ok := s.asset(r.URL.Path); ok {
 			s.serve(w, r)
 			return
 		}
@@ -144,6 +152,11 @@ func (s *Site) Register(options ModelAdmin) error {
 	key := options.Schema.Key()
 	if _, ok := s.models[key]; ok {
 		return fmt.Errorf("admin: %s already registered", key)
+	}
+	for _, existing := range s.models {
+		if existing.Schema.AppLabel == options.Schema.AppLabel && strings.EqualFold(existing.Schema.Name, options.Schema.Name) {
+			return errors.New("admin: model URL collision")
+		}
 	}
 	if options.ListPerPage == 0 {
 		options.ListPerPage = 100
@@ -192,6 +205,18 @@ func (s *Site) Register(options ModelAdmin) error {
 			return errors.New("admin: list links must be displayed columns")
 		}
 	}
+	for _, name := range append(append([]string(nil), options.AutocompleteFields...), options.RawIDFields...) {
+		field, ok := options.Schema.Field(name)
+		if !ok || field.Relation == nil || !field.IsEditable() || !slices.Contains(options.Fields, name) || slices.Contains(options.Exclude, name) || options.ResolveRelation == nil {
+			return errors.New("admin: relation widgets require an editable declared relation and scoped resolver")
+		}
+		if field.Kind == models.ManyToMany {
+			return errors.New("admin: built-in relation widgets currently require scalar relations")
+		}
+		if slices.Contains(options.AutocompleteFields, name) && slices.Contains(options.RawIDFields, name) {
+			return errors.New("admin: relation widget modes are mutually exclusive")
+		}
+	}
 	for _, column := range options.Columns {
 		if column.Name == "" || column.Value == nil || displays[column.Name] {
 			return errors.New("admin: invalid display column")
@@ -225,6 +250,8 @@ func (s *Site) Register(options ModelAdmin) error {
 	options.Fields = slices.Clone(options.Fields)
 	options.Exclude = slices.Clone(options.Exclude)
 	options.ReadonlyFields = slices.Clone(options.ReadonlyFields)
+	options.AutocompleteFields = slices.Clone(options.AutocompleteFields)
+	options.RawIDFields = slices.Clone(options.RawIDFields)
 	options.ListDisplay = slices.Clone(options.ListDisplay)
 	options.ListDisplayLinks = slices.Clone(options.ListDisplayLinks)
 	options.SearchFields = slices.Clone(options.SearchFields)

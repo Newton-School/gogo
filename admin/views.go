@@ -26,23 +26,23 @@ func (s *Site) serve(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Header().Set("X-Frame-Options", "DENY")
-	w.Header().Set("Content-Security-Policy", "default-src 'none'; style-src 'self'; img-src 'self' data:; form-action 'self'; base-uri 'none'; frame-ancestors 'none'")
+	w.Header().Set("Content-Security-Policy", "default-src 'none'; script-src 'self'; connect-src 'self'; style-src 'self'; img-src 'self' data:; form-action 'self'; base-uri 'none'; frame-ancestors 'none'")
 	if !strings.HasPrefix(r.URL.Path, s.config.Prefix) {
 		http.NotFound(w, r)
 		return
 	}
 	rest := strings.TrimPrefix(r.URL.Path, s.config.Prefix)
-	if rest == "assets/admin.css" || rest == "assets/admin."+s.cssVersion+".css" {
+	if body, version, contentType, legacy, ok := s.asset(r.URL.Path); ok {
 		if r.Method != "GET" && r.Method != "HEAD" {
 			s.method(w)
 			return
 		}
-		w.Header().Set("Content-Type", "text/css; charset=utf-8")
+		w.Header().Set("Content-Type", contentType)
 		w.Header().Set("Cache-Control", "public, no-cache")
-		if rest != "assets/admin.css" {
+		if !legacy {
 			w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
 		}
-		etag := `"` + s.cssVersion + `"`
+		etag := `"` + version + `"`
 		w.Header().Set("ETag", etag)
 		for _, candidate := range strings.Split(r.Header.Get("If-None-Match"), ",") {
 			candidate = strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(candidate), "W/"))
@@ -52,7 +52,7 @@ func (s *Site) serve(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		if r.Method != "HEAD" {
-			_, _ = w.Write(s.css)
+			_, _ = w.Write(body)
 		}
 		return
 	}
@@ -85,6 +85,14 @@ func (s *Site) serve(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		s.index(w, r, p)
+		return
+	}
+	if rest == "autocomplete" || rest == "autocomplete/" {
+		if r.Method != "GET" && r.Method != "HEAD" {
+			s.method(w)
+			return
+		}
+		s.autocomplete(w, r, p)
 		return
 	}
 	parts := strings.Split(strings.Trim(rest, "/"), "/")
@@ -199,6 +207,7 @@ func (s *Site) render(w http.ResponseWriter, r *http.Request, p auth.Principal, 
 	data["site_title"] = s.config.Title
 	data["prefix"] = s.config.Prefix
 	data["css_url"] = s.config.Prefix + "assets/admin." + s.cssVersion + ".css"
+	data["js_url"] = s.config.Prefix + "assets/admin." + s.jsVersion + ".js"
 	data["is_overview"] = r.URL.Path == s.config.Prefix
 	data["navigation"] = s.navigation(r, p)
 	data["actor"] = p.ID
@@ -453,7 +462,11 @@ func (s *Site) form(w http.ResponseWriter, r *http.Request, p auth.Principal, op
 				opts = append(opts, forms.WithFiles(r.MultipartForm.File))
 			}
 		}
-		return forms.NewModelForm(ctx, obj.Record, forms.ModelFormOptions{Fields: options.Fields, Exclude: options.Exclude, Readonly: currentReadonly, Overrides: options.FormOverrides, ResolveRelation: options.ResolveRelation, Checker: options.ConstraintChecker}, opts...)
+		overrides, err := s.relationOverrides(ctx, options, obj)
+		if err != nil {
+			return nil, err
+		}
+		return forms.NewModelForm(ctx, obj.Record, forms.ModelFormOptions{Fields: options.Fields, Exclude: options.Exclude, Readonly: currentReadonly, Overrides: overrides, ResolveRelation: options.ResolveRelation, Checker: options.ConstraintChecker}, opts...)
 	}
 	var modelForm *forms.ModelForm
 	var inlines []*inlineState

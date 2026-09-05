@@ -14,6 +14,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -172,6 +173,22 @@ func run() error {
 		return err
 	}
 	if err = site.Register(admin.ModelAdmin{Schema: (&Product{}).Schema(), Fieldsets: []admin.Fieldset{{Name: "Product details", Fields: []string{"name", "description"}}, {Name: "Availability", Fields: []string{"price", "stock", "published"}}, {Name: "Record information", Fields: []string{"sku", "created_at"}, Classes: []string{"collapse"}}}, ReadonlyFields: []string{"sku", "created_at"}, ListDisplay: []string{"name", "sku", "price", "stock", "published"}, ListFilter: []string{"published"}, SearchFields: []string{"name", "sku"}, Ordering: []string{"name"}, ConstraintChecker: store, Inlines: []admin.Inline{{Name: "notes", Schema: (&ProductNote{}).Schema(), FKName: "product", Fields: []string{"body", "created_at"}, Readonly: []string{"created_at"}, Extra: 1, Maximum: 20, CanDelete: true, ConstraintChecker: store}}}); err != nil {
+		return err
+	}
+	if err = site.Register(admin.ModelAdmin{Schema: (&ProductNote{}).Schema(), Fields: []string{"product", "body", "created_at"}, ReadonlyFields: []string{"created_at"}, AutocompleteFields: []string{"product"}, ListDisplay: []string{"body", "product", "created_at"}, SearchFields: []string{"body"}, ConstraintChecker: store, ResolveRelation: func(ctx context.Context, _ models.Field, ids []string) ([]any, error) {
+		if len(ids) != 1 {
+			return nil, auth.ErrPermissionDenied
+		}
+		id, err := strconv.ParseInt(ids[0], 10, 64)
+		if err != nil {
+			return nil, auth.ErrPermissionDenied
+		}
+		object, err := orm.For(store, func() *Product { return &Product{} }).Filter(orm.Q("id", id), orm.Q("tenant", auth.FromContext(ctx).ID)).Get(ctx)
+		if err != nil {
+			return nil, auth.ErrPermissionDenied
+		}
+		return []any{object.ID}, nil
+	}}); err != nil {
 		return err
 	}
 	headers, err := security.Headers(security.HeadersConfig{AllowedHosts: []string{"127.0.0.1", "localhost"}})
