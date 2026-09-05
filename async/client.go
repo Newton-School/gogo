@@ -20,6 +20,7 @@ type ClientConfig struct {
 	Workflows      WorkflowStore
 	Schedules      ScheduleStore
 	Presence       WorkerPresenceStore
+	Controls       WorkerControlStore
 	Queues         []string
 	Routes         []Route
 	AllowedHeaders []string

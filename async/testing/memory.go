@@ -26,6 +26,7 @@ type Memory struct {
 	graphs     map[string]async.Graph
 	delayed    map[string]async.DelayedItem
 	workers    map[string]workerPresence
+	controls   map[string]map[string]workerControl
 	queue      []async.Delivery
 	pending    map[string]reserved
 	quarantine []async.Delivery

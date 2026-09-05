@@ -31,6 +31,9 @@ type Worker struct {
 	Executor    Executor
 	Events      EventSink
 	Presence    WorkerPresenceStore
+	// Controls explicitly enables only fixed remote commands. It must share
+	// the exact presence authority; nil leaves remote control disabled.
+	Controls    WorkerControlStore
 	RateLimiter ratelimit.Limiter
 	initOnce    sync.Once
 	initErr     error
@@ -52,15 +55,26 @@ func (w *Worker) defaults() error {
 	if w.Registry == nil || w.Broker == nil || w.Results == nil {
 		return ErrInvalid
 	}
+	if w.Controls != nil {
+		if w.Presence == nil {
+			w.Presence = w.Controls
+		} else if !reflect.TypeOf(w.Controls).Comparable() || w.Presence != w.Controls {
+			return ErrInvalid
+		}
+	}
 	if w.Client != nil {
 		_, supported := w.Results.(ReplacementStore)
 		if !supported || w.Client.config.Registry != w.Registry || w.Client.config.Workflows == nil || !reflect.TypeOf(w.Results).Comparable() || w.Client.config.Results != w.Results {
 			return ErrInvalid
 		}
 	}
+	// Snapshot may be read while the runner is starting. Initialize the fields
+	// it observes under the same lock; configuration callbacks run outside it.
+	w.activityMu.Lock()
 	if w.ID == "" {
 		id, err := NewID()
 		if err != nil {
+			w.activityMu.Unlock()
 			return err
 		}
 		w.ID = id
@@ -69,8 +83,13 @@ func (w *Worker) defaults() error {
 		w.Concurrency = min(32, max(1, runtime.NumCPU()))
 	}
 	if w.Concurrency < 1 || w.Concurrency > 1024 {
+		w.activityMu.Unlock()
 		return ErrInvalid
 	}
+	if len(w.Queues) == 0 {
+		w.Queues = []string{"default"}
+	}
+	w.activityMu.Unlock()
 	if w.Lease == 0 {
 		w.Lease = 60 * time.Second
 	}
@@ -85,9 +104,6 @@ func (w *Worker) defaults() error {
 	}
 	if w.Jitter == nil {
 		w.Jitter = rand.Float64
-	}
-	if len(w.Queues) == 0 {
-		w.Queues = []string{"default"}
 	}
 	if validator, ok := w.Executor.(ExecutorValidator); ok {
 		if err := validator.Validate(); err != nil {
@@ -124,42 +140,49 @@ func (w *Worker) Run(ctx context.Context) error {
 	if err := w.initialize(); err != nil {
 		return err
 	}
-	stopPresence, err := w.startPresence(ctx)
+	stopPresence, lease, err := w.startPresence(ctx)
 	if err != nil {
 		return err
 	}
 	defer stopPresence()
+	reserveCtx, stopReserving := context.WithCancel(ctx)
+	defer stopReserving()
+	stopControls := w.startControls(ctx, lease, stopReserving)
+	defer stopControls()
 	var wg sync.WaitGroup
 	for slot := 0; slot < w.Concurrency; slot++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			lastReclaim := w.Clock()
-			for ctx.Err() == nil {
+			for reserveCtx.Err() == nil {
 				if w.Clock().Sub(lastReclaim) >= w.Lease {
 					lastReclaim = w.Clock()
-					deliveries, err := w.Broker.Reclaim(ctx, ConsumeOptions{Queues: w.Queues, Consumer: w.ID}, w.Lease)
+					deliveries, err := w.Broker.Reclaim(reserveCtx, ConsumeOptions{Queues: w.Queues, Consumer: w.ID}, w.Lease)
 					if err != nil {
 						w.report(err)
 					} else {
 						for _, delivery := range deliveries {
-							if ctx.Err() != nil {
+							if reserveCtx.Err() != nil {
 								break
 							}
 							w.report(w.Process(ctx, delivery))
 						}
 					}
 				}
-				d, err := w.Broker.Consume(ctx, ConsumeOptions{Queues: w.Queues, Consumer: w.ID, Wait: time.Second})
+				d, err := w.Broker.Consume(reserveCtx, ConsumeOptions{Queues: w.Queues, Consumer: w.ID, Wait: time.Second})
 				if err != nil {
-					if !errors.Is(err, ErrNotFound) && ctx.Err() == nil {
+					if !errors.Is(err, ErrNotFound) && reserveCtx.Err() == nil {
 						w.report(err)
 						select {
-						case <-ctx.Done():
+						case <-reserveCtx.Done():
 						case <-time.After(100 * time.Millisecond):
 						}
 					}
 					continue
+				}
+				if reserveCtx.Err() != nil {
+					break // Keep an already reserved delivery pending for recovery.
 				}
 				w.report(w.Process(ctx, d))
 			}
@@ -175,12 +198,19 @@ func (w *Worker) RunOnce(ctx context.Context) error {
 	if err := w.initialize(); err != nil {
 		return err
 	}
-	stopPresence, err := w.startPresence(ctx)
+	stopPresence, lease, err := w.startPresence(ctx)
 	if err != nil {
 		return err
 	}
 	defer stopPresence()
-	delivery, err := w.Broker.Consume(ctx, ConsumeOptions{Queues: w.Queues, Consumer: w.ID})
+	reserveCtx, stopReserving := context.WithCancel(ctx)
+	defer stopReserving()
+	stopControls := w.startControls(ctx, lease, stopReserving)
+	defer stopControls()
+	delivery, err := w.Broker.Consume(reserveCtx, ConsumeOptions{Queues: w.Queues, Consumer: w.ID})
+	if reserveCtx.Err() != nil && ctx.Err() == nil {
+		return nil
+	}
 	if errors.Is(err, ErrNotFound) {
 		return nil
 	}

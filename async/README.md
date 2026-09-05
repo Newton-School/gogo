@@ -25,6 +25,24 @@ Set `Worker.Presence` and `ClientConfig.Presence` to an `async/redis.Workers` ad
 
 Each advertised runner has a fresh public `WorkerSnapshot.InstanceID`, independent of its secret lease token. The instance remains attached to its final offline snapshot; a restarted runner uses a new instance. Renew/release and same-owner claim cannot change that identity. Concurrent `Run/RunOnce` calls on the same advertised Worker are rejected before making another presence claim. Custom presence writers may omit the instance for observation-only snapshots; these cannot be exact-instance control targets. Instance addressing alone does not dispatch a shutdown or prove execution stopped.
 
+Remote graceful shutdown is explicit: configure `Worker.Controls` and `ClientConfig.Controls` with the same trusted `async/redis.Workers` authority used for presence. Worker control remains disabled when `Worker.Controls` is nil. The client must have an explicit `Authorize` callback granting `shutdown` for every worker and queue; task enqueue and inspection grants do not imply this permission. Requests carry no executable code or task arguments. Direct adapter access is trusted infrastructure, so protect Redis credentials/ACLs and do not expose backend methods to untrusted HTTP callers.
+
+An authenticated custom management callback can use the public API:
+
+```go
+control := async.Control{Client: client}
+requests, err := control.PrepareWorkerShutdown(ctx, []string{"worker-one", "worker-two"}, time.Minute)
+if err != nil {
+    return err
+}
+// Preserve these exact requests if dispatch returns an unknown outcome.
+report, err := control.DispatchWorkerControls(ctx, requests, 5*time.Second)
+// Return/report both values: missing replies never mean successful shutdown.
+return writeControlReport(report, err)
+```
+
+Preparing resolves one current instance per target without mutation. Dispatch authorizes the complete target set before writing; worker partitions are submitted separately, so the report distinguishes confirmed, rejected, unknown and not-attempted submissions. `report.Complete()` means every worker replied, including explicit rejections, not that workers exited. An accepted reply is stored before stopping new reservations; accepted handlers drain under the original runner context. Canceling that context retains normal cooperative cancellation. A crash or backend outage can prevent an accepted action from running; exact accepted requests remain recoverable until expiry. Never regenerate instance targets on an automatic retry. Replies remain readable after the old runner goes offline/restarts without requiring a separate inspection grant. Execution expiry is at most five minutes; each worker retains at most 128 request/reply records for 24 hours. Full storage rejects new requests instead of evicting pending ones. The reply wait defaults to five seconds and is capped at one minute; caller context bounds preparation/submission, and custom backends must honor it.
+
 `TaskOptions.PerWorkerConcurrency` limits one task type within each worker; `TaskOptions.Rate` explicitly chooses a local or distributed budget. Distributed mode requires the configured `Worker.RateLimiter`. Rate waiting retains a bounded worker slot and recoverable broker reservation without consuming execution retries. It is not a separate durable rate scheduler.
 
 Management shutdown respects `GOGO_SHUTDOWN_GRACE`. `ErrShutdownTimeout` means non-cooperative handlers may still run; it never means Go goroutines were killed. When management is called as a library, core resources may close while those handlers remain active. Use subprocess isolation plus an external process supervisor when forced termination is required, and keep external effects idempotent.
@@ -41,4 +59,4 @@ Return `async.Replace(canvas)` (or `taskContext.Replace(canvas)`) as the handler
 
 Completion hooks for yielded tasks run in the relay after the durable original result transition. They are best-effort observations (a crash can omit them), not transactional side effects; use declared callback tasks for durable follow-up. Configure relay `OnError` and `Events` if those observations should be reported. A callback or event-observer failure never replaces an already committed result.
 
-This implementation is under active conformance work. Ignore/requeue task controls, remote worker administration, autoscaling/recycling and some advanced calendar/retention features are not complete. Passing the included tests is not a claim of full Celery compatibility or production release readiness.
+This implementation is under active conformance work. Ignore/requeue task controls, additional remote worker commands, autoscaling/recycling and some advanced calendar/retention features are not complete. Passing the included tests is not a claim of full Celery compatibility or production release readiness.

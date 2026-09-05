@@ -106,22 +106,22 @@ func ValidateWorkerLease(lease WorkerLease, snapshot WorkerSnapshot, ttl time.Du
 // startPresence runs only around Run/RunOnce, never an isolated Process call.
 // Startup ownership must be confirmed before reserving. Later monitoring
 // outages are reported but do not rewrite task results or cancel handlers.
-func (w *Worker) startPresence(ctx context.Context) (func(), error) {
+func (w *Worker) startPresence(ctx context.Context) (func(), WorkerLease, error) {
 	if w.Presence == nil {
-		return func() {}, nil
+		return func() {}, WorkerLease{}, nil
 	}
 	token, err := NewID()
 	if err != nil {
-		return nil, err
+		return nil, WorkerLease{}, err
 	}
 	instance, err := NewID()
 	if err != nil {
-		return nil, err
+		return nil, WorkerLease{}, err
 	}
 	w.activityMu.Lock()
 	if w.instanceID != "" {
 		w.activityMu.Unlock()
-		return nil, ErrConflict
+		return nil, WorkerLease{}, ErrConflict
 	}
 	w.instanceID = instance
 	w.activityMu.Unlock()
@@ -136,7 +136,7 @@ func (w *Worker) startPresence(ctx context.Context) (func(), error) {
 	snapshot := w.Snapshot()
 	if err := ValidateWorkerLease(lease, snapshot, w.Lease); err != nil {
 		clearInstance()
-		return nil, err
+		return nil, WorkerLease{}, err
 	}
 	timeout := min(w.Heartbeat, 5*time.Second)
 	callCtx, cancel := context.WithTimeout(ctx, timeout)
@@ -144,7 +144,7 @@ func (w *Worker) startPresence(ctx context.Context) (func(), error) {
 	cancel()
 	if err != nil {
 		clearInstance()
-		return nil, err
+		return nil, WorkerLease{}, err
 	}
 	child, stop := context.WithCancel(ctx)
 	done := make(chan struct{})
@@ -178,7 +178,7 @@ func (w *Worker) startPresence(ctx context.Context) (func(), error) {
 		callCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), timeout)
 		defer cancel()
 		w.report(w.Presence.ReleaseWorker(callCtx, lease, w.Snapshot()))
-	}, nil
+	}, lease, nil
 }
 
 // InspectWorkers reads an explicit bounded target set. Missing entries are
