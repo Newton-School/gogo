@@ -173,7 +173,10 @@ func (f Field) Clean(ctx context.Context, value any) (any, error) {
 		return nil, err
 	}
 	if value == nil {
-		if f.Null {
+		// An automatic identity may be absent until INSERT allocates it. This
+		// validation exception does not make its database column nullable or
+		// permit missing user-assigned primary keys.
+		if f.Null || f.IsAuto() {
 			return nil, nil
 		}
 		return nil, Invalid("null", "This field cannot be null.")
