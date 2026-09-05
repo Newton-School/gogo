@@ -125,9 +125,11 @@ func (f Field) GoField() string {
 	}
 	return f.Name
 }
-func (f Field) IsAuto() bool     { return f.Kind == Auto || f.Kind == BigAuto || f.Kind == SmallAuto }
-func (f Field) IsEditable() bool { return f.Editable && !f.IsAuto() && f.Kind != Generated }
-func (f Field) IsStored() bool   { return f.Kind != ManyToMany }
+func (f Field) IsAuto() bool { return f.Kind == Auto || f.Kind == BigAuto || f.Kind == SmallAuto }
+func (f Field) IsEditable() bool {
+	return f.Editable && !f.IsAuto() && !f.AutoNow && !f.AutoNowAdd && f.Kind != Generated
+}
+func (f Field) IsStored() bool { return f.Kind != ManyToMany }
 func (f Field) HasDefault() bool {
 	return f.Default != nil || f.DefaultFunc != nil || f.DBDefault != ""
 }
@@ -157,6 +159,8 @@ type Schema struct {
 	Ordering                                []string
 	Abstract, Proxy, Unmanaged              bool
 	Parent, ParentLink, Concrete            string
+	AutoCreatedBy                           string
+	AutoCreatedField                        string
 	Label, LabelPlural, Comment, Tablespace string
 	RequiredCapabilities                    []string
 }
@@ -337,9 +341,10 @@ func (s Schema) Clone() Schema {
 }
 
 type Registry struct {
-	mu      sync.RWMutex
-	schemas map[string]Schema
-	frozen  bool
+	mu        sync.RWMutex
+	schemas   map[string]Schema
+	automatic map[string]bool
+	frozen    bool
 }
 
 func (r *Registry) Register(schema Schema) error {
@@ -350,6 +355,9 @@ func (r *Registry) Register(schema Schema) error {
 	}
 	if err := schema.Validate(); err != nil {
 		return err
+	}
+	if schema.AutoCreatedBy != "" || schema.AutoCreatedField != "" {
+		return errors.New("models: automatic intermediary metadata is reserved for the registry")
 	}
 	if r.schemas == nil {
 		r.schemas = map[string]Schema{}
@@ -385,6 +393,34 @@ func (r *Registry) All() []Schema {
 func (r *Registry) Freeze() error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.frozen {
+		return nil
+	}
+	generated := []Schema{}
+	for _, source := range r.schemas {
+		for _, field := range source.Fields {
+			if field.Kind != ManyToMany || field.Relation == nil || field.Relation.Through != "" {
+				continue
+			}
+			target, ok := r.schemas[field.Relation.Target]
+			if !ok {
+				return fmt.Errorf("models: unknown relation target %s", field.Relation.Target)
+			}
+			through, err := ImplicitThrough(source, field, target)
+			if err != nil {
+				return err
+			}
+			if _, ok := r.schemas[through.Key()]; ok {
+				return errors.New("models: implicit through schema collides with a declared model")
+			}
+			for _, previous := range generated {
+				if previous.Key() == through.Key() || previous.DBTable() == through.DBTable() {
+					return errors.New("models: automatic intermediary collision")
+				}
+			}
+			generated = append(generated, through)
+		}
+	}
 	for _, s := range r.schemas {
 		for _, f := range s.Fields {
 			if f.Relation != nil {
@@ -400,6 +436,19 @@ func (r *Registry) Freeze() error {
 			}
 		}
 	}
+	r.automatic = map[string]bool{}
+	for _, through := range generated {
+		r.schemas[through.Key()] = through
+		r.automatic[through.Key()] = true
+	}
 	r.frozen = true
 	return nil
+}
+
+// IsAutomatic reports framework provenance, not a caller-controlled schema flag.
+// Only intermediaries synthesized during successful Freeze return true.
+func (r *Registry) IsAutomatic(key string) bool {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.automatic[key]
 }

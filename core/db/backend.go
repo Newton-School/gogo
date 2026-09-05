@@ -89,6 +89,12 @@ type AutoKeyAllocator interface {
 	ReserveAutoKeys(context.Context, Executor, models.Schema, models.Field, int) ([]any, error)
 }
 
+// DeferredSchemaEditor emits relation tables only after all primary tables in
+// a migration exist, allowing source/target creation order to remain explicit.
+type DeferredSchemaEditor interface {
+	FlushDeferred(context.Context, Executor) error
+}
+
 // MigrationLocker holds a dedicated session lock for the entire migration run.
 type MigrationLocker interface {
 	LockMigrations(context.Context) (func() error, error)

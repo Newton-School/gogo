@@ -14,10 +14,18 @@ func NewRecord(schema Schema) (*MapRecord, error) {
 	if err := schema.Validate(); err != nil {
 		return nil, err
 	}
-	return &MapRecord{schema: schema.Clone(), values: map[string]any{}}, nil
+	values := map[string]any{}
+	for _, field := range schema.Fields {
+		if field.IsStored() {
+			values[field.Name] = nil
+		}
+	}
+	return &MapRecord{schema: schema.Clone(), values: values}, nil
 }
-func (r *MapRecord) Schema() Schema { return r.schema.Clone() }
-func (r *MapRecord) State() *State  { return &r.state }
+func (r *MapRecord) Schema() Schema     { return r.schema.Clone() }
+func (r *MapRecord) State() *State      { return &r.state }
+func (r *MapRecord) ModelState() *State { return &r.state }
+func (r *MapRecord) Model() Model       { return r }
 func (r *MapRecord) Get(name string) (any, error) {
 	if _, ok := r.schema.Field(name); !ok {
 		return nil, fmt.Errorf("models: unknown field %s", name)

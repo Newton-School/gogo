@@ -63,6 +63,11 @@ func (e *Executor) SQL(ctx context.Context, key string, reverse bool) ([]Stateme
 			return nil, err
 		}
 	}
+	if editor, ok := resolved.Editor.(db.DeferredSchemaEditor); ok {
+		if err := editor.FlushDeferred(ctx, recorder); err != nil {
+			return nil, err
+		}
+	}
 	return recorder.statements, nil
 }
 func (e *Executor) State(target string) ([]models.Schema, error) {
@@ -318,6 +323,11 @@ func (e *Executor) Reverse(ctx context.Context, target string) (err error) {
 			executor := db.ExecutorFor(txCtx, e.Backend)
 			for j := len(m.Operations) - 1; j >= 0; j-- {
 				if err := migrationEngine.run(txCtx, executor, m.Operations[j], true); err != nil {
+					return err
+				}
+			}
+			if editor, ok := migrationEngine.Editor.(db.DeferredSchemaEditor); ok {
+				if err := editor.FlushDeferred(txCtx, executor); err != nil {
 					return err
 				}
 			}

@@ -59,8 +59,23 @@ func Bind(model Model) (Record, error) {
 		return nil, errors.New("models: nil model")
 	}
 	v := reflect.ValueOf(model)
+	if v.Kind() == reflect.Pointer && v.IsNil() {
+		return nil, errors.New("models: nil model")
+	}
+	if record, ok := model.(Record); ok {
+		if record.State() == nil {
+			return nil, errors.New("models: model state is nil")
+		}
+		if err := record.Schema().Validate(); err != nil {
+			return nil, err
+		}
+		return record, nil
+	}
 	if v.Kind() != reflect.Pointer || v.IsNil() || v.Elem().Kind() != reflect.Struct {
 		return nil, errors.New("models: model must be nonnil struct pointer")
+	}
+	if model.ModelState() == nil {
+		return nil, errors.New("models: model state is nil")
 	}
 	schema := model.Schema().Clone()
 	if err := schema.Validate(); err != nil {

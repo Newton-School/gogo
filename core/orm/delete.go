@@ -30,9 +30,20 @@ type ProtectedRelation struct {
 	Policy models.DeletePolicy
 }
 type DeletionPlan struct {
-	Objects   []models.Record
-	Updates   []FieldUpdate
-	Protected []ProtectedRelation
+	Objects      []models.Record
+	Updates      []FieldUpdate
+	Protected    []ProtectedRelation
+	JoinRemovals []JoinRemoval
+}
+
+// JoinRemoval is an automatic intermediary effect, not a separately deletable
+// application model. Endpoint is in this plan's freshly scoped Objects set;
+// Field names the intermediary FK referring to that endpoint. The other endpoint
+// is never traversed or deleted. Explicit through models remain ordinary Objects.
+type JoinRemoval struct {
+	Record   models.Record
+	Endpoint models.Record
+	Field    string
 }
 
 // DeleteCollector uses the same scoped graph for preview and execution. Scope
@@ -100,6 +111,7 @@ func (c DeleteCollector) collect(ctx context.Context, roots []models.Record, loc
 		return nil
 	}
 	seen := map[string]bool{}
+	joins := map[string]bool{}
 	var restrictions []ProtectedRelation
 	schemas := c.Store.Registry.All()
 	var visit func(models.Record) error
@@ -145,7 +157,14 @@ func (c DeleteCollector) collect(ctx context.Context, roots []models.Record, loc
 				if err != nil {
 					return err
 				}
-				children, err := c.records(ctx, schema, Q(field.Name, value), lock, maximum+1)
+				reader := c
+				automatic := c.Store.Registry.IsAutomatic(schema.Key())
+				if automatic {
+					// The exact FK to this scoped deletion endpoint is the trusted
+					// join scope. Synthetic tables do not have tenant columns.
+					reader.Scope = nil
+				}
+				children, err := reader.records(ctx, schema, Q(field.Name, value), lock, maximum+1)
 				if err != nil {
 					return err
 				}
@@ -155,6 +174,17 @@ func (c DeleteCollector) collect(ctx context.Context, roots []models.Record, loc
 				for _, child := range children {
 					if err := track(child); err != nil {
 						return err
+					}
+					if automatic {
+						id, err := recordIdentity(child)
+						if err != nil {
+							return err
+						}
+						if !joins[id] {
+							joins[id] = true
+							plan.JoinRemovals = append(plan.JoinRemovals, JoinRemoval{Record: child, Endpoint: record, Field: field.Name})
+						}
+						continue
 					}
 					switch field.Relation.OnDelete {
 					case models.Cascade:
@@ -199,6 +229,9 @@ func (c DeleteCollector) collect(ctx context.Context, roots []models.Record, loc
 		}
 		if root == nil {
 			return plan, errors.New("orm: nil delete root")
+		}
+		if c.Store.Registry.IsAutomatic(root.Schema().Key()) {
+			return plan, errors.New("orm: automatic intermediaries require a scoped deletion endpoint")
 		}
 		if root.State().Database != "" && root.State().Database != c.Store.Backend.Alias() {
 			return plan, errors.New("orm: cross-database deletion rejected")
@@ -376,6 +409,11 @@ func (c DeleteCollector) execute(ctx context.Context, roots []models.Record) (ma
 				return err
 			}
 		}
+		for _, join := range plan.JoinRemovals {
+			if err := c.removeJoin(ctx, join); err != nil {
+				return err
+			}
+		}
 		for _, record := range plan.Objects {
 			if err := c.mutate(ctx, record, "", nil); err != nil {
 				return err
@@ -456,6 +494,38 @@ func (c DeleteCollector) mutate(ctx context.Context, record models.Record, field
 		return ErrNotUpdated
 	}
 	return nil
+}
+
+func (c DeleteCollector) removeJoin(ctx context.Context, join JoinRemoval) error {
+	if !c.Store.Registry.IsAutomatic(join.Record.Schema().Key()) {
+		return errors.New("orm: untrusted automatic intermediary")
+	}
+	endpointPK, err := recordPK(join.Endpoint)
+	if err != nil {
+		return err
+	}
+	endpoints, err := c.records(ctx, join.Endpoint.Schema(), endpointPK, true, 2)
+	if err != nil {
+		return err
+	}
+	if len(endpoints) != 1 {
+		return ErrNotUpdated
+	}
+	field, ok := join.Record.Schema().Field(join.Field)
+	if !ok || field.Relation == nil || field.Relation.Target != join.Endpoint.Schema().Key() {
+		return errors.New("orm: intermediary endpoint mismatch")
+	}
+	target, err := relationTargetField(join.Endpoint.Schema(), field)
+	if err != nil {
+		return err
+	}
+	value, err := endpoints[0].Get(target.Name)
+	if err != nil {
+		return err
+	}
+	reader := c
+	reader.Scope = func(context.Context, models.Schema) (db.Predicate, error) { return Q(field.Name, value), nil }
+	return reader.mutate(ctx, join.Record, "", nil)
 }
 
 func (s *Store) Delete(ctx context.Context, model models.Model) (map[string]int64, error) {

@@ -6,24 +6,86 @@ import (
 	"fmt"
 	"github.com/Newton-School/gogo/core/db"
 	"github.com/Newton-School/gogo/core/models"
+	"sort"
 	"strconv"
 	"strings"
 )
 
 type SchemaEditor struct {
-	Dialect Dialect
-	schemas map[string]models.Schema
+	Dialect  Dialect
+	schemas  map[string]models.Schema
+	deferred map[string]models.Schema
+	dropped  map[string]bool
 }
 
 func (e SchemaEditor) WithSchemas(schemas []models.Schema) (db.SchemaEditor, error) {
 	e.schemas = map[string]models.Schema{}
+	e.deferred = map[string]models.Schema{}
+	e.dropped = map[string]bool{}
 	for _, schema := range schemas {
 		if err := schema.Validate(); err != nil {
 			return nil, err
 		}
 		e.schemas[schema.Key()] = schema.Clone()
 	}
+	for _, source := range schemas {
+		for _, field := range source.Fields {
+			if field.Kind != models.ManyToMany || field.Relation == nil || field.Relation.Through != "" {
+				continue
+			}
+			target, ok := e.schemas[field.Relation.Target]
+			if !ok {
+				return nil, errors.New("postgres: historical many-to-many target schema missing")
+			}
+			through, err := models.ImplicitThrough(source, field, target)
+			if err != nil {
+				return nil, err
+			}
+			if existing, ok := e.schemas[through.Key()]; ok && (existing.AutoCreatedBy != source.Key() || existing.AutoCreatedField != field.Name) {
+				return nil, errors.New("postgres: intermediary schema collision")
+			}
+			e.schemas[through.Key()] = through
+		}
+	}
 	return e, nil
+}
+
+// FlushDeferred creates automatic intermediary tables after all ordinary tables
+// in this migration, including targets declared after their referring model.
+func (e SchemaEditor) FlushDeferred(ctx context.Context, executor db.Executor) error {
+	keys := make([]string, 0, len(e.deferred))
+	for key := range e.deferred {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	for _, key := range keys {
+		if err := e.CreateModel(ctx, executor, e.deferred[key]); err != nil {
+			return err
+		}
+		delete(e.deferred, key)
+	}
+	return nil
+}
+func (e SchemaEditor) queueThrough(source models.Schema, field models.Field) error {
+	if field.Relation == nil {
+		return errors.New("postgres: many-to-many metadata missing")
+	}
+	if field.Relation.Through != "" {
+		return nil
+	}
+	if e.deferred == nil {
+		return errors.New("postgres: automatic intermediary requires WithSchemas and FlushDeferred")
+	}
+	target, ok := e.schemas[field.Relation.Target]
+	if !ok {
+		return errors.New("postgres: historical many-to-many target schema missing")
+	}
+	through, err := models.ImplicitThrough(source, field, target)
+	if err != nil {
+		return err
+	}
+	e.deferred[through.Key()] = through
+	return nil
 }
 
 func (e SchemaEditor) relationTarget(field models.Field) (models.Schema, models.Field, error) {
@@ -113,6 +175,13 @@ func (e SchemaEditor) CreateModel(ctx context.Context, executor db.Executor, sch
 	}
 	if err := schema.Validate(); err != nil {
 		return err
+	}
+	for _, field := range schema.Fields {
+		if field.Kind == models.ManyToMany {
+			if err := e.queueThrough(schema, field); err != nil {
+				return err
+			}
+		}
 	}
 	table, err := e.Dialect.QuoteIdentifier(schema.DBTable())
 	if err != nil {
@@ -204,6 +273,27 @@ func (e SchemaEditor) constraint(schema models.Schema, constraint models.Constra
 	return sql, nil
 }
 func (e SchemaEditor) DeleteModel(ctx context.Context, executor db.Executor, schema models.Schema) error {
+	if schema.Unmanaged || schema.Proxy || schema.Abstract {
+		return nil
+	}
+	keys := []string{}
+	for key, through := range e.schemas {
+		if through.AutoCreatedBy == "" {
+			continue
+		}
+		for _, field := range through.Fields {
+			if field.Relation != nil && field.Relation.Target == schema.Key() {
+				keys = append(keys, key)
+				break
+			}
+		}
+	}
+	sort.Strings(keys)
+	for _, key := range keys {
+		if err := e.dropThrough(ctx, executor, e.schemas[key]); err != nil {
+			return err
+		}
+	}
 	table, err := e.Dialect.QuoteIdentifier(schema.DBTable())
 	if err != nil {
 		return err
@@ -211,7 +301,30 @@ func (e SchemaEditor) DeleteModel(ctx context.Context, executor db.Executor, sch
 	_, err = executor.Exec(ctx, "DROP TABLE "+table)
 	return err
 }
+func (e SchemaEditor) dropThrough(ctx context.Context, executor db.Executor, through models.Schema) error {
+	if e.dropped[through.Key()] {
+		return nil
+	}
+	if _, pending := e.deferred[through.Key()]; pending {
+		delete(e.deferred, through.Key())
+		return nil
+	}
+	table, err := e.Dialect.QuoteIdentifier(through.DBTable())
+	if err != nil {
+		return err
+	}
+	if _, err := executor.Exec(ctx, "DROP TABLE "+table); err != nil {
+		return err
+	}
+	if e.dropped != nil {
+		e.dropped[through.Key()] = true
+	}
+	return nil
+}
 func (e SchemaEditor) AddField(ctx context.Context, executor db.Executor, schema models.Schema, field models.Field) error {
+	if field.Kind == models.ManyToMany {
+		return e.queueThrough(schema, field)
+	}
 	table, err := e.Dialect.QuoteIdentifier(schema.DBTable())
 	if err != nil {
 		return err
@@ -224,6 +337,23 @@ func (e SchemaEditor) AddField(ctx context.Context, executor db.Executor, schema
 	return err
 }
 func (e SchemaEditor) RemoveField(ctx context.Context, executor db.Executor, schema models.Schema, field models.Field) error {
+	if field.Kind == models.ManyToMany {
+		if field.Relation == nil {
+			return errors.New("postgres: many-to-many metadata missing")
+		}
+		if field.Relation.Through != "" {
+			return nil
+		}
+		target, ok := e.schemas[field.Relation.Target]
+		if !ok {
+			return errors.New("postgres: historical many-to-many target schema missing")
+		}
+		through, err := models.ImplicitThrough(schema, field, target)
+		if err != nil {
+			return err
+		}
+		return e.dropThrough(ctx, executor, through)
+	}
 	table, err := e.Dialect.QuoteIdentifier(schema.DBTable())
 	if err != nil {
 		return err

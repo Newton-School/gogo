@@ -267,6 +267,11 @@ func (e *Executor) Apply(ctx context.Context, target string) (err error) {
 					return err
 				}
 			}
+			if editor, ok := migrationEngine.Editor.(db.DeferredSchemaEditor); ok {
+				if err := editor.FlushDeferred(txCtx, executor); err != nil {
+					return err
+				}
+			}
 			_, err := executor.Exec(txCtx, "INSERT INTO gogo_migrations (app,name,checksum) VALUES ("+e.Backend.Dialect().Placeholder(1)+","+e.Backend.Dialect().Placeholder(2)+","+e.Backend.Dialect().Placeholder(3)+")", m.App, m.Name, sum)
 			return err
 		}
