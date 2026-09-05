@@ -195,3 +195,20 @@ func TestAutocompleteRejectsArbitraryTargetsAndUndeclaredFields(t *testing.T) {
 		}
 	}
 }
+
+func TestAutocompleteRejectsResolverIdentitySubstitution(t *testing.T) {
+	site, database := newTestSite(t)
+	site.config.Store = relationStore{database}
+	if err := site.Register(ModelAdmin{Schema: (&relationSource{}).Schema(), Fields: []string{"parent"}, AutocompleteFields: []string{"parent"}, ResolveRelation: func(_ context.Context, _ models.Field, ids []string) ([]any, error) {
+		// A resolver cannot approve the displayed object by returning a
+		// different identity with the same result cardinality.
+		return []any{int64(9876)}, nil
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	response := perform(site, "GET", "/admin/autocomplete/?app_label=shop&model_name=editor&field_name=parent&term=Public", principal(), nil, nil)
+	var result struct{ Results []struct{ ID, Text string } }
+	if response.Code != 200 || json.Unmarshal(response.Body.Bytes(), &result) != nil || len(result.Results) != 0 || strings.Contains(response.Body.String(), "Public record") {
+		t.Fatal("resolver substitution disclosed a mismatched choice", response.Code, response.Body.String())
+	}
+}

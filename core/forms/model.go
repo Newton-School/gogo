@@ -213,6 +213,28 @@ func (m *ModelForm) validateModel(form *Form) error {
 	return nil
 }
 func (m *ModelForm) Instance() models.Record { return m.record }
+
+// CheckRelations repeats the scoped resolver and rejects changed identities.
+// Use the final write transaction's context when a custom save pipeline owns it.
+func (m *ModelForm) CheckRelations(ctx context.Context) error {
+	if ctx == nil || !m.IsValid() || !m.prepared {
+		return errors.New("forms: valid model form and transaction context required")
+	}
+	return m.recheckRelations(ctx)
+}
+
+// CleanedRelations returns the validated many-to-many values. Persistence must
+// still call CheckRelations and re-scope these identities within its transaction.
+func (m *ModelForm) CleanedRelations() (map[string][]any, error) {
+	if !m.IsValid() || !m.prepared {
+		return nil, errors.New("forms: cannot read invalid model relations")
+	}
+	result := map[string][]any{}
+	for name, values := range m.relations {
+		result[name] = append([]any(nil), values...)
+	}
+	return result, nil
+}
 func (m *ModelForm) Save(commit bool) (models.Record, error) {
 	if !m.IsValid() || !m.prepared {
 		return nil, errors.New("forms: cannot save invalid model form")

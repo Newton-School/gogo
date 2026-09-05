@@ -52,6 +52,21 @@ type ScopedStore interface {
 	Atomic(context.Context, func(context.Context) error) error
 }
 
+// RelationStore keeps automatic many-to-many form effects in the same parent
+// transaction. InitialRelations returns only visible target primary keys.
+// SaveRelations must preserve hidden links, scope all endpoints, and authorize
+// the freshly locked final effect before mutation. Explicit through models use
+// separately registered ModelAdmins/inlines, never an implicit form operation.
+type RelationStore interface {
+	InitialRelations(context.Context, Object, []string) (map[string][]any, error)
+	SaveRelations(context.Context, Object, map[string][]any, func(context.Context, RelationChange) error) error
+}
+type RelationChange struct {
+	Field          string
+	Source         Object
+	Added, Removed []Object
+}
+
 type Deletion struct {
 	Objects      []Object
 	Updates      []RelatedUpdate

@@ -447,6 +447,11 @@ func (s *Site) form(w http.ResponseWriter, r *http.Request, p auth.Principal, op
 	if !canChange {
 		readonly = append(readonly, options.Fields...)
 	}
+	relationInitial, err := s.formRelations(r.Context(), p, options, object, store, readonly)
+	if err != nil {
+		s.failure(w, r, err)
+		return
+	}
 	makeForm := func(ctx context.Context, obj Object, bound bool) (*forms.ModelForm, error) {
 		currentReadonly := append([]string(nil), options.ReadonlyFields...)
 		if options.GetReadonlyFields != nil {
@@ -456,6 +461,11 @@ func (s *Site) form(w http.ResponseWriter, r *http.Request, p auth.Principal, op
 			currentReadonly = append(currentReadonly, options.Fields...)
 		}
 		opts := []forms.Option{}
+		initial := map[string]any{}
+		for name, values := range relationInitial {
+			initial[name] = values
+		}
+		opts = append(opts, forms.WithInitial(initial))
 		if bound {
 			opts = append(opts, forms.WithData(r.PostForm))
 			if r.MultipartForm != nil {
@@ -465,6 +475,32 @@ func (s *Site) form(w http.ResponseWriter, r *http.Request, p auth.Principal, op
 		overrides, err := s.relationOverrides(ctx, options, obj)
 		if err != nil {
 			return nil, err
+		}
+		if overrides == nil {
+			overrides = map[string]forms.Field{}
+		}
+		for name, values := range relationInitial {
+			field, ok := overrides[name]
+			if !ok {
+				metadata, _ := options.Schema.Field(name)
+				field, err = forms.FieldFromModel(metadata)
+				if err != nil {
+					return nil, err
+				}
+			}
+			if !slices.Contains(options.AutocompleteFields, name) && len(field.Choices) == 0 {
+				field.Choices, err = s.relationChoices(ctx, p, options, name)
+				if err != nil {
+					return nil, err
+				}
+			}
+			for _, value := range values {
+				id := fmt.Sprint(value)
+				if !slices.ContainsFunc(field.Choices, func(choice forms.Choice) bool { return choice.Value == id }) {
+					field.Choices = append(field.Choices, forms.Choice{Value: id, Label: id})
+				}
+			}
+			overrides[name] = field
 		}
 		return forms.NewModelForm(ctx, obj.Record, forms.ModelFormOptions{Fields: options.Fields, Exclude: options.Exclude, Readonly: currentReadonly, Overrides: overrides, ResolveRelation: options.ResolveRelation, Checker: options.ConstraintChecker}, opts...)
 	}
@@ -501,9 +537,29 @@ func (s *Site) form(w http.ResponseWriter, r *http.Request, p auth.Principal, op
 			if err := s.checkToken(r.PostForm.Get("_edit_token"), p, options, object, action); err != nil {
 				return err
 			}
+			currentReadonly := append([]string(nil), options.ReadonlyFields...)
+			if options.GetReadonlyFields != nil {
+				currentReadonly = append(currentReadonly, options.GetReadonlyFields(ctx, object)...)
+			}
+			relationInitial, err = s.formRelations(ctx, p, options, object, store, currentReadonly)
+			if err != nil {
+				return err
+			}
+			if len(relationInitial) > 0 {
+				relationObject, err := relationVersion(object, relationInitial)
+				if err != nil {
+					return err
+				}
+				if err := s.checkToken(r.PostForm.Get("_relation_token"), p, options, relationObject, "relations:"+action); err != nil {
+					return err
+				}
+			}
 			before, snapshotErr := snapshot(options, object)
 			if snapshotErr != nil {
 				return snapshotErr
+			}
+			if err := addRelationSnapshot(before, options, relationInitial); err != nil {
+				return err
 			}
 			var err error
 			modelForm, err = makeForm(ctx, object, true)
@@ -526,6 +582,9 @@ func (s *Site) form(w http.ResponseWriter, r *http.Request, p auth.Principal, op
 			if err != nil {
 				return err
 			}
+			if err = s.saveFormRelations(ctx, p, options, store, object, action, modelForm); err != nil {
+				return err
+			}
 			if err = s.saveInlines(ctx, p, object, inlines); err != nil {
 				return err
 			}
@@ -537,6 +596,13 @@ func (s *Site) form(w http.ResponseWriter, r *http.Request, p auth.Principal, op
 			after, snapshotErr := snapshot(options, object)
 			if snapshotErr != nil {
 				return snapshotErr
+			}
+			relationAfter, err := s.formRelations(ctx, p, options, object, store, currentReadonly)
+			if err != nil {
+				return err
+			}
+			if err = addRelationSnapshot(after, options, relationAfter); err != nil {
+				return err
 			}
 			return store.Audit(ctx, LogEntry{ActorID: p.ID, Site: s.config.Name, Model: options.Schema.Key(), ObjectID: object.ID, ObjectLabel: object.Label, Action: action, Changes: diff(before, after), At: time.Now().UTC()})
 		})
@@ -590,6 +656,19 @@ func (s *Site) form(w http.ResponseWriter, r *http.Request, p auth.Principal, op
 		s.failure(w, r, err)
 		return
 	}
+	relationToken := ""
+	if len(relationInitial) > 0 {
+		relationObject, err := relationVersion(object, relationInitial)
+		if err != nil {
+			s.failure(w, r, err)
+			return
+		}
+		relationToken, err = s.token(p, options, relationObject, "relations:"+action)
+		if err != nil {
+			s.failure(w, r, err)
+			return
+		}
+	}
 	readonlyValues := []any{}
 	for _, name := range readonly {
 		if len(options.Fieldsets) > 0 {
@@ -609,7 +688,7 @@ func (s *Site) form(w http.ResponseWriter, r *http.Request, p auth.Principal, op
 	if invalidForm {
 		status = 400
 	}
-	s.render(w, r, p, "form.html", templates.Context{"title": title, "form": formHTML, "inlines": inlineHTML, "readonly": readonlyValues, "edit_token": token, "can_change": canChange, "can_add": s.allowed(r.Context(), p, "add", options, Object{}) == nil, "can_delete": id != "" && s.allowed(r.Context(), p, "delete", options, object) == nil, "delete_url": s.modelURL(options) + url.PathEscape(id) + "/delete/", "history_url": s.modelURL(options) + url.PathEscape(id) + "/history/", "has_object": id != ""}, status)
+	s.render(w, r, p, "form.html", templates.Context{"title": title, "form": formHTML, "inlines": inlineHTML, "readonly": readonlyValues, "edit_token": token, "relation_token": relationToken, "can_change": canChange, "can_add": s.allowed(r.Context(), p, "add", options, Object{}) == nil, "can_delete": id != "" && s.allowed(r.Context(), p, "delete", options, object) == nil, "delete_url": s.modelURL(options) + url.PathEscape(id) + "/delete/", "history_url": s.modelURL(options) + url.PathEscape(id) + "/history/", "has_object": id != ""}, status)
 }
 
 var errInvalidForm = errors.New("invalid form")
@@ -628,9 +707,7 @@ func snapshot(options ModelAdmin, object Object) (map[string]any, error) {
 		if !field.IsStored() {
 			continue
 		}
-		name := strings.ToLower(field.Name)
-		sensitive := slices.Contains(options.SensitiveFields, field.Name) || strings.Contains(name, "password") || strings.Contains(name, "secret") || strings.Contains(name, "token")
-		if sensitive {
+		if sensitiveField(options, field.Name) {
 			continue
 		}
 		value, err := object.Record.Get(field.Name)
@@ -650,6 +727,11 @@ func snapshot(options ModelAdmin, object Object) (map[string]any, error) {
 		values[field.Name] = copy
 	}
 	return values, nil
+}
+
+func sensitiveField(options ModelAdmin, field string) bool {
+	name := strings.ToLower(field)
+	return slices.Contains(options.SensitiveFields, field) || strings.Contains(name, "password") || strings.Contains(name, "secret") || strings.Contains(name, "token")
 }
 func diff(before, after map[string]any) map[string]Change {
 	result := map[string]Change{}

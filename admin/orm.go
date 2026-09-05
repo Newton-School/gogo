@@ -170,10 +170,40 @@ func (s *ormScoped) Save(ctx context.Context, object Object) (Object, error) {
 		return Object{}, errors.New("admin: typed model is required")
 	}
 	options := orm.SaveOptions{ForceInsert: !object.Record.State().Persisted, ForceUpdate: object.Record.State().Persisted}
+	options.Guard = func(ctx context.Context, record models.Record) error {
+		if record.Schema().Key() != s.schema.Key() {
+			return auth.ErrPermissionDenied
+		}
+		current, err := objectFromRecord(record)
+		if err != nil {
+			return err
+		}
+		if options.ForceUpdate && (object.ID == "" || current.ID != object.ID) {
+			return auth.ErrPermissionDenied
+		}
+		return s.owner.config.ValidateWrite(ctx, s.principal, record)
+	}
 	if err := s.owner.config.Store.Save(ctx, model, options); err != nil {
 		return Object{}, err
 	}
-	return objectFromRecord(object.Record)
+	written, err := objectFromRecord(object.Record)
+	if err != nil {
+		return Object{}, err
+	}
+	if options.ForceUpdate && written.ID != object.ID {
+		return Object{}, auth.ErrPermissionDenied
+	}
+	current, err := s.Get(ctx, written.ID, true)
+	if errors.Is(err, ErrNotFound) {
+		return Object{}, auth.ErrPermissionDenied
+	}
+	if err != nil {
+		return Object{}, err
+	}
+	if err = s.owner.config.ValidateWrite(ctx, s.principal, current.Record); err != nil {
+		return Object{}, err
+	}
+	return current, nil
 }
 func (s *ormScoped) Delete(ctx context.Context, object Object) error {
 	return s.DeleteAuthorized(ctx, object, func(context.Context, Deletion) error { return nil })

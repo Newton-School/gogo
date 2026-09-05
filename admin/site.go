@@ -200,6 +200,14 @@ func (s *Site) Register(options ModelAdmin) error {
 		}
 	}
 	displays := map[string]bool{}
+	for _, name := range options.Fields {
+		field, _ := options.Schema.Field(name)
+		if field.Kind == models.ManyToMany && !slices.Contains(options.ReadonlyFields, name) && !slices.Contains(options.Exclude, name) {
+			if field.Relation == nil || field.Relation.Through != "" || options.ResolveRelation == nil {
+				return errors.New("admin: automatic many-to-many forms require a scoped resolver; explicit through models use inlines")
+			}
+		}
+	}
 	for _, name := range options.ListDisplayLinks {
 		if !slices.Contains(options.ListDisplay, name) {
 			return errors.New("admin: list links must be displayed columns")
@@ -210,8 +218,8 @@ func (s *Site) Register(options ModelAdmin) error {
 		if !ok || field.Relation == nil || !field.IsEditable() || !slices.Contains(options.Fields, name) || slices.Contains(options.Exclude, name) || options.ResolveRelation == nil {
 			return errors.New("admin: relation widgets require an editable declared relation and scoped resolver")
 		}
-		if field.Kind == models.ManyToMany {
-			return errors.New("admin: built-in relation widgets currently require scalar relations")
+		if field.Kind == models.ManyToMany && (field.Relation.Through != "" || slices.Contains(options.RawIDFields, name)) {
+			return errors.New("admin: many-to-many raw-ID and explicit-through widgets require a custom form")
 		}
 		if slices.Contains(options.AutocompleteFields, name) && slices.Contains(options.RawIDFields, name) {
 			return errors.New("admin: relation widget modes are mutually exclusive")

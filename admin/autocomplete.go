@@ -144,7 +144,7 @@ func (s *Site) autocomplete(w http.ResponseWriter, r *http.Request, p auth.Princ
 				return
 			}
 			resolved, err := source.ResolveRelation(r.Context(), field, []string{id})
-			if err != nil || len(resolved) != 1 {
+			if err != nil || len(resolved) != 1 || !sameChoiceIdentity(id, resolved[0], true) {
 				continue
 			}
 			eligible++
@@ -187,6 +187,9 @@ func (s *Site) autocomplete(w http.ResponseWriter, r *http.Request, p auth.Princ
 
 func relationChoiceID(field models.Field, object Object) (string, error) {
 	keys := field.Relation.TargetFields
+	if field.Kind == models.ManyToMany {
+		keys = nil
+	}
 	if len(keys) == 0 {
 		for _, pk := range object.Record.Schema().PKFields() {
 			keys = append(keys, pk.Name)

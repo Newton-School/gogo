@@ -3,7 +3,8 @@
 // Suggestions are a convenience only. Posted IDs are revalidated by the scoped
 // server resolver; labels from lookup JSON are never treated as HTML.
 for (const input of document.querySelectorAll("input[data-relation-url]")) {
-  const choices = document.getElementById(input.getAttribute("list"));
+  const multiple = Boolean(input.dataset.choiceTarget);
+  const choices = document.getElementById(multiple ? input.dataset.choiceTarget : input.getAttribute("list"));
   const status = document.getElementById(`${input.id}_lookup_status`);
   if (!choices || !status) continue;
   let timer;
@@ -13,7 +14,8 @@ for (const input of document.querySelectorAll("input[data-relation-url]")) {
     clearTimeout(timer);
     controller?.abort();
     const current = ++generation;
-    choices.replaceChildren();
+    const selected = multiple ? Array.from(choices.options).filter(option => option.selected) : [];
+    choices.replaceChildren(...selected);
     const term = input.value.trim();
     if (!term) { status.textContent = "Type to search, or enter a related object ID."; return; }
     if (term.length > 256) { status.textContent = "Enter a shorter search."; return; }
@@ -41,7 +43,9 @@ for (const input of document.querySelectorAll("input[data-relation-url]")) {
           options.push(option);
         }
         if (current !== generation) return;
-        choices.replaceChildren(...options);
+        const currentSelections = multiple ? Array.from(choices.options).filter(option => option.selected) : [];
+        const selectedIDs = new Set(currentSelections.map(option => option.value));
+        choices.replaceChildren(...currentSelections, ...options.filter(option => !selectedIDs.has(option.value)));
         status.textContent = options.length ? `${options.length} suggestions available.${payload.pagination?.more ? " Refine your search for more results." : ""}` : "No matching choices. You may enter a known related object ID.";
       } catch (error) {
         if (current !== generation || error.name === "AbortError") return;
