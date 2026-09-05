@@ -25,6 +25,8 @@ func (q Query[T]) WithScope(scope QueryScope) Query[T] { q = q.clone(); q.scope 
 
 // SelectRelated joins explicit to-one paths in the root SQL statement. Calling
 // it with no paths clears selected joins; collections require PrefetchRelated.
+// Reverse SQL paths use RelatedQueryName (then RelatedName, then the lower-case
+// model name). RelatedOne keeps the instance's separate accessor/cache name.
 func (q Query[T]) SelectRelated(paths ...string) Query[T] {
 	q = q.clone()
 	q.relatedPaths = append([]string(nil), paths...)
@@ -101,12 +103,23 @@ func (q Query[T]) prepareRelated(ctx context.Context) (Query[T], error) {
 			if err != nil {
 				return q, err
 			}
-			binding, err := (RelationManager{Store: q.store, Source: prototype, Name: name}).resolve()
+			binding, err := (RelationManager{Store: q.store, Source: prototype, Name: name}).resolveQuery()
 			if err != nil {
 				return q, err
 			}
 			if binding.through != nil || binding.reverse && binding.field.Kind != models.OneToOne {
 				return q, errors.New("orm: SelectRelated supports to-one paths only")
+			}
+			cacheName := name
+			if binding.reverse {
+				cacheName = reverseAccessorName(binding.target, binding.field)
+				if strings.HasSuffix(cacheName, "+") {
+					return q, errors.New("orm: SelectRelated requires a visible relation accessor")
+				}
+				accessor, err := (RelationManager{Store: q.store, Source: prototype, Name: cacheName}).resolve()
+				if err != nil || !accessor.reverse || accessor.target.Key() != binding.target.Key() || accessor.field.Name != binding.field.Name {
+					return q, errors.New("orm: SelectRelated requires an unambiguous instance accessor")
+				}
 			}
 			// Repeating a schema is valid for a finite, explicit self/reverse
 			// path. Each path owns a distinct join alias; the segment bound
@@ -150,7 +163,7 @@ func (q Query[T]) prepareRelated(ctx context.Context) (Query[T], error) {
 					return q, err
 				}
 			}
-			node := joinedRelation{path: currentPath, parent: parent, name: name, schema: binding.target, offset: len(q.selectAST.Fields)}
+			node := joinedRelation{path: currentPath, parent: parent, name: cacheName, schema: binding.target, offset: len(q.selectAST.Fields)}
 			for _, field := range binding.target.Fields {
 				if field.IsStored() {
 					node.fields = append(node.fields, field.Name)

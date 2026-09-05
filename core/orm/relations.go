@@ -37,13 +37,36 @@ type relationBinding struct {
 }
 
 func (m RelationManager) resolve() (relationBinding, error) {
+	return m.resolveName(false)
+}
+
+// Query paths and instance accessors have distinct reverse namespaces. Never
+// accept an accessor as a fallback for an explicitly different query name.
+func (m RelationManager) resolveQuery() (relationBinding, error) {
+	return m.resolveName(true)
+}
+
+func reverseAccessorName(schema models.Schema, field models.Field) string {
+	if field.Relation.RelatedName != "" {
+		return field.Relation.RelatedName
+	}
+	if field.Kind == models.OneToOne {
+		return strings.ToLower(schema.Name)
+	}
+	return strings.ToLower(schema.Name) + "_set"
+}
+
+func (m RelationManager) resolveName(query bool) (relationBinding, error) {
 	if m.Store == nil || m.Store.Backend == nil || m.Store.Registry == nil || m.Source == nil {
 		return relationBinding{}, errors.New("orm: relation manager requires backend, source and complete registry")
 	}
 	if m.Source.State().Database != "" && m.Source.State().Database != m.Store.Backend.Alias() {
 		return relationBinding{}, errors.New("orm: cross-database relation rejected")
 	}
-	if field, ok := m.Source.Schema().Field(m.Name); ok && field.Relation != nil {
+	if field, ok := m.Source.Schema().Field(m.Name); ok {
+		if field.Relation == nil {
+			return relationBinding{}, errors.New("orm: stored field is not a relation")
+		}
 		target, ok := m.Store.Registry.Get(field.Relation.Target)
 		if !ok {
 			return relationBinding{}, errors.New("orm: unknown relation target")
@@ -63,12 +86,20 @@ func (m RelationManager) resolve() (relationBinding, error) {
 			if field.Kind == models.ManyToMany && schema.Key() == field.Relation.Target && (field.Relation.Symmetrical == nil || *field.Relation.Symmetrical) {
 				continue
 			}
-			name := field.Relation.RelatedName
-			if name == "+" {
+			hidden := strings.HasSuffix(field.Relation.RelatedName, "+")
+			if hidden && (!query || field.Relation.RelatedQueryName == "") {
 				continue
 			}
-			if name == "" {
-				name = strings.ToLower(schema.Name) + "_set"
+			name := reverseAccessorName(schema, field)
+			if query {
+				switch {
+				case field.Relation.RelatedQueryName != "":
+					name = field.Relation.RelatedQueryName
+				case field.Relation.RelatedName != "":
+					name = field.Relation.RelatedName
+				default:
+					name = strings.ToLower(schema.Name)
+				}
 			}
 			if name == m.Name {
 				if found != nil {

@@ -81,9 +81,14 @@ type Codec interface {
 	Decode(any) (any, error)
 }
 type Relation struct {
-	Target           string
-	TargetFields     []string
-	RelatedName      string
+	Target       string
+	TargetFields []string
+	// RelatedName names the reverse instance accessor; a '+' suffix hides it.
+	// Empty defaults to lower-case source model + "_set" for FK/M2M, and to
+	// the lower-case source model without a suffix for one-to-one relations.
+	RelatedName string
+	// RelatedQueryName names reverse SQL traversal. If empty, query paths use
+	// RelatedName, or the lower-case source model name when both are empty.
 	RelatedQueryName string
 	OnDelete         DeletePolicy
 	Through          string

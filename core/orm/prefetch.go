@@ -94,7 +94,11 @@ func (q Query[T]) allPrefetched(ctx context.Context) ([]T, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := validateSelectedPrefetches(nodes, q.relatedPaths); err != nil {
+	q, err = q.prepareRelated(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if err := validateSelectedPrefetches(nodes, q.joined); err != nil {
 		return nil, err
 	}
 	maximum := q.eagerLimit
@@ -229,25 +233,27 @@ func mergePrefetchNodes(existing, added []*prefetchNode) ([]*prefetchNode, error
 	return existing, nil
 }
 
-func validateSelectedPrefetches(nodes []*prefetchNode, selected []string) error {
+func validateSelectedPrefetches(nodes []*prefetchNode, selected []joinedRelation) error {
 	paths := map[string]bool{}
-	for _, path := range selected {
-		parts := strings.Split(path, "__")
-		for i := range parts {
-			paths[strings.Join(parts[:i+1], "__")] = true
+	cachePaths := map[string]string{"": ""}
+	for _, node := range selected {
+		path := node.name
+		if parent := cachePaths[node.parent]; parent != "" {
+			path = parent + "__" + path
 		}
+		cachePaths[node.path] = path
+		paths[path] = true
 	}
 	var visit func([]*prefetchNode, string) error
 	visit = func(nodes []*prefetchNode, parent string) error {
 		for _, node := range nodes {
-			if node.attr != node.name {
-				continue // ToAttr loads separate instances; their caches do not overlap.
-			}
-			path := node.name
+			// ToAttr is a destination cache name, not proof of independence:
+			// another relation's selected accessor may already own this name.
+			path := node.attr
 			if parent != "" {
 				path = parent + "__" + path
 			}
-			if paths[path] && (!reflect.DeepEqual(node.where, db.Predicate{}) || len(node.order) > 0) {
+			if paths[path] && (node.attr != node.name || !reflect.DeepEqual(node.where, db.Predicate{}) || len(node.order) > 0) {
 				return errors.New("orm: custom prefetch conflicts with SelectRelated; use a separate ToAttr")
 			}
 			if err := visit(node.children, path); err != nil {

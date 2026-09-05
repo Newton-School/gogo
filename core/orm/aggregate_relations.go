@@ -62,7 +62,7 @@ func (q Query[T]) prepareAggregateRelations(ctx context.Context) (Query[T], erro
 			if err != nil {
 				return q, err
 			}
-			binding, err := (RelationManager{Store: q.store, Source: prototype, Name: component}).resolve()
+			binding, err := (RelationManager{Store: q.store, Source: prototype, Name: component}).resolveQuery()
 			if err != nil {
 				return q, err
 			}
