@@ -26,35 +26,16 @@ func (c *Compiler) field(name string) (string, error) {
 	if name == "*" {
 		return "*", nil
 	}
-	f, alias, err := c.modelField(name)
+	reference, err := c.resolveField(name)
 	if err != nil {
 		return "", err
 	}
-	column, err := c.Dialect.QuoteIdentifier(f.DBColumn())
-	if err != nil || alias == "" {
-		return column, err
-	}
-	qualifier, err := c.Dialect.QuoteIdentifier(alias)
-	if err != nil {
-		return "", err
-	}
-	return qualifier + "." + column, nil
+	return c.referenceSQL(reference, false)
 }
 
 func (c *Compiler) modelField(name string) (models.Field, string, error) {
-	schema, alias := c.Schema, c.Alias
-	if position := strings.LastIndex(name, "__"); position >= 0 {
-		join, ok := c.Joins[name[:position]]
-		if !ok {
-			return models.Field{}, "", fmt.Errorf("orm: unresolved relation path %s", name[:position])
-		}
-		schema, alias, name = join.Schema, join.Alias, name[position+2:]
-	}
-	f, ok := schema.Field(name)
-	if !ok {
-		return models.Field{}, "", fmt.Errorf("orm: unknown field %s", name)
-	}
-	return f, alias, nil
+	reference, err := c.resolveField(name)
+	return reference.field, reference.alias, err
 }
 func (c *Compiler) Predicate(p db.Predicate) (string, error) {
 	if len(p.Children) > 0 {
@@ -93,16 +74,13 @@ func (c *Compiler) Predicate(p db.Predicate) (string, error) {
 	if p.Field == "" && p.Expression == nil {
 		return "", nil
 	}
-	field, err := c.field(p.Field)
-	if p.Expression != nil {
-		field, err = c.Expression(*p.Expression)
-	}
-	if err != nil {
-		return "", err
-	}
 	lookup := p.Lookup
 	if lookup == "" {
 		lookup = "exact"
+	}
+	field, err := c.predicateSQL(p, lookup)
+	if err != nil {
+		return "", err
 	}
 	metadata, hasMetadata := c.predicateField(p)
 	if hasMetadata && metadata.Kind == models.JSON && isJSONLookup(lookup) {
@@ -120,8 +98,11 @@ func (c *Compiler) Predicate(p db.Predicate) (string, error) {
 	// JSON null. SQL NULL remains an explicit isnull lookup. In particular the
 	// Go string "null" must compare with a JSON string, not a JSON null scalar.
 	// Value expressions retain their explicitly declared SQL semantics.
-	if lookup == "exact" {
+	if lookup == "exact" || lookup == "gt" || lookup == "gte" || lookup == "lt" || lookup == "lte" {
 		if hasMetadata && metadata.Kind == models.JSON {
+			if p.Value == nil && lookup != "exact" {
+				return "", errors.New("orm: NULL requires exact/isnull")
+			}
 			if _, expression := p.Value.(db.Expression); !expression {
 				p.Value, err = jsonLookupValue(metadata, p.Value)
 				if err != nil {
@@ -224,6 +205,12 @@ func (c *Compiler) Expression(e db.Expression) (string, error) {
 		return "", &db.Error{Code: db.UnsupportedFeature, Message: "FILTER requires an aggregate expression"}
 	}
 	switch e.Kind {
+	case "json_path", "json_text_path":
+		reference, err := c.jsonPathReference(e)
+		if err != nil {
+			return "", err
+		}
+		return c.referenceSQL(reference, e.Kind == "json_text_path")
 	case "field":
 		return c.field(e.Name)
 	case "value":

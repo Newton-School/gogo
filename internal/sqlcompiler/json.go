@@ -15,6 +15,10 @@ import (
 func (c *Compiler) predicateField(p db.Predicate) (models.Field, bool) {
 	name := p.Field
 	if p.Expression != nil {
+		if p.Expression.Kind == "json_path" {
+			reference, err := c.jsonPathReference(*p.Expression)
+			return reference.field, err == nil
+		}
 		name = ""
 		if p.Expression.Kind == "field" {
 			name = p.Expression.Name

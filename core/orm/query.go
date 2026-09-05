@@ -383,6 +383,14 @@ func (q Query[T]) Values(ctx context.Context, fields ...string) ([]map[string]an
 	if len(fields) > 0 {
 		q.selectAST.Fields = append([]string(nil), fields...)
 	}
+	outputs := make([]models.Field, len(q.selectAST.Fields))
+	for i, name := range q.selectAST.Fields {
+		var err error
+		outputs[i], err = sqlcompiler.OutputField(q.schema, name)
+		if err != nil {
+			return nil, err
+		}
+	}
 	statement, args, err := q.SQLContext(ctx)
 	if err != nil {
 		return nil, err
@@ -404,11 +412,7 @@ func (q Query[T]) Values(ctx context.Context, fields ...string) ([]map[string]an
 		}
 		record := map[string]any{}
 		for i, name := range q.selectAST.Fields {
-			field, ok := q.schema.Field(name)
-			if !ok {
-				return nil, fmt.Errorf("orm: unknown values field %s", name)
-			}
-			value, err := decodeField(field, values[i])
+			value, err := decodeField(outputs[i], values[i])
 			if err != nil {
 				return nil, err
 			}
