@@ -195,3 +195,59 @@ func TestObserverPanicDoesNotUndoCommittedResult(t *testing.T) {
 		t.Fatal(out, reported, err)
 	}
 }
+
+func TestWorkflowInputRejectionFinishesWithoutPoisoningRelay(t *testing.T) {
+	ctx := context.Background()
+	registry := async.NewRegistry()
+	first, err := async.Register(registry, "test.source", 1, func(context.Context, async.TaskContext, int) (int, error) { return 99, nil }, async.TaskOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	called := false
+	next, err := async.Register(registry, "test.validated", 1, func(context.Context, async.TaskContext, int) (int, error) { called = true; return 1, nil }, async.TaskOptions{ValidatePayload: func(raw json.RawMessage) error {
+		if string(raw) != "0" {
+			return errors.New("private validation detail")
+		}
+		return nil
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, err := async.Register(registry, "test.validated_body", 1, func(context.Context, async.TaskContext, []int) (int, error) { called = true; return 1, nil }, async.TaskOptions{ValidatePayload: func(raw json.RawMessage) error {
+		if string(raw) != "null" {
+			return async.ErrInvalid
+		}
+		return nil
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	backend := fakes.NewMemory()
+	client, err := async.NewClient(async.ClientConfig{Registry: registry, Broker: backend, Results: backend, Workflows: backend})
+	if err != nil {
+		t.Fatal(err)
+	}
+	worker := &async.Worker{Registry: registry, Broker: backend, Results: backend, ID: "worker"}
+	source, _ := first.Signature(0)
+	successor, _ := next.Signature(0)
+	callback, _ := body.Signature(nil)
+	chord, _ := async.Chord(async.Group(source), callback)
+	for _, canvas := range []async.Canvas{async.Chain(source, successor), chord} {
+		result, err := client.ApplyCanvas(ctx, canvas)
+		if err != nil {
+			t.Fatal(err)
+		}
+		drain(t, client, worker, backend)
+		graph, err := result.Snapshot(ctx)
+		if err != nil || graph.State != async.Failed || graph.Failure == nil {
+			t.Fatal(graph, err)
+		}
+	}
+	if called {
+		t.Fatal("invalid bound input reached a handler")
+	}
+	intents, err := backend.ListIntents(ctx, 100)
+	if err != nil || len(intents) != 0 {
+		t.Fatal("validation failure left a permanently pending relay intent", intents, err)
+	}
+}

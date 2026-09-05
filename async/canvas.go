@@ -201,14 +201,18 @@ func (c *Client) advance(graph Graph) (Graph, []Intent, error) {
 			}
 			s, err := graph.Signatures[graph.Next].bind(completed.Output)
 			if err != nil {
-				return graph, nil, err
+				graph.Failure = &Failure{Code: "CHAIN_INPUT", Message: "A chain successor could not accept the previous result"}
+				return finish(Failed, nil)
 			}
 			d, err := c.config.Registry.lookup(s.Task, s.Version)
 			if err != nil {
 				return graph, nil, err
 			}
 			if err := d.validate(s.Args); err != nil {
-				return graph, nil, err
+				graph.Children[graph.Next].Args = s.Args
+				intent := dispatchIntent(graph.ID, graph.Children[graph.Next])
+				intent.Kind = "fail"
+				return graph, []Intent{intent}, nil
 			}
 			graph.Children[graph.Next].Args = s.Args
 			return graph, []Intent{dispatchIntent(graph.ID, graph.Children[graph.Next])}, nil
@@ -250,12 +254,14 @@ func (c *Client) advance(graph Graph) (Graph, []Intent, error) {
 	if graph.Kind == "chord" {
 		s, err := graph.Callback.bind(combined)
 		if err != nil {
-			return graph, nil, err
+			graph.Failure = &Failure{Code: "CHORD_INPUT", Message: "The chord callback could not accept member results"}
+			return finish(Failed, nil)
 		}
 		s = s.Set(WithID(graph.CallbackID))
 		e, err := c.prepare(s)
 		if err != nil {
-			return graph, nil, err
+			graph.Failure = &Failure{Code: "CHORD_INPUT", Message: "The chord callback could not accept member results"}
+			return finish(Failed, nil)
 		}
 		e.WorkflowID = graph.ID
 		e.RootID = graph.ID

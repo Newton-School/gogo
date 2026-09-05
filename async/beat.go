@@ -278,6 +278,9 @@ func (b *Beat) Tick(ctx context.Context) error {
 			}
 			e.CreatedAt = now
 			e.RootID = id
+			if err := b.Client.authorize(ctx, "enqueue", e.Scope, id); err != nil {
+				return err
+			}
 			intents = append(intents, dispatchIntent(schedule.ID, e))
 			lastID = id
 			if schedule.Misfire != "catchup" || next.After(now) || occurrence+1 >= schedule.CatchUpLimit {
