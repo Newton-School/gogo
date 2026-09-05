@@ -10,6 +10,9 @@ type Expression struct {
 	Value    any
 	Args     []Expression
 	Distinct bool
+	// Filter is a row predicate for an aggregate expression, not a HAVING
+	// predicate. Unsupported dialects must reject it before execution.
+	Filter *Predicate
 }
 type Predicate struct {
 	Field, Lookup string

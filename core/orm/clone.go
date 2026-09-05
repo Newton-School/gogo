@@ -22,6 +22,10 @@ func clonePredicate(value db.Predicate) db.Predicate {
 }
 func cloneExpression(value db.Expression) db.Expression {
 	value.Value = cloneQueryValue(value.Value)
+	if value.Filter != nil {
+		predicate := clonePredicate(*value.Filter)
+		value.Filter = &predicate
+	}
 	value.Args = append([]db.Expression(nil), value.Args...)
 	for i := range value.Args {
 		value.Args[i] = cloneExpression(value.Args[i])

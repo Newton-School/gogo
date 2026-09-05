@@ -9,6 +9,8 @@ import (
 
 type Dialect struct{ Capabilities db.Capabilities }
 
+func (d Dialect) SupportsFeature(feature string) bool { return d.Capabilities[feature] }
+
 func (Dialect) Name() string { return "postgres" }
 func (Dialect) QuoteIdentifier(name string) (string, error) {
 	if !models.ValidIdentifier(name) {

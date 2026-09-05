@@ -52,6 +52,12 @@ type Dialect interface {
 	Placeholder(int) string
 	FieldType(models.Field) (string, error)
 }
+
+// FeatureDialect advertises optional SQL syntax without coupling the private
+// compiler to a concrete connector name. Unknown capabilities fail closed.
+type FeatureDialect interface {
+	SupportsFeature(string) bool
+}
 type Backend interface {
 	Executor
 	Alias() string

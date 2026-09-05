@@ -185,6 +185,9 @@ func (c *Compiler) Predicate(p db.Predicate) (string, error) {
 	return result, nil
 }
 func (c *Compiler) Expression(e db.Expression) (string, error) {
+	if e.Filter != nil && (e.Kind != "function" || !IsAggregateFunction(e.Name)) {
+		return "", &db.Error{Code: db.UnsupportedFeature, Message: "FILTER requires an aggregate expression"}
+	}
 	switch e.Kind {
 	case "field":
 		return c.field(e.Name)
@@ -223,15 +226,40 @@ func (c *Compiler) Expression(e db.Expression) (string, error) {
 		if e.Distinct {
 			prefix = "DISTINCT "
 		}
-		return name + "(" + prefix + strings.Join(args, ", ") + ")", nil
+		result := name + "(" + prefix + strings.Join(args, ", ") + ")"
+		if e.Filter != nil {
+			features, advertised := c.Dialect.(db.FeatureDialect)
+			if !IsAggregateFunction(name) || !advertised || !features.SupportsFeature("filtered_aggregates") {
+				return "", &db.Error{Code: db.UnsupportedFeature, Message: "Filtered aggregate is not supported by this expression or dialect"}
+			}
+			filter, err := c.Predicate(*e.Filter)
+			if err != nil {
+				return "", err
+			}
+			if filter != "" {
+				result += " FILTER (WHERE " + filter + ")"
+			}
+		}
+		return result, nil
 	}
 	return "", errors.New("orm: unknown expression kind")
 }
 
 var functions = map[string]bool{}
 
+func IsAggregateFunction(name string) bool {
+	switch strings.ToUpper(name) {
+	case "AVG", "COUNT", "MIN", "MAX", "SUM", "STDDEV", "STDDEV_POP", "STDDEV_SAMP", "VARIANCE", "VAR_POP", "VAR_SAMP":
+		return true
+	}
+	return false
+}
+
 func init() {
 	for _, name := range strings.Fields("AVG COUNT MIN MAX SUM STDDEV VARIANCE ABS ACOS ASIN ATAN ATAN2 CEIL COS COT DEGREES EXP FLOOR LN LOG MOD PI POWER RADIANS RANDOM ROUND SIGN SIN SQRT TAN CHR CONCAT LEFT LENGTH LOWER LPAD LTRIM MD5 ASCII REPEAT REPLACE REVERSE RIGHT RPAD RTRIM STRPOS SUBSTR TRIM UPPER COALESCE GREATEST LEAST NULLIF JSON_BUILD_OBJECT JSON_BUILD_ARRAY NOW ROW_NUMBER RANK DENSE_RANK PERCENT_RANK CUME_DIST NTILE LAG LEAD FIRST_VALUE LAST_VALUE NTH_VALUE") {
+		functions[name] = true
+	}
+	for _, name := range []string{"STDDEV_POP", "STDDEV_SAMP", "VAR_POP", "VAR_SAMP"} {
 		functions[name] = true
 	}
 }

@@ -42,3 +42,29 @@ func TestSelectProjectionNestedJoinAndRootArgumentsFollowSQLOrder(t *testing.T) 
 		}
 	}
 }
+
+type advertisedDialect struct {
+	numberedDialect
+	filter bool
+}
+
+func (advertisedDialect) Name() string { return "third_party" }
+func (d advertisedDialect) SupportsFeature(feature string) bool {
+	return feature == "filtered_aggregates" && d.filter
+}
+
+func TestFilteredAggregateUsesPublicCapabilityNotProviderName(t *testing.T) {
+	schema := models.Schema{AppLabel: "tests", Name: "Node", Fields: []models.Field{models.BigAutoField("id"), models.IntegerField("tenant")}}
+	predicate := db.Predicate{Field: "tenant", Value: 7}
+	expression := db.Expression{Kind: "function", Name: "COUNT", Args: []db.Expression{{Kind: "field", Name: "*"}}, Filter: &predicate}
+	query := db.Select{Table: schema.DBTable(), Projections: []db.Projection{{Expression: expression, Alias: "count"}}}
+	for _, dialect := range []db.Dialect{numberedDialect{}, advertisedDialect{filter: false}} {
+		if _, _, err := Select(dialect, schema, query); !db.IsCode(err, db.UnsupportedFeature) {
+			t.Fatal("unadvertised capability accepted", err)
+		}
+	}
+	statement, args, err := Select(advertisedDialect{filter: true}, schema, query)
+	if err != nil || !strings.Contains(statement, `COUNT(*) FILTER (WHERE "tenant" = $1)`) || !reflect.DeepEqual(args, []any{7}) {
+		t.Fatal(statement, args, err)
+	}
+}
