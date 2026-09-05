@@ -15,6 +15,9 @@ import (
 func (c *Compiler) predicateField(p db.Predicate) (models.Field, bool) {
 	name := p.Field
 	if p.Expression != nil {
+		if p.Expression.Kind == "cast" && p.Expression.Output != nil {
+			return *p.Expression.Output, true
+		}
 		if p.Expression.Kind == "json_path" {
 			reference, err := c.jsonPathReference(*p.Expression)
 			return reference.field, err == nil

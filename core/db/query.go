@@ -10,6 +10,9 @@ type Expression struct {
 	Value    any
 	Args     []Expression
 	Distinct bool
+	// Output declares a schema type for conversion expressions. It is metadata,
+	// never a caller-provided SQL type fragment; only the dialect supplies SQL.
+	Output *models.Field
 	// Filter is a row predicate for an aggregate expression, not a HAVING
 	// predicate. Unsupported dialects must reject it before execution.
 	Filter *Predicate

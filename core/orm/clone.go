@@ -5,6 +5,7 @@ import (
 	"encoding"
 	"encoding/json"
 	"github.com/Newton-School/gogo/core/db"
+	"github.com/Newton-School/gogo/core/models"
 	"reflect"
 )
 
@@ -22,6 +23,10 @@ func clonePredicate(value db.Predicate) db.Predicate {
 }
 func cloneExpression(value db.Expression) db.Expression {
 	value.Value = cloneQueryValue(value.Value)
+	if value.Output != nil {
+		copy := cloneQueryValue(*value.Output).(models.Field)
+		value.Output = &copy
+	}
 	if value.Filter != nil {
 		predicate := clonePredicate(*value.Filter)
 		value.Filter = &predicate
