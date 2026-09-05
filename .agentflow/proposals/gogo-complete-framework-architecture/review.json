@@ -1,6 +1,81 @@
 {
-  "comments": [],
-  "currentVersion": 1,
+  "comments": [
+    {
+      "createdAt": "2026-09-05T13:14:10Z",
+      "history": [
+        {
+          "action": "added",
+          "at": "2026-09-05T13:14:10Z"
+        },
+        {
+          "action": "resolved",
+          "at": "2026-09-05T13:18:24Z",
+          "resolution": "Revised models.validate and orm.save for explicit aggregate FullClean, ordinary update-to-insert fallback, forced-update PK checks, per-operation field preprocessing, signal timing and state updates after owned commit. Reconciled upsert/bulk/catalog/test rows. Independent bounded recheck passed."
+        }
+      ],
+      "id": "comment-a9ebf98a06ec4270",
+      "message": "Preflight audit of the requested Django behavior: ordinary Save must not run FullClean/Clean; distinguish ordinary UPDATE-to-INSERT fallback from forced updates and preserve Django save signal/transaction timing. Reconcile explicit validation, upsert/bulk consumers, catalogs and verification.",
+      "proposalVersion": 1,
+      "resolution": "Revised models.validate and orm.save for explicit aggregate FullClean, ordinary update-to-insert fallback, forced-update PK checks, per-operation field preprocessing, signal timing and state updates after owned commit. Reconciled upsert/bulk/catalog/test rows. Independent bounded recheck passed.",
+      "resolvedAt": "2026-09-05T13:18:24Z",
+      "status": "resolved",
+      "target": {
+        "kind": "page",
+        "pageId": "orm.save"
+      }
+    },
+    {
+      "createdAt": "2026-09-05T13:14:10Z",
+      "history": [
+        {
+          "action": "added",
+          "at": "2026-09-05T13:14:10Z"
+        },
+        {
+          "action": "resolved",
+          "at": "2026-09-05T13:18:24Z",
+          "resolution": "Admin binds only declared editable fields and ignores extra readonly values without writing them. Object and inline identity checks remain enforced. Forms/Admin catalogs and verification agree; independent recheck passed."
+        }
+      ],
+      "id": "comment-8ed97464d0474d71",
+      "message": "Preflight audit of the requested Django Admin behavior: readonly fields are excluded from ModelForm binding; extra readonly POST values are ignored rather than rejected merely for being present. Keep object/inline ownership and writable-field authorization checks.",
+      "proposalVersion": 1,
+      "resolution": "Admin binds only declared editable fields and ignores extra readonly values without writing them. Object and inline identity checks remain enforced. Forms/Admin catalogs and verification agree; independent recheck passed.",
+      "resolvedAt": "2026-09-05T13:18:24Z",
+      "status": "resolved",
+      "target": {
+        "elementId": "bind",
+        "elementType": "node",
+        "kind": "page",
+        "pageId": "admin.save"
+      }
+    },
+    {
+      "createdAt": "2026-09-05T13:14:10Z",
+      "history": [
+        {
+          "action": "added",
+          "at": "2026-09-05T13:14:10Z"
+        },
+        {
+          "action": "resolved",
+          "at": "2026-09-05T13:18:24Z",
+          "resolution": "Retry defaults now use three retries after the initial execution, fixed 180-second delay, opt-in exponential backoff with 600-second cap and optional jitter. AutoRetryFor defaults empty; transport delivery count separate. Updated envelope/state/config/verification and independent recheck passed."
+        }
+      ],
+      "id": "comment-9669318c7c134a3b",
+      "message": "Preflight audit of the requested Celery behavior: default max_retries is three retries after the initial execution, ordinary Retry delay is 180 seconds, exponential backoff is opt-in with 600-second default cap, and AutoRetryFor is empty by default. Distinguish application retries from transport redelivery and update connected config/envelope/tests.",
+      "proposalVersion": 1,
+      "resolution": "Retry defaults now use three retries after the initial execution, fixed 180-second delay, opt-in exponential backoff with 600-second cap and optional jitter. AutoRetryFor defaults empty; transport delivery count separate. Updated envelope/state/config/verification and independent recheck passed.",
+      "resolvedAt": "2026-09-05T13:18:24Z",
+      "status": "resolved",
+      "target": {
+        "kind": "page",
+        "pageId": "async.retry"
+      }
+    }
+  ],
+  "currentVersion": 2,
   "history": [
     {
       "action": "created",
@@ -22,10 +97,57 @@
       "action": "submitted",
       "at": "2026-09-05T12:49:11Z",
       "version": 1
+    },
+    {
+      "action": "comment-added",
+      "at": "2026-09-05T13:14:10Z",
+      "commentId": "comment-a9ebf98a06ec4270"
+    },
+    {
+      "action": "comment-added",
+      "at": "2026-09-05T13:14:10Z",
+      "commentId": "comment-8ed97464d0474d71"
+    },
+    {
+      "action": "comment-added",
+      "at": "2026-09-05T13:14:10Z",
+      "commentId": "comment-9669318c7c134a3b"
+    },
+    {
+      "action": "revised",
+      "at": "2026-09-05T13:14:10Z"
+    },
+    {
+      "action": "revised",
+      "at": "2026-09-05T13:15:23Z"
+    },
+    {
+      "action": "revised",
+      "at": "2026-09-05T13:16:40Z"
+    },
+    {
+      "action": "comment-resolved",
+      "at": "2026-09-05T13:18:24Z",
+      "commentId": "comment-a9ebf98a06ec4270"
+    },
+    {
+      "action": "comment-resolved",
+      "at": "2026-09-05T13:18:24Z",
+      "commentId": "comment-8ed97464d0474d71"
+    },
+    {
+      "action": "comment-resolved",
+      "at": "2026-09-05T13:18:24Z",
+      "commentId": "comment-9669318c7c134a3b"
+    },
+    {
+      "action": "submitted",
+      "at": "2026-09-05T13:18:24Z",
+      "version": 2
     }
   ],
   "proposalId": "gogo-complete-framework-architecture",
   "schemaVersion": 3,
   "status": "under_review",
-  "submittedHash": "e6cab37a6bc7889498dd9a79e9395d59485503981335015a8d1a12e0cdf6ca77"
+  "submittedHash": "5a76119b925a9f2baf400f106aea7dc3eb6e9d3fd33fbb7033af38bad14fc7fa"
 }

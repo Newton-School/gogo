@@ -3004,17 +3004,17 @@
             "id": "features",
             "label": "Included features",
             "value": "clean; full validation; unique constraints; null vs blank; validation errors"
+          },
+          {
+            "id": "parity-reference",
+            "label": "Reference behavior checked in semantic preflight",
+            "value": "https://docs.djangoproject.com/en/6.0/ref/models/instances/#validating-objects"
           }
         ],
         "edges": [
           {
             "from": "entry",
-            "id": "entry-to-coerce",
-            "to": "coerce"
-          },
-          {
-            "from": "coerce",
-            "id": "coerce-to-fields",
+            "id": "entry-to-fields",
             "to": "fields"
           },
           {
@@ -3024,33 +3024,70 @@
           },
           {
             "from": "model",
-            "id": "model-to-valid",
-            "to": "valid"
+            "id": "model-to-unique-enabled",
+            "to": "unique-enabled"
           },
           {
-            "from": "valid",
-            "id": "valid-to-valid-rejected",
-            "label": "No",
-            "style": "error",
-            "to": "valid-rejected"
-          },
-          {
-            "from": "valid",
-            "id": "valid-to-unique",
-            "label": "Yes",
+            "from": "unique-enabled",
+            "id": "unique-enabled-to-unique",
+            "label": "Enabled",
             "to": "unique"
           },
           {
-            "from": "unique",
-            "id": "unique-to-done",
-            "to": "done"
+            "from": "unique-enabled",
+            "id": "unique-enabled-to-constraints-enabled",
+            "label": "Disabled",
+            "to": "constraints-enabled"
           },
           {
             "from": "unique",
-            "id": "unique-to-backend-failed",
-            "label": "Operation fails",
+            "id": "unique-to-constraints-enabled",
+            "label": "Check completed",
+            "to": "constraints-enabled"
+          },
+          {
+            "from": "unique",
+            "id": "unique-to-unavailable",
+            "label": "Backend failed",
             "style": "error",
-            "to": "backend-failed"
+            "to": "unavailable"
+          },
+          {
+            "from": "constraints-enabled",
+            "id": "constraints-enabled-to-constraints",
+            "label": "Enabled",
+            "to": "constraints"
+          },
+          {
+            "from": "constraints-enabled",
+            "id": "constraints-enabled-to-valid",
+            "label": "Disabled",
+            "to": "valid"
+          },
+          {
+            "from": "constraints",
+            "id": "constraints-to-valid",
+            "label": "Check completed",
+            "to": "valid"
+          },
+          {
+            "from": "constraints",
+            "id": "constraints-to-unavailable",
+            "label": "Backend failed",
+            "style": "error",
+            "to": "unavailable"
+          },
+          {
+            "from": "valid",
+            "id": "valid-to-done",
+            "label": "No errors",
+            "to": "done"
+          },
+          {
+            "from": "valid",
+            "id": "valid-to-errors",
+            "label": "Any errors",
+            "to": "errors"
           }
         ],
         "id": "models.validate",
@@ -3060,61 +3097,73 @@
         "nodes": [
           {
             "id": "entry",
-            "subtitle": "Model.Validate(ctx); Save validates by default",
-            "title": "Validate typed model data",
+            "subtitle": "FullClean(ctx, exclude, validateUnique=true, validateConstraints=true); never implicitly invoked by ordinary Save",
+            "title": "Explicitly validate a model instance",
             "type": "api"
           },
           {
-            "id": "coerce",
-            "subtitle": "Distinguish missing, null, empty and zero; decimal precision and timezone rules",
-            "title": "Normalize supplied values",
-            "type": "action"
-          },
-          {
             "id": "fields",
-            "subtitle": "Required/null/blank, range, choice, format and custom validators",
-            "title": "Run field validators",
+            "subtitle": "Field validators and conversions; errors accumulate by field without early return",
+            "title": "Clean nonexcluded fields and collect errors",
             "type": "action"
           },
           {
             "id": "model",
-            "subtitle": "Model.Clean; stable errors indexed by public field name",
-            "title": "Run cross-field model validation",
+            "subtitle": "Model-wide cleaning runs even when field errors already exist",
+            "title": "Run Model.Clean and merge model errors",
             "type": "action"
           },
           {
-            "id": "valid",
-            "subtitle": "Collect field and non-field errors",
-            "title": "All local constraints valid?",
+            "id": "unique-enabled",
+            "subtitle": "Exclude explicitly excluded fields and fields already carrying validation errors",
+            "title": "Are uniqueness checks enabled?",
             "type": "decision"
           },
           {
-            "id": "valid-rejected",
-            "subtitle": "No SQL write or post-save event",
-            "title": "Return field errors",
-            "type": "error"
-          },
-          {
             "id": "unique",
-            "subtitle": "Preflight only; database constraints remain race authority",
-            "title": "Check declared uniqueness when requested",
+            "subtitle": "Advisory lookup; database constraint remains race authority",
+            "title": "Check eligible unique rules",
             "type": "database"
           },
           {
+            "id": "constraints-enabled",
+            "subtitle": "Use updated error exclusions; skip disabled constraints stage only",
+            "title": "Are constraint checks enabled?",
+            "type": "decision"
+          },
+          {
+            "id": "constraints",
+            "subtitle": "Merge constraint errors into the same collection; no persistence",
+            "title": "Validate eligible model constraints",
+            "type": "database"
+          },
+          {
+            "id": "valid",
+            "subtitle": "Aggregate field and nonfield errors after the full validation pipeline",
+            "title": "Did all enabled stages produce no errors?",
+            "type": "decision"
+          },
+          {
             "id": "done",
-            "subtitle": "No persistence performed by Validate; Save still handles DB constraint errors",
-            "title": "Return normalized validated instance",
+            "subtitle": "Caller separately persists; ModelForm supplies its field exclusions",
+            "title": "Return cleaned instance values",
             "type": "terminal"
           },
           {
-            "id": "backend-failed",
-            "subtitle": "Do not convert an unavailable uniqueness query into success",
-            "title": "Return validation backend failure",
+            "id": "errors",
+            "subtitle": "No partial early-return error collection and no SQL writes",
+            "title": "Return complete ValidationError mapping",
+            "type": "error"
+          },
+          {
+            "id": "unavailable",
+            "subtitle": "Retain local error context; failed uniqueness/constraint query is not validation success",
+            "title": "Return validation backend unavailable",
             "type": "error"
           }
         ],
         "schemaVersion": 3,
-        "summary": "Proposed behavior. Owned by core/models.Validate; core/forms; core/api; select nodes for technical details.",
+        "summary": "Proposed Django FullClean ordering and error accumulation, with explicit switches and excluded fields. This is validation, not Save.",
         "title": "Validate an instance before persistence",
         "type": "flow"
       }
@@ -3454,127 +3503,222 @@
             "id": "features",
             "label": "Included features",
             "value": "insert; update; force create/update; generated fields; save hooks; refresh_from_db; update_fields"
+          },
+          {
+            "id": "parity-reference",
+            "label": "Reference behavior checked in semantic preflight",
+            "value": "https://docs.djangoproject.com/en/6.0/ref/models/instances/"
           }
         ],
         "edges": [
           {
             "from": "entry",
-            "id": "edge-1",
+            "id": "entry-to-validate",
             "to": "validate"
           },
           {
             "from": "validate",
-            "id": "edge-2",
-            "to": "valid"
+            "id": "validate-to-empty",
+            "label": "Options valid",
+            "to": "empty"
           },
           {
-            "from": "valid",
-            "id": "edge-3",
-            "label": "No",
-            "to": "invalid"
-          },
-          {
-            "from": "valid",
-            "id": "edge-4",
-            "label": "Yes",
-            "to": "begin"
-          },
-          {
-            "from": "begin",
-            "id": "edge-5",
-            "to": "write"
-          },
-          {
-            "from": "begin",
-            "id": "edge-6",
-            "label": "Cannot begin",
+            "from": "validate",
+            "id": "validate-to-preerror",
+            "label": "Invalid options",
             "style": "error",
-            "to": "failed-begin"
+            "to": "preerror"
+          },
+          {
+            "from": "empty",
+            "id": "empty-to-noop",
+            "label": "Empty set",
+            "to": "noop"
+          },
+          {
+            "from": "empty",
+            "id": "empty-to-presave",
+            "label": "Nil or nonempty",
+            "to": "presave"
+          },
+          {
+            "from": "presave",
+            "id": "presave-to-boundary",
+            "label": "Prepared",
+            "to": "boundary"
+          },
+          {
+            "from": "presave",
+            "id": "presave-to-preerror",
+            "label": "Receiver/codec error",
+            "style": "error",
+            "to": "preerror"
+          },
+          {
+            "from": "boundary",
+            "id": "boundary-to-mode",
+            "to": "preparepk"
+          },
+          {
+            "from": "mode",
+            "id": "mode-to-insert",
+            "label": "Insert mode",
+            "to": "insertfields"
+          },
+          {
+            "from": "mode",
+            "id": "mode-to-write",
+            "label": "Update first",
+            "to": "updatefields"
           },
           {
             "from": "write",
-            "id": "edge-7",
+            "id": "write-to-rows",
+            "label": "Statement completed",
             "to": "rows"
           },
           {
             "from": "write",
-            "id": "edge-8",
-            "label": "Write failed",
+            "id": "write-to-dberror",
+            "label": "DB error",
             "style": "error",
-            "to": "rollback"
+            "to": "dberror"
           },
           {
             "from": "rows",
-            "id": "edge-9",
-            "label": "Zero/unexpected rows",
-            "style": "error",
-            "to": "rollback"
-          },
-          {
-            "from": "rows",
-            "id": "edge-10",
-            "label": "Expected row",
-            "to": "hooks"
-          },
-          {
-            "from": "hooks",
-            "id": "edge-11",
-            "label": "Hook failed",
-            "style": "error",
-            "to": "rollback"
-          },
-          {
-            "from": "rollback",
-            "id": "edge-12",
-            "to": "failed-rollback"
-          },
-          {
-            "from": "hooks",
-            "id": "edge-13",
-            "label": "Hooks passed",
+            "id": "rows-to-state",
+            "label": "Updated",
             "to": "owned"
           },
           {
-            "from": "owned",
-            "id": "edge-14",
-            "label": "Nested",
-            "to": "release"
+            "from": "rows",
+            "id": "rows-to-forced",
+            "label": "No row updated",
+            "to": "forced"
           },
           {
-            "from": "release",
-            "id": "edge-15",
-            "to": "pending"
+            "from": "forced",
+            "id": "forced-to-notupdated",
+            "label": "Forced",
+            "to": "notupdated"
           },
           {
-            "from": "release",
-            "id": "edge-16",
-            "label": "Release failed",
+            "from": "forced",
+            "id": "forced-to-insert",
+            "label": "Ordinary save",
+            "to": "insertfields"
+          },
+          {
+            "from": "insert",
+            "id": "insert-to-state",
+            "label": "Inserted",
+            "to": "owned"
+          },
+          {
+            "from": "insert",
+            "id": "insert-to-dberror",
+            "label": "DB error",
             "style": "error",
-            "to": "failed-release"
+            "to": "dberror"
+          },
+          {
+            "from": "state",
+            "id": "state-to-owned",
+            "to": "hooks"
           },
           {
             "from": "owned",
-            "id": "edge-17",
-            "label": "Owned",
+            "id": "owned-to-commit",
+            "label": "Owned multi-table block",
             "to": "commit"
           },
           {
+            "from": "owned",
+            "id": "owned-to-hooks",
+            "label": "Autocommit or caller transaction",
+            "to": "state"
+          },
+          {
             "from": "commit",
-            "id": "edge-18",
-            "label": "Commit outcome unknown",
+            "id": "commit-to-hooks",
+            "label": "Confirmed",
+            "to": "state"
+          },
+          {
+            "from": "commit",
+            "id": "commit-to-dberror",
+            "label": "Commit failed/unknown",
             "style": "error",
-            "to": "uncertain"
+            "to": "dberror"
           },
           {
-            "from": "commit",
-            "id": "edge-19",
-            "label": "Commit confirmed",
-            "to": "callbacks"
+            "from": "hooks",
+            "id": "hooks-to-outer",
+            "label": "Receivers succeeded",
+            "to": "outer"
           },
           {
-            "from": "callbacks",
-            "id": "edge-20",
+            "from": "hooks",
+            "id": "hooks-to-posterror",
+            "label": "Receiver error",
+            "style": "error",
+            "to": "posterror"
+          },
+          {
+            "from": "outer",
+            "id": "outer-to-pending",
+            "label": "Caller transaction active",
+            "to": "pending"
+          },
+          {
+            "from": "outer",
+            "id": "outer-to-done",
+            "label": "No caller transaction",
             "to": "done"
+          },
+          {
+            "from": "preparepk",
+            "id": "preparepk-to-pkvalid",
+            "to": "pkvalid"
+          },
+          {
+            "from": "pkvalid",
+            "id": "pkvalid-to-mode",
+            "label": "PK set or UPDATE not forced",
+            "to": "mode"
+          },
+          {
+            "from": "pkvalid",
+            "id": "pkvalid-to-pkerror",
+            "label": "Forced UPDATE without PK",
+            "style": "error",
+            "to": "pkerror"
+          },
+          {
+            "from": "updatefields",
+            "id": "updatefields-to-write",
+            "label": "Prepared",
+            "to": "write"
+          },
+          {
+            "from": "updatefields",
+            "id": "updatefields-to-dberror",
+            "label": "Preparation failed",
+            "style": "error",
+            "to": "dberror"
+          },
+          {
+            "from": "insertfields",
+            "id": "insertfields-to-insert",
+            "label": "Prepared",
+            "to": "insert"
+          },
+          {
+            "from": "insertfields",
+            "id": "insertfields-to-dberror",
+            "label": "Preparation failed",
+            "style": "error",
+            "to": "dberror"
           }
         ],
         "id": "orm.save",
@@ -3584,128 +3728,169 @@
         "nodes": [
           {
             "id": "entry",
-            "subtitle": "Explicit insert/update; scope and expected version supplied by caller",
-            "title": "Save a typed instance",
+            "subtitle": "Save options: force_insert, force_update, update_fields and database alias; no implicit FullClean",
+            "title": "Save a model instance",
             "type": "api"
           },
           {
             "id": "validate",
-            "subtitle": "Defaults evaluated once; immutable and update-field allowlists enforced",
-            "title": "Apply defaults and field/model validation",
+            "subtitle": "Reject incompatible force flags or invalid field names; do not run user field validators or Model.Clean",
+            "title": "Check save options and related-object safety",
             "type": "action"
           },
           {
-            "id": "valid",
-            "subtitle": "Collect field and nonfield errors",
-            "title": "Validation succeeded?",
+            "id": "empty",
+            "subtitle": "An empty set is a no-op; nil means ordinary full save",
+            "title": "Is update_fields explicitly empty?",
             "type": "decision"
           },
           {
-            "id": "invalid",
-            "subtitle": "No database mutation",
-            "title": "Return ValidationError",
-            "type": "error"
+            "id": "noop",
+            "subtitle": "A no-op does not mutate model state",
+            "title": "Return without writes or save signals",
+            "type": "terminal"
           },
           {
-            "id": "begin",
-            "subtitle": "Caller transaction preserved; BeforeSave runs within this boundary",
-            "title": "Create owned transaction or nested savepoint",
-            "type": "database"
+            "id": "presave",
+            "subtitle": "Do not preprocess fields yet; Field.PreSave add flag is selected separately for UPDATE and INSERT",
+            "title": "Send the once-per-save pre-save signal",
+            "type": "event"
+          },
+          {
+            "id": "boundary",
+            "subtitle": "Use caller transaction when present; single-table Save uses autocommit; multi-table parent/child saves use one owned atomic block",
+            "title": "Select persistence boundary",
+            "type": "action"
+          },
+          {
+            "id": "mode",
+            "subtitle": "Forced UPDATE takes precedence; otherwise force_insert/missing PK/new default-PK instance inserts; remaining saves attempt UPDATE",
+            "title": "Which persistence mode applies?",
+            "type": "decision"
           },
           {
             "id": "write",
-            "subtitle": "Generated identity/fields decoded; DB constraints enforce races",
-            "title": "Execute INSERT or UPDATE RETURNING",
+            "subtitle": "Parameter-bound non-PK fields; explicit update_fields respected; versioned resource update is a separate strict API",
+            "title": "Attempt UPDATE with existing primary key",
             "type": "database"
           },
           {
             "id": "rows",
-            "subtitle": "UPDATE must match key and optional expected version",
-            "title": "Expected row affected?",
+            "subtitle": "Force update/update_fields must never silently insert",
+            "title": "Did the update affect a row?",
             "type": "decision"
           },
           {
-            "id": "rollback",
-            "subtitle": "Discard this operation's callbacks; do not close caller transaction",
-            "title": "Roll back this boundary",
+            "id": "forced",
+            "subtitle": "Ordinary Save permits insert fallback when UPDATE matched no row",
+            "title": "Was the update explicitly forced?",
+            "type": "decision"
+          },
+          {
+            "id": "notupdated",
+            "subtitle": "Forced update affected no row; no fallback insert",
+            "title": "Return NotUpdated",
+            "type": "error"
+          },
+          {
+            "id": "insert",
+            "subtitle": "Preserve explicit PK or obtain generated PK; unique/foreign-key/check constraints still enforced by PostgreSQL",
+            "title": "Insert new row or ordinary-save fallback",
             "type": "database"
           },
           {
-            "id": "hooks",
-            "subtitle": "A hook error rolls back; no external effects in transaction hooks",
-            "title": "Run transactional AfterSave and queue OnCommit",
+            "id": "state",
+            "subtitle": "Track database alias and adding=false; created reflects insert versus update",
+            "title": "Apply returned values and set instance state",
             "type": "action"
           },
           {
             "id": "owned",
-            "subtitle": "Nested success is not durable success",
-            "title": "Did Save start the outer transaction?",
+            "subtitle": "Caller transactions remain open; ordinary single-table autocommit is already complete",
+            "title": "Did multi-table Save own an atomic block?",
             "type": "decision"
           },
           {
-            "id": "release",
-            "subtitle": "Transfer callbacks to caller; no callback executes here",
-            "title": "Release nested savepoint",
+            "id": "commit",
+            "subtitle": "No commit of caller-owned transaction; unknown commit outcome requires reconciliation",
+            "title": "Commit owned parent/child transaction",
             "type": "database"
           },
           {
-            "details": [
-              {
-                "id": "related-flows",
-                "label": "Related flow pages",
-                "value": "orm.transactions"
-              }
-            ],
+            "id": "hooks",
+            "subtitle": "Runs after owned DB boundary, or inside caller transaction; ordinary autocommit write is not undone by receiver error",
+            "title": "Send post-save signal",
+            "type": "event"
+          },
+          {
+            "id": "outer",
+            "subtitle": "OnCommit remains tied to the actual outermost database boundary",
+            "title": "Is a caller transaction still active?",
+            "type": "decision"
+          },
+          {
             "id": "pending",
-            "subtitle": "Caller may still roll back; follow orm.transactions for outer completion",
+            "subtitle": "Follow orm.transactions; post-save is not an after-commit event",
             "title": "Return instance pending caller commit",
             "type": "terminal"
           },
           {
-            "id": "commit",
-            "subtitle": "Callbacks remain pending until commit confirmed",
-            "title": "Commit owned transaction",
-            "type": "database"
-          },
-          {
-            "id": "uncertain",
-            "subtitle": "Do not retry blindly; reconcile by stable business key",
-            "title": "Report uncertain commit",
-            "type": "error"
-          },
-          {
-            "id": "callbacks",
-            "subtitle": "Failure reported separately; cannot undo persisted row",
-            "title": "Run after-commit callbacks",
-            "type": "event"
-          },
-          {
             "id": "done",
-            "subtitle": "Generated values and persisted identity",
-            "title": "Return committed instance",
+            "subtitle": "External effects require explicit idempotency/outbox when durability is needed",
+            "title": "Return saved instance",
             "type": "terminal"
           },
           {
-            "id": "failed-begin",
-            "subtitle": "Missing/stale row, constraint, hook or backend error; no success claim",
-            "title": "Return typed failure",
+            "id": "preerror",
+            "subtitle": "No SQL executed by Save; receiver's independent side effects cannot be undone",
+            "title": "Return preparation or pre-save error",
             "type": "error"
           },
           {
-            "id": "failed-rollback",
-            "subtitle": "Missing/stale row, constraint, hook or backend error; no success claim",
-            "title": "Return typed failure",
+            "id": "dberror",
+            "subtitle": "Rollback owned atomic block; propagate failure to caller transaction; uncertain autocommit/commit is not safe to blindly retry",
+            "title": "Return typed DB error with honest transaction outcome",
             "type": "error"
           },
           {
-            "id": "failed-release",
-            "subtitle": "Missing/stale row, constraint, hook or backend error; no success claim",
-            "title": "Return typed failure",
+            "id": "posterror",
+            "subtitle": "Persisted autocommit data remains; caller-owned transaction may roll back if error propagates through Atomic",
+            "title": "Return post-save receiver error",
             "type": "error"
+          },
+          {
+            "id": "preparepk",
+            "subtitle": "Evaluate configured PK default/generator if unset; database-generated identity may remain unset until INSERT",
+            "title": "Resolve primary-key value for persistence",
+            "type": "action"
+          },
+          {
+            "id": "pkvalid",
+            "subtitle": "force_update or nonempty update_fields with PK still unset is an error, never INSERT fallback",
+            "title": "Does forced UPDATE have a resolved primary key?",
+            "type": "decision"
+          },
+          {
+            "id": "pkerror",
+            "subtitle": "No UPDATE/INSERT; owned transaction unwinds; caller transaction keeps ordinary exception semantics",
+            "title": "Return invalid forced-update request",
+            "type": "error"
+          },
+          {
+            "id": "updatefields",
+            "subtitle": "Field.PreSave(add=false), then database codec; auto_now only for included update_fields; no Model.Clean",
+            "title": "Prepare selected fields for UPDATE",
+            "type": "action"
+          },
+          {
+            "id": "insertfields",
+            "subtitle": "Field.PreSave(add=true); auto_now_add applies here; UPDATE fallback must not reuse add=false-only preparation",
+            "title": "Prepare fields for INSERT or fallback INSERT",
+            "type": "action"
           }
         ],
         "schemaVersion": 3,
-        "summary": "Proposed behavior. Save owns either a transaction or a savepoint, never commits a caller's transaction, and never runs after-commit effects on nested return.",
+        "summary": "Proposed Django-compatible Save dispatch and signal timing. FullClean is explicit. Strict scoped/versioned update APIs remain available to HTTP/Admin callers without changing ordinary Save semantics.",
         "title": "Insert or update a model with transaction hooks",
         "type": "flow"
       }
@@ -3935,8 +4120,8 @@
           },
           {
             "id": "defaults",
-            "subtitle": "Evaluate callable defaults once",
-            "title": "Validate creation defaults",
+            "subtitle": "Evaluate callable defaults once; database preparation only, no implicit FullClean",
+            "title": "Prepare creation defaults",
             "type": "action"
           },
           {
@@ -3971,8 +4156,8 @@
           },
           {
             "id": "updates",
-            "subtitle": "Use existing locked row and actor scope",
-            "title": "Validate update defaults and immutable fields",
+            "subtitle": "Use locked row and explicit update fields; custom model validation only if caller requested it",
+            "title": "Prepare existing-row update defaults",
             "type": "action"
           },
           {
@@ -4124,8 +4309,8 @@
           },
           {
             "id": "validate",
-            "subtitle": "Reject duplicate input keys when result mapping would be ambiguous",
-            "title": "Validate fields and batch identity",
+            "subtitle": "Check batch identities, supported options and field mappings; no per-instance FullClean or Save hooks",
+            "title": "Validate batch API shape and prepare codecs",
             "type": "action"
           },
           {
@@ -11889,6 +12074,11 @@
             "id": "features",
             "label": "Included features",
             "value": "save_model; save_related; inlines; atomic edit; audit; save_as; save_on_top; optimistic conflict"
+          },
+          {
+            "id": "parity-reference",
+            "label": "Reference behavior checked in semantic preflight",
+            "value": "https://docs.djangoproject.com/en/6.0/ref/contrib/admin/#django.contrib.admin.ModelAdmin.readonly_fields"
           }
         ],
         "edges": [
@@ -11982,7 +12172,7 @@
           },
           {
             "id": "bind",
-            "subtitle": "Reject edits to readonly/ownership fields; no trust in hidden IDs",
+            "subtitle": "Bind only declared editable fields; ignore extra readonly values; posted object/inline IDs still require independent scope checks",
             "title": "Bind allowed fields and inline management data",
             "type": "action"
           },
@@ -13191,6 +13381,11 @@
             "id": "features",
             "label": "Included features",
             "value": "retry; autoretry; backoff; jitter; max retries; retry after; permanent errors; errbacks"
+          },
+          {
+            "id": "parity-reference",
+            "label": "Reference behavior checked in semantic preflight",
+            "value": "https://docs.celeryq.dev/en/stable/userguide/tasks.html#retrying"
           }
         ],
         "edges": [
@@ -13273,20 +13468,20 @@
           },
           {
             "id": "classify",
-            "subtitle": "Validation/auth denied permanent; task-specific retryable error allowlist",
+            "subtitle": "Retry only explicit Retry requests or configured AutoRetryFor matches; ordinary unhandled errors are terminal by default",
             "title": "Classify permanent, transient, revoked or expired",
             "type": "action"
           },
           {
             "id": "budget",
-            "subtitle": "Default max_attempts=3 total executions; honor absolute task expiry",
-            "title": "Transient failure with attempts/time remaining?",
+            "subtitle": "Default max_retries=3 after initial execution; retries starts at zero; task expiry may stop earlier; unlimited retry is explicit",
+            "title": "Retry requested with retries and lifetime remaining?",
             "type": "decision"
           },
           {
             "id": "backoff",
-            "subtitle": "Base 1s; cap 300s; explicit RetryAfter bounded by expiry",
-            "title": "Calculate full-jitter exponential due time",
+            "subtitle": "Explicit ETA/countdown wins; default retry delay 180s; backoff opt-in, base 1s, cap 600s, jitter on when backoff enabled",
+            "title": "Select explicit, fixed or optional exponential delay",
             "type": "action"
           },
           {
@@ -13297,7 +13492,7 @@
           },
           {
             "id": "intent",
-            "subtitle": "One result-local atomic write; same task ID, incremented execution attempt",
+            "subtitle": "Same task ID; atomically increment retries and persist next-dispatch intent; transport redelivery is not an application Retry",
             "title": "CAS RETRY_WAIT and next-attempt dispatch intent",
             "type": "cache"
           },
@@ -20757,7 +20952,7 @@
           },
           {
             "cells": {
-              "behavior": "Load/save hooks typed; refresh invalidates relation cache; navigation uses scoped deterministic query. Deferred fields explicit, no hidden network read on ordinary Go field access.",
+              "behavior": "FullClean/CleanFields/Clean/ValidateUnique/ValidateConstraints are explicit; ordinary Save does not invoke them. Save follows PK/state/force-option INSERT/UPDATE rules. Refresh clears relation caches; deferred fields use explicit Go accessors.",
               "family": "PK, State, Validate/Clean, Save, Delete, Refresh, FromDB, PrepareDatabaseSave, field display, next/previous/date navigation",
               "flow": "models.validate; orm.select; orm.save; orm.delete"
             },
@@ -20826,7 +21021,7 @@
           },
           {
             "cells": {
-              "contract": "Hooks and validation bypasses explicit per bulk API; constraint races mapped to typed errors.",
+              "contract": "Ordinary Save does not FullClean; forced UPDATE missing rows returns NotUpdated; ordinary save may INSERT on a missing PK row. Bulk APIs skip Save signals and model cleaning; explicit validation remains available.",
               "family": "Write and refresh",
               "flow": "orm.save; orm.upsert; orm.bulk; orm.delete",
               "items": "Create, Save, ForceInsert/ForceUpdate, UpdateFields, Update, GetOrCreate, UpdateOrCreate, BulkCreate, BulkUpdate, Delete, RefreshFromDB"
@@ -21326,7 +21521,7 @@
           },
           {
             "cells": {
-              "contract": "Disabled/readonly server values not taken from POST; invalid hidden fields included in summary; prefix prevents form collisions.",
+              "contract": "Disabled fields use trusted initial values; ModelForm readonly exclusions are not bound from POST. Ignore undeclared HTML form fields; validate management and identity inputs explicitly; invalid hidden fields appear in error summary.",
               "family": "Field and form options",
               "flow": "forms.bind; admin.form",
               "items": "required, initial, disabled, label/suffix, help_text, widget attrs, error_messages, validators, localize, prefix, auto_id, field_order, renderer, bound_field class"
@@ -21815,7 +22010,7 @@
           },
           {
             "cells": {
-              "behavior": "Server reconstructs writable set each request; posted read-only values never written; show field-level validation errors.",
+              "behavior": "Exclude readonly fields from the generated ModelForm. Extra readonly POST values are ignored, never persisted; declared editable fields still validate. Identity/inline ownership checks remain mandatory.",
               "family": "Form layout",
               "flow": "admin.form; admin.save",
               "items": "Fields, Exclude, Fieldsets/classes/descriptions, ReadonlyFields, Form, FormfieldOverrides, GetFields/GetExclude/GetFieldsets/GetReadonlyFields/GetForm"
@@ -21959,7 +22154,7 @@
           },
           {
             "cells": {
-              "contract": "protocol_version, task_id UUID, task_name, task_version, args JSON, created_at UTC, queue, attempt integer, max_attempts, trace_context allowlist. Body cap 256 KiB default.",
+              "contract": "protocol_version, task_id UUID, task_name, task_version, args JSON, created_at UTC, queue, retries starting at 0, max_retries nullable for explicit unlimited policy, trace_context allowlist. Body cap 256 KiB.",
               "field": "Protocol v1 required fields",
               "flow": "async.publish; async.worker"
             },
@@ -21983,7 +22178,7 @@
           },
           {
             "cells": {
-              "contract": "Queue default; priority 5; ignore_result false; max_attempts 3 including first execution; retry classification explicit; JSON only initially; compressed payload opt-in with decompressed cap.",
+              "contract": "max_retries=3 excludes initial execution; default_retry_delay=180s; retry_backoff=false; if enabled factor 1s, retry_backoff_max=600s and retry_jitter=true. AutoRetryFor empty by default. JSON only initially; result/routing settings explicit.",
               "field": "Task defaults",
               "flow": "async.retry; async.publish"
             },
@@ -21991,7 +22186,7 @@
           },
           {
             "cells": {
-              "contract": "ID, attempt, parent/root/workflow, deadline, cancellation, retry request, progress/update-state, headers/stamps, worker ID and lease token; no synchronous Get of own descendants.",
+              "contract": "ID, retries (initial=0), delivery attempt and lease fence separately; parent/root/workflow, deadline, cancellation, Retry, progress, headers/stamps and worker ID. Redelivery does not consume explicit retry budget.",
               "field": "TaskContext",
               "flow": "async.worker; async.results"
             },
@@ -22101,9 +22296,9 @@
           },
           {
             "cells": {
-              "effect": "Atomic result-state + next-attempt local intent; relay ensures scheduled/published successor; ack current only after this state persists.",
+              "effect": "Atomic RETRY_WAIT plus successor intent; increment retries separately from broker deliveries. Keep stable task ID; relay to schedule/broker; durable source record survives worker interruption.",
               "flow": "async.retry; async.reclaim",
-              "owner": "Handler failure classified retryable; attempts and expiry allow",
+              "owner": "Explicit Retry or configured AutoRetryFor; max_retries and lifetime permit",
               "state": "RETRY_WAIT"
             },
             "id": "retrying"
@@ -22645,17 +22840,17 @@
           {
             "cells": {
               "default": "60s; 20s; 3",
-              "effect": "Lease > 2 heartbeats; Redis-time comparison and fencing. Visibility policy must cover lease reclaim and task length.",
-              "key": "GOGO_TASK_LEASE; GOGO_TASK_HEARTBEAT; GOGO_TASK_MAX_ATTEMPTS",
+              "effect": "Lease > 2 heartbeats; Redis-time fencing. Three retries permit four handler executions through Retry; redelivery count separate. Explicit unlimited policy never enabled by default.",
+              "key": "GOGO_TASK_LEASE; GOGO_TASK_HEARTBEAT; GOGO_TASK_MAX_RETRIES",
               "required": "Worker/recovery"
             },
             "id": "lease"
           },
           {
             "cells": {
-              "default": "1s; 300s",
-              "effect": "Full-jitter exponential delay; max_attempts includes initial attempt; permanent errors not retried.",
-              "key": "GOGO_TASK_RETRY_BASE; GOGO_TASK_RETRY_MAX",
+              "default": "180s; false; 1s; 600s; true",
+              "effect": "Ordinary Retry uses fixed delay unless ETA/countdown supplied; exponential backoff opt-in. Jitter applies to enabled backoff. AutoRetryFor defaults empty; execution lease recovery is a separate policy.",
+              "key": "GOGO_TASK_RETRY_DELAY; GOGO_TASK_RETRY_BACKOFF; GOGO_TASK_RETRY_BASE; GOGO_TASK_RETRY_MAX; GOGO_TASK_RETRY_JITTER",
               "required": "Retry enabled task"
             },
             "id": "retry"
@@ -23252,6 +23447,15 @@
               "tree": "Every feature and its flow; verification matrix"
             },
             "id": "promise"
+          },
+          {
+            "cells": {
+              "area": "Pre-implementation semantic audit",
+              "source": "https://docs.djangoproject.com/en/6.0/ref/models/instances/ ; https://docs.djangoproject.com/en/6.0/ref/contrib/admin/ ; https://docs.celeryq.dev/en/stable/userguide/tasks.html",
+              "target": "This revision corrects three reviewed behavior groups: ORM save/clean, Admin readonly binding and Celery retry defaults. It is not proof that all 152 pages are behaviorally identical to the reference products. Remaining compatibility differences need audit and explicit architecture review before affected code.",
+              "tree": "Models and ORM; Admin Model editing; Async Worker execution; Verification and release"
+            },
+            "id": "audit-preflight"
           }
         ],
         "schemaVersion": 3,
@@ -23300,8 +23504,8 @@
             "cells": {
               "area": "ORM/schema",
               "evidence": "Tests for each operation catalog row; query count/assertion helper; race detector.",
-              "failure": "Invalid fields, SQL injection, unique race, constraint failure, stale version, serialization/deadlock and canceled iterator",
-              "success": "All field codecs/query operators/constraints against real PostgreSQL; roundtrip null/zero/decimal/time/composite keys"
+              "failure": "Force-update without PK; force-update precedence over new default-PK shortcut; empty update_fields no-op; update-to-insert auto_now_add preparation; commit failure leaves adding state unchanged; codecs, unique races, stale version, cancellation and SQL injection",
+              "success": "Real PostgreSQL field/query roundtrips plus explicit FullClean error aggregation, Save without Clean, existing-PK update, missing-row insert fallback, new-default-PK insert and correct pre/post-save timing"
             },
             "id": "orm"
           },
@@ -23327,7 +23531,7 @@
             "cells": {
               "area": "Admin",
               "evidence": "Atomic DB snapshot before/after; accessibility and frontend interaction test evidence when implementation exists.",
-              "failure": "Forged readonly/inline IDs, stale edit, invalid formset counts, privilege escalation, cascade denial, audit write failure",
+              "failure": "Verify extra readonly POST fields are ignored without mutation; reject foreign inline IDs, stale edit, invalid management counts, privilege escalation and forbidden cascade; audit failure rolls back edits",
               "success": "List/add/change/delete/inlines/actions/history and customization on browser-independent handler tests"
             },
             "id": "admin"
@@ -23336,8 +23540,8 @@
             "cells": {
               "area": "Task attempts",
               "evidence": "Fault-injection event trace, broker pending entries and authoritative result state.",
-              "failure": "Crash before/after every durable write/publish/ack; duplicate/reordered messages; lease loss; stale worker; exhausted retry; poison envelope",
-              "success": "Dispatch\u2192claim\u2192terminal\u2192ack with hooks/result; correct ordered canvas results"
+              "failure": "Unhandled error without AutoRetryFor is terminal; exhaustion, explicit unlimited policy with deadline, poison envelope, lease loss, stale worker, duplicate/redelivered messages and crash boundaries",
+              "success": "Compare ordinary Retry and AutoRetryFor with Celery: initial retries=0, default three retries, fixed 180s delay, opt-in backoff/jitter; dispatch/claim/result/canvas outcomes"
             },
             "id": "async"
           },
@@ -24722,9 +24926,9 @@
       }
     }
   ],
-  "createdAt": "2026-09-05T12:49:11Z",
+  "createdAt": "2026-09-05T13:16:40Z",
   "id": "gogo-complete-framework-architecture",
   "schemaVersion": 3,
-  "summary": "Developer-readable feature trees and explicit flows for the proposed Go framework. PostgreSQL and Redis are the initial backends. All symbols are design targets; no framework implementation or architecture approval is claimed.",
+  "summary": "Proposed Gogo feature trees with reviewed ORM save/validation, Admin readonly binding and Celery retry semantics corrected. PostgreSQL/Redis remain initial connectors; Go-native APIs and explicit optional modules. Preflight is not exhaustive parity proof; no approval or implementation claimed.",
   "title": "Define Gogo Core, Admin, Async and Connector Architecture"
 }
