@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"syscall"
@@ -171,25 +172,19 @@ func run() error {
 		return err
 	}
 	accountScope.reviewerID = staff.ID
-	managedPassword, err := security.RandomToken(32)
-	if err != nil {
-		return err
-	}
-	managed, err := accounts.CreateUser(bootstrap, "managed-fixture-account", managedPassword, auth.CreateUserOptions{})
+	managed, err := accounts.CreateUserWithoutPassword(bootstrap, "demo-managed-account", auth.CreateUserOptions{})
 	if err != nil {
 		return err
 	}
 	accountScope.managedID = managed.ID
-	if err := accounts.SetUnusablePassword(bootstrap, managed.ID); err != nil {
-		return err
-	}
 	codenames := []string{}
 	for _, model := range []string{"product", "productnote"} {
 		for _, action := range []string{"view", "add", "change", "delete"} {
 			codenames = append(codenames, action+"_"+model)
 		}
 	}
-	codenames = append(codenames, "view_user", "change_user")
+	grantCodenames := append([]string(nil), codenames...)
+	codenames = append(codenames, "view_user", "add_user", "change_user", "view_group", "add_group", "change_group", "view_permission")
 	permissions, err := orm.For(store, func() *auth.Permission { return &auth.Permission{} }).Filter(orm.Q("codename__in", codenames)).All(ctx)
 	if err != nil || len(permissions) != len(codenames) {
 		return errors.New("fixture model permission setup failed")
@@ -197,8 +192,21 @@ func run() error {
 	grantIDs := make([]int64, len(permissions))
 	for i, permission := range permissions {
 		grantIDs[i] = permission.ID
+		if slices.Contains(grantCodenames, permission.Codename) {
+			accountScope.grantPermissions = append(accountScope.grantPermissions, permission.ID)
+		}
 	}
 	if err := accounts.SetUserPermissions(bootstrap, staff.ID, grantIDs); err != nil {
+		return err
+	}
+	group, err := accounts.CreateGroup(bootstrap, "Demo catalog editors")
+	if err != nil {
+		return err
+	}
+	if err := accounts.SetUserGroups(bootstrap, managed.ID, []string{group.ID}); err != nil {
+		return err
+	}
+	if err := accounts.SetGroupPermissions(bootstrap, group.ID, accountScope.grantPermissions[:1]); err != nil {
 		return err
 	}
 	accountScope.bootstrap = false
@@ -241,6 +249,9 @@ func run() error {
 		return nil
 	}
 	if err := site.Register(userOptions); err != nil {
+		return err
+	}
+	if err := site.Register(adapter.GroupAdmin()); err != nil {
 		return err
 	}
 	if err = site.Register(admin.ModelAdmin{Schema: (&Product{}).Schema(), Fieldsets: []admin.Fieldset{{Name: "Product details", Fields: []string{"name", "description"}}, {Name: "Availability", Fields: []string{"price", "stock", "published"}}, {Name: "Record information", Fields: []string{"sku", "created_at"}, Classes: []string{"collapse"}}}, ReadonlyFields: []string{"sku", "created_at"}, ListDisplay: []string{"name", "sku", "price", "stock", "published"}, ListFilter: []string{"published"}, SearchFields: []string{"name", "sku"}, Ordering: []string{"name"}, ConstraintChecker: store, Inlines: []admin.Inline{{Name: "notes", Schema: (&ProductNote{}).Schema(), FKName: "product", Fields: []string{"body", "created_at"}, Readonly: []string{"created_at"}, Extra: 1, Maximum: 20, CanDelete: true, ConstraintChecker: store}}}); err != nil {

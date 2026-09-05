@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"slices"
 	"strings"
 
 	"github.com/Newton-School/gogo/admin"
@@ -16,6 +17,7 @@ import (
 type demoAccountScope struct {
 	bootstrap             bool
 	reviewerID, managedID string
+	grantPermissions      []int64
 }
 
 func newDemoAccountStore(store *orm.Store, scope *demoAccountScope) (*admin.AccountStore, error) {
@@ -27,18 +29,32 @@ func newDemoAccountStore(store *orm.Store, scope *demoAccountScope) (*admin.Acco
 				"catalog.ProductNote": func() models.Model { return &ProductNote{} },
 			},
 			QueryScope: func(_ context.Context, p auth.Principal, schema models.Schema) (admin.QueryScope, error) {
+				if p.ID != scope.reviewerID {
+					return admin.QueryScope{}, auth.ErrPermissionDenied
+				}
 				if schema.Key() == (&auth.User{}).Schema().Key() {
-					if p.ID != scope.reviewerID {
-						return admin.QueryScope{}, auth.ErrPermissionDenied
-					}
-					return admin.QueryScope{Predicate: orm.Q("id__in", []string{scope.reviewerID, scope.managedID}), Identity: p.ID}, nil
+					return admin.QueryScope{Predicate: orm.Or(orm.Q("id", scope.reviewerID), orm.Q("identifier__startswith", "demo-")), Identity: p.ID}, nil
+				}
+				if schema.Key() == (&auth.Group{}).Schema().Key() {
+					return admin.QueryScope{Predicate: orm.Q("name__startswith", "Demo "), Identity: p.ID}, nil
+				}
+				if schema.Key() == (&auth.Permission{}).Schema().Key() {
+					return admin.QueryScope{Predicate: orm.Q("id__in", scope.grantPermissions), Identity: p.ID}, nil
 				}
 				return admin.QueryScope{Predicate: orm.Q("tenant", p.ID), Identity: p.ID}, nil
 			},
 			ValidateWrite: func(_ context.Context, p auth.Principal, record models.Record) error {
 				if record.Schema().Key() == (&auth.User{}).Schema().Key() {
 					id, err := record.Get("id")
-					if err != nil || p.ID != scope.reviewerID || id != scope.managedID {
+					name, nameErr := record.Get("identifier")
+					if err != nil || nameErr != nil || p.ID != scope.reviewerID || id == scope.reviewerID || !strings.HasPrefix(name.(string), "demo-") {
+						return auth.ErrPermissionDenied
+					}
+					return nil
+				}
+				if record.Schema().Key() == (&auth.Group{}).Schema().Key() {
+					name, err := record.Get("name")
+					if err != nil || p.ID != scope.reviewerID || !strings.HasPrefix(name.(string), "Demo ") {
 						return auth.ErrPermissionDenied
 					}
 					return nil
@@ -86,10 +102,69 @@ func newDemoAccountStore(store *orm.Store, scope *demoAccountScope) (*admin.Acco
 			if change.Action == "change_own_password" && change.UserID == actor.ID {
 				return nil
 			}
-			if change.Action == "change_account_flags" && change.UserID == scope.managedID && !change.Superuser {
-				return nil
+			if change.Action == "create_user" {
+				if strings.HasPrefix(change.Name, "demo-") && !change.Staff && !change.Superuser {
+					return nil
+				}
+				return auth.ErrPermissionDenied
+			}
+			if change.Action == "create_group" {
+				if strings.HasPrefix(change.Name, "Demo ") {
+					return nil
+				}
+				return auth.ErrPermissionDenied
+			}
+			if change.GroupID != "" {
+				group, err := orm.For(store, func() *auth.Group { return &auth.Group{} }).Filter(orm.Q("id", change.GroupID), orm.Q("name__startswith", "Demo ")).Get(ctx)
+				if err != nil || group == nil {
+					return auth.ErrPermissionDenied
+				}
+				if change.Action == "rename_group" && strings.HasPrefix(change.Name, "Demo ") {
+					return nil
+				}
+				if change.Action == "set_group_permissions" && demoAllowedPermissions(scope, change.PermissionIDs) {
+					return nil
+				}
+				return auth.ErrPermissionDenied
+			}
+			if change.UserID != "" && change.UserID != scope.reviewerID {
+				user, err := orm.For(store, func() *auth.User { return &auth.User{} }).Filter(orm.Q("id", change.UserID), orm.Q("identifier__startswith", "demo-")).Get(ctx)
+				if err != nil || user == nil {
+					return auth.ErrPermissionDenied
+				}
+				switch change.Action {
+				case "change_account_flags":
+					if !change.Superuser {
+						return nil
+					}
+				case "change_password":
+					return nil
+				case "change_identifier":
+					if strings.HasPrefix(change.Name, "demo-") {
+						return nil
+					}
+				case "set_user_permissions":
+					if demoAllowedPermissions(scope, change.PermissionIDs) {
+						return nil
+					}
+				case "set_user_groups":
+					if len(change.GroupIDs) == 0 {
+						return nil
+					}
+					count, err := orm.For(store, func() *auth.Group { return &auth.Group{} }).Filter(orm.Q("id__in", change.GroupIDs), orm.Q("name__startswith", "Demo ")).Count(ctx)
+					if err != nil {
+						return err
+					}
+					if count == int64(len(change.GroupIDs)) {
+						return nil
+					}
+				}
 			}
 			return auth.ErrPermissionDenied
 		}},
 	})
+}
+
+func demoAllowedPermissions(scope *demoAccountScope, ids []int64) bool {
+	return !slices.ContainsFunc(ids, func(id int64) bool { return !slices.Contains(scope.grantPermissions, id) })
 }

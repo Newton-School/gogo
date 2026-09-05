@@ -31,7 +31,22 @@ func TestDemoAccountAuthorityIsBoundedAndBootstrapExpires(t *testing.T) {
 	if err := runner.Apply(ctx, ""); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := contenttypes.Sync(ctx, store, registry, nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := auth.SyncPermissions(ctx, store, registry, nil); err != nil {
+		t.Fatal(err)
+	}
+	catalogGrant, err := orm.For(store, func() *auth.Permission { return &auth.Permission{} }).Filter(orm.Q("codename", "view_product")).Get(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	authGrant, err := orm.For(store, func() *auth.Permission { return &auth.Permission{} }).Filter(orm.Q("codename", "change_user")).Get(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
 	scope := &demoAccountScope{bootstrap: true}
+	scope.grantPermissions = []int64{catalogGrant.ID}
 	adapter, err := newDemoAccountStore(store, scope)
 	if err != nil {
 		t.Fatal(err)
@@ -43,7 +58,11 @@ func TestDemoAccountAuthorityIsBoundedAndBootstrapExpires(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	managed, err := accounts.CreateUser(bootstrap, "managed", password, auth.CreateUserOptions{})
+	managed, err := accounts.CreateUserWithoutPassword(bootstrap, "demo-managed", auth.CreateUserOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	hiddenGroup, err := accounts.CreateGroup(bootstrap, "Hidden group")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -60,11 +79,44 @@ func TestDemoAccountAuthorityIsBoundedAndBootstrapExpires(t *testing.T) {
 		func() error { return accounts.SetAccountFlags(bootstrap, managed.ID, true, false, false) },
 		func() error { return accounts.SetAccountFlags(actor, reviewer.ID, false, false, false) },
 		func() error { return accounts.SetAccountFlags(actor, managed.ID, true, true, true) },
-		func() error { return accounts.SetUserGroups(actor, managed.ID, nil) },
+		func() error { return accounts.SetUserGroups(actor, managed.ID, []string{hiddenGroup.ID}) },
+		func() error { return accounts.SetUserPermissions(actor, managed.ID, []int64{999}) },
+		func() error { return accounts.SetUserPermissions(actor, managed.ID, []int64{authGrant.ID}) },
+		func() error {
+			_, err := accounts.CreateUserWithoutPassword(actor, "outside-scope", auth.CreateUserOptions{})
+			return err
+		},
+		func() error { return accounts.ChangeIdentifier(actor, managed.ID, "outside-scope") },
 	} {
 		if err := mutation(); !errors.Is(err, auth.ErrPermissionDenied) {
 			t.Fatal("fixture authority widened", err)
 		}
+	}
+	created, err := accounts.CreateUserWithoutPassword(actor, "demo-created", auth.CreateUserOptions{})
+	if err != nil || created.PasswordHash == nil || auth.HasUsablePassword(*created.PasswordHash) {
+		t.Fatal("scoped password-disabled creation failed", err)
+	}
+	if err := accounts.ChangeIdentifier(actor, created.ID, "demo-renamed"); err != nil {
+		t.Fatal(err)
+	}
+	group, err := accounts.CreateGroup(actor, "Demo editors")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := accounts.SetUserGroups(actor, created.ID, []string{group.ID}); err != nil {
+		t.Fatal(err)
+	}
+	if err := accounts.SetUserPermissions(actor, created.ID, []int64{catalogGrant.ID}); err != nil {
+		t.Fatal("allowed catalog direct grant failed", err)
+	}
+	if err := accounts.SetGroupPermissions(actor, group.ID, []int64{catalogGrant.ID}); err != nil {
+		t.Fatal("allowed catalog group grant failed", err)
+	}
+	if err := accounts.SetGroupPermissions(actor, group.ID, []int64{authGrant.ID}); !errors.Is(err, auth.ErrPermissionDenied) {
+		t.Fatal("fixture allowed an authentication grant", err)
+	}
+	if err := accounts.RenameGroup(actor, group.ID, "Demo renamed editors"); err != nil {
+		t.Fatal(err)
 	}
 	// A stale request principal must not retain management authority after an
 	// account-version transition, even if its public staff flag remains true.
