@@ -2,6 +2,7 @@ package models
 
 import (
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"reflect"
@@ -113,6 +114,9 @@ func (r *BoundRecord) Get(name string) (any, error) {
 		}
 		v = v.Elem()
 	}
+	if f.Kind == JSON && v.Type() == reflect.TypeFor[json.RawMessage]() && v.IsNil() {
+		return nil, nil
+	}
 	return v.Interface(), nil
 }
 func (r *BoundRecord) Set(name string, value any) error {
@@ -123,6 +127,43 @@ func (r *BoundRecord) Set(name string, value any) error {
 	v := r.value.FieldByName(f.GoField())
 	if !v.IsValid() || !v.CanSet() {
 		return fmt.Errorf("models: unwritable field %s", name)
+	}
+	jsonType := v.Type()
+	for jsonType.Kind() == reflect.Pointer {
+		jsonType = jsonType.Elem()
+	}
+	if f.Kind == JSON && jsonType == reflect.TypeFor[json.RawMessage]() && value != nil {
+		incoming := reflect.ValueOf(value)
+		incomingType := incoming.Type()
+		for incomingType.Kind() == reflect.Pointer {
+			incomingType = incomingType.Elem()
+		}
+		if incomingType == reflect.TypeFor[json.RawMessage]() {
+			for incoming.Kind() == reflect.Pointer && !incoming.IsNil() {
+				incoming = incoming.Elem()
+			}
+			if incoming.IsNil() {
+				value = nil
+			} else {
+				value = incoming.Interface()
+			}
+		}
+	}
+	if f.Kind == JSON && jsonType == reflect.TypeFor[json.RawMessage]() && value != nil {
+		var encoded []byte
+		var err error
+		switch raw := value.(type) {
+		case json.RawMessage:
+			encoded = append([]byte(nil), raw...)
+		case []byte:
+			encoded = append([]byte(nil), raw...)
+		default:
+			encoded, err = json.Marshal(value)
+		}
+		if err != nil || !json.Valid(encoded) {
+			return fmt.Errorf("models: set %s: invalid JSON value", name)
+		}
+		value = json.RawMessage(encoded)
 	}
 	if err := assign(v, value); err != nil {
 		return fmt.Errorf("models: set %s: %w", name, err)

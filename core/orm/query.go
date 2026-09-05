@@ -404,7 +404,15 @@ func (q Query[T]) Values(ctx context.Context, fields ...string) ([]map[string]an
 		}
 		record := map[string]any{}
 		for i, name := range q.selectAST.Fields {
-			record[name] = values[i]
+			field, ok := q.schema.Field(name)
+			if !ok {
+				return nil, fmt.Errorf("orm: unknown values field %s", name)
+			}
+			value, err := decodeField(field, values[i])
+			if err != nil {
+				return nil, err
+			}
+			record[name] = value
 		}
 		results = append(results, record)
 	}

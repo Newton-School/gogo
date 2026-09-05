@@ -1,6 +1,7 @@
 package orm
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -358,6 +359,9 @@ func encodeField(field models.Field, value any) (any, error) {
 	}
 	switch field.Kind {
 	case models.JSON:
+		if raw, ok := value.(json.RawMessage); ok && raw == nil {
+			return nil, nil
+		}
 		b, err := json.Marshal(value)
 		return string(b), err
 	case models.Duration:
@@ -385,8 +389,18 @@ func decodeField(field models.Field, value any) (any, error) {
 			return value, nil
 		}
 		var result any
-		err := json.Unmarshal(data, &result)
-		return result, err
+		if !json.Valid(data) {
+			return nil, errors.New("orm: invalid JSON returned by database")
+		}
+		decoder := json.NewDecoder(bytes.NewReader(data))
+		decoder.UseNumber()
+		if err := decoder.Decode(&result); err != nil {
+			return nil, err
+		}
+		if result == nil {
+			return models.JSONNull, nil
+		}
+		return result, nil
 	}
 	return value, nil
 }

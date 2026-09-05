@@ -327,6 +327,9 @@ func (f Field) Clean(ctx context.Context, value any) (any, error) {
 		if decoder.Decode(&normalized) != nil || jsonDepth(normalized) > 64 {
 			return nil, Invalid("invalid", "JSON nesting exceeds the limit.")
 		}
+		if normalized == nil {
+			normalized = JSONNull
+		}
 		value = normalized
 	case Array:
 		v := reflect.ValueOf(value)
