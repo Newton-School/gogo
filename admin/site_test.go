@@ -2,7 +2,9 @@ package admin
 
 import (
 	"context"
+	"crypto/sha256"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -267,6 +269,43 @@ func TestNavigationTracksCurrentPageAndDashboardStartsAtTop(t *testing.T) {
 	css, err := embedded.ReadFile("internal/assets/admin.css")
 	if err != nil || !strings.Contains(string(css), "margin:0 auto;align-self:start") {
 		t.Fatal("dashboard must not use vertical auto margins", err)
+	}
+}
+
+func TestAssetsAreContentAddressedAndStablePathRevalidates(t *testing.T) {
+	site, _ := newTestSite(t)
+	css, _ := embedded.ReadFile("internal/assets/admin.css")
+	version := fmt.Sprintf("%x", sha256.Sum256(css))
+	path := "/admin/assets/admin." + version + ".css"
+	page := perform(site, "GET", "/admin/", principal(), nil, nil)
+	if !strings.Contains(page.Body.String(), `href="`+path+`"`) {
+		t.Fatal("missing content-addressed CSS", page.Body.String())
+	}
+	get := perform(site, "GET", path, auth.Principal{}, nil, nil)
+	if get.Code != 200 || get.Body.String() != string(css) || !strings.Contains(get.Header().Get("Cache-Control"), "immutable") {
+		t.Fatal(get.Code, get.Header())
+	}
+	if len(get.Result().Cookies()) != 0 || get.Header().Get("Vary") != "" {
+		t.Fatal("public assets must not carry per-user CSRF state", get.Header())
+	}
+	unsafe := perform(site, "POST", path, auth.Principal{}, nil, nil)
+	if unsafe.Code != 405 || len(unsafe.Result().Cookies()) != 0 {
+		t.Fatal("asset method handling", unsafe.Code, unsafe.Header())
+	}
+	legacy := perform(site, "GET", "/admin/assets/admin.css", auth.Principal{}, nil, nil)
+	if legacy.Header().Get("Cache-Control") != "public, no-cache" {
+		t.Fatal("stable URL cannot be cached without revalidation")
+	}
+	r := httptest.NewRequest("GET", "http://example.test"+path, nil)
+	r.Header.Set("If-None-Match", get.Header().Get("ETag"))
+	w := httptest.NewRecorder()
+	site.ServeHTTP(w, r)
+	if w.Code != 304 || w.Body.Len() != 0 {
+		t.Fatal(w.Code, w.Body.String())
+	}
+	missing := perform(site, "GET", "/admin/assets/admin.unknown.css", auth.Principal{}, nil, nil)
+	if missing.Code == 200 {
+		t.Fatal("stale fingerprint served current bytes")
 	}
 }
 func TestAdminSaveReadonlyCSRFVersionAndAudit(t *testing.T) {

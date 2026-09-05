@@ -55,9 +55,7 @@ func New(fields []Field, options ...Option) (*Form, error) {
 			return nil, fmt.Errorf("forms: invalid or duplicate field %q", field.Name)
 		}
 		seen[field.Name] = true
-		field.Choices = append([]Choice(nil), field.Choices...)
-		field.Validators = append([]Validator(nil), field.Validators...)
-		f.fields = append(f.fields, field)
+		f.fields = append(f.fields, field.Clone())
 	}
 	for _, option := range options {
 		option(f)
@@ -86,8 +84,14 @@ func (f *Form) Errors() ErrorDict {
 func (f *Form) CleanedData() map[string]any { f.fullClean(); return cloneMap(f.cleaned) }
 func (f *Form) ChangedData() []string       { f.fullClean(); return append([]string(nil), f.changed...) }
 func (f *Form) HasChanged() bool            { return len(f.ChangedData()) > 0 }
-func (f *Form) Fields() []Field             { return append([]Field(nil), f.fields...) }
-func (f *Form) Prefix() string              { return f.prefix }
+func (f *Form) Fields() []Field {
+	result := make([]Field, len(f.fields))
+	for i, field := range f.fields {
+		result[i] = field.Clone()
+	}
+	return result
+}
+func (f *Form) Prefix() string { return f.prefix }
 func (f *Form) AddError(name string, err error) {
 	if err == nil {
 		return
@@ -205,7 +209,7 @@ func cloneValues(v url.Values) url.Values {
 func cloneMap(v map[string]any) map[string]any {
 	r := make(map[string]any, len(v))
 	for k, x := range v {
-		r[k] = x
+		r[k] = cloneValue(x)
 	}
 	return r
 }

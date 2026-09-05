@@ -139,7 +139,15 @@ func FieldFromModel(metadata models.Field) (Field, error) {
 	}
 	if len(f.Choices) > 0 {
 		f.Kind = TypedChoice
-		f.Coerce = func(value string) (any, error) { return metadata.Clean(context.Background(), value) }
+		choices := append([]models.Choice(nil), metadata.Choices...)
+		f.Coerce = func(value string) (any, error) {
+			for _, choice := range choices {
+				if fmt.Sprint(choice.Value) == value {
+					return cloneValue(choice.Value), nil
+				}
+			}
+			return nil, Error{Code: "invalid_choice", Message: "Select a valid choice."}
+		}
 	}
 	if metadata.Min != nil {
 		if n, err := strconv.ParseFloat(fmt.Sprint(metadata.Min), 64); err == nil {

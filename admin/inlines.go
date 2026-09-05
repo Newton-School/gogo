@@ -81,6 +81,8 @@ type inlineState struct {
 	initial     int
 	canAdd      bool
 	parentValue any
+	before      []map[string]any
+	writable    []bool
 }
 
 func (s *Site) loadInlines(ctx context.Context, r *http.Request, p auth.Principal, options ModelAdmin, parent Object, bound bool) ([]*inlineState, error) {
@@ -92,7 +94,12 @@ func (s *Site) loadInlines(ctx context.Context, r *http.Request, p auth.Principa
 			return nil, auth.ErrPermissionDenied
 		}
 		state.store = store
-		state.canAdd = s.config.Policy.Authorize(ctx, p, "add", auth.Resource{App: config.Schema.AppLabel, Model: config.Schema.Name}) == nil
+		parentAction := "change"
+		if !parent.Record.State().Persisted {
+			parentAction = "add"
+		}
+		parentWritable := s.allowed(ctx, p, parentAction, options, parent) == nil
+		state.canAdd = parentWritable && s.config.Policy.Authorize(ctx, p, "add", auth.Resource{App: config.Schema.AppLabel, Model: config.Schema.Name}) == nil
 		fk, _ := config.Schema.Field(config.FKName)
 		parentField := parent.Record.Schema().PKFields()[0].Name
 		if len(fk.Relation.TargetFields) > 0 {
@@ -169,6 +176,13 @@ func (s *Site) loadInlines(ctx context.Context, r *http.Request, p auth.Principa
 		if bound {
 			set, err := forms.BindFormSet(ctx, fields, r.PostForm, forms.FormSetOptions{Prefix: config.Name, Initial: initial, ExistingIDs: ids, IdentityField: "_id", Minimum: config.Minimum, Maximum: config.Maximum, CanDelete: config.CanDelete, CanDeleteRow: func(ctx context.Context, id string) error {
 				return s.config.Policy.Authorize(ctx, p, "delete", auth.Resource{App: config.Schema.AppLabel, Model: config.Schema.Name, ID: id})
+			}, FieldsForRow: func(ctx context.Context, index int, id string, fields []forms.Field) ([]forms.Field, error) {
+				if object, ok := byID[id]; ok && s.config.Policy.Authorize(ctx, p, "change", auth.Resource{App: config.Schema.AppLabel, Model: config.Schema.Name, ID: id, Object: object.Record}) != nil {
+					for i := range fields {
+						fields[i].Disabled = true
+					}
+				}
+				return fields, nil
 			}})
 			if err != nil {
 				return nil, err
@@ -225,8 +239,25 @@ func (s *Site) loadInlines(ctx context.Context, r *http.Request, p auth.Principa
 			}
 			if bindRow {
 				opts = append(opts, forms.WithData(r.PostForm))
+				if r.MultipartForm != nil {
+					opts = append(opts, forms.WithFiles(r.MultipartForm.File))
+				}
 			}
-			form, err := forms.NewModelForm(ctx, object.Record, forms.ModelFormOptions{Fields: config.Fields, Exclude: config.Exclude, Readonly: config.Readonly, Overrides: config.FormOverrides, Checker: config.ConstraintChecker, ResolveRelation: config.ResolveRelation}, opts...)
+			before, err := snapshot(ModelAdmin{Schema: config.Schema}, object)
+			if err != nil {
+				return nil, err
+			}
+			state.before = append(state.before, before)
+			writable := state.canAdd
+			readonly := append([]string(nil), config.Readonly...)
+			if index < state.initial {
+				writable = parentWritable && s.config.Policy.Authorize(ctx, p, "change", auth.Resource{App: config.Schema.AppLabel, Model: config.Schema.Name, ID: object.ID, Object: object.Record}) == nil
+			}
+			if !writable {
+				readonly = append(readonly, config.Fields...)
+			}
+			state.writable = append(state.writable, writable)
+			form, err := forms.NewModelForm(ctx, object.Record, forms.ModelFormOptions{Fields: config.Fields, Exclude: config.Exclude, Readonly: readonly, Overrides: config.FormOverrides, Checker: config.ConstraintChecker, ResolveRelation: config.ResolveRelation}, opts...)
 			if err != nil {
 				return nil, err
 			}
@@ -238,6 +269,9 @@ func (s *Site) loadInlines(ctx context.Context, r *http.Request, p auth.Principa
 				}
 			}
 			if bound && !slices.Contains(state.set.Deleted, index) && slices.Contains(state.set.Ordered, index) {
+				if !writable {
+					continue
+				}
 				action := "add"
 				if index < state.initial {
 					action = "change"
@@ -274,6 +308,9 @@ func (s *Site) saveInlines(ctx context.Context, p auth.Principal, parent Object,
 			return err
 		}
 		for _, index := range state.set.Ordered {
+			if !state.writable[index] {
+				continue
+			}
 			object := state.objects[index]
 			if err = object.Record.Set(state.config.FKName, parentValue); err != nil {
 				return err
@@ -286,7 +323,11 @@ func (s *Site) saveInlines(ctx context.Context, p auth.Principal, parent Object,
 			if err != nil {
 				return err
 			}
-			if err = state.store.Audit(ctx, LogEntry{ActorID: p.ID, Site: s.config.Name, Model: state.config.Schema.Key(), ObjectID: saved.ID, ObjectLabel: saved.Label, Action: action, At: time.Now().UTC()}); err != nil {
+			after, err := snapshot(ModelAdmin{Schema: state.config.Schema}, saved)
+			if err != nil {
+				return err
+			}
+			if err = state.store.Audit(ctx, LogEntry{ActorID: p.ID, Site: s.config.Name, Model: state.config.Schema.Key(), ObjectID: saved.ID, ObjectLabel: saved.Label, Action: action, Changes: diff(state.before[index], after), At: time.Now().UTC()}); err != nil {
 				return err
 			}
 		}
@@ -322,7 +363,11 @@ func (s *Site) renderInlines(ctx context.Context, p auth.Principal, parent Objec
 		rows := []any{}
 		for index, form := range state.forms {
 			object := state.objects[index]
-			html, err := form.Render("div")
+			readonly := append([]string(nil), state.config.Readonly...)
+			if !state.writable[index] {
+				readonly = append(readonly, state.config.Fields...)
+			}
+			html, err := s.renderModelForm(ctx, ModelAdmin{Schema: state.config.Schema, Fieldsets: []Fieldset{{Fields: state.config.Fields}}}, object, form, readonly)
 			if err != nil {
 				return "", err
 			}

@@ -2,6 +2,7 @@ package admin
 
 import (
 	"context"
+	"crypto/sha256"
 	"embed"
 	"errors"
 	"fmt"
@@ -62,12 +63,14 @@ type Config struct {
 	TemplateLoaders                                            []templates.Loader
 }
 type Site struct {
-	config  Config
-	mu      sync.RWMutex
-	models  map[string]ModelAdmin
-	frozen  bool
-	engine  *templates.Engine
-	handler http.Handler
+	config     Config
+	mu         sync.RWMutex
+	models     map[string]ModelAdmin
+	frozen     bool
+	engine     *templates.Engine
+	handler    http.Handler
+	css        []byte
+	cssVersion string
 }
 
 func NewSite(config Config) (*Site, error) {
@@ -102,11 +105,26 @@ func NewSite(config Config) (*Site, error) {
 	loaders := append([]templates.Loader(nil), config.TemplateLoaders...)
 	loaders = append(loaders, templates.FSLoader{FS: templatesFS})
 	s := &Site{config: config, models: map[string]ModelAdmin{}, engine: templates.New(templates.Config{Loaders: loaders})}
+	css, err := embedded.ReadFile("internal/assets/admin.css")
+	if err != nil {
+		return nil, err
+	}
+	s.css = css
+	s.cssVersion = fmt.Sprintf("%x", sha256.Sum256(s.css))
 	csrf, err := security.CSRF(config.CSRF)
 	if err != nil {
 		return nil, err
 	}
-	s.handler = csrf(http.HandlerFunc(s.serve))
+	protected := csrf(http.HandlerFunc(s.serve))
+	s.handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Public embedded assets have no user state and reject unsafe methods.
+		// Do not attach CSRF cookies to shared-cacheable static responses.
+		if r.URL.Path == config.Prefix+"assets/admin.css" || r.URL.Path == config.Prefix+"assets/admin."+s.cssVersion+".css" {
+			s.serve(w, r)
+			return
+		}
+		protected.ServeHTTP(w, r)
+	})
 	return s, nil
 }
 
@@ -206,18 +224,41 @@ func (s *Site) Register(options ModelAdmin) error {
 	options.SensitiveFields = slices.Clone(options.SensitiveFields)
 	options.Actions = slices.Clone(options.Actions)
 	options.Columns = slices.Clone(options.Columns)
+	options.FormOverrides = cloneOverrides(options.FormOverrides)
 	options.Fieldsets = append([]Fieldset(nil), options.Fieldsets...)
 	for i := range options.Fieldsets {
 		options.Fieldsets[i].Fields = slices.Clone(options.Fieldsets[i].Fields)
 		options.Fieldsets[i].Classes = slices.Clone(options.Fieldsets[i].Classes)
 	}
+	options.Inlines = slices.Clone(options.Inlines)
+	names := map[string]bool{}
 	for i := range options.Inlines {
+		if names[options.Inlines[i].Name] {
+			return errors.New("admin: duplicate inline name")
+		}
+		names[options.Inlines[i].Name] = true
+		options.Inlines[i].Schema = options.Inlines[i].Schema.Clone()
+		options.Inlines[i].Fields = slices.Clone(options.Inlines[i].Fields)
+		options.Inlines[i].Exclude = slices.Clone(options.Inlines[i].Exclude)
+		options.Inlines[i].Readonly = slices.Clone(options.Inlines[i].Readonly)
+		options.Inlines[i].FormOverrides = cloneOverrides(options.Inlines[i].FormOverrides)
 		if err := options.Inlines[i].validate(options.Schema); err != nil {
 			return err
 		}
 	}
 	s.models[key] = options
 	return nil
+}
+
+func cloneOverrides(overrides map[string]forms.Field) map[string]forms.Field {
+	if overrides == nil {
+		return nil
+	}
+	result := make(map[string]forms.Field, len(overrides))
+	for name, field := range overrides {
+		result[name] = field.Clone()
+	}
+	return result
 }
 func (s *Site) Unregister(key string) error {
 	s.mu.Lock()

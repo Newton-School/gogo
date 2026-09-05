@@ -205,27 +205,35 @@ func (s *ormScoped) DeleteAuthorized(ctx context.Context, object Object, authori
 				return err
 			}
 		}
+		projected := map[string]models.Record{}
 		for _, update := range graph.Updates {
 			// Validate the projected record without mutating the collector snapshot.
-			record, err := models.NewRecord(update.Object.Record.Schema())
-			if err != nil {
-				return err
-			}
-			for _, field := range record.Schema().Fields {
-				if !field.IsStored() {
-					continue
-				}
-				value, err := update.Object.Record.Get(field.Name)
+			key := update.Object.Record.Schema().Key() + ":" + update.Object.ID
+			record, ok := projected[key]
+			if !ok {
+				record, err = models.NewRecord(update.Object.Record.Schema())
 				if err != nil {
 					return err
 				}
-				if err = record.Set(field.Name, value); err != nil {
-					return err
+				for _, field := range record.Schema().Fields {
+					if !field.IsStored() {
+						continue
+					}
+					value, err := update.Object.Record.Get(field.Name)
+					if err != nil {
+						return err
+					}
+					if err = record.Set(field.Name, value); err != nil {
+						return err
+					}
 				}
+				projected[key] = record
 			}
 			if err = record.Set(update.Field, update.Value); err != nil {
 				return err
 			}
+		}
+		for _, record := range projected {
 			if err = s.owner.config.ValidateWrite(ctx, s.principal, record); err != nil {
 				return err
 			}

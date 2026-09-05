@@ -19,7 +19,10 @@ type FormSetOptions struct {
 	ExistingIDs   []string
 	IdentityField string
 	CanDeleteRow  func(context.Context, string) error
-	Clean         func(*FormSet) error
+	// FieldsForRow can apply trusted request-scoped permissions to a row's
+	// declarations before binding. Submitted values never define declarations.
+	FieldsForRow func(context.Context, int, string, []Field) ([]Field, error)
+	Clean        func(*FormSet) error
 }
 type FormSet struct {
 	Forms        []*Form
@@ -114,7 +117,18 @@ func BindFormSet(ctx context.Context, fields []Field, values url.Values, options
 				initialData = initialByID[id]
 			}
 		}
-		f, err := New(fields, WithData(values), WithInitial(initialData), WithPrefix(prefix), WithContext(ctx))
+		rowFields := fields
+		if options.FieldsForRow != nil {
+			rowFields = make([]Field, len(fields))
+			for i, field := range fields {
+				rowFields[i] = field.Clone()
+			}
+			rowFields, err = options.FieldsForRow(ctx, i, id, rowFields)
+			if err != nil {
+				return nil, err
+			}
+		}
+		f, err := New(rowFields, WithData(values), WithInitial(initialData), WithPrefix(prefix), WithContext(ctx))
 		if err != nil {
 			return nil, err
 		}

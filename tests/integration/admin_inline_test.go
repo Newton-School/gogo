@@ -88,8 +88,12 @@ func TestAdminInlineAtomicSaveAndOwnership(t *testing.T) {
 	secret, _ := security.RandomToken(32)
 	signer, _ := security.NewSigner(security.SigningKey{ID: "test", Value: []byte(secret)}, nil, "inline")
 	denyWatcherChange := true
+	denyNoteChange := false
 	site, err := admin.NewSite(admin.Config{Store: adapter, Signer: signer, Policy: auth.PolicyFunc(func(_ context.Context, _ auth.Principal, action string, resource auth.Resource) error {
 		if denyWatcherChange && resource.Model == "Watcher" && action == "change" {
+			return auth.ErrPermissionDenied
+		}
+		if denyNoteChange && resource.Model == "Note" && action == "change" {
 			return auth.ErrPermissionDenied
 		}
 		return nil
@@ -163,6 +167,25 @@ func TestAdminInlineAtomicSaveAndOwnership(t *testing.T) {
 	post = request("POST", link[1], values, get.Result().Cookies())
 	if post.Code != 400 {
 		t.Fatal("forged inline identity accepted", post.Code, post.Body.String())
+	}
+	denyNoteChange = true
+	get = request("GET", link[1], nil, nil)
+	body = get.Body.String()
+	if get.Code != 200 || strings.Contains(body, `name="notes-0-body"`) {
+		t.Fatal("view-only child exposed editable input", get.Code, body)
+	}
+	values = url.Values{"name": {"Parent with read-only notes"}, "notes-TOTAL_FORMS": {"3"}, "notes-INITIAL_FORMS": {"2"}, "notes-0-body": {"forged read-only"}, "notes-2-body": {""}, "_edit_token": {hidden(body, "_edit_token")}, "csrfmiddlewaretoken": {hidden(body, "csrfmiddlewaretoken")}}
+	for _, i := range []string{"0", "1"} {
+		values.Set("notes-"+i+"-_id", hidden(body, "notes-"+i+"-_id"))
+		values.Set("notes-"+i+"-_edit_token", hidden(body, "notes-"+i+"-_edit_token"))
+	}
+	post = request("POST", link[1], values, get.Result().Cookies())
+	if post.Code != 303 {
+		t.Fatal("read-only inline blocked unrelated parent save", post.Code, post.Body.String())
+	}
+	notes, err = orm.For(store, func() *adminNote { return &adminNote{} }).Filter(orm.Q("body", "forged read-only")).All(ctx)
+	if err != nil || len(notes) != 0 {
+		t.Fatal("read-only inline forged write", notes, err)
 	}
 	deletePath := strings.TrimSuffix(link[1], "change/") + "delete/"
 	get = request("GET", deletePath, nil, nil)

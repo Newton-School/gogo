@@ -26,7 +26,7 @@ func (f *Form) BoundField(name string) (BoundField, bool) {
 	f.fullClean()
 	for _, field := range f.fields {
 		if field.Name == name {
-			return BoundField{field, f.name(name), "id_" + f.name(name), f.raw(field), append(ErrorList(nil), f.errors[name]...)}, true
+			return BoundField{field.Clone(), f.name(name), "id_" + f.name(name), cloneValue(f.raw(field)), append(ErrorList(nil), f.errors[name]...)}, true
 		}
 	}
 	return BoundField{}, false

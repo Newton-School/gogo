@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"io/fs"
 	"net/http"
 	"net/url"
 	"reflect"
@@ -30,16 +29,27 @@ func (s *Site) serve(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	rest := strings.TrimPrefix(r.URL.Path, s.config.Prefix)
-	if rest == "assets/admin.css" {
+	if rest == "assets/admin.css" || rest == "assets/admin."+s.cssVersion+".css" {
 		if r.Method != "GET" && r.Method != "HEAD" {
 			s.method(w)
 			return
 		}
-		asset, _ := fs.ReadFile(embedded, "internal/assets/admin.css")
 		w.Header().Set("Content-Type", "text/css; charset=utf-8")
-		w.Header().Set("Cache-Control", "public, max-age=3600")
+		w.Header().Set("Cache-Control", "public, no-cache")
+		if rest != "assets/admin.css" {
+			w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+		}
+		etag := `"` + s.cssVersion + `"`
+		w.Header().Set("ETag", etag)
+		for _, candidate := range strings.Split(r.Header.Get("If-None-Match"), ",") {
+			candidate = strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(candidate), "W/"))
+			if candidate == etag || candidate == "*" {
+				w.WriteHeader(http.StatusNotModified)
+				return
+			}
+		}
 		if r.Method != "HEAD" {
-			_, _ = w.Write(asset)
+			_, _ = w.Write(s.css)
 		}
 		return
 	}
@@ -179,6 +189,7 @@ func (s *Site) render(w http.ResponseWriter, r *http.Request, p auth.Principal, 
 	data["header"] = s.config.Header
 	data["site_title"] = s.config.Title
 	data["prefix"] = s.config.Prefix
+	data["css_url"] = s.config.Prefix + "assets/admin." + s.cssVersion + ".css"
 	data["is_overview"] = r.URL.Path == s.config.Prefix
 	data["navigation"] = s.navigation(r, p)
 	data["actor"] = p.ID
