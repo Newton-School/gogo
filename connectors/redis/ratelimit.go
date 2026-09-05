@@ -2,6 +2,7 @@ package redis
 
 import (
 	"context"
+	"math"
 	"strconv"
 	"time"
 
@@ -28,7 +29,15 @@ func (l *Limiter) Allow(ctx context.Context, key string, limit ratelimit.Limit, 
 	if l.Connection == nil || limit.Period < time.Millisecond {
 		return ratelimit.Decision{}, ErrInvalid
 	}
-	out, err := l.Connection.Atomic(ctx, limitScript, []string{l.Connection.namespace + ":limit:{" + Digest(key) + "}"}, strconv.FormatFloat(limit.Rate, 'g', -1, 64), limit.Burst, limit.Period.Milliseconds(), cost)
+	periodMillis := float64(limit.Period) / float64(time.Millisecond)
+	refillMillis := float64(limit.Burst) * periodMillis / limit.Rate
+	// Lua numbers are IEEE-754 doubles. Reject non-representable quotas before
+	// HSET, rather than partially mutating a bucket then failing PEXPIRE or
+	// overflowing the public RetryAfter duration.
+	if uint64(limit.Burst) > 1<<53-1 || math.IsInf(refillMillis, 0) || math.IsNaN(refillMillis) || refillMillis > float64(math.MaxInt64/int64(time.Millisecond))-1 {
+		return ratelimit.Decision{}, ErrInvalid
+	}
+	out, err := l.Connection.Atomic(ctx, limitScript, []string{l.Connection.namespace + ":limit:{" + Digest(key) + "}"}, strconv.FormatFloat(limit.Rate, 'g', -1, 64), limit.Burst, strconv.FormatFloat(periodMillis, 'g', -1, 64), cost)
 	if err != nil {
 		return ratelimit.Decision{}, err
 	}

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/Newton-School/gogo/async"
@@ -21,6 +22,11 @@ type Broker struct {
 	Queues     []string
 	MaxDepth   int64
 	DedupeTTL  time.Duration
+	// ReclaimBatch bounds reservations returned to a caller that already owns
+	// an execution slot. The default is one; larger prefetch is explicit.
+	ReclaimBatch int
+	reclaimMu    sync.Mutex
+	reclaimNext  map[string]string
 }
 
 func (b *Broker) queuePrefix(queue string) string {
@@ -145,6 +151,9 @@ func streamDelivery(queue, stream string, message redigo.XMessage, count int64) 
 	return async.Delivery{Receipt: stream + "\x00" + message.ID, Queue: queue, Body: []byte(body), DeliveryCount: count}
 }
 func (b *Broker) receipt(d async.Delivery) (string, string, error) {
+	if err := b.valid(); err != nil {
+		return "", "", err
+	}
 	stream, id, ok := strings.Cut(d.Receipt, "\x00")
 	if !ok || !b.allowed(d.Queue) {
 		return "", "", async.ErrInvalid
@@ -194,8 +203,20 @@ func (b *Broker) Reject(ctx context.Context, d async.Delivery, reason string, re
 	return err
 }
 func (b *Broker) Reclaim(ctx context.Context, o async.ConsumeOptions, idle time.Duration) ([]async.Delivery, error) {
-	if idle <= 0 || o.Consumer == "" {
+	if err := b.valid(); err != nil {
+		return nil, err
+	}
+	batch := b.ReclaimBatch
+	if batch == 0 {
+		batch = 1
+	}
+	if idle <= 0 || o.Consumer == "" || len(o.Queues) == 0 || batch < 1 || batch > 1000 {
 		return nil, async.ErrInvalid
+	}
+	b.reclaimMu.Lock()
+	defer b.reclaimMu.Unlock()
+	if b.reclaimNext == nil {
+		b.reclaimNext = map[string]string{}
 	}
 	var out []async.Delivery
 	for _, queue := range o.Queues {
@@ -207,18 +228,29 @@ func (b *Broker) Reclaim(ctx context.Context, o async.ConsumeOptions, idle time.
 			if err := b.ensure(ctx, stream); err != nil {
 				return nil, err
 			}
-			messages, _, err := b.Connection.Client().XAutoClaim(ctx, &redigo.XAutoClaimArgs{Stream: stream, Group: workerGroup, Consumer: o.Consumer, MinIdle: idle, Start: "0-0", Count: 100}).Result()
+			start := b.reclaimNext[stream]
+			if start == "" {
+				start = "0-0"
+			}
+			messages, next, err := b.Connection.Client().XAutoClaim(ctx, &redigo.XAutoClaimArgs{Stream: stream, Group: workerGroup, Consumer: o.Consumer, MinIdle: idle, Start: start, Count: int64(batch - len(out))}).Result()
 			if err != nil && !errors.Is(err, redigo.Nil) {
 				return nil, err
 			}
+			b.reclaimNext[stream] = next
 			for _, message := range messages {
 				out = append(out, streamDelivery(queue, stream, message, 2))
+			}
+			if len(out) >= batch {
+				return out, nil
 			}
 		}
 	}
 	return out, nil
 }
 func (b *Broker) Inspect(ctx context.Context, queues []string) ([]async.QueueStats, error) {
+	if err := b.valid(); err != nil {
+		return nil, err
+	}
 	var out []async.QueueStats
 	for _, queue := range queues {
 		if !b.allowed(queue) {

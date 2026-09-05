@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -13,6 +14,7 @@ import (
 	adapter "github.com/Newton-School/gogo/async/redis"
 	connector "github.com/Newton-School/gogo/connectors/redis"
 	fixture "github.com/Newton-School/gogo/connectors/redis/testing"
+	"github.com/Newton-School/gogo/core/ratelimit"
 )
 
 func backends(t *testing.T) (*adapter.Broker, *adapter.Results) {
@@ -84,6 +86,107 @@ func TestRealRedisWorkerRoundTripAndPublishDedupe(t *testing.T) {
 	stats, err := broker.Inspect(ctx, []string{"default"})
 	if err != nil || stats[0].Queued != 0 || stats[0].Pending != 0 {
 		t.Fatal(stats, err)
+	}
+}
+
+func TestReclaimAdvancesPastLiveReservationsAndBoundsPrefetch(t *testing.T) {
+	ctx := context.Background()
+	broker, _ := backends(t)
+	var last async.Delivery
+	for i := 0; i < 25; i++ {
+		e := taskEnvelope(t)
+		if err := broker.Publish(ctx, e); err != nil {
+			t.Fatal(err)
+		}
+		var err error
+		last, err = broker.Consume(ctx, async.ConsumeOptions{Queues: []string{"default"}, Consumer: "original"})
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	stream, receipt, _ := strings.Cut(last.Receipt, "\x00")
+	// Only the final reservation is abandoned. The first twenty-four remain
+	// live and require XAUTOCLAIM's returned scan cursor to reach the tail.
+	if err := broker.Connection.Client().Do(ctx, "XCLAIM", stream, "gogo-workers", "original", 0, receipt, "IDLE", 120000).Err(); err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for turn := 0; turn < 4; turn++ {
+		items, err := broker.Reclaim(ctx, async.ConsumeOptions{Queues: []string{"default"}, Consumer: "replacement"}, time.Minute)
+		if err != nil || len(items) > 1 {
+			t.Fatal(items, err)
+		}
+		if len(items) == 1 {
+			if items[0].Receipt != last.Receipt {
+				t.Fatal("reclaimed a live reservation", items)
+			}
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatal("abandoned tail reservation starved behind live prefix")
+	}
+}
+
+func TestInvalidBrokerConfigurationReturnsErrors(t *testing.T) {
+	ctx := context.Background()
+	broker := &adapter.Broker{}
+	if err := broker.Ack(ctx, async.Delivery{}); !errors.Is(err, async.ErrInvalid) {
+		t.Fatal(err)
+	}
+	if _, err := broker.Reclaim(ctx, async.ConsumeOptions{}, time.Minute); !errors.Is(err, async.ErrInvalid) {
+		t.Fatal(err)
+	}
+	if _, err := broker.Inspect(ctx, []string{"default"}); !errors.Is(err, async.ErrInvalid) {
+		t.Fatal(err)
+	}
+}
+
+func TestDistributedRateBudgetIsSharedAcrossWorkers(t *testing.T) {
+	ctx := context.Background()
+	broker, results := backends(t)
+	registry := async.NewRegistry()
+	calls := 0
+	task, err := async.Register(registry, "test.rate", 1, func(context.Context, async.TaskContext, int) (int, error) { calls++; return 1, nil }, async.TaskOptions{Rate: &async.TaskRate{Scope: "distributed", Limit: ratelimit.Limit{Rate: 1, Burst: 1, Period: time.Hour}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	client, err := async.NewClient(async.ClientConfig{Registry: registry, Broker: broker, Results: results})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i, name := range []string{"first", "second"} {
+		result, err := task.Delay(ctx, client, i)
+		if err != nil {
+			t.Fatal(err)
+		}
+		delivery, err := broker.Consume(ctx, async.ConsumeOptions{Queues: []string{"default"}, Consumer: name})
+		if err != nil {
+			t.Fatal(err)
+		}
+		worker := &async.Worker{ID: name, Registry: registry, Broker: broker, Results: results, RateLimiter: &connector.Limiter{Connection: broker.Connection}}
+		bounded, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
+		err = worker.Process(bounded, delivery)
+		cancel()
+		if i == 0 && err != nil || i == 1 && !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatal(i, err)
+		}
+		if i == 1 {
+			record, err := result.Snapshot(ctx)
+			if err != nil || record.State != async.Queued || record.DeliveryCount != 0 || record.Envelope.Retries != 0 {
+				t.Fatal(record, err)
+			}
+			if err := result.Revoke(ctx); err != nil {
+				t.Fatal(err)
+			}
+			if err := worker.Process(ctx, delivery); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	if calls != 1 {
+		t.Fatal("workers did not share a rate budget", calls)
 	}
 }
 func TestRealRedisFencesAndConcurrentClaims(t *testing.T) {
