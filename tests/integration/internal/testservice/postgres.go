@@ -85,6 +85,13 @@ func Postgres(t *testing.T) *postgres.Backend {
 
 func startPostgres(t *testing.T) string {
 	t.Helper()
+	unavailable := func(message string) {
+		t.Helper()
+		if os.Getenv("GOGO_TEST_REQUIRE_SERVICES") == "1" {
+			t.Fatal(message)
+		}
+		t.Skip(message)
+	}
 	find := func(name string) string {
 		path := name
 		if directory := os.Getenv("GOGO_TEST_POSTGRES_BIN"); directory != "" {
@@ -92,7 +99,7 @@ func startPostgres(t *testing.T) string {
 		}
 		resolved, err := exec.LookPath(path)
 		if err != nil {
-			t.Skip("PostgreSQL server binaries unavailable; set GOGO_TEST_POSTGRES_BIN or PATH to run real integration tests")
+			unavailable("PostgreSQL server binaries unavailable; set GOGO_TEST_POSTGRES_BIN or PATH to run real integration tests")
 		}
 		return resolved
 	}
@@ -108,7 +115,7 @@ func startPostgres(t *testing.T) string {
 		}
 		version, _ := strconv.Atoi(parts[1])
 		if version < 16 {
-			t.Skip("PostgreSQL 16+ required; set GOGO_TEST_POSTGRES_BIN to a supported server binary directory")
+			unavailable("PostgreSQL 16+ required; set GOGO_TEST_POSTGRES_BIN to a supported server binary directory")
 		}
 		if major != 0 && major != version {
 			t.Fatal("PostgreSQL server tooling has mixed major versions")

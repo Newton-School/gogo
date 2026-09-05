@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"sync/atomic"
+	"time"
 )
 
 type transactionKey struct{}
@@ -65,6 +66,9 @@ func Atomic(ctx context.Context, backend Backend, options AtomicOptions, fn func
 	if fn == nil {
 		return errors.New("db: nil atomic callback")
 	}
+	if backend == nil {
+		return errors.New("db: nil backend")
+	}
 	if err = ctx.Err(); err != nil {
 		return err
 	}
@@ -72,12 +76,16 @@ func Atomic(ctx context.Context, backend Backend, options AtomicOptions, fn func
 	if parent != nil && options.Durable {
 		return errors.New("db: durable Atomic must be outermost")
 	}
-	state := &transactionContext{alias: backend.Alias(), parent: parent}
+	// The ambient chain and the same-alias savepoint owner are different: in
+	// A -> B -> A, the innermost A must retain B for routing and callbacks.
+	ambient, _ := ctx.Value(transactionKey{}).(*transactionContext)
+	state := &transactionContext{alias: backend.Alias(), parent: ambient}
 	savepoint := ""
 	if parent != nil {
 		state.tx = parent.tx
 		savepoint = fmt.Sprintf("gogo_sp_%d", savepointSequence.Add(1))
 		if _, err = state.tx.Exec(ctx, "SAVEPOINT "+savepoint); err != nil {
+			parent.rollbackOnly = true
 			return err
 		}
 	} else {
@@ -85,14 +93,14 @@ func Atomic(ctx context.Context, backend Backend, options AtomicOptions, fn func
 		if err != nil {
 			return err
 		}
-		state.parent, _ = ctx.Value(transactionKey{}).(*transactionContext)
 	}
 	childCtx := context.WithValue(ctx, transactionKey{}, state)
 	committed := false
 	defer func() {
 		panicValue := recover()
 		if !committed && (panicValue != nil || err != nil || state.rollbackOnly) {
-			cleanupCtx := context.WithoutCancel(ctx)
+			cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+			defer cancel()
 			var cleanupErr error
 			if savepoint != "" {
 				_, cleanupErr = state.tx.Exec(cleanupCtx, "ROLLBACK TO SAVEPOINT "+savepoint)
@@ -103,6 +111,9 @@ func Atomic(ctx context.Context, backend Backend, options AtomicOptions, fn func
 				cleanupErr = state.tx.Rollback()
 			}
 			if cleanupErr != nil {
+				if parent != nil {
+					parent.rollbackOnly = true
+				}
 				err = errors.Join(err, cleanupErr)
 			}
 			if err == nil && state.rollbackOnly {
@@ -124,6 +135,7 @@ func Atomic(ctx context.Context, backend Backend, options AtomicOptions, fn func
 	}
 	if savepoint != "" {
 		if _, err = state.tx.Exec(ctx, "RELEASE SAVEPOINT "+savepoint); err != nil {
+			parent.rollbackOnly = true
 			return err
 		}
 		parent.callbacks = append(parent.callbacks, state.callbacks...)

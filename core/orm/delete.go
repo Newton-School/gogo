@@ -13,6 +13,9 @@ import (
 )
 
 var ErrProtectedRelation = errors.New("orm: protected relationship prevents deletion")
+var ErrDeleteLimit = errors.New("orm: deletion graph exceeds its object or work limit; narrow the scoped selection or configure an explicit collector limit")
+
+const defaultDeleteLimit = 10000
 
 type DeleteEvent struct{ Record models.Record }
 type DeleteReceiver func(context.Context, DeleteEvent) error
@@ -36,9 +39,13 @@ type DeletionPlan struct {
 // must carry application tenant/authorization constraints for every schema.
 // Execution recollects inside Atomic; it never trusts a stale preview plan.
 type DeleteCollector struct {
-	Store      *Store
-	Scope      func(context.Context, models.Schema) (db.Predicate, error)
+	Store *Store
+	Scope func(context.Context, models.Schema) (db.Predicate, error)
+	// Authorize checks the freshly locked execution graph, including updates.
+	// It must not mutate the plan and may return any application policy error.
+	Authorize  func(context.Context, DeletionPlan) error
 	MaxObjects int
+	MaxWork    int
 }
 
 func (c DeleteCollector) Collect(ctx context.Context, root models.Record) (DeletionPlan, error) {
@@ -47,18 +54,59 @@ func (c DeleteCollector) Collect(ctx context.Context, root models.Record) (Delet
 
 func (c DeleteCollector) collect(ctx context.Context, roots []models.Record, lock bool) (DeletionPlan, error) {
 	plan := DeletionPlan{}
+	if err := ctx.Err(); err != nil {
+		return plan, err
+	}
 	if c.Store == nil || c.Store.Backend == nil || c.Store.Registry == nil {
 		return plan, errors.New("orm: delete collector requires backend and complete model registry")
 	}
 	maximum := c.MaxObjects
 	if maximum <= 0 {
-		maximum = 10000
+		maximum = defaultDeleteLimit
+	}
+	workLimit := c.MaxWork
+	if workLimit <= 0 {
+		workLimit = maximum
+		if maximum <= int(^uint(0)>>1)/32 {
+			workLimit = maximum * 32
+		}
+	}
+	work := 0
+	tick := func() error {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		work++
+		if work > workLimit {
+			return ErrDeleteLimit
+		}
+		return nil
+	}
+	fetched := map[string]bool{}
+	track := func(record models.Record) error {
+		if err := tick(); err != nil {
+			return err
+		}
+		key, err := recordIdentity(record)
+		if err != nil {
+			return err
+		}
+		if !fetched[key] {
+			if len(fetched) >= maximum {
+				return ErrDeleteLimit
+			}
+			fetched[key] = true
+		}
+		return nil
 	}
 	seen := map[string]bool{}
 	var restrictions []ProtectedRelation
 	schemas := c.Store.Registry.All()
 	var visit func(models.Record) error
 	visit = func(record models.Record) error {
+		if err := tick(); err != nil {
+			return err
+		}
 		key, err := recordIdentity(record)
 		if err != nil {
 			return err
@@ -67,16 +115,22 @@ func (c DeleteCollector) collect(ctx context.Context, roots []models.Record, loc
 			return nil
 		}
 		if len(seen) >= maximum {
-			return errors.New("orm: deletion graph exceeds configured bound")
+			return ErrDeleteLimit
 		}
 		seen[key] = true
 		for _, schema := range schemas {
 			for _, field := range schema.Fields {
+				if err := ctx.Err(); err != nil {
+					return err
+				}
 				if !field.IsStored() || field.Relation == nil || field.Relation.Target != record.Schema().Key() {
 					continue
 				}
 				if field.Relation.NoConstraint {
 					return errors.New("orm: unconstrained relations require an explicit application deletion policy")
+				}
+				if err := tick(); err != nil {
+					return err
 				}
 				keys := field.Relation.TargetFields
 				if len(keys) == 0 {
@@ -96,9 +150,12 @@ func (c DeleteCollector) collect(ctx context.Context, roots []models.Record, loc
 					return err
 				}
 				if len(children) > maximum {
-					return errors.New("orm: deletion graph exceeds configured bound")
+					return ErrDeleteLimit
 				}
 				for _, child := range children {
+					if err := track(child); err != nil {
+						return err
+					}
 					switch field.Relation.OnDelete {
 					case models.Cascade:
 						if err := visit(child); err != nil {
@@ -137,6 +194,9 @@ func (c DeleteCollector) collect(ctx context.Context, roots []models.Record, loc
 		return nil
 	}
 	for _, root := range roots {
+		if err := ctx.Err(); err != nil {
+			return plan, err
+		}
 		if root == nil {
 			return plan, errors.New("orm: nil delete root")
 		}
@@ -154,11 +214,17 @@ func (c DeleteCollector) collect(ctx context.Context, roots []models.Record, loc
 		if len(rows) != 1 {
 			return plan, ErrNotFound
 		}
+		if err := track(rows[0]); err != nil {
+			return plan, err
+		}
 		if err := visit(rows[0]); err != nil {
 			return plan, err
 		}
 	}
 	for _, restriction := range restrictions {
+		if err := ctx.Err(); err != nil {
+			return plan, err
+		}
 		key, err := recordIdentity(restriction.Record)
 		if err != nil {
 			return plan, err
@@ -169,6 +235,9 @@ func (c DeleteCollector) collect(ctx context.Context, roots []models.Record, loc
 	}
 	updates := plan.Updates[:0]
 	for _, update := range plan.Updates {
+		if err := ctx.Err(); err != nil {
+			return plan, err
+		}
 		key, err := recordIdentity(update.Record)
 		if err != nil {
 			return plan, err
@@ -209,6 +278,9 @@ func (c DeleteCollector) records(ctx context.Context, schema models.Schema, wher
 	defer rows.Close()
 	result := []models.Record{}
 	for rows.Next() {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		values := make([]any, len(query.Fields))
 		dest := make([]any, len(values))
 		for i := range values {
@@ -286,6 +358,11 @@ func (c DeleteCollector) execute(ctx context.Context, roots []models.Record) (ma
 		}
 		if len(plan.Protected) > 0 {
 			return ErrProtectedRelation
+		}
+		if c.Authorize != nil {
+			if err := c.Authorize(ctx, plan); err != nil {
+				return err
+			}
 		}
 		for _, record := range plan.Objects {
 			for _, receiver := range c.Store.BeforeDelete {
@@ -398,12 +475,18 @@ func (q Query[T]) Delete(ctx context.Context) (map[string]int64, error) {
 	}
 	var counts map[string]int64
 	err := db.Atomic(ctx, q.store.Backend, db.AtomicOptions{}, func(ctx context.Context) error {
-		modelsFound, err := q.SelectForUpdate(false, false).All(ctx)
+		modelsFound, err := q.Limit(defaultDeleteLimit+1).SelectForUpdate(false, false).All(ctx)
 		if err != nil {
 			return err
 		}
+		if len(modelsFound) > defaultDeleteLimit {
+			return ErrDeleteLimit
+		}
 		records := make([]models.Record, 0, len(modelsFound))
 		for _, model := range modelsFound {
+			if err := ctx.Err(); err != nil {
+				return err
+			}
 			record, err := models.Bind(model)
 			if err != nil {
 				return err
