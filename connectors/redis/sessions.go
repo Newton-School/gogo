@@ -116,9 +116,30 @@ func (s *Sessions) Load(ctx context.Context, id string) (sessions.Record, error)
 	return r, nil
 }
 
-var sessionDelete = redigo.NewScript(`redis.call('HSET',KEYS[1],'deleted','1','version','tombstone');redis.call('HDEL',KEYS[1],'payload');redis.call('PEXPIRE',KEYS[1],ARGV[1]);return 1`)
+var sessionDelete = redigo.NewScript(`
+if ARGV[2]=='cas' then
+ local version=redis.call('HGET',KEYS[1],'version')
+ if not version or version~=ARGV[3] or redis.call('HGET',KEYS[1],'deleted')=='1' then return 0 end
+ local expiry=redis.call('HGET',KEYS[1],'expiry')
+ local tm=redis.call('TIME');local now=tonumber(tm[1])*1000+math.floor(tonumber(tm[2])/1000)
+ if not expiry or not tonumber(expiry) or tonumber(expiry)<=now then return 0 end
+end
+redis.call('HSET',KEYS[1],'deleted','1','version','tombstone')
+redis.call('HDEL',KEYS[1],'payload');redis.call('PEXPIRE',KEYS[1],ARGV[1]);return 1
+`)
 
 func (s *Sessions) Delete(ctx context.Context, id string) error {
+	return s.remove(ctx, id, 0, false)
+}
+
+// DeleteIfVersion atomically revokes only the caller's loaded, unexpired
+// version. Rotation can create a new identity only after this succeeds; these
+// two session keys need not share a Redis slot. No cross-key atomicity is implied.
+func (s *Sessions) DeleteIfVersion(ctx context.Context, id string, expected uint64) error {
+	return s.remove(ctx, id, expected, true)
+}
+
+func (s *Sessions) remove(ctx context.Context, id string, expected uint64, conditional bool) error {
 	if err := s.valid(); err != nil {
 		return err
 	}
@@ -132,8 +153,23 @@ func (s *Sessions) Delete(ctx context.Context, id string) error {
 	if ttl < time.Minute {
 		return ErrInvalid
 	}
-	_, err := s.Connection.Atomic(ctx, sessionDelete, []string{s.key(id)}, ttl.Milliseconds())
-	return err
+	mode := "delete"
+	if conditional {
+		mode = "cas"
+	}
+	result, err := s.Connection.Atomic(ctx, sessionDelete, []string{s.key(id)}, ttl.Milliseconds(), mode, strconv.FormatUint(expected, 10))
+	if err != nil {
+		return err
+	}
+	value, ok := result.(int64)
+	if !ok {
+		return ErrUnavailable
+	}
+	if value != 1 {
+		return sessions.ErrConflict
+	}
+	return nil
 }
 
 var _ sessions.Store = (*Sessions)(nil)
+var _ sessions.VersionedDeleter = (*Sessions)(nil)
