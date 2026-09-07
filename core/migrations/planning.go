@@ -184,6 +184,10 @@ func Detect(before, after []models.Schema, options DetectOptions) ([]Operation, 
 	if err != nil {
 		return nil, err
 	}
+	historical := make(map[string]models.Schema, len(old))
+	for key, schema := range old {
+		historical[key] = schema
+	}
 	for _, key := range keys {
 		schema := new[key]
 		previous, exists := old[key]
@@ -275,7 +279,7 @@ func Detect(before, after []models.Schema, options DetectOptions) ([]Operation, 
 		}
 		operations = append(operations, DeleteModel(old[key]))
 	}
-	return operations, nil
+	return orderDetectedOperations(operations, historical, new)
 }
 func fieldEquivalent(a, b models.Field) bool {
 	a.Validators = nil
