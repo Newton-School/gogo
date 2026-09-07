@@ -244,7 +244,8 @@ func (f Field) Validate(ctx context.Context, value any) error {
 	return err
 }
 
-var slugPattern = regexp.MustCompile(`^[\p{L}\p{N}_-]+$`)
+var slugPattern = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
+var unicodeSlugPattern = regexp.MustCompile(`^[\p{L}\p{N}_-]+$`)
 var uuidPattern = regexp.MustCompile(`(?i)^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
 
 func (f Field) Clean(ctx context.Context, value any) (any, error) {
@@ -338,7 +339,11 @@ func (f Field) Clean(ctx context.Context, value any) (any, error) {
 		}
 		switch f.Kind {
 		case Slug:
-			if !slugPattern.MatchString(text) {
+			pattern := slugPattern
+			if f.AllowUnicode {
+				pattern = unicodeSlugPattern
+			}
+			if !pattern.MatchString(text) {
 				return nil, Invalid("invalid", "Enter letters, numbers, underscores or hyphens.")
 			}
 		case Email:

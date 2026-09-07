@@ -112,6 +112,7 @@ func FieldFromModel(metadata models.Field) (Field, error) {
 	f.MinLength = metadata.MinLength
 	f.MaxDigits = metadata.MaxDigits
 	f.DecimalPlaces = metadata.DecimalPlaces
+	f.AllowUnicode = metadata.AllowUnicode
 	switch metadata.Kind {
 	case models.SmallInteger, models.Integer, models.BigInteger, models.PositiveSmallInteger, models.PositiveInteger, models.PositiveBigInteger:
 		f.Kind = Integer

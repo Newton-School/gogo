@@ -104,21 +104,24 @@ type Field struct {
 	Column                                                                  string
 	Kind                                                                    Kind
 	Null, Blank, Editable, PrimaryKey, Unique, DBIndex, AutoNow, AutoNowAdd bool
-	Label, HelpText, Comment, Collation, Tablespace                         string
-	MaxLength, MinLength, MaxDigits, DecimalPlaces                          int
-	Min, Max                                                                any
-	Choices                                                                 []Choice
-	Default                                                                 any
-	DefaultFunc                                                             func() any `json:"-"`
-	DefaultID                                                               string
-	DBDefault                                                               string
-	GeneratedExpression                                                     string
-	Validators                                                              []Validator `json:"-"`
-	Codec                                                                   Codec       `json:"-"`
-	Relation                                                                *Relation
-	Element                                                                 *Field
-	RangeType                                                               Kind
-	UniqueForDate, UniqueForMonth, UniqueForYear                            string
+	// AllowUnicode widens Slug validation to Unicode letters and numbers.
+	// It never normalizes, transliterates or changes stored values.
+	AllowUnicode                                    bool `json:",omitempty"`
+	Label, HelpText, Comment, Collation, Tablespace string
+	MaxLength, MinLength, MaxDigits, DecimalPlaces  int
+	Min, Max                                        any
+	Choices                                         []Choice
+	Default                                         any
+	DefaultFunc                                     func() any `json:"-"`
+	DefaultID                                       string
+	DBDefault                                       string
+	GeneratedExpression                             string
+	Validators                                      []Validator `json:"-"`
+	Codec                                           Codec       `json:"-"`
+	Relation                                        *Relation
+	Element                                         *Field
+	RangeType                                       Kind
+	UniqueForDate, UniqueForMonth, UniqueForYear    string
 }
 
 func (f Field) DBColumn() string {

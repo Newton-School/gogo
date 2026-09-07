@@ -25,6 +25,7 @@ func WithColumn(name string) FieldOption      { return func(f *Field) { f.Column
 func WithStructField(name string) FieldOption { return func(f *Field) { f.StructField = name } }
 func WithMaxLength(n int) FieldOption         { return func(f *Field) { f.MaxLength = n } }
 func WithMinLength(n int) FieldOption         { return func(f *Field) { f.MinLength = n } }
+func WithAllowUnicode(allow bool) FieldOption { return func(f *Field) { f.AllowUnicode = allow } }
 func WithPrecision(digits, places int) FieldOption {
 	return func(f *Field) { f.MaxDigits = digits; f.DecimalPlaces = places }
 }

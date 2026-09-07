@@ -77,7 +77,9 @@ type Field struct {
 	Disabled bool
 	// Strip controls whitespace trimming for Char fields. Nil preserves the
 	// default of trimming; false preserves significant whitespace, e.g. passwords.
-	Strip         *bool
+	Strip *bool
+	// AllowUnicode accepts Unicode letters and numbers in Slug fields.
+	AllowUnicode  bool
 	Initial       any
 	Label         string
 	HelpText      string
@@ -313,7 +315,17 @@ func (f Field) toValue(ctx context.Context, raw any) (any, error) {
 		}
 		return strings.ToLower(s), nil
 	case Slug:
-		if !slugPattern.MatchString(s) {
+		if f.Strip == nil || *f.Strip {
+			s = strings.TrimSpace(s)
+		}
+		if s == "" {
+			return s, nil
+		}
+		pattern := slugPattern
+		if f.AllowUnicode {
+			pattern = unicodeSlugPattern
+		}
+		if !pattern.MatchString(s) {
 			return invalid()
 		}
 		return s, nil
@@ -457,6 +469,7 @@ func (f Field) cleanComposite(ctx context.Context, raw any) (any, error) {
 var decimalPattern = regexp.MustCompile(`^[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)$`)
 var uuidPattern = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
 var slugPattern = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
+var unicodeSlugPattern = regexp.MustCompile(`^[\p{L}\p{N}_-]+$`)
 
 type validationErrors struct{ values ErrorList }
 
