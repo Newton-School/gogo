@@ -51,9 +51,39 @@ unknown; no panic value is disclosed.
 
 Retention defaults to 24h and cannot be shorter than Timeout. An expired key
 may perform a new mutation; replay is only guaranteed inside retention. Expiry
-is checked under the same row lock. Administrative physical receipt cleanup
-is not provided by this service yet. [Resource creation](create.md) integrates
-these receipts through explicit `CreateIdempotencyOptions`; update/delete
-integration is unfinished.
+is checked under the same row lock. [Resource creation](create.md) and
+[PUT/PATCH updates](update.md) integrate these receipts through explicit
+mutation options; generic delete integration remains unfinished.
 Do not expose `IdempotencyRecord` through generic Admin/resources or logs;
 direct JSON serialization and routine formatting are deliberately restricted.
+
+## Expired receipt maintenance
+
+`service.Prune(ctx, limit)` removes one oldest-first batch of expired sealed
+receipts, without loading response bodies or calling business model hooks.
+Zero selects a 100-row limit; explicit limits are 1–1000 and must fit the
+connector parameter budget. Expiry uses the same configured trusted `Now`
+clock as Execute, never an arbitrary caller-supplied cutoff. Unexpired and
+unsealed rows are retained; no business objects, audit rows or outbox records
+are deleted. There is no implicit background cleanup or public HTTP endpoint.
+
+Prune is disabled unless `IdempotencyConfig.AuthorizePrune` is configured.
+That read-only policy explicitly authorizes expired-receipt deletion across
+**all actors and scopes on this backend**. Supply a verified active maintenance
+principal, not an ordinary user's resource grant. The policy runs inside the
+owned outer transaction before selection and again after the batch is locked;
+denial or cancellation aborts the entire batch. Ambient same-alias transactions
+are rejected, and all provider/lock waits share the service Timeout.
+
+Prune locks selected receipts in expiry/ID order and rechecks expiry in its
+delete statement. Execute cannot renew a locked receipt while it is deleted;
+a concurrent renewal that wins first is retained. A bounded lock timeout leaves
+maintenance unchanged. Competing batches can observe fewer rows; a short or
+empty batch is not a global completion signal while requests are concurrent.
+
+Check both `PruneResult.Outcome` and the error. `Deleted` is confirmed only for
+`committed`, including a failure in an after-commit observation. `unknown`
+deliberately reports zero, without asserting that nothing was removed. Another
+bounded maintenance pass is safe for expiry but cannot reconstruct the exact
+previous count. Removing or reusing an expired receipt ends its replay guarantee;
+the same client key can subsequently perform a new business mutation.

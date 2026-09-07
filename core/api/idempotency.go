@@ -65,7 +65,12 @@ type IdempotencyConfig struct {
 	// Redact rechecks CURRENT field visibility. It may only remove fields.
 	// Both callbacks are read-only and run within the same transaction.
 	Redact func(context.Context, string, string, Values, Values) (Values, error)
-	Now    func() time.Time
+	// AuthorizePrune explicitly permits maintenance across EVERY actor/scope on
+	// this backend. Nil disables Prune. Require a trusted maintenance principal;
+	// ordinary resource grants must not imply this authority. The callback is
+	// read-only and runs again after the expired batch has been locked.
+	AuthorizePrune func(context.Context) error
+	Now            func() time.Time
 }
 type Idempotency struct {
 	config IdempotencyConfig
