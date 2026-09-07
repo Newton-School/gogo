@@ -23,7 +23,38 @@ The built-in subprocess executor supports Linux and macOS. After leader exit it 
 
 `async/management.Commands` registers only explicitly supplied worker, beat, task/queue control and subprocess-child factories. The worker role supervises its configured relay, delayed dispatcher and outbox. Invalid flags fail before resources open. Status does not print arguments or result data; `tasks result` is an explicit separately scoped operation.
 
-`Control.InspectQuarantine(ctx, queue, cursor, limit)` and `queues quarantine <queue> [cursor|- [limit]]` list one diagnostic page (default CLI limit 100, maximum 1,000). The configured broker must implement `QuarantineReader`. An explicit `inspect_quarantine` grant for the exact queue is required before and after lookup; ordinary task/queue inspection does not imply this grant because malformed messages have no trustworthy task scope. Each page contains only categorized rejection reason, digest, first-seen time and source receipt metadata. Invalid records, cancellation and policy/provider failures return no partial page. Redis cursors bind the configured namespace and queue; they are positions, not credentials. Always configure separate namespaces for separate applications/workspaces and protect raw adapter access. Older records have unknown source priority (`-1`); message bodies were not retained, so these records cannot supply executable replay input. Inspection does not trim or remove quarantine entries. Replay, removal and purge controls are not implemented yet.
+`Control.InspectQuarantine(ctx, queue, cursor, limit)` and `queues quarantine <queue> [cursor|- [limit]]` list one diagnostic page (default CLI limit 100, maximum 1,000). The configured broker must implement `QuarantineReader`. An explicit `inspect_quarantine` grant for the exact queue is required before and after lookup; ordinary task/queue inspection does not imply this grant because malformed messages have no trustworthy task scope. Each page contains only categorized rejection reason, digest, first-seen time and source receipt metadata. Invalid records, cancellation and policy/provider failures return no partial page. Redis cursors bind the configured namespace and queue; they are positions, not credentials. Always configure separate namespaces for separate applications/workspaces and protect raw adapter access. Older records have unknown source priority (`-1`); message bodies were not retained, so these records cannot supply executable replay input. Inspection does not trim or remove quarantine entries. Replay and purge controls are not implemented yet.
+
+`Control.RemoveQuarantine(ctx, entry)` removes one complete `QuarantineEntry`
+previously returned by inspection. It requires the separate `remove_quarantine`
+grant with the exact queue as scope and diagnostic ID as resource; an inspection
+grant is not enough. The configured broker must implement `QuarantineRemover`.
+The central command is `queues quarantine-remove '<one complete entry JSON>'`;
+it accepts at most 16 KiB and requires every canonical JSON key exactly once,
+rejecting missing/unknown metadata, duplicate keys and case variants before
+opening application resources. Export diagnostic metadata first if it must be retained.
+
+Always inspect both returned outcome and error. `removed` confirms this call's
+removal; `already_absent` confirms absence but cannot prove who removed it.
+`conflict` leaves an existing entry with different metadata untouched;
+`not_attempted` means validation, authorization or capability checks stopped the
+write. `unknown` can follow a lost reply, provider panic or cancellation after an
+applied write. Keep the exact original entry for an idempotent retry, never select
+a different row to compensate. Cancellation after a confirmed provider reply can
+return `removed` or `already_absent` together with the cancellation error. The CLI
+prints the outcome even when execution returns an error.
+
+Redis validates namespace, queue, cursor position, ID and timestamp consistency,
+then atomically matches receipt, reason, digest and optional priority before
+deleting only that diagnostic stream entry. Unknown or duplicated stored metadata
+is rejected, not silently erased; supported old records with absent priority keep
+`-1`. No source-stream entry, consumer-group acknowledgement, task result, retry or
+executable payload is changed. Remaining cursors keep their positions; Memory
+likewise keeps append-only positions rather than recycling removed slots. Raw
+adapter removal is a trusted infrastructure port without caller authorization.
+Only the exact `ErrInvalid` and `ErrConflict` provider sentinels confirm the
+corresponding no-write result. Wrapped or joined errors remain `unknown`, since
+an additional failure can follow an applied removal.
 
 Set `Worker.Presence` and `ClientConfig.Presence` to an `async/redis.Workers` adapter for remote heartbeat snapshots. `Worker.Run/RunOnce` claim instance ownership before reserving work and refresh using the worker heartbeat interval; direct `Process` calls do not advertise a runner. Startup collisions fail, while later monitoring outages are reported without rewriting task results or canceling handlers. `Control.InspectWorkers` and `tasks inspect workers <id>...` require worker, queue and active-task scope grants. They return online/lost/offline/unknown status and partial errors, never task arguments or ownership tokens. A lost heartbeat or offline runner does not prove its tasks stopped. Snapshots expire after 24 hours without a write; Redis time controls liveness. Unknown claim acknowledgements may require waiting for the previous monitoring lease to expire before a new runner starts.
 

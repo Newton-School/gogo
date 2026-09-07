@@ -57,6 +57,10 @@ func ValidateQuarantineRecord(record QuarantineRecord) error {
 }
 
 func (c Control) authorizeQuarantine(ctx context.Context, queue string) (err error) {
+	return c.authorizeQuarantineAction(ctx, "inspect_quarantine", queue, "")
+}
+
+func (c Control) authorizeQuarantineAction(ctx context.Context, action, queue, id string) (err error) {
 	defer func() {
 		if recover() != nil {
 			err = ErrUnavailable
@@ -71,7 +75,7 @@ func (c Control) authorizeQuarantine(ctx context.Context, queue string) (err err
 	if c.Client.config.Authorize == nil {
 		return ErrDenied
 	}
-	err = c.Client.config.Authorize(ctx, "inspect_quarantine", queue, "")
+	err = c.Client.config.Authorize(ctx, action, queue, id)
 	if err == nil {
 		return nil
 	}

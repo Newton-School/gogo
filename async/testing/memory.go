@@ -183,7 +183,7 @@ func (m *Memory) Inspect(ctx context.Context, queues []string) ([]async.QueueSta
 			}
 		}
 		for _, d := range m.quarantine {
-			if d.Queue == q {
+			if d.ID != "" && d.Queue == q {
 				s.Quarantined++
 			}
 		}

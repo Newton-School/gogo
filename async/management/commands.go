@@ -228,7 +228,11 @@ func Commands(f Factories) []core.Command {
 				// or result payload; result access is an explicit separate action.
 				return json.NewEncoder(invocation.Stdout).Encode(map[string]any{"task_id": args[1], "state": record.State, "retries": record.Envelope.Retries, "delivery_count": record.DeliveryCount, "cancellation_requested": record.CancelRequested, "replacement_id": record.ReplacementID})
 			}
-		}}, core.Command{Name: "queues", Help: "Inspect declared queues or a bounded redacted quarantine page", Resources: append([]string(nil), f.ClientResources...), OpenResources: true, Validate: func(args []string) error {
+		}}, core.Command{Name: "queues", Help: "Inspect queues/quarantine or remove one authorized diagnostic entry", Resources: append([]string(nil), f.ClientResources...), OpenResources: true, Validate: func(args []string) error {
+			if len(args) > 0 && args[0] == "quarantine-remove" {
+				_, err := quarantineRemovalArguments(args)
+				return err
+			}
 			if len(args) > 0 && args[0] == "quarantine" {
 				_, _, _, err := quarantineArguments(args)
 				return err
@@ -247,6 +251,15 @@ func Commands(f Factories) []core.Command {
 				client, err := f.Client(ctx, invocation)
 				if err != nil {
 					return err
+				}
+				if args[0] == "quarantine-remove" {
+					entry, err := quarantineRemovalArguments(args)
+					if err != nil {
+						return err
+					}
+					outcome, err := (async.Control{Client: client}).RemoveQuarantine(ctx, entry)
+					writeErr := json.NewEncoder(invocation.Stdout).Encode(map[string]any{"outcome": outcome})
+					return errors.Join(err, writeErr)
 				}
 				if args[0] == "quarantine" {
 					queue, after, limit, err := quarantineArguments(args)
