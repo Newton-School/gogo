@@ -5,15 +5,19 @@ SHELL := /bin/bash
 # AgentFlow architecture review
 -include .agentflow/agentflow.mk
 
-.PHONY: help test test-modules test-integration vet build
+.PHONY: help test test-js test-modules test-integration vet build
 help: agentflow-help
-	@echo 'Product: make test | test-modules | test-integration | vet | build'
+	@echo 'Product: make test | test-js | test-modules | test-integration | vet | build'
 
 # Contributor workspace checks; public modules are independently tested below.
 MODULE_PACKAGES := ./... ./admin/... ./async/... ./connectors/postgres/... ./connectors/redis/... ./async/redis/... ./tests/integration/...
 
-test:
+test: test-js
 	go test -race $(MODULE_PACKAGES)
+
+# Contributor-only JavaScript contracts; no browser, npm install or module dependency.
+test-js:
+	node --test admin/tests/*.test.cjs
 
 vet:
 	go vet $(MODULE_PACKAGES)

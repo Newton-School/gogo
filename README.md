@@ -15,3 +15,16 @@ make agentflow PROPOSAL=gogo-complete-framework-architecture
 ```
 
 This renders the review and enables its project-local comment writer without opening a browser. Generated HTML and local runtime credentials are ignored by Git. Changes to architecture go through proposals and explicit review approval before framework implementation.
+
+## Contributor checks
+
+Run `make test` for workspace race tests and Admin JavaScript contract tests.
+The latter use Node.js 20+ built-ins only, with no npm dependencies or browser;
+`make test-js` runs them separately. Node.js is a contributor test dependency,
+not a dependency of installing, building or running any public Go module.
+
+`make test-modules` verifies the six public modules with workspace overrides
+disabled and builds a fresh generated consumer. `make test-integration`
+requires supported PostgreSQL and Redis tooling and uses owned disposable
+fixtures; ordinary tests may explicitly skip unavailable local services.
+Run `make vet build` for the workspace static and compilation checks.
