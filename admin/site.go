@@ -30,6 +30,9 @@ type Fieldset struct {
 type DisplayColumn struct {
 	Name, Label string
 	Value       func(context.Context, Object) (any, error)
+	// Ordering maps a computed display column to one stored scalar model field.
+	// A leading minus makes the column's natural order descending.
+	Ordering string
 }
 type Action struct {
 	Name, Description, Permission string
@@ -43,6 +46,10 @@ type ModelAdmin struct {
 	AutocompleteFields, RawIDFields                                   []string
 	ListDisplay, ListDisplayLinks, SearchFields, ListFilter, Ordering []string
 	ListEditable                                                      []string
+	// SortableBy restricts user-selected sorting to these displayed columns.
+	// Nil keeps all available column sorts; an empty slice disables user sorting.
+	// Configured Ordering remains independent of this presentation allowlist.
+	SortableBy []string
 	// PrepopulatedFields maps slug targets to ordered text source fields. It
 	// provides browser suggestions on add forms, never server-side defaults.
 	PrepopulatedFields          map[string][]string
@@ -257,6 +264,9 @@ func (s *Site) Register(options ModelAdmin) error {
 		}
 		displays[column.Name] = true
 	}
+	if err := validateListOrdering(options); err != nil {
+		return err
+	}
 	if err := validateListEditable(options); err != nil {
 		return err
 	}
@@ -300,6 +310,7 @@ func (s *Site) Register(options ModelAdmin) error {
 	options.ListDisplay = slices.Clone(options.ListDisplay)
 	options.ListDisplayLinks = slices.Clone(options.ListDisplayLinks)
 	options.ListEditable = slices.Clone(options.ListEditable)
+	options.SortableBy = slices.Clone(options.SortableBy)
 	options.PrepopulatedFields = clonePrepopulated(options.PrepopulatedFields)
 	options.SearchFields = slices.Clone(options.SearchFields)
 	options.ListFilter = slices.Clone(options.ListFilter)

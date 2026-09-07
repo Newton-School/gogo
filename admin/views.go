@@ -283,18 +283,12 @@ func (s *Site) list(w http.ResponseWriter, r *http.Request, p auth.Principal, op
 		page = value
 	}
 	query.Offset = (page - 1) * query.Limit
-	if order := r.URL.Query().Get("o"); order != "" {
-		field := strings.TrimPrefix(order, "-")
-		if !slices.Contains(options.ListDisplay, field) {
-			http.Error(w, "Invalid ordering", 400)
-			return
-		}
-		if metadata, ok := options.Schema.Field(field); !ok || !metadata.IsStored() {
-			http.Error(w, "Invalid ordering", 400)
-			return
-		}
-		query.Ordering = []string{order}
+	ordering, err := listOrdering(options, r.URL.Query())
+	if err != nil {
+		http.Error(w, "Invalid ordering", 400)
+		return
 	}
+	query.Ordering = ordering
 	for name, values := range r.URL.Query() {
 		if name == "q" || name == "p" || name == "o" {
 			continue
@@ -307,11 +301,6 @@ func (s *Site) list(w http.ResponseWriter, r *http.Request, p auth.Principal, op
 			continue
 		}
 		query.Filters[name] = values[0]
-	}
-	for _, pk := range options.Schema.PKFields() {
-		if !slices.Contains(query.Ordering, pk.Name) && !slices.Contains(query.Ordering, "-"+pk.Name) {
-			query.Ordering = append(query.Ordering, pk.Name)
-		}
 	}
 	result, err := store.List(r.Context(), query)
 	if err != nil {
@@ -373,6 +362,7 @@ func (s *Site) list(w http.ResponseWriter, r *http.Request, p auth.Principal, op
 		rows = append(rows, templates.Context{"id": object.ID, "prefix": "form-" + strconv.Itoa(rowIndex), "url": s.modelURL(options) + url.PathEscape(object.ID) + "/change/", "cells": cells})
 	}
 	columns := []any{}
+	sortAnnounced := false
 	for _, name := range options.ListDisplay {
 		label := name
 		if field, ok := options.Schema.Field(name); ok && field.Label != "" {
@@ -383,24 +373,12 @@ func (s *Site) list(w http.ResponseWriter, r *http.Request, p auth.Principal, op
 				label = column.Label
 			}
 		}
-		sortURL := ""
-		if field, ok := options.Schema.Field(name); ok && field.IsStored() {
-			values := r.URL.Query()
-			order := name
-			if len(query.Ordering) > 0 && query.Ordering[0] == name {
-				order = "-" + name
+		sortURL, direction := listSortLink(options, name, r.URL.Query(), query.Ordering)
+		if direction != "none" {
+			if sortAnnounced {
+				direction = "none"
 			}
-			values.Set("o", order)
-			values.Del("p")
-			sortURL = "?" + values.Encode()
-		}
-		direction := "none"
-		if len(query.Ordering) > 0 {
-			if query.Ordering[0] == name {
-				direction = "ascending"
-			} else if query.Ordering[0] == "-"+name {
-				direction = "descending"
-			}
+			sortAnnounced = true
 		}
 		columns = append(columns, templates.Context{"label": label, "url": sortURL, "direction": direction})
 	}
