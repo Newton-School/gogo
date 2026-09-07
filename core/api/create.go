@@ -94,68 +94,9 @@ func (s *Resource) CreateHandler(options CreateOptions) (http.Handler, error) {
 	if err != nil {
 		return nil, err
 	}
-	csrf := security.CSRFConfig{Secure: true, MaxBodyBytes: options.MaxBytes}
-	if options.CSRF != nil {
-		csrf = *options.CSRF
-		csrf.TrustedOrigins = slices.Clone(csrf.TrustedOrigins)
-		if csrf.Exempt != nil {
-			return nil, errors.New("api: create CSRF exemptions are authentication-owned")
-		}
-		csrf.MaxBodyBytes = options.MaxBytes
-	}
-	csrf.Exempt = func(r *http.Request) bool {
-		p := auth.FromContext(r.Context())
-		_, scoped := p.TokenScopes()
-		return scoped && p.Authenticated && p.Active
-	}
-	protect, err := security.CSRF(csrf)
-	if err != nil {
-		return nil, err
-	}
-	handler := protect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		result, err := s.createRequest(r, options, operations)
-		w.Header().Set("X-Gogo-Mutation", string(result.Outcome))
-		if err != nil {
-			public := publicMutationError(err)
-			if result.Outcome == MutationUnknown {
-				public = mediaError(503, "MUTATION_UNKNOWN", "Mutation outcome is unknown; reconcile before retry")
-			}
-			ghttp.WriteError(w, r, public)
-			return
-		}
-		if result.Replayed {
-			w.Header().Set("Idempotency-Replayed", "true")
-		}
-		response, err := ghttp.JSON(result.Response.Status, result.Response.Body)
-		if err != nil {
-			ghttp.WriteError(w, r, ghttp.ErrUnavailable)
-			return
-		}
-		for name, value := range result.Response.Headers {
-			response.Headers.Set(name, value)
-		}
-		_ = response.Write(w, r)
-	}))
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Cache-Control", "private, no-store")
-		w.Header().Add("Vary", "Accept, Authorization, Cookie")
-		w.Header().Set("X-Content-Type-Options", "nosniff")
-		if r.Method != http.MethodPost {
-			w.Header().Set("Allow", "POST")
-			ghttp.WriteError(w, r, mediaError(405, "METHOD_NOT_ALLOWED", "Method not allowed"))
-			return
-		}
-		principal := auth.FromContext(r.Context())
-		if !principal.Authenticated {
-			ghttp.WriteError(w, r, auth.ErrUnauthenticated)
-			return
-		}
-		if !principal.Active {
-			ghttp.WriteError(w, r, auth.ErrPermissionDenied)
-			return
-		}
-		handler.ServeHTTP(w, r)
-	}), nil
+	return mutationHandler([]string{"POST"}, options.MaxBytes, options.CSRF, func(r *http.Request) (IdempotencyResult, error) {
+		return s.createRequest(r, options, operations)
+	})
 }
 
 func (s *Resource) freshModel(factory func() models.Model) (models.Model, models.Record, error) {
@@ -175,7 +116,7 @@ func (s *Resource) freshModel(factory func() models.Model) (models.Model, models
 	return model, record, nil
 }
 
-func (s *Resource) createRequest(r *http.Request, options CreateOptions, operations *createIdempotency) (result IdempotencyResult, err error) {
+func (s *Resource) createRequest(r *http.Request, options CreateOptions, operations *resourceOperations) (result IdempotencyResult, err error) {
 	result.Outcome = MutationUnchanged
 	defer func() {
 		if recover() != nil {
@@ -325,7 +266,7 @@ func (s *Resource) createModel(ctx context.Context, input Values, options Create
 	}
 	query := orm.For(s.config.Store, func() *models.MapRecord { row, _ := models.NewRecord(s.schema); return row }).WithScope(func(ctx context.Context, schema models.Schema) (db.Predicate, error) {
 		return s.config.Scope(ctx, auth.FromContext(ctx), schema)
-	})
+	}).SelectRelated(s.config.SelectRelated...)
 	for _, name := range sortedInputNames(inserted) {
 		query = query.Filter(orm.Q(name, inserted[name]))
 	}

@@ -2,8 +2,9 @@
 
 `Resource.CreateHandler(CreateOptions)` builds a POST handler for explicit
 registration in an app's `urls.go`. Read-only `Resource.Routes` never enables
-writes automatically. The initial create endpoint accepts bounded JSON;
-update/delete and nested/file/M2M persistence are separate unfinished paths.
+writes automatically. The create endpoint accepts bounded JSON;
+[PUT/PATCH](update.md) is separately enabled. Generic delete and nested/file/M2M
+persistence remain unfinished paths.
 Durable operation keys are explicitly enabled with `CreateOptions.Idempotency`.
 Without that configuration, operation-key headers are rejected. Query arguments
 and conditional `If-Match`/`If-None-Match` headers are not supported on creation.

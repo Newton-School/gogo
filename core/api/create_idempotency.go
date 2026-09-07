@@ -13,9 +13,9 @@ import (
 	"github.com/Newton-School/gogo/core/orm"
 )
 
-// CreateIdempotencyOptions explicitly enables durable HTTP operation keys.
+// MutationIdempotencyOptions explicitly enables durable HTTP operation keys.
 // Install IdempotencyMigrations on the SAME backend before serving requests.
-type CreateIdempotencyOptions struct {
+type MutationIdempotencyOptions struct {
 	// Version identifies this resource mutation contract, not the actor's
 	// current grant version. Changing it creates a different operation family.
 	Version string
@@ -33,25 +33,37 @@ type CreateIdempotencyOptions struct {
 	// Like Scope, Vary is read-only and must not perform business mutations.
 	Vary      func(*http.Request) (Values, error)
 	Retention time.Duration
-	// Keys are required by default. Optional deliberately permits unkeyed POSTs.
+	// Keys are required by default. Optional deliberately permits unkeyed writes.
 	Optional bool
 }
 
-type createIdempotency struct {
-	options CreateIdempotencyOptions
+// CreateIdempotencyOptions is the create-specific spelling of shared options.
+type CreateIdempotencyOptions = MutationIdempotencyOptions
+
+type resourceOperations struct {
+	options MutationIdempotencyOptions
 	service *Idempotency
 	action  string
 }
 
-func (s *Resource) createOperations(options CreateOptions) (*createIdempotency, error) {
-	if options.Idempotency == nil {
+func (s *Resource) createOperations(options CreateOptions) (*resourceOperations, error) {
+	return s.newOperations(options.Idempotency, "create", "add", options.Timeout, options.ValidateWrite)
+}
+
+func (s *Resource) newOperations(options *MutationIdempotencyOptions, family, permission string, timeout time.Duration, validate func(context.Context, auth.Principal, models.Record) error) (*resourceOperations, error) {
+	if options == nil {
 		return nil, nil
 	}
-	config := *options.Idempotency
-	if !validOperationPart(config.Version, 128) || config.Scope == nil || config.Redact == nil {
-		return nil, errors.New("api: create idempotency requires version, stable scope and current receipt redaction")
+	if len(s.config.SelectRelated) > 0 {
+		if err := s.config.Store.Backend.Capabilities().Require("row_lock_of"); err != nil {
+			return nil, err
+		}
 	}
-	state := &createIdempotency{options: config, action: "create:" + operationDigest([]string{s.schema.Key(), config.Version})}
+	config := *options
+	if !validOperationPart(config.Version, 128) || config.Scope == nil || config.Redact == nil {
+		return nil, errors.New("api: mutation idempotency requires version, stable scope and current receipt redaction")
+	}
+	state := &resourceOperations{options: config, action: family + ":" + operationDigest([]string{s.schema.Key(), config.Version})}
 	permit := func(ctx context.Context, scope, action string, key Values) error {
 		p := auth.FromContext(ctx)
 		currentScope, err := config.Scope(ctx, p)
@@ -61,7 +73,7 @@ func (s *Resource) createOperations(options CreateOptions) (*createIdempotency, 
 		if scope != currentScope || action != state.action {
 			return auth.ErrPermissionDenied
 		}
-		if err := s.config.Policy.Authorize(ctx, p, "add", auth.Resource{App: s.schema.AppLabel, Model: s.schema.Name}); err != nil {
+		if err := s.config.Policy.Authorize(ctx, p, permission, auth.Resource{App: s.schema.AppLabel, Model: s.schema.Name}); err != nil {
 			return err
 		}
 		if key == nil {
@@ -76,10 +88,10 @@ func (s *Resource) createOperations(options CreateOptions) (*createIdempotency, 
 			return err
 		}
 		if err := readOnlyRecord(row, func() error {
-			if err := options.ValidateWrite(ctx, p, row); err != nil {
+			if err := validate(ctx, p, row); err != nil {
 				return err
 			}
-			return s.config.Policy.Authorize(ctx, p, "add", auth.Resource{App: s.schema.AppLabel, Model: s.schema.Name, ID: key, Object: row})
+			return s.config.Policy.Authorize(ctx, p, permission, auth.Resource{App: s.schema.AppLabel, Model: s.schema.Name, ID: key, Object: row})
 		}); err != nil {
 			return err
 		}
@@ -93,7 +105,7 @@ func (s *Resource) createOperations(options CreateOptions) (*createIdempotency, 
 		}
 		return ctx.Err()
 	}
-	service, err := NewIdempotency(IdempotencyConfig{Backend: s.config.Store.Backend, Retention: config.Retention, Timeout: options.Timeout, Authorize: permit, Redact: func(ctx context.Context, scope, action string, key, body Values) (Values, error) {
+	service, err := NewIdempotency(IdempotencyConfig{Backend: s.config.Store.Backend, Retention: config.Retention, Timeout: timeout, Authorize: permit, Redact: func(ctx context.Context, scope, action string, key, body Values) (Values, error) {
 		if err := permit(ctx, scope, action, key); err != nil {
 			return nil, err
 		}
@@ -168,7 +180,7 @@ func (s *Resource) receiptRecord(ctx context.Context, key Values) (*models.MapRe
 	}
 	query := orm.For(s.config.Store, func() *models.MapRecord { row, _ := models.NewRecord(s.schema); return row }).WithScope(func(ctx context.Context, schema models.Schema) (db.Predicate, error) {
 		return s.config.Scope(ctx, auth.FromContext(ctx), schema)
-	})
+	}).SelectRelated(s.config.SelectRelated...)
 	for _, field := range fields {
 		value, present := key[field.Name]
 		if !present || value == nil {
@@ -183,16 +195,33 @@ func (s *Resource) receiptRecord(ctx context.Context, key Values) (*models.MapRe
 		}
 		query = query.Filter(orm.Q(field.Name, value))
 	}
+	// Scoped eager joins are outer joins: locking all joined tables is neither
+	// portable nor legal for PostgreSQL's nullable sides. Lock the owned root
+	// explicitly; reference-target guards acquire their separate scoped locks.
+	if len(s.config.SelectRelated) > 0 {
+		return query.SelectForUpdateOf("self").Get(ctx)
+	}
 	return query.SelectForUpdate(false, false).Get(ctx)
 }
 
-func (state *createIdempotency) execute(r *http.Request, ctx context.Context, input Values, mutate func(context.Context) (MutationResponse, error)) (IdempotencyResult, error) {
+func (state *resourceOperations) execute(r *http.Request, ctx context.Context, input Values, mutate func(context.Context) (MutationResponse, error)) (IdempotencyResult, error) {
+	return state.executeArguments(r, ctx, input, nil, mutate)
+}
+
+func (state *resourceOperations) executeArguments(r *http.Request, ctx context.Context, input, extra Values, mutate func(context.Context) (MutationResponse, error)) (IdempotencyResult, error) {
 	key := r.Header.Values("Idempotency-Key")
 	if len(key) != 1 || key[0] == "" {
 		return IdempotencyResult{Outcome: MutationUnchanged}, mediaError(400, "INVALID_OPERATION", "One nonempty Idempotency-Key is required")
 	}
 	operationKey := key[0]
 	method, host, path := r.Method, r.Host, r.URL.EscapedPath()
+	if extra != nil {
+		var err error
+		extra, err = receiptObject(extra)
+		if err != nil {
+			return IdempotencyResult{Outcome: MutationUnchanged}, mediaError(400, "INVALID_OPERATION", "Invalid operation conditions")
+		}
+	}
 	scope, err := state.options.Scope(ctx, auth.FromContext(ctx))
 	if err != nil {
 		return IdempotencyResult{Outcome: MutationUnchanged}, err
@@ -205,5 +234,10 @@ func (state *createIdempotency) execute(r *http.Request, ctx context.Context, in
 		}
 	}
 	arguments := Values{"method": method, "host": host, "path": path, "body": input, "vary": vary}
+	// Keep the existing create identity unchanged. Other mutation families bind
+	// their decoded route identities and preconditions explicitly in addition.
+	if extra != nil {
+		arguments["conditions"] = extra
+	}
 	return state.service.Execute(ctx, Operation{Scope: scope, Action: state.action, Key: operationKey, Input: arguments}, mutate)
 }

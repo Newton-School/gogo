@@ -65,5 +65,11 @@ outcomes and opt-in [durable operation receipts](idempotency.md). Configure
 `CreateIdempotencyOptions` explicitly to require HTTP operation keys and current
 receipt authorization/redaction; unconfigured handlers reject key headers.
 
-Generic update/delete, reverse-cursor navigation, custom action metadata,
-OpenAPI and browsable documentation are not implemented by this resource yet.
+Explicit [PUT/PATCH updates](update.md) use a fresh typed model, scoped row
+locks, model validation and mandatory atomic audit. Opt-in `EntityTags` on the
+resource emits validators for authorized detail JSON; `UpdateOptions.RequireMatch`
+can require a matching precondition. `MutationIdempotencyOptions` enables durable
+update receipts; the existing create-specific option name remains an alias.
+
+Generic delete, reverse-cursor navigation, custom action metadata, OpenAPI and
+browsable documentation are not implemented by this resource yet.

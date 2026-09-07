@@ -40,6 +40,9 @@ type ResourceConfig struct {
 	Cursor        *ResourceCursorOptions
 	IncludeCount  bool
 	SelectRelated []string
+	// EntityTags emits a strong validator for the exact authorized detail JSON.
+	// It does not hash hidden model fields or establish a multi-query snapshot.
+	EntityTags bool
 }
 
 // Resource exposes list/detail and explicit opt-in mutation handlers. Authentication is
@@ -322,7 +325,14 @@ func (s *Resource) DetailHandler(key func(*http.Request) (Values, error)) http.H
 		if err != nil {
 			return nil, err
 		}
-		return s.represent(request, row, true)
+		value, err := s.represent(request, row, true)
+		if err != nil {
+			return nil, err
+		}
+		if s.config.EntityTags {
+			return taggedRepresentation{body: value}, nil
+		}
+		return value, nil
 	})
 }
 
@@ -401,7 +411,14 @@ func readResponse(r *http.Request, read func(*http.Request) (any, error)) (respo
 	if err := r.Context().Err(); err != nil {
 		return ghttp.Response{}, err
 	}
-	response, err = ghttp.JSON(http.StatusOK, value)
+	if tagged, ok := value.(taggedRepresentation); ok {
+		response, err = ghttp.JSON(http.StatusOK, tagged.body)
+		if err == nil {
+			response.ETag = bodyTag(response.Body)
+		}
+	} else {
+		response, err = ghttp.JSON(http.StatusOK, value)
+	}
 	if err == nil {
 		err = r.Context().Err()
 	}

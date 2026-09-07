@@ -138,6 +138,18 @@ func FromModel(schema models.Schema, options ModelOptions) (*Serializer, error) 
 			return nil, errors.New("api: unknown model serializer field")
 		}
 		f := Scalar(metadata)
+		// Model-derived nullable fields without uniqueness requirements may be
+		// omitted. This does not give an explicitly declared scalar field an
+		// implicit default, and PATCH still skips all omitted fields/defaults.
+		uniqueInput := metadata.Unique
+		for _, constraint := range schema.Constraints {
+			if constraint.Kind == "unique" && slices.Contains(constraint.Fields, name) {
+				uniqueInput = true
+			}
+		}
+		if metadata.Null && !uniqueInput {
+			f.Required = false
+		}
 		if metadata.Relation != nil {
 			meta := metadata
 			if options.ResolveRelation != nil {
