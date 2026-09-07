@@ -71,5 +71,11 @@ resource emits validators for authorized detail JSON; `UpdateOptions.RequireMatc
 can require a matching precondition. `MutationIdempotencyOptions` enables durable
 update receipts; the existing create-specific option name remains an alias.
 
-Generic delete, reverse-cursor navigation, custom action metadata, OpenAPI and
+Explicit [DELETE](delete.md) recollects and authorizes the locked deletion graph,
+runs ordinary ORM hooks, and commits its cascades/relation effects with an atomic
+audit. Required read-only graph policy, bounded final effect checks and confirmed
+transaction outcomes are independent of UI visibility. Delete receipt replay is
+not enabled; operation-key headers are rejected.
+
+Reverse-cursor navigation, custom action metadata, OpenAPI and
 browsable documentation are not implemented by this resource yet.
