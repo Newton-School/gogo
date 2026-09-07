@@ -179,6 +179,11 @@ Redis adapters store payload JSON as opaque bytes, separate from mutable lease m
 
 Reuse configured Redis `Results`, `Workflows` and `Schedules` pointers; do not copy them after use. Intent discovery and delayed/periodic leasing independently rotate their starting partition on each bounded call, so a continuous early-partition backlog cannot always hide later partitions. Every partition starts first once per 64 calls on that instance. This is local scheduling fairness, not a global priority order, durable cursor or cross-partition transaction. Restarting a backend instance resets its rotation; caller cancellation and provider failures still require the normal recovery policy.
 
+Single-task [result boundaries](result.md) freeze the task identity for each read,
+wait or command, validate and detach provider metadata before scoped grants, and
+return no partial record on read failures. `Forget` and `Revoke` keep distinct
+grants; an error after invoking their provider may follow an applied command.
+
 Return `async.Replace(canvas)` (or `taskContext.Replace(canvas)`) as the handler error to transfer its logical result to a nested workflow. Configure `Worker.Client` with the exact worker registry/result store and a durable workflow store; include both result and workflow stores in the relay sources. The original result remains `RUNNING` with `ReplacementID`, no execution lease, and no occupied worker slot. Its original ID, outer workflow membership and callbacks resolve only after the replacement settles. Same-scope/principal inheritance, compatible output types, original expiry and a maximum replacement depth of 16 are enforced. Revoking the original propagates to the replacement's children; it cannot roll back effects they already produced. Replacement works through the subprocess JSON protocol as well.
 
 Completion hooks for yielded tasks run in the relay after the durable original result transition. They are best-effort observations (a crash can omit them), not transactional side effects; use declared callback tasks for durable follow-up. Configure relay `OnError` and `Events` if those observations should be reported. A callback or event-observer failure never replaces an already committed result.

@@ -93,6 +93,9 @@ type ReplacementStore interface {
 }
 
 type ResultStore interface {
+	// Lookup returns the exact requested task identity and valid stored metadata.
+	// This trusted provider port does not grant caller access; Result authorizes
+	// and detaches the observation before returning it to application callers.
 	Lookup(context.Context, string) (Record, error)
 	Register(context.Context, Envelope, State) error
 	Claim(context.Context, Envelope, string, time.Duration) (Claim, error)
