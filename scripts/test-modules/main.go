@@ -135,6 +135,10 @@ models.IntegerField("stock",models.WithStructField("Stock")),
 	return nil
 }
 func testEnv(proxy string) []string {
+	dependencyProxy := os.Getenv("GOPROXY")
+	if dependencyProxy == "" {
+		dependencyProxy = "https://proxy.golang.org"
+	}
 	env := []string{}
 	for _, entry := range os.Environ() {
 		key, _, _ := strings.Cut(entry, "=")
@@ -143,7 +147,7 @@ func testEnv(proxy string) []string {
 		}
 		env = append(env, entry)
 	}
-	return append(env, "GOWORK=off", "GOPROXY=file://"+filepath.ToSlash(proxy)+",https://proxy.golang.org", "GONOSUMDB="+modulePath+","+modulePath+"/*", "GOMODCACHE="+filepath.Join(filepath.Dir(proxy), "module-cache"))
+	return append(env, "GOWORK=off", "GOPROXY=file://"+filepath.ToSlash(proxy)+","+dependencyProxy, "GONOSUMDB="+modulePath+","+modulePath+"/*", "GOMODCACHE="+filepath.Join(filepath.Dir(proxy), "module-cache"))
 }
 func escape(value string) string {
 	var b strings.Builder

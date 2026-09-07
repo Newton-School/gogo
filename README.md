@@ -28,3 +28,10 @@ disabled and builds a fresh generated consumer. `make test-integration`
 requires supported PostgreSQL and Redis tooling and uses owned disposable
 fixtures; ordinary tests may explicitly skip unavailable local services.
 Run `make vet build` for the workspace static and compilation checks.
+
+Independent-module tests use their packaged Gogo sources first, then the
+configured `GOPROXY` for third-party dependencies (the public Go proxy by
+default). An explicitly configured file proxy can reuse already downloaded
+dependency artifacts during an outage; tests still get a fresh module cache,
+workspace overrides stay disabled and dependency checksum verification is not
+disabled. Report cached-dependency verification separately from a network install.
