@@ -271,7 +271,15 @@ func (f Field) toValue(ctx context.Context, raw any) (any, error) {
 			return nil, f.failure("max_decimal_places", "This value has too many decimal places.")
 		}
 		return s, nil
-	case Date, DateTime, Time:
+	case DateTime:
+		return f.cleanDateTime(ctx, raw)
+	case Date, Time:
+		if value, ok := raw.(time.Time); ok {
+			if f.Kind == Date {
+				return time.Date(value.Year(), value.Month(), value.Day(), 0, 0, 0, 0, time.UTC), nil
+			}
+			return time.Date(0, time.January, 1, value.Hour(), value.Minute(), value.Second(), value.Nanosecond(), time.UTC), nil
+		}
 		layouts := f.InputFormats
 		if len(layouts) == 0 {
 			switch f.Kind {
@@ -279,8 +287,6 @@ func (f Field) toValue(ctx context.Context, raw any) (any, error) {
 				layouts = []string{"2006-01-02"}
 			case Time:
 				layouts = []string{"15:04:05.999999999", "15:04"}
-			case DateTime:
-				layouts = []string{time.RFC3339Nano, "2006-01-02T15:04", "2006-01-02 15:04:05"}
 			}
 		}
 		for _, layout := range layouts {
@@ -416,7 +422,11 @@ func (f Field) cleanComposite(ctx context.Context, raw any) (any, error) {
 		return v, nil
 	}
 	parts := stringValues(raw)
+	var trustedInstant *time.Time
 	if value, ok := raw.(time.Time); ok && f.Kind == SplitDateTime {
+		original := value
+		trustedInstant = &original
+		value = formLocale(ctx).LocalTime(value)
 		parts = []string{value.Format("2006-01-02"), value.Format("15:04:05.999999999")}
 	}
 	fields := f.Fields
@@ -442,7 +452,12 @@ func (f Field) cleanComposite(ctx context.Context, raw any) (any, error) {
 		}
 		v, err := part.clean(ctx, value)
 		if err != nil {
-			errs = append(errs, errorValue(err))
+			var many validationErrors
+			if errors.As(err, &many) {
+				errs = append(errs, many.values...)
+			} else {
+				errs = append(errs, errorValue(err))
+			}
 		}
 		values[i] = v
 	}
@@ -453,6 +468,9 @@ func (f Field) cleanComposite(ctx context.Context, raw any) (any, error) {
 		return f.Compress(values)
 	}
 	if f.Kind == SplitDateTime {
+		if len(values) != 2 {
+			return nil, f.failure("invalid", "Enter a valid date and time.")
+		}
 		a, ok := values[0].(time.Time)
 		if !ok {
 			return nil, f.failure("invalid", "Enter a valid date and time.")
@@ -461,7 +479,14 @@ func (f Field) cleanComposite(ctx context.Context, raw any) (any, error) {
 		if !ok {
 			return nil, f.failure("invalid", "Enter a valid date and time.")
 		}
-		return time.Date(a.Year(), a.Month(), a.Day(), b.Hour(), b.Minute(), b.Second(), b.Nanosecond(), a.Location()), nil
+		wall := time.Date(a.Year(), a.Month(), a.Day(), b.Hour(), b.Minute(), b.Second(), b.Nanosecond(), time.UTC)
+		if trustedInstant != nil {
+			local := formLocale(ctx).LocalTime(*trustedInstant)
+			if wall.Year() == local.Year() && wall.Month() == local.Month() && wall.Day() == local.Day() && wall.Hour() == local.Hour() && wall.Minute() == local.Minute() && wall.Second() == local.Second() && wall.Nanosecond() == local.Nanosecond() {
+				return f.cleanDateTime(ctx, *trustedInstant)
+			}
+		}
+		return f.resolveDateTime(ctx, wall)
 	}
 	return values, nil
 }

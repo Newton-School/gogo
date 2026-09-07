@@ -72,7 +72,10 @@ with UTC as their explicit fallback. No global timezone, language or stored
 instant is modified; distinct UTC instants in a daylight-saving fold stay
 distinct. Returned location pointers and local-time values do not expose the
 resolver's shared location pointers. This package does not parse
-ambiguous/nonexistent local wall times.
+ambiguous/nonexistent local wall times into an arbitrary instant:
+`Locale.ResolveLocal` explicitly rejects them. See the
+[form datetime contract](../forms/datetime.md) for strict wall-time input and
+request-local widget round trips.
 
 For immutable application catalogs, plural/context lookup and explicit lazy
 messages, see [translation catalogs](catalogs.md). Localized template/form

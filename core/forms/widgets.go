@@ -28,7 +28,11 @@ func (f *Form) BoundField(name string) (BoundField, bool) {
 	f.fullClean()
 	for _, field := range f.fields {
 		if field.Name == name {
-			return BoundField{field.Clone(), f.name(name), "id_" + f.name(name), cloneValue(f.raw(field)), append(ErrorList(nil), f.errors[name]...)}, true
+			value := cloneValue(f.raw(field))
+			if instant, ok := value.(time.Time); ok && (field.Kind == DateTime || field.Kind == SplitDateTime) {
+				value = formLocale(f.ctx).LocalTime(instant)
+			}
+			return BoundField{field.Clone(), f.name(name), "id_" + f.name(name), value, append(ErrorList(nil), f.errors[name]...)}, true
 		}
 	}
 	return BoundField{}, false
@@ -187,9 +191,9 @@ func (w InputWidget) Render(b BoundField) (template.HTML, error) {
 		case "date":
 			value = date.Format("2006-01-02")
 		case "time":
-			value = date.Format("15:04:05")
+			value = date.Format("15:04:05.999999999")
 		case "datetime-local":
-			value = date.Format("2006-01-02T15:04:05")
+			value = date.Format("2006-01-02T15:04:05.999999999")
 		}
 	}
 	if b.Field.Kind == JSON && b.Value != nil {
