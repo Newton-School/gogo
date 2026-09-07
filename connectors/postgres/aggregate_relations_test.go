@@ -180,7 +180,18 @@ func TestAggregateReverseForeignKeyUsesDeclaredNonPrimaryTargetField(t *testing.
 	}
 }
 
-func TestAggregateManyToManyJoinFailsClosedBeforeQueries(t *testing.T) {
+type noGroupedRelationBackend struct{ db.Backend }
+
+func (b noGroupedRelationBackend) Capabilities() db.Capabilities {
+	result := db.Capabilities{}
+	for name, enabled := range b.Backend.Capabilities() {
+		result[name] = enabled
+	}
+	delete(result, "grouped_relation_joins")
+	return result
+}
+
+func TestAggregateManyToManyJoinRequiresExplicitProviderCapabilityBeforeQueries(t *testing.T) {
 	b := openTest(t)
 	source, target := m2mSchemas()
 	registry := &models.Registry{}
@@ -192,7 +203,7 @@ func TestAggregateManyToManyJoinFailsClosedBeforeQueries(t *testing.T) {
 	if err := registry.Freeze(); err != nil {
 		t.Fatal(err)
 	}
-	counted := &countedBackend{Backend: b}
+	counted := &countedBackend{Backend: noGroupedRelationBackend{b}}
 	query := orm.For(orm.New(counted, registry), func() *models.MapRecord { r, _ := models.NewRecord(source); return r }).Annotate(map[string]orm.ResultExpression{"tags_count": orm.Typed(orm.Count(orm.F("tags__id")), models.BigIntegerField("out"))})
 	if _, err := query.All(context.Background()); !db.IsCode(err, db.UnsupportedFeature) || counted.queries.Load() != 0 {
 		t.Fatal("unscoped intermediary aggregation executed", err)

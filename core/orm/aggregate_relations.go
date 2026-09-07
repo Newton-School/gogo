@@ -11,7 +11,7 @@ import (
 	"github.com/Newton-School/gogo/internal/sqlcompiler"
 )
 
-// prepareAggregateRelations adds non-hydrating FK joins only. Multiple visible
+// prepareAggregateRelations adds non-hydrating FK and many-to-many joins. Multiple visible
 // collections have ordinary SQL multiplication semantics; callers explicitly
 // request DISTINCT aggregates when that is the desired counting operation.
 func (q Query[T]) prepareAggregateRelations(ctx context.Context) (Query[T], error) {
@@ -66,11 +66,35 @@ func (q Query[T]) prepareAggregateRelations(ctx context.Context) (Query[T], erro
 			if err != nil {
 				return q, err
 			}
-			if binding.through != nil {
-				return q, &db.Error{Code: db.UnsupportedFeature, Message: "Many-to-many aggregate joins require a scoped intermediary/target join group"}
-			}
 			join := db.Join{Path: path, ParentPath: parent, Alias: fmt.Sprintf("gogo_join_%d", len(q.selectAST.Joins)+1), Schema: binding.target}
-			if binding.reverse {
+			if through := binding.through; through != nil {
+				if err := q.store.Backend.Capabilities().Require("grouped_relation_joins"); err != nil {
+					return q, err
+				}
+				if through.symmetrical && !through.automatic && q.scope != nil {
+					return q, &db.Error{Code: db.UnsupportedFeature, Message: "Scoped explicit symmetrical aggregate joins require paired intermediary authorization"}
+				}
+				sourceKey, err := relationTargetField(source, through.source)
+				if err != nil {
+					return q, err
+				}
+				targetKey, err := relationTargetField(binding.target, through.target)
+				if err != nil {
+					return q, err
+				}
+				join.ParentField, join.TargetField = sourceKey.Name, targetKey.Name
+				join.Through = &db.JoinThrough{Schema: through.schema, Alias: fmt.Sprintf("gogo_bridge_%d", len(q.selectAST.Joins)+1), SourceField: through.source.Name, TargetField: through.target.Name}
+				if q.scope != nil && !through.automatic {
+					join.Through.Where, err = q.scope(ctx, through.schema)
+					if canceled := ctx.Err(); canceled != nil {
+						return q, canceled
+					}
+					if err != nil {
+						return q, err
+					}
+					join.Through.Where = clonePredicate(join.Through.Where)
+				}
+			} else if binding.reverse {
 				key, err := relationTargetField(source, binding.field)
 				if err != nil {
 					return q, err
@@ -92,6 +116,7 @@ func (q Query[T]) prepareAggregateRelations(ctx context.Context) (Query[T], erro
 					return q, err
 				}
 			}
+			join.Where = clonePredicate(join.Where)
 			q.selectAST.Alias = "gogo_root"
 			q.selectAST.Joins = append(q.selectAST.Joins, join)
 			resolved[path] = binding.target

@@ -389,6 +389,15 @@ func Select(dialect db.Dialect, schema models.Schema, query db.Select) (string, 
 		if err := join.Schema.Validate(); err != nil {
 			return "", nil, err
 		}
+		if join.Through != nil {
+			if aliases[join.Through.Alias] || join.Through.Alias == join.Alias {
+				return "", nil, errors.New("orm: intermediary requires a distinct relation alias")
+			}
+			if err := c.validateJoinThrough(join); err != nil {
+				return "", nil, err
+			}
+			aliases[join.Through.Alias] = true
+		}
 		c.Joins[join.Path] = join
 		aliases[join.Alias] = true
 	}
@@ -475,6 +484,14 @@ func Select(dialect db.Dialect, schema models.Schema, query db.Select) (string, 
 		kind := " LEFT JOIN "
 		if join.Inner {
 			kind = " INNER JOIN "
+		}
+		if join.Through != nil {
+			group, err := c.joinThroughSQL(join, left, right, target, alias)
+			if err != nil {
+				return "", nil, err
+			}
+			sql += kind + group
+			continue
 		}
 		sql += kind + target + " AS " + alias + " ON " + left + "=" + right
 		filter := Compiler{Dialect: dialect, Schema: join.Schema, Alias: join.Alias, Args: c.Args}

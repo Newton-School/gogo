@@ -70,4 +70,17 @@ type Join struct {
 	ParentField, TargetField string
 	Where                    Predicate
 	Inner                    bool
+	// Through groups a many-to-many intermediary with its authorized target
+	// before joining the parent. Its fields are not public relation paths.
+	Through *JoinThrough
+}
+
+// JoinThrough describes the schema-bound bridge of a grouped relation join.
+// SourceField and TargetField are scalar foreign keys to the parent and target
+// endpoints named by Join.ParentField and Join.TargetField. Where is scoped to
+// this schema only; Join.Where is scoped independently to the target schema.
+type JoinThrough struct {
+	Schema                          models.Schema
+	Alias, SourceField, TargetField string
+	Where                           Predicate
 }

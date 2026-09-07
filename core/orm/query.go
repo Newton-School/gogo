@@ -83,6 +83,12 @@ func (q Query[T]) clone() Query[T] {
 	for i := range q.selectAST.Joins {
 		q.selectAST.Joins[i].Schema = q.selectAST.Joins[i].Schema.Clone()
 		q.selectAST.Joins[i].Where = clonePredicate(q.selectAST.Joins[i].Where)
+		if through := q.selectAST.Joins[i].Through; through != nil {
+			copy := *through
+			copy.Schema = through.Schema.Clone()
+			copy.Where = clonePredicate(through.Where)
+			q.selectAST.Joins[i].Through = &copy
+		}
 	}
 	q.selectAST.LockOf = append([]string(nil), q.selectAST.LockOf...)
 	q.relatedPaths = append([]string(nil), q.relatedPaths...)
