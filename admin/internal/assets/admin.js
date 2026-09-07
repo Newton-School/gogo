@@ -1,5 +1,39 @@
 "use strict";
 
+// Slug suggestions are add-form convenience only. The ModelForm still cleans
+// and authorizes every submitted field, including requests without JavaScript.
+for (const target of document.querySelectorAll("input[data-prepopulate-from]")) {
+  try {
+    if (!target.form || target.disabled || target.readOnly || target.value !== "") continue;
+    const ids = JSON.parse(target.dataset.prepopulateFrom);
+    const limit = Number(target.dataset.prepopulateMaxlength);
+    const unicode = target.dataset.prepopulateUnicode === "true";
+    if (!["true", "false"].includes(target.dataset.prepopulateUnicode)) continue;
+    if (!Array.isArray(ids) || ids.length < 1 || ids.length > 16 || !Number.isSafeInteger(limit) || limit < 0) continue;
+    const sources = ids.map(id => typeof id === "string" ? document.getElementById(id) : null);
+    if (sources.some(source => !source || source === target || source.form !== target.form || source.disabled || source.readOnly || !["INPUT", "TEXTAREA"].includes(source.tagName))) continue;
+    let edited = false;
+    target.addEventListener("input", () => { edited = true; });
+    target.addEventListener("change", () => { edited = true; });
+    const update = () => {
+      if (edited || !target.form || target.disabled || target.readOnly || sources.some(source => source.form !== target.form || source.disabled || source.readOnly)) return;
+      // Unicode suggestions retain letters/numbers. ASCII suggestions strip
+      // decomposable accents; neither mode claims language transliteration.
+      const text = sources.map(source => source.value).join(" ").slice(0, 65536);
+      const normalized = unicode ? text.normalize("NFKC") : text.normalize("NFKD").replace(/[^\x00-\x7F]/g, "");
+      const slug = normalized.toLowerCase().replace(unicode ? /[^\p{L}\p{N}_\s-]/gu : /[^a-z0-9_\s-]/g, "")
+        .trim().replace(/[-\s]+/g, "-").replace(/^[-_]+|[-_]+$/g, "");
+      target.value = limit > 0 ? Array.from(slug).slice(0, limit).join("") : slug;
+    };
+    for (const source of sources) {
+      source.addEventListener("input", update);
+      source.addEventListener("change", update);
+    }
+  } catch (_) {
+    // Malformed custom markup disables suggestions, never form submission.
+  }
+}
+
 // Suggestions are a convenience only. Posted IDs are revalidated by the scoped
 // server resolver; labels from lookup JSON are never treated as HTML.
 for (const input of document.querySelectorAll("input[data-relation-url]")) {

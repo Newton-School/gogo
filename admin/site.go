@@ -43,14 +43,17 @@ type ModelAdmin struct {
 	AutocompleteFields, RawIDFields                                   []string
 	ListDisplay, ListDisplayLinks, SearchFields, ListFilter, Ordering []string
 	ListEditable                                                      []string
-	ListPerPage, ListMaxShowAll                                       int
-	Fieldsets                                                         []Fieldset
-	Inlines                                                           []Inline
-	Columns                                                           []DisplayColumn
-	Actions                                                           []Action
-	SensitiveFields                                                   []string
-	FormOverrides                                                     map[string]forms.Field
-	ConstraintChecker                                                 models.ConstraintChecker
+	// PrepopulatedFields maps slug targets to ordered text source fields. It
+	// provides browser suggestions on add forms, never server-side defaults.
+	PrepopulatedFields          map[string][]string
+	ListPerPage, ListMaxShowAll int
+	Fieldsets                   []Fieldset
+	Inlines                     []Inline
+	Columns                     []DisplayColumn
+	Actions                     []Action
+	SensitiveFields             []string
+	FormOverrides               map[string]forms.Field
+	ConstraintChecker           models.ConstraintChecker
 	// Authorize may impose additional model/object restrictions. It runs only
 	// after the site's global policy permits the request and cannot widen it.
 	Authorize         func(context.Context, auth.Principal, string, Object) error
@@ -257,6 +260,9 @@ func (s *Site) Register(options ModelAdmin) error {
 	if err := validateListEditable(options); err != nil {
 		return err
 	}
+	if err := validatePrepopulated(options); err != nil {
+		return err
+	}
 	for name := range options.FormOverrides {
 		if stockGrantField(options, name) {
 			return errors.New("admin: stock account grant FormOverrides are unsupported; use the scoped account grant ports")
@@ -294,6 +300,7 @@ func (s *Site) Register(options ModelAdmin) error {
 	options.ListDisplay = slices.Clone(options.ListDisplay)
 	options.ListDisplayLinks = slices.Clone(options.ListDisplayLinks)
 	options.ListEditable = slices.Clone(options.ListEditable)
+	options.PrepopulatedFields = clonePrepopulated(options.PrepopulatedFields)
 	options.SearchFields = slices.Clone(options.SearchFields)
 	options.ListFilter = slices.Clone(options.ListFilter)
 	options.Ordering = slices.Clone(options.Ordering)

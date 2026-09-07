@@ -545,6 +545,10 @@ func (s *Site) form(w http.ResponseWriter, r *http.Request, p auth.Principal, op
 		if err != nil {
 			return nil, err
 		}
+		overrides, err = prepopulatedOverrides(options, obj, currentReadonly, overrides)
+		if err != nil {
+			return nil, err
+		}
 		if overrides == nil {
 			overrides = map[string]forms.Field{}
 		}
