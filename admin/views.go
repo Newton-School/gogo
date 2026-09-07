@@ -357,7 +357,7 @@ func (s *Site) list(w http.ResponseWriter, r *http.Request, p auth.Principal, op
 			if options.ListDisplayLinks == nil && index == 0 || slices.Contains(options.ListDisplayLinks, name) {
 				link = s.modelURL(options) + url.PathEscape(object.ID) + "/change/"
 			}
-			cells = append(cells, templates.Context{"value": value, "url": link})
+			cells = append(cells, templates.Context{"value": s.displayValue(options, name, value), "url": link})
 		}
 		rows = append(rows, templates.Context{"id": object.ID, "prefix": "form-" + strconv.Itoa(rowIndex), "url": s.modelURL(options) + url.PathEscape(object.ID) + "/change/", "cells": cells})
 	}
@@ -836,7 +836,7 @@ func (s *Site) form(w http.ResponseWriter, r *http.Request, p auth.Principal, op
 		if !ok {
 			continue
 		}
-		readonlyValues = append(readonlyValues, templates.Context{"label": name, "value": value})
+		readonlyValues = append(readonlyValues, templates.Context{"label": name, "value": s.displayValue(options, name, value)})
 	}
 	title := object.Label
 	if id == "" {

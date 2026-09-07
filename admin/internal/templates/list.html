@@ -25,7 +25,7 @@
       <thead><tr>{% if actions %}<th scope="col">Select</th>{% endif %}{% for column in columns %}<th scope="col"{% if column.direction != "none" %} aria-sort="{{ column.direction }}"{% endif %}>{% if column.url %}<a href="{{ column.url }}">{{ column.label }}</a>{% else %}{{ column.label }}{% endif %}</th>{% endfor %}</tr></thead>
       <tbody>{% for row in rows %}<tr>
         {% if actions %}<td><input type="checkbox" name="_selected" value="{{ row.id }}" aria-label="Select {{ row.id }}"></td>{% endif %}
-        {% for cell in row.cells %}<td>{% if cell.widget %}{{ cell.widget }}{% elif cell.url %}<a href="{{ cell.url }}">{{ cell.value|default_if_none:"—" }}</a>{% else %}{{ cell.value|default_if_none:"—" }}{% endif %}</td>{% endfor %}
+        {% for cell in row.cells %}<td>{% if cell.widget %}{{ cell.widget }}{% elif cell.url %}<a href="{{ cell.url }}">{{ cell.value }}</a>{% else %}{{ cell.value }}{% endif %}</td>{% endfor %}
       </tr>{% empty %}<tr><td class="empty-state" colspan="100">No matching records.</td></tr>{% endfor %}</tbody>
     </table></div>
     {% if list_token %}<div class="submit-row"><button type="submit" name="_save_list" value="1">Save changes</button><span class="muted">Only changed editable rows on this page are saved.</span></div>{% endif %}

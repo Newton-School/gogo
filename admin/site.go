@@ -33,6 +33,9 @@ type DisplayColumn struct {
 	// Ordering maps a computed display column to one stored scalar model field.
 	// A leading minus makes the column's natural order descending.
 	Ordering string
+	// EmptyValueDisplay overrides the model/site placeholder for empty values.
+	// Nil inherits; a pointer to an empty string deliberately displays nothing.
+	EmptyValueDisplay *string
 }
 type Action struct {
 	Name, Description, Permission string
@@ -50,6 +53,9 @@ type ModelAdmin struct {
 	// Nil keeps all available column sorts; an empty slice disables user sorting.
 	// Configured Ordering remains independent of this presentation allowlist.
 	SortableBy []string
+	// EmptyValueDisplay overrides the site's escaped empty-value text.
+	// Nil inherits; a pointer to an empty string deliberately displays nothing.
+	EmptyValueDisplay *string
 	// PrepopulatedFields maps slug targets to ordered text source fields. It
 	// provides browser suggestions on add forms, never server-side defaults.
 	PrepopulatedFields          map[string][]string
@@ -88,6 +94,9 @@ type Config struct {
 	// middleware. Notices are best-effort after durable writes and contain no
 	// object data, so cookie storage can be explicitly used by the application.
 	Messages bool
+	// EmptyValueDisplay is escaped text for empty list/read-only values.
+	// Nil preserves the em-dash default; an explicit empty string is supported.
+	EmptyValueDisplay *string
 }
 type Site struct {
 	config     Config
@@ -104,6 +113,7 @@ type Site struct {
 
 func NewSite(config Config) (*Site, error) {
 	config.CSRF.TrustedOrigins = slices.Clone(config.CSRF.TrustedOrigins)
+	config.EmptyValueDisplay = cloneDisplayText(config.EmptyValueDisplay)
 	if config.Name == "" {
 		config.Name = "admin"
 	}
@@ -311,6 +321,7 @@ func (s *Site) Register(options ModelAdmin) error {
 	options.ListDisplayLinks = slices.Clone(options.ListDisplayLinks)
 	options.ListEditable = slices.Clone(options.ListEditable)
 	options.SortableBy = slices.Clone(options.SortableBy)
+	options.EmptyValueDisplay = cloneDisplayText(options.EmptyValueDisplay)
 	options.PrepopulatedFields = clonePrepopulated(options.PrepopulatedFields)
 	options.SearchFields = slices.Clone(options.SearchFields)
 	options.ListFilter = slices.Clone(options.ListFilter)
@@ -318,6 +329,9 @@ func (s *Site) Register(options ModelAdmin) error {
 	options.SensitiveFields = slices.Clone(options.SensitiveFields)
 	options.Actions = slices.Clone(options.Actions)
 	options.Columns = slices.Clone(options.Columns)
+	for i := range options.Columns {
+		options.Columns[i].EmptyValueDisplay = cloneDisplayText(options.Columns[i].EmptyValueDisplay)
+	}
 	options.FormOverrides = cloneOverrides(options.FormOverrides)
 	options.Fieldsets = append([]Fieldset(nil), options.Fieldsets...)
 	for i := range options.Fieldsets {

@@ -67,7 +67,7 @@ func (s *Site) renderModelFormWithExtra(ctx context.Context, options ModelAdmin,
 						return "", err
 					}
 				}
-				rows = append(rows, templates.Context{"label": label, "value": value, "readonly": true})
+				rows = append(rows, templates.Context{"label": label, "value": s.displayValue(options, name, value), "readonly": true})
 			}
 		}
 		if len(rows) > 0 {
