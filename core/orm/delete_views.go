@@ -17,6 +17,33 @@ var ErrDeleteCallbackMutation = errors.New("orm: deletion callback changed its r
 // cannot be constructed. No callback or deletion write has run at that point.
 var ErrDeleteCallbackView = errors.New("orm: deletion callback value cannot be safely detached")
 
+// CheckDeletionPlan gives a policy a fresh, detached, read-only view of an
+// executable deletion graph. Retained views cannot mutate the supplied graph
+// or a later check; changing the current view rejects this check. It performs
+// no queries, locking, persistence or transaction management. It is useful for
+// transaction coordinators that reauthorize an already locked graph after
+// their own hooks or audit. Execute must still recollect before deletion.
+//
+// Protected graphs are not executable and return ErrProtectedRelation without
+// invoking check. Application callback panics propagate to the caller's normal
+// transaction/error boundary, just as DeleteCollector.Authorize panics do.
+func CheckDeletionPlan(ctx context.Context, plan DeletionPlan, check func(context.Context, DeletionPlan) error) error {
+	if ctx == nil || check == nil {
+		return ErrDeleteCallbackView
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if len(plan.Protected) != 0 {
+		return ErrProtectedRelation
+	}
+	// Bound initial slice allocation as well as the deep cloner's work budget.
+	if len(plan.Objects) > 100000 || len(plan.Updates) > 100000 || len(plan.JoinRemovals) > 100000 {
+		return ErrDeleteCallbackView
+	}
+	return authorizeDelete(ctx, plan, check)
+}
+
 // A deletion view has no reference back to its execution record. Schema returns
 // fresh descriptor data; registered functions/codecs remain trusted runtime
 // services, not application data to execute or reflectively copy.
