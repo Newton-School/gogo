@@ -177,7 +177,7 @@ func (e SchemaEditor) RemoveModelIndex(ctx context.Context, executor db.Executor
 		return &db.Error{Code: db.UnsupportedFeature, Message: "Concurrent index removal requires an explicit online migration"}
 	}
 	for _, constraint := range schema.Constraints {
-		if constraint.Name == index.Name {
+		if constraint.Name == index.Name && strings.EqualFold(constraint.Kind, "unique") {
 			return &db.Error{Code: db.UnsupportedFeature, Message: "Constraint indexes require explicit constraint operations"}
 		}
 	}

@@ -3,6 +3,9 @@ package migrations
 import "github.com/Newton-School/gogo/core/db"
 
 func (e *Executor) validateIndexOperations(migration Migration, reverse bool) error {
+	if err := e.validateConstraintOperations(migration); err != nil {
+		return err
+	}
 	for _, operation := range migration.Operations {
 		if operation.Kind == "create_model" && !reverse && !migration.NonAtomic {
 			for _, index := range operation.Schema.Indexes {

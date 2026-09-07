@@ -10,7 +10,8 @@
 | Rename an indexed field | Update logical references; for a physical column rename, verify and refresh dependent named-index ownership in the same transaction. Explicit unchanged `db_column` preserves index identity and marker. |
 | Reverse add/remove/replacement | Replay the immutable prior descriptor. Old/new slices and optional values never alias caller metadata. |
 | Change a concurrent index | Detection refuses automatic conversion. Use an explicitly designed online migration; Gogo never promotes a migration to non-atomic execution. |
-| Change constraints or model options | Return an actionable unsupported-operation error; do not silently report no drift. These operation families remain separate work. |
+| Change declared constraints | Use the separate [constraint lifecycle](constraints.md), not ordinary named-index removal. |
+| Change model options | Return an actionable unsupported-operation error; do not silently report no drift. |
 | Index operations on unmanaged, proxy or abstract schemas | Preserve migration state without executing index DDL, matching model creation. |
 
 Nonconcurrent `SchemaEditor.AddIndex` creates the index and its ownership comment
@@ -36,7 +37,7 @@ framework migration reversal does not use it.
 
 Explicit concurrent creation retains its separate, non-atomic creation path;
 it does not receive an atomic lifecycle ownership claim. Raw predicate SQL is
-never rewritten to guess renamed fields. A physical column rename while any
-conditional index remains, and concurrent-index field-column renames, require an
+never rewritten to guess renamed fields. A physical column rename or type change
+while any conditional index remains, and concurrent-index field-column renames, require an
 explicit migration. Remove dependent indexes first and recreate the intended
 definitions after changing columns.

@@ -122,9 +122,6 @@ func applyIndexState(schema models.Schema, operation Operation) (models.Schema, 
 }
 
 func supportedModelStateChange(before, after models.Schema) error {
-	if !reflect.DeepEqual(before.Constraints, after.Constraints) {
-		return &db.Error{Code: db.UnsupportedFeature, Message: "Constraint changes require explicit state-aware constraint operations"}
-	}
 	before, after = before.Clone(), after.Clone()
 	before.Fields, after.Fields = nil, nil
 	before.Indexes, after.Indexes = nil, nil

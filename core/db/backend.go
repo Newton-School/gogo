@@ -86,6 +86,14 @@ type SchemaEditor interface {
 type IndexLifecycleEditor interface {
 	RemoveModelIndex(context.Context, Executor, models.Schema, models.Index) error
 }
+
+// ConstraintLifecycleEditor applies immutable, named constraint descriptors.
+// Removal must verify ownership and current definition before changing storage.
+// Implementations may represent conditional uniqueness as a backend index.
+type ConstraintLifecycleEditor interface {
+	AddConstraint(context.Context, Executor, models.Schema, models.Constraint) error
+	RemoveConstraint(context.Context, Executor, models.Schema, models.Constraint) error
+}
 type Introspector interface {
 	Introspect(context.Context, Executor, string) (models.Schema, error)
 	Tables(context.Context, Executor) ([]string, error)

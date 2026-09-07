@@ -70,13 +70,11 @@ func TestNamedIndexesDetectExactStateAndDeclarationOrder(t *testing.T) {
 }
 
 func TestNamedIndexUnsupportedMetadataNeverReportsNoDrift(t *testing.T) {
-	for _, mode := range []string{"constraint", "options", "concurrent_add", "concurrent_remove", "duplicate"} {
+	for _, mode := range []string{"options", "concurrent_add", "concurrent_remove", "duplicate"} {
 		t.Run(mode, func(t *testing.T) {
 			before, after := testSchema(), testSchema()
 			index := models.Index{Name: "named", Fields: []string{"title"}, Concurrent: true}
 			switch mode {
-			case "constraint":
-				after.Constraints = []models.Constraint{{Name: "unique_title", Kind: "unique", Fields: []string{"title"}}}
 			case "options":
 				after.Ordering = []string{"title"}
 			case "concurrent_add":

@@ -218,17 +218,29 @@ func (e SchemaEditor) CreateModel(ctx context.Context, executor db.Executor, sch
 		pks = append(pks, name)
 	}
 	parts = append(parts, "PRIMARY KEY ("+strings.Join(pks, ", ")+")")
+	var constraintDefinitions []modelConstraint
 	for _, constraint := range schema.Constraints {
-		if strings.EqualFold(constraint.Kind, "unique") && constraint.Condition != "" {
-			continue
-		}
-		sql, err := e.constraint(schema, constraint)
+		definition, err := e.modelConstraint(schema, constraint)
 		if err != nil {
 			return err
 		}
-		parts = append(parts, sql)
+		constraintDefinitions = append(constraintDefinitions, definition)
+		if definition.partial != nil {
+			continue
+		}
+		parts = append(parts, definition.sql)
 	}
-	if _, err := executor.Exec(ctx, "CREATE TABLE "+table+" ("+strings.Join(parts, ", ")+")"); err != nil {
+	create := "CREATE TABLE " + table + " (" + strings.Join(parts, ", ") + ")"
+	var constraintComments []string
+	for _, definition := range constraintDefinitions {
+		if definition.partial == nil {
+			constraintComments = append(constraintComments, definition.commentStatement())
+		}
+	}
+	if len(constraintComments) > 0 {
+		create = constraintBlock(append([]string{"EXECUTE " + quoteIndexLiteral(create)}, constraintComments...)...)
+	}
+	if _, err := executor.Exec(ctx, create); err != nil {
 		return err
 	}
 	for _, index := range indexes {
@@ -243,10 +255,7 @@ func (e SchemaEditor) CreateModel(ctx context.Context, executor db.Executor, sch
 	}
 	for _, constraint := range schema.Constraints {
 		if strings.EqualFold(constraint.Kind, "unique") && constraint.Condition != "" {
-			if constraint.Deferrable {
-				return errors.New("postgres: conditional unique constraints cannot be deferred")
-			}
-			if err := e.AddIndex(ctx, executor, schema, models.Index{Name: constraint.Name, Fields: constraint.Fields, Unique: true, Condition: constraint.Condition, NullsDistinct: constraint.NullsDistinct}); err != nil {
+			if err := e.AddConstraint(ctx, executor, schema, constraint); err != nil {
 				return err
 			}
 		}
@@ -395,6 +404,11 @@ func (e SchemaEditor) RemoveField(ctx context.Context, executor db.Executor, sch
 			return &db.Error{Code: db.UnsupportedFeature, Message: "Remove dependent named indexes before removing a field"}
 		}
 	}
+	for _, constraint := range schema.Constraints {
+		if constraint.Condition != "" || constraint.Expression != "" || slices.Contains(constraint.Fields, field.Name) {
+			return &db.Error{Code: db.UnsupportedFeature, Message: "Remove dependent declared constraints before removing a field"}
+		}
+	}
 	table, err := e.Dialect.QuoteIdentifier(schema.DBTable())
 	if err != nil {
 		return err
@@ -520,6 +534,41 @@ func (e SchemaEditor) alterIndexedField(ctx context.Context, executor db.Executo
 	}
 	actions := []string{}
 	var namedRefresh []string
+	if oldKind != kind {
+		for _, index := range schema.Indexes {
+			if index.Condition != "" {
+				return &db.Error{Code: db.UnsupportedFeature, Message: "Field-type changes with conditional indexes require an explicit migration"}
+			}
+		}
+		for _, constraint := range schema.Constraints {
+			if constraint.Condition != "" || constraint.Expression != "" {
+				return &db.Error{Code: db.UnsupportedFeature, Message: "Field-type changes with SQL constraints require an explicit migration"}
+			}
+		}
+	}
+	if column != newColumn || oldKind != kind {
+		for _, constraint := range schema.Constraints {
+			if !slices.Contains(constraint.Fields, old.Name) || constraint.Condition != "" || constraint.Expression != "" {
+				continue
+			}
+			next := (models.Schema{Constraints: []models.Constraint{constraint}}).Clone().Constraints[0]
+			for i, name := range next.Fields {
+				if name == old.Name {
+					next.Fields[i] = new.Name
+				}
+			}
+			before, err := e.modelConstraint(schema, constraint)
+			if err != nil {
+				return err
+			}
+			after, err := e.modelConstraint(prospective, next)
+			if err != nil {
+				return err
+			}
+			actions = append(actions, before.lockStatement(), before.guardStatement())
+			namedRefresh = append(namedRefresh, after.commentStatement())
+		}
+	}
 	if column != newColumn {
 		// Trusted SQL fragments may refer to a column only in their predicate,
 		// not in an index's declared key/include fields. Do not guess dependencies

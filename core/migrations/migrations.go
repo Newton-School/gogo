@@ -17,17 +17,20 @@ import (
 )
 
 type Operation struct {
-	Kind              string
-	Schema            models.Schema
-	Field, OldField   models.Field
-	Index             models.Index
-	IndexOrder        []string `json:",omitempty"`
-	OldIndexOrder     []string `json:",omitempty"`
-	Name, OldName     string
-	SQL, ReverseSQL   string
-	Args, ReverseArgs []any
-	CodeID            string
-	Forward, Backward func(context.Context, db.Executor) error `json:"-"`
+	Kind               string
+	Schema             models.Schema
+	Field, OldField    models.Field
+	Index              models.Index
+	IndexOrder         []string           `json:",omitempty"`
+	OldIndexOrder      []string           `json:",omitempty"`
+	Constraint         *models.Constraint `json:",omitempty"`
+	ConstraintOrder    []string           `json:",omitempty"`
+	OldConstraintOrder []string           `json:",omitempty"`
+	Name, OldName      string
+	SQL, ReverseSQL    string
+	Args, ReverseArgs  []any
+	CodeID             string
+	Forward, Backward  func(context.Context, db.Executor) error `json:"-"`
 }
 
 func CreateModel(schema models.Schema) Operation {
@@ -53,6 +56,14 @@ func AddIndex(schema models.Schema, index models.Index) Operation {
 }
 func RemoveIndex(schema models.Schema, index models.Index) Operation {
 	return Operation{Kind: "remove_index", Schema: schema.Clone(), Index: cloneIndex(index)}
+}
+func AddConstraint(schema models.Schema, constraint models.Constraint) Operation {
+	copy := cloneConstraint(constraint)
+	return Operation{Kind: "add_constraint", Schema: schema.Clone(), Constraint: &copy}
+}
+func RemoveConstraint(schema models.Schema, constraint models.Constraint) Operation {
+	copy := cloneConstraint(constraint)
+	return Operation{Kind: "remove_constraint", Schema: schema.Clone(), Constraint: &copy}
 }
 func RunSQL(sql string, args []any, reverse string, reverseArgs []any) Operation {
 	return Operation{Kind: "sql", SQL: sql, Args: append([]any(nil), args...), ReverseSQL: reverse, ReverseArgs: append([]any(nil), reverseArgs...)}
@@ -213,10 +224,19 @@ func (e *Executor) Apply(ctx context.Context, target string) (err error) {
 	if err != nil {
 		return err
 	}
+	engines := map[string]*Executor{}
 	for _, migration := range plan {
 		if err := e.validateIndexOperations(migration, false); err != nil {
 			return err
 		}
+		resolved, err := e.withHistoricalSchemas(migration.Key())
+		if err != nil {
+			return err
+		}
+		if err := resolved.validateIndexOperations(migration, false); err != nil {
+			return err
+		}
+		engines[migration.Key()] = resolved
 	}
 	locker, ok := e.Backend.(db.MigrationLocker)
 	if !ok {
@@ -265,10 +285,7 @@ func (e *Executor) Apply(ctx context.Context, target string) (err error) {
 		if _, ok := applied[m.Key()]; ok {
 			continue
 		}
-		migrationEngine, err := e.withHistoricalSchemas(m.Key())
-		if err != nil {
-			return err
-		}
+		migrationEngine := engines[m.Key()]
 		sum, _ := m.Checksum()
 		run := func(txCtx context.Context) error {
 			executor := db.ExecutorFor(txCtx, e.Backend)
@@ -324,6 +341,10 @@ func (e *Executor) run(ctx context.Context, executor db.Executor, o Operation, r
 			return e.Editor.AddIndex(ctx, executor, o.Schema, o.Index)
 		case "index_order":
 			return nil
+		case "add_constraint", "remove_constraint":
+			return e.runConstraint(ctx, executor, o, o.Kind == "add_constraint")
+		case "constraint_order":
+			return nil
 		case "sql":
 			if o.ReverseSQL == "" {
 				return errors.New("migrations: irreversible SQL")
@@ -357,6 +378,10 @@ func (e *Executor) run(ctx context.Context, executor db.Executor, o Operation, r
 	case "remove_index":
 		return e.removeModelIndex(ctx, executor, o.Schema, o.Index)
 	case "index_order":
+		return nil
+	case "add_constraint", "remove_constraint":
+		return e.runConstraint(ctx, executor, o, o.Kind == "remove_constraint")
+	case "constraint_order":
 		return nil
 	case "sql":
 		if strings.TrimSpace(o.SQL) == "" {

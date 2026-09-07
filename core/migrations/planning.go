@@ -50,6 +50,9 @@ func (e *Executor) SQL(ctx context.Context, key string, reverse bool) ([]Stateme
 	if err != nil {
 		return nil, err
 	}
+	if err := resolved.validateIndexOperations(*migration, reverse); err != nil {
+		return nil, err
+	}
 	recorder := &recordingExecutor{}
 	operations := append([]Operation(nil), migration.Operations...)
 	if reverse {
@@ -132,6 +135,13 @@ func (e *Executor) State(target string) ([]models.Schema, error) {
 					return nil, err
 				}
 				state[key] = schema
+			case "add_constraint", "remove_constraint", "constraint_order":
+				var err error
+				schema, err = applyConstraintState(schema, operation)
+				if err != nil {
+					return nil, err
+				}
+				state[key] = schema
 			}
 		}
 	}
@@ -188,9 +198,20 @@ func Detect(before, after []models.Schema, options DetectOptions) ([]Operation, 
 		if err != nil {
 			return nil, err
 		}
+		removeConstraints, addConstraints, constraintOrder, err := detectConstraints(previous, schema)
+		if err != nil {
+			return nil, err
+		}
 		operations = append(operations, removeIndexes...)
 		for _, operation := range removeIndexes {
 			previous, err = applyIndexState(previous, operation)
+			if err != nil {
+				return nil, err
+			}
+		}
+		operations = append(operations, removeConstraints...)
+		for _, operation := range removeConstraints {
+			previous, err = applyConstraintState(previous, operation)
 			if err != nil {
 				return nil, err
 			}
@@ -234,8 +255,12 @@ func Detect(before, after []models.Schema, options DetectOptions) ([]Operation, 
 			previous.Fields = remaining
 		}
 		operations = append(operations, addIndexes...)
+		operations = append(operations, addConstraints...)
 		if indexOrder != nil {
 			operations = append(operations, *indexOrder)
+		}
+		if constraintOrder != nil {
+			operations = append(operations, *constraintOrder)
 		}
 		delete(old, key)
 	}
@@ -321,6 +346,7 @@ func (e *Executor) Reverse(ctx context.Context, target string) (err error) {
 	for _, h := range history {
 		applied[h.Key] = h.Checksum
 	}
+	engines := map[string]*Executor{}
 	for _, m := range all {
 		if sum, ok := applied[m.Key()]; ok {
 			expected, _ := m.Checksum()
@@ -333,6 +359,14 @@ func (e *Executor) Reverse(ctx context.Context, target string) (err error) {
 				if err := e.validateIndexOperations(m, true); err != nil {
 					return err
 				}
+				resolved, err := e.withHistoricalSchemas(m.Key())
+				if err != nil {
+					return err
+				}
+				if err := resolved.validateIndexOperations(m, true); err != nil {
+					return err
+				}
+				engines[m.Key()] = resolved
 			}
 			for _, o := range m.Operations {
 				if o.Kind == "delete_model" || o.Kind == "remove_field" || (o.Kind == "sql" && o.ReverseSQL == "") || (o.Kind == "data" && o.Backward == nil) {
@@ -346,13 +380,7 @@ func (e *Executor) Reverse(ctx context.Context, target string) (err error) {
 		if !remove[m.Key()] || applied[m.Key()] == "" {
 			continue
 		}
-		migrationEngine, err := e.withHistoricalSchemas(m.Key())
-		if err != nil {
-			return err
-		}
-		if err := migrationEngine.validateIndexOperations(m, true); err != nil {
-			return err
-		}
+		migrationEngine := engines[m.Key()]
 		run := func(txCtx context.Context) error {
 			executor := db.ExecutorFor(txCtx, e.Backend)
 			for j := len(m.Operations) - 1; j >= 0; j-- {

@@ -286,9 +286,18 @@ func (s Schema) Validate() error {
 			if len(constraint.Fields) == 0 {
 				return errors.New("models: unique constraint requires fields")
 			}
+			if constraint.Expression != "" {
+				return errors.New("models: expression-based unique constraints require explicit supported operations")
+			}
+			if indexNames[constraint.Name] || constraint.Name == s.DBTable() {
+				return errors.New("models: unique constraint name collides with a table or declared index")
+			}
 		case "check":
 			if constraint.Expression == "" {
 				return errors.New("models: check constraint requires expression")
+			}
+			if constraint.Condition != "" || constraint.Deferrable || constraint.NullsDistinct != nil {
+				return errors.New("models: check constraint options are not supported")
 			}
 		default:
 			return errors.New("models: unsupported constraint kind")
