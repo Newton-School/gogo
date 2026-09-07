@@ -38,6 +38,9 @@ type Broker interface {
 	Ack(context.Context, Delivery) error
 	Reject(context.Context, Delivery, string, bool) error
 	Reclaim(context.Context, ConsumeOptions, time.Duration) ([]Delivery, error)
+	// Inspect returns exactly one nonnegative count record per requested queue;
+	// ordering may differ. It is a trusted read port without caller grants.
+	// Count observations are not a transactionally consistent execution state.
 	Inspect(context.Context, []string) ([]QueueStats, error)
 	Close() error
 }

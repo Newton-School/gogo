@@ -58,6 +58,20 @@ an additional failure can follow an applied removal.
 
 Set `Worker.Presence` and `ClientConfig.Presence` to an `async/redis.Workers` adapter for remote heartbeat snapshots. `Worker.Run/RunOnce` claim instance ownership before reserving work and refresh using the worker heartbeat interval; direct `Process` calls do not advertise a runner. Startup collisions fail, while later monitoring outages are reported without rewriting task results or canceling handlers. `Control.InspectWorkers` and `tasks inspect workers <id>...` require worker, queue and active-task scope grants. They return online/lost/offline/unknown status and partial errors, never task arguments or ownership tokens. A lost heartbeat or offline runner does not prove its tasks stopped. Snapshots expire after 24 hours without a write; Redis time controls liveness. Unknown claim acknowledgements may require waiting for the previous monitoring lease to expire before a new runner starts.
 
+`Control.InspectWorker(ctx, worker)` applies those same worker, queue and active-task
+inspection grants to a local worker. A local pointer does not bypass queue policy.
+Explicitly denied active tasks are hidden; malformed snapshots, policy outages,
+panics and cancellation return no snapshot. Configure the worker before concurrent
+use. The returned snapshot is detached and does not claim liveness or completion.
+
+`Control.InspectQueues(ctx, queues)` accepts 1–64 distinct queue names, checks each
+`inspect` grant before and after lookup, and returns detached statistics in the
+requested order. Missing, extra, duplicate, wrong-queue or negative provider counts
+make the whole batch unavailable; provider errors never expose a partial batch or
+private details. Denial, panic or cancellation also returns no statistics. Counts
+are observations, not a coherent transaction or proof of task completion. These
+read APIs retain the existing inspection policy defaults; they add no control grant.
+
 `async/redis.Events` is an optional lossy observer, configured explicitly on clients/workers/relays. Use `Control.ReadEvents` for one bounded page or `Control.ObserveEvents` for synchronous iteration. Both require an explicit `inspect_events` grant for the exact scope and current `inspect` authority for each task/worker; iteration rechecks before every yield. Explicit object denial hides that event, but cancellation, policy/provider outages and malformed pages fail visibly without returning that page's data. A page cursor advances past denied events in its authorized scope. Redis stores each scope in a separate stream, so other scopes do not contribute cursor gaps.
 
 ```go

@@ -3,7 +3,6 @@ package async
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"sort"
 	"time"
 )
@@ -87,34 +86,4 @@ func (c Control) Revoke(ctx context.Context, id string) error {
 		return ErrInvalid
 	}
 	return RestoreResult[json.RawMessage](c.Client, id).Revoke(ctx)
-}
-func (c Control) InspectQueues(ctx context.Context, queues []string) ([]QueueStats, error) {
-	if c.Client == nil {
-		return nil, ErrInvalid
-	}
-	for _, queue := range queues {
-		if err := c.Client.authorize(ctx, "inspect", queue, ""); err != nil {
-			return nil, err
-		}
-	}
-	return c.Client.config.Broker.Inspect(ctx, queues)
-}
-func (c Control) InspectWorker(ctx context.Context, worker *Worker) (WorkerSnapshot, error) {
-	if ctx == nil || c.Client == nil || worker == nil {
-		return WorkerSnapshot{}, ErrInvalid
-	}
-	snapshot := worker.Snapshot()
-	if err := c.authorizeInspection(ctx, "", snapshot.ID); err != nil {
-		return WorkerSnapshot{}, err
-	}
-	visible := snapshot.Active[:0]
-	for _, activity := range snapshot.Active {
-		if err := c.authorizeInspection(ctx, activity.Scope, activity.ID); err == nil {
-			visible = append(visible, activity)
-		} else if !errors.Is(err, ErrDenied) {
-			return WorkerSnapshot{}, err
-		}
-	}
-	snapshot.Active = visible
-	return snapshot, nil
 }
