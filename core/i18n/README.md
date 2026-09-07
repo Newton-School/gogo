@@ -74,6 +74,7 @@ distinct. Returned location pointers and local-time values do not expose the
 resolver's shared location pointers. This package does not parse
 ambiguous/nonexistent local wall times.
 
-Translation catalogs, plural/context message selection, localized template/form
+For immutable application catalogs, plural/context lookup and explicit lazy
+messages, see [translation catalogs](catalogs.md). Localized template/form
 formatting, locale URL prefixes, language-switch endpoints and automatic task
-propagation are not implemented by this selection foundation.
+propagation are not implemented by the locale-selection middleware.

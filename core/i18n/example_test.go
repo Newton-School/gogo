@@ -47,3 +47,29 @@ func ExampleResolver_WithLocale() {
 	// hi 2026-01-01T05:30:00+05:30
 	// 2026-01-01T00:00:00Z
 }
+
+func ExampleTranslator_Ngettext() {
+	locales, err := i18n.New(i18n.Config{Languages: []string{"en", "fr"}})
+	if err != nil {
+		panic(err)
+	}
+	translator, err := i18n.NewTranslator(locales, i18n.TranslatorConfig{Catalogs: []i18n.Catalog{{
+		Language: "fr", Domain: "shop",
+		Messages: []i18n.Translation{{ID: "item", Forms: map[i18n.PluralForm]string{
+			i18n.One: "article", i18n.Other: "articles",
+		}}},
+	}}})
+	if err != nil {
+		panic(err)
+	}
+	ctx, err := locales.WithLocale(context.Background(), i18n.Preferences{Language: "fr"})
+	if err != nil {
+		panic(err)
+	}
+	text, err := translator.Ngettext(ctx, "shop", "item", "items", 2)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println(text)
+	// Output: articles
+}
