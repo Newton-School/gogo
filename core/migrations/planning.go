@@ -105,13 +105,23 @@ func (e *Executor) State(target string) ([]models.Schema, error) {
 				}
 				state[key] = schema
 			case "rename_field":
-				for i := range schema.Fields {
-					if schema.Fields[i].Name == operation.OldName {
-						schema.Fields[i].Name = operation.Name
-						schema.Fields[i].Column = operation.Name
-					}
+				var err error
+				schema, err = renameFieldState(schema, operation.OldName, operation.Name)
+				if err != nil {
+					return nil, err
 				}
 				state[key] = schema
+				for otherKey, other := range state {
+					if otherKey == key {
+						continue
+					}
+					other = other.Clone()
+					for i := range other.Fields {
+						f := &other.Fields[i]
+						renameRelationFieldReferences(f.Relation, key, operation.OldName, operation.Name)
+					}
+					state[otherKey] = other
+				}
 			case "add_index":
 				schema.Indexes = append(schema.Indexes, operation.Index)
 				state[key] = schema
@@ -153,7 +163,10 @@ func Detect(before, after []models.Schema, options DetectOptions) ([]Operation, 
 		keys = append(keys, key)
 	}
 	sort.Strings(keys)
-	operations := []Operation{}
+	operations, err := detectFieldRenames(old, new, options.Renames)
+	if err != nil {
+		return nil, err
+	}
 	for _, key := range keys {
 		schema := new[key]
 		previous, exists := old[key]
@@ -168,27 +181,6 @@ func Detect(before, after []models.Schema, options DetectOptions) ([]Operation, 
 		for _, field := range schema.Fields {
 			oldField, exists := oldFields[field.Name]
 			if !exists {
-				renamed := ""
-				for oldName, newName := range options.Renames {
-					if strings.HasPrefix(oldName, key+".") && newName == field.Name {
-						source := strings.TrimPrefix(oldName, key+".")
-						if _, ok := oldFields[source]; ok {
-							renamed = source
-							break
-						}
-					}
-				}
-				if renamed != "" {
-					operations = append(operations, RenameField(previous, renamed, field.Name))
-					oldField = oldFields[renamed]
-					delete(oldFields, renamed)
-					oldField.Name = field.Name
-					oldField.Column = field.Column
-					if !fieldEquivalent(oldField, field) {
-						operations = append(operations, AlterField(previous, oldField, field))
-					}
-					continue
-				}
 				if !field.Null && !field.HasDefault() && !field.IsAuto() {
 					return nil, fmt.Errorf("migrations: nonnullable added field %s.%s requires default or staged backfill", key, field.Name)
 				}

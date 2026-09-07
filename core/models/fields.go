@@ -26,6 +26,7 @@ func WithStructField(name string) FieldOption { return func(f *Field) { f.Struct
 func WithMaxLength(n int) FieldOption         { return func(f *Field) { f.MaxLength = n } }
 func WithMinLength(n int) FieldOption         { return func(f *Field) { f.MinLength = n } }
 func WithAllowUnicode(allow bool) FieldOption { return func(f *Field) { f.AllowUnicode = allow } }
+func WithDBIndex(indexed bool) FieldOption    { return func(f *Field) { f.DBIndex = indexed } }
 func WithPrecision(digits, places int) FieldOption {
 	return func(f *Field) { f.MaxDigits = digits; f.DecimalPlaces = places }
 }
@@ -66,9 +67,11 @@ func FloatField(n string, o ...FieldOption) Field   { return NewField(n, Float, 
 func BooleanField(n string, o ...FieldOption) Field { return NewField(n, Boolean, o...) }
 func CharField(n string, o ...FieldOption) Field    { return NewField(n, Char, o...) }
 func TextField(n string, o ...FieldOption) Field    { return NewField(n, Text, o...) }
-func SlugField(n string, o ...FieldOption) Field    { return NewField(n, Slug, o...) }
-func EmailField(n string, o ...FieldOption) Field   { return NewField(n, Email, o...) }
-func URLField(n string, o ...FieldOption) Field     { return NewField(n, URL, o...) }
+func SlugField(n string, o ...FieldOption) Field {
+	return NewField(n, Slug, append([]FieldOption{WithMaxLength(50), WithDBIndex(true)}, o...)...)
+}
+func EmailField(n string, o ...FieldOption) Field { return NewField(n, Email, o...) }
+func URLField(n string, o ...FieldOption) Field   { return NewField(n, URL, o...) }
 func GenericIPAddressField(n string, o ...FieldOption) Field {
 	return NewField(n, GenericIPAddress, o...)
 }

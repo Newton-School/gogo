@@ -300,7 +300,11 @@ func (e *Executor) run(ctx context.Context, executor db.Executor, o Operation, r
 		case "add_field":
 			return e.Editor.RemoveField(ctx, executor, o.Schema, o.Field)
 		case "rename_field":
-			return e.Editor.RenameField(ctx, executor, o.Schema, o.Name, o.OldName)
+			schema, err := renameFieldState(o.Schema, o.OldName, o.Name)
+			if err != nil {
+				return err
+			}
+			return e.Editor.RenameField(ctx, executor, schema, o.Name, o.OldName)
 		case "alter_field":
 			return e.Editor.AlterField(ctx, executor, o.Schema, o.Field, o.OldField)
 		case "add_index":

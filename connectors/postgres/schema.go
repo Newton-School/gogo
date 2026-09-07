@@ -113,6 +113,9 @@ func (e SchemaEditor) relationTarget(field models.Field) (models.Schema, models.
 }
 
 func (e SchemaEditor) column(field models.Field) (string, error) {
+	if field.Collation != "" || field.Tablespace != "" {
+		return "", &db.Error{Code: db.UnsupportedFeature, Message: "Field collation and tablespace require explicit supported schema operations"}
+	}
 	name, err := e.Dialect.QuoteIdentifier(field.DBColumn())
 	if err != nil {
 		return "", err
@@ -170,10 +173,20 @@ func (e SchemaEditor) column(field models.Field) (string, error) {
 	return sql + reference, nil
 }
 func (e SchemaEditor) CreateModel(ctx context.Context, executor db.Executor, schema models.Schema) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	if schema.Unmanaged || schema.Proxy || schema.Abstract {
 		return nil
 	}
 	if err := schema.Validate(); err != nil {
+		return err
+	}
+	if schema.Tablespace != "" {
+		return &db.Error{Code: db.UnsupportedFeature, Message: "Model tablespace requires explicit supported schema operations"}
+	}
+	indexes, err := e.fieldIndexes(schema)
+	if err != nil {
 		return err
 	}
 	for _, field := range schema.Fields {
@@ -216,6 +229,11 @@ func (e SchemaEditor) CreateModel(ctx context.Context, executor db.Executor, sch
 	}
 	if _, err := executor.Exec(ctx, "CREATE TABLE "+table+" ("+strings.Join(parts, ", ")+")"); err != nil {
 		return err
+	}
+	for _, index := range indexes {
+		if _, err := executor.Exec(ctx, index.createSQL()); err != nil {
+			return err
+		}
 	}
 	for _, index := range schema.Indexes {
 		if err := e.AddIndex(ctx, executor, schema, index); err != nil {
@@ -322,6 +340,13 @@ func (e SchemaEditor) dropThrough(ctx context.Context, executor db.Executor, thr
 	return nil
 }
 func (e SchemaEditor) AddField(ctx context.Context, executor db.Executor, schema models.Schema, field models.Field) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	prospective := replaceSchemaField(schema, field.Name, field)
+	if _, err := e.fieldIndexes(prospective); err != nil {
+		return err
+	}
 	if field.Kind == models.ManyToMany {
 		return e.queueThrough(schema, field)
 	}
@@ -333,7 +358,14 @@ func (e SchemaEditor) AddField(ctx context.Context, executor db.Executor, schema
 	if err != nil {
 		return err
 	}
-	_, err = executor.Exec(ctx, "ALTER TABLE "+table+" ADD COLUMN "+column)
+	if _, err = executor.Exec(ctx, "ALTER TABLE "+table+" ADD COLUMN "+column); err != nil {
+		return err
+	}
+	index, err := implicitFieldIndex(prospective, field)
+	if err != nil || index == nil {
+		return err
+	}
+	_, err = executor.Exec(ctx, index.createSQL())
 	return err
 }
 func (e SchemaEditor) RemoveField(ctx context.Context, executor db.Executor, schema models.Schema, field models.Field) error {
@@ -366,22 +398,67 @@ func (e SchemaEditor) RemoveField(ctx context.Context, executor db.Executor, sch
 	return err
 }
 func (e SchemaEditor) RenameField(ctx context.Context, executor db.Executor, schema models.Schema, old, new string) error {
-	table, err := e.Dialect.QuoteIdentifier(schema.DBTable())
-	if err != nil {
-		return err
+	field, ok := schema.Field(old)
+	if !ok || !models.ValidIdentifier(new) {
+		return errors.New("postgres: rename requires an existing logical field and valid new name")
 	}
-	oldQ, err := e.Dialect.QuoteIdentifier(old)
-	if err != nil {
-		return err
+	if _, exists := schema.Field(new); exists {
+		return errors.New("postgres: renamed field already exists")
 	}
-	newQ, err := e.Dialect.QuoteIdentifier(new)
-	if err != nil {
-		return err
-	}
-	_, err = executor.Exec(ctx, "ALTER TABLE "+table+" RENAME COLUMN "+oldQ+" TO "+newQ)
-	return err
+	next := field
+	next.Name = new
+	return e.AlterField(ctx, executor, schema, field, next)
 }
 func (e SchemaEditor) AlterField(ctx context.Context, executor db.Executor, schema models.Schema, old, new models.Field) error {
+	return e.alterIndexedField(ctx, executor, schema, old, new)
+}
+
+func (e SchemaEditor) resolvedType(field models.Field) (string, error) {
+	if field.Kind == models.ForeignKey || field.Kind == models.OneToOne {
+		_, target, err := e.relationTarget(field)
+		if err != nil {
+			return "", err
+		}
+		field = target
+		switch field.Kind {
+		case models.SmallAuto:
+			field.Kind = models.SmallInteger
+		case models.Auto:
+			field.Kind = models.Integer
+		case models.BigAuto:
+			field.Kind = models.BigInteger
+		}
+	}
+	return e.Dialect.FieldType(field)
+}
+
+func (e SchemaEditor) alterIndexedField(ctx context.Context, executor db.Executor, schema models.Schema, old, new models.Field) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	prospective := replaceSchemaField(schema, old.Name, new)
+	for i, key := range prospective.PrimaryKey {
+		if key == old.Name {
+			prospective.PrimaryKey[i] = new.Name
+		}
+	}
+	if _, err := e.fieldIndexes(prospective); err != nil {
+		return err
+	}
+	if !old.IsStored() || !new.IsStored() || old.PrimaryKey != new.PrimaryKey || old.Unique != new.Unique || old.GeneratedExpression != new.GeneratedExpression || old.Collation != "" || new.Collation != "" || old.Tablespace != "" || new.Tablespace != "" {
+		return &db.Error{Code: db.UnsupportedFeature, Message: "Constraint, generated, collation or tablespace alterations require explicit supported schema operations"}
+	}
+	if !sameRelationStorage(old.Relation, new.Relation) || old.Kind != new.Kind && (positiveKind(old.Kind) || positiveKind(new.Kind) || old.Kind == models.OneToOne || new.Kind == models.OneToOne) {
+		return &db.Error{Code: db.UnsupportedFeature, Message: "Relation or positive-value constraint alteration requires an explicit migration"}
+	}
+	oldIndex, err := implicitFieldIndex(schema, old)
+	if err != nil {
+		return err
+	}
+	newIndex, err := implicitFieldIndex(prospective, new)
+	if err != nil {
+		return err
+	}
 	table, err := e.Dialect.QuoteIdentifier(schema.DBTable())
 	if err != nil {
 		return err
@@ -390,28 +467,73 @@ func (e SchemaEditor) AlterField(ctx context.Context, executor db.Executor, sche
 	if err != nil {
 		return err
 	}
-	kind, err := e.Dialect.FieldType(new)
+	newColumn, err := e.Dialect.QuoteIdentifier(new.DBColumn())
 	if err != nil {
 		return err
 	}
-	if old.IsAuto() || new.IsAuto() {
+	// A relation's unchanged endpoint keeps its storage type. Logical rename
+	// metadata may name the historical endpoint while the editor registry already
+	// contains its new name; do not resolve a type that this operation never alters.
+	kind, oldKind := "", ""
+	if old.Kind != new.Kind || old.Kind != models.ForeignKey && old.Kind != models.OneToOne {
+		kind, err = e.resolvedType(new)
+		if err != nil {
+			return err
+		}
+		oldKind, err = e.resolvedType(old)
+		if err != nil {
+			return err
+		}
+	}
+	if (old.IsAuto() || new.IsAuto()) && oldKind != kind {
 		return &db.Error{Code: db.UnsupportedFeature, Message: "Identity alteration requires explicit migration"}
 	}
-	clauses := []string{"ALTER COLUMN " + column + " TYPE " + kind}
-	nullOp := " SET NOT NULL"
-	if new.Null {
-		nullOp = " DROP NOT NULL"
+	clauses := []string{}
+	if oldKind != kind {
+		clauses = append(clauses, "ALTER COLUMN "+column+" TYPE "+kind)
 	}
-	clauses = append(clauses, "ALTER COLUMN "+column+nullOp)
-	if new.DBDefault == "" {
-		clauses = append(clauses, "ALTER COLUMN "+column+" DROP DEFAULT")
-	} else {
-		if strings.ContainsAny(new.DBDefault, ";\x00") {
-			return errors.New("postgres: invalid default expression")
+	if old.Null != new.Null {
+		nullOp := " SET NOT NULL"
+		if new.Null {
+			nullOp = " DROP NOT NULL"
 		}
-		clauses = append(clauses, "ALTER COLUMN "+column+" SET DEFAULT "+new.DBDefault)
+		clauses = append(clauses, "ALTER COLUMN "+column+nullOp)
 	}
-	_, err = executor.Exec(ctx, "ALTER TABLE "+table+" "+strings.Join(clauses, ", "))
+	if old.DBDefault != new.DBDefault {
+		if new.DBDefault == "" {
+			clauses = append(clauses, "ALTER COLUMN "+column+" DROP DEFAULT")
+		} else {
+			if strings.ContainsAny(new.DBDefault, ";\x00") || strings.Contains(new.DBDefault, "$gogo_field_index$") {
+				return errors.New("postgres: invalid default expression")
+			}
+			clauses = append(clauses, "ALTER COLUMN "+column+" SET DEFAULT "+new.DBDefault)
+		}
+	}
+	actions := []string{}
+	if oldIndex != nil && newIndex == nil {
+		actions = append(actions, oldIndex.dropStatement())
+	}
+	if len(clauses) > 0 {
+		actions = append(actions, "ALTER TABLE "+table+" "+strings.Join(clauses, ", "))
+	}
+	if column != newColumn {
+		actions = append(actions, "ALTER TABLE "+table+" RENAME COLUMN "+column+" TO "+newColumn)
+	}
+	if newIndex != nil {
+		if oldIndex == nil {
+			actions = append(actions, newIndex.createStatements())
+		} else if oldIndex.name != newIndex.name {
+			actions = append(actions, oldIndex.renameStatements(*newIndex))
+		}
+	}
+	if len(actions) == 0 {
+		return nil
+	}
+	statement := "DO $gogo_field_index$ BEGIN " + strings.Join(actions, "; ") + "; END $gogo_field_index$"
+	if oldIndex != nil {
+		statement = oldIndex.guardedSQL(strings.Join(actions, "; "))
+	}
+	_, err = executor.Exec(ctx, statement)
 	return err
 }
 func (e SchemaEditor) AddIndex(ctx context.Context, executor db.Executor, schema models.Schema, index models.Index) error {
