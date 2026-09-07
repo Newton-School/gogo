@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/Newton-School/gogo/core/db"
 	"github.com/Newton-School/gogo/core/models"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -369,6 +370,9 @@ func (e SchemaEditor) AddField(ctx context.Context, executor db.Executor, schema
 	return err
 }
 func (e SchemaEditor) RemoveField(ctx context.Context, executor db.Executor, schema models.Schema, field models.Field) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	if field.Kind == models.ManyToMany {
 		if field.Relation == nil {
 			return errors.New("postgres: many-to-many metadata missing")
@@ -385,6 +389,11 @@ func (e SchemaEditor) RemoveField(ctx context.Context, executor db.Executor, sch
 			return err
 		}
 		return e.dropThrough(ctx, executor, through)
+	}
+	for _, index := range schema.Indexes {
+		if index.Condition != "" || slices.Contains(index.Fields, field.Name) || slices.Contains(index.Include, field.Name) {
+			return &db.Error{Code: db.UnsupportedFeature, Message: "Remove dependent named indexes before removing a field"}
+		}
 	}
 	table, err := e.Dialect.QuoteIdentifier(schema.DBTable())
 	if err != nil {
@@ -510,6 +519,49 @@ func (e SchemaEditor) alterIndexedField(ctx context.Context, executor db.Executo
 		}
 	}
 	actions := []string{}
+	var namedRefresh []string
+	if column != newColumn {
+		// Trusted SQL fragments may refer to a column only in their predicate,
+		// not in an index's declared key/include fields. Do not guess dependencies
+		// or let PostgreSQL rewrite storage while historical SQL stays unchanged.
+		for _, index := range schema.Indexes {
+			if index.Condition != "" {
+				return &db.Error{Code: db.UnsupportedFeature, Message: "Field-column rename with conditional indexes requires an explicit migration"}
+			}
+		}
+		for _, constraint := range schema.Constraints {
+			if constraint.Condition != "" || constraint.Expression != "" {
+				return &db.Error{Code: db.UnsupportedFeature, Message: "Field-column rename with SQL constraints requires an explicit migration"}
+			}
+		}
+		for _, index := range schema.Indexes {
+			dependent := false
+			next := (models.Schema{Indexes: []models.Index{index}}).Clone().Indexes[0]
+			for _, names := range [][]string{next.Fields, next.Include} {
+				for i, name := range names {
+					if name == old.Name {
+						dependent, names[i] = true, new.Name
+					}
+				}
+			}
+			if !dependent {
+				continue
+			}
+			if index.Concurrent || index.Condition != "" {
+				return &db.Error{Code: db.UnsupportedFeature, Message: "Field-column rename with online or conditional indexes requires an explicit migration"}
+			}
+			before, err := e.namedIndex(schema, index)
+			if err != nil {
+				return err
+			}
+			after, err := e.namedIndex(prospective, next)
+			if err != nil {
+				return err
+			}
+			actions = append(actions, before.lockStatement(), before.guardStatement())
+			namedRefresh = append(namedRefresh, after.commentStatement())
+		}
+	}
 	if oldIndex != nil && newIndex == nil {
 		actions = append(actions, oldIndex.dropStatement())
 	}
@@ -519,6 +571,7 @@ func (e SchemaEditor) alterIndexedField(ctx context.Context, executor db.Executo
 	if column != newColumn {
 		actions = append(actions, "ALTER TABLE "+table+" RENAME COLUMN "+column+" TO "+newColumn)
 	}
+	actions = append(actions, namedRefresh...)
 	if newIndex != nil {
 		if oldIndex == nil {
 			actions = append(actions, newIndex.createStatements())
@@ -536,7 +589,7 @@ func (e SchemaEditor) alterIndexedField(ctx context.Context, executor db.Executo
 	_, err = executor.Exec(ctx, statement)
 	return err
 }
-func (e SchemaEditor) AddIndex(ctx context.Context, executor db.Executor, schema models.Schema, index models.Index) error {
+func (e SchemaEditor) addConcurrentIndex(ctx context.Context, executor db.Executor, schema models.Schema, index models.Index) error {
 	name, err := e.Dialect.QuoteIdentifier(index.Name)
 	if err != nil {
 		return err
@@ -609,11 +662,11 @@ func (e SchemaEditor) AddIndex(ctx context.Context, executor db.Executor, schema
 	return err
 }
 func (e SchemaEditor) RemoveIndex(ctx context.Context, executor db.Executor, name string) error {
-	quoted, err := e.Dialect.QuoteIdentifier(name)
+	_, err := e.Dialect.QuoteIdentifier(name)
 	if err != nil {
 		return err
 	}
-	_, err = executor.Exec(ctx, "DROP INDEX "+quoted)
+	_, err = executor.Exec(ctx, "DO $gogo_named_index$ BEGIN EXECUTE format('DROP INDEX %I.%I', current_schema(), "+quoteIndexLiteral(name)+"); END $gogo_named_index$")
 	return err
 }
 

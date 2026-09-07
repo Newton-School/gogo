@@ -252,10 +252,12 @@ func (s Schema) Validate() error {
 			return fmt.Errorf("models: unknown primary key field %s", key)
 		}
 	}
+	indexNames := map[string]bool{}
 	for _, index := range s.Indexes {
-		if !ValidIdentifier(index.Name) {
-			return fmt.Errorf("models: invalid index name %q", index.Name)
+		if !ValidIdentifier(index.Name) || indexNames[index.Name] {
+			return fmt.Errorf("models: duplicate or invalid index name %q", index.Name)
 		}
+		indexNames[index.Name] = true
 		for _, name := range append(append([]string{}, index.Fields...), index.Include...) {
 			if !seen[name] {
 				return fmt.Errorf("models: index references unknown field %s", name)

@@ -78,6 +78,14 @@ type SchemaEditor interface {
 	AddIndex(context.Context, Executor, models.Schema, models.Index) error
 	RemoveIndex(context.Context, Executor, string) error
 }
+
+// IndexLifecycleEditor removes only the named index described by its historical
+// model snapshot. Implementations must verify current catalog ownership and
+// definition before removal; an unqualified index name is insufficient.
+// It is optional so other providers fail explicitly before issuing DDL.
+type IndexLifecycleEditor interface {
+	RemoveModelIndex(context.Context, Executor, models.Schema, models.Index) error
+}
 type Introspector interface {
 	Introspect(context.Context, Executor, string) (models.Schema, error)
 	Tables(context.Context, Executor) ([]string, error)

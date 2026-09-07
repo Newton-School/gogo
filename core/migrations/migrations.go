@@ -21,6 +21,8 @@ type Operation struct {
 	Schema            models.Schema
 	Field, OldField   models.Field
 	Index             models.Index
+	IndexOrder        []string `json:",omitempty"`
+	OldIndexOrder     []string `json:",omitempty"`
 	Name, OldName     string
 	SQL, ReverseSQL   string
 	Args, ReverseArgs []any
@@ -47,7 +49,10 @@ func RenameField(schema models.Schema, old, new string) Operation {
 	return Operation{Kind: "rename_field", Schema: schema.Clone(), OldName: old, Name: new}
 }
 func AddIndex(schema models.Schema, index models.Index) Operation {
-	return Operation{Kind: "add_index", Schema: schema.Clone(), Index: index}
+	return Operation{Kind: "add_index", Schema: schema.Clone(), Index: cloneIndex(index)}
+}
+func RemoveIndex(schema models.Schema, index models.Index) Operation {
+	return Operation{Kind: "remove_index", Schema: schema.Clone(), Index: cloneIndex(index)}
 }
 func RunSQL(sql string, args []any, reverse string, reverseArgs []any) Operation {
 	return Operation{Kind: "sql", SQL: sql, Args: append([]any(nil), args...), ReverseSQL: reverse, ReverseArgs: append([]any(nil), reverseArgs...)}
@@ -208,6 +213,11 @@ func (e *Executor) Apply(ctx context.Context, target string) (err error) {
 	if err != nil {
 		return err
 	}
+	for _, migration := range plan {
+		if err := e.validateIndexOperations(migration, false); err != nil {
+			return err
+		}
+	}
 	locker, ok := e.Backend.(db.MigrationLocker)
 	if !ok {
 		return &db.Error{Code: db.UnsupportedFeature, Message: "Migration locking is required"}
@@ -306,9 +316,14 @@ func (e *Executor) run(ctx context.Context, executor db.Executor, o Operation, r
 			}
 			return e.Editor.RenameField(ctx, executor, schema, o.Name, o.OldName)
 		case "alter_field":
-			return e.Editor.AlterField(ctx, executor, o.Schema, o.Field, o.OldField)
+			schema := fieldStateAfter(o.Schema, o.OldField.Name, o.Field)
+			return e.Editor.AlterField(ctx, executor, schema, o.Field, o.OldField)
 		case "add_index":
-			return e.Editor.RemoveIndex(ctx, executor, o.Index.Name)
+			return e.removeModelIndex(ctx, executor, o.Schema, o.Index)
+		case "remove_index":
+			return e.Editor.AddIndex(ctx, executor, o.Schema, o.Index)
+		case "index_order":
+			return nil
 		case "sql":
 			if o.ReverseSQL == "" {
 				return errors.New("migrations: irreversible SQL")
@@ -339,6 +354,10 @@ func (e *Executor) run(ctx context.Context, executor db.Executor, o Operation, r
 		return e.Editor.RenameField(ctx, executor, o.Schema, o.OldName, o.Name)
 	case "add_index":
 		return e.Editor.AddIndex(ctx, executor, o.Schema, o.Index)
+	case "remove_index":
+		return e.removeModelIndex(ctx, executor, o.Schema, o.Index)
+	case "index_order":
+		return nil
 	case "sql":
 		if strings.TrimSpace(o.SQL) == "" {
 			return errors.New("migrations: empty SQL")
@@ -352,4 +371,12 @@ func (e *Executor) run(ctx context.Context, executor db.Executor, o Operation, r
 		return o.Forward(ctx, executor)
 	}
 	return fmt.Errorf("migrations: unknown operation %s", o.Kind)
+}
+
+func (e *Executor) removeModelIndex(ctx context.Context, executor db.Executor, schema models.Schema, index models.Index) error {
+	editor, ok := e.Editor.(db.IndexLifecycleEditor)
+	if !ok {
+		return &db.Error{Code: db.UnsupportedFeature, Message: "Historical index removal requires a definition-aware schema editor"}
+	}
+	return editor.RemoveModelIndex(ctx, executor, schema, index)
 }

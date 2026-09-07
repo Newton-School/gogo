@@ -43,6 +43,9 @@ func (e *Executor) SQL(ctx context.Context, key string, reverse bool) ([]Stateme
 	if e.Editor == nil {
 		return nil, errors.New("migrations: schema editor is required for SQL rendering")
 	}
+	if err := e.validateIndexOperations(*migration, reverse); err != nil {
+		return nil, err
+	}
 	resolved, err := e.withHistoricalSchemas(key)
 	if err != nil {
 		return nil, err
@@ -122,8 +125,12 @@ func (e *Executor) State(target string) ([]models.Schema, error) {
 					}
 					state[otherKey] = other
 				}
-			case "add_index":
-				schema.Indexes = append(schema.Indexes, operation.Index)
+			case "add_index", "remove_index", "index_order":
+				var err error
+				schema, err = applyIndexState(schema, operation)
+				if err != nil {
+					return nil, err
+				}
 				state[key] = schema
 			}
 		}
@@ -174,6 +181,20 @@ func Detect(before, after []models.Schema, options DetectOptions) ([]Operation, 
 			operations = append(operations, CreateModel(schema))
 			continue
 		}
+		if err := supportedModelStateChange(previous, schema); err != nil {
+			return nil, err
+		}
+		removeIndexes, addIndexes, indexOrder, err := detectIndexes(previous, schema)
+		if err != nil {
+			return nil, err
+		}
+		operations = append(operations, removeIndexes...)
+		for _, operation := range removeIndexes {
+			previous, err = applyIndexState(previous, operation)
+			if err != nil {
+				return nil, err
+			}
+		}
 		oldFields := map[string]models.Field{}
 		for _, field := range previous.Fields {
 			oldFields[field.Name] = field
@@ -185,11 +206,13 @@ func Detect(before, after []models.Schema, options DetectOptions) ([]Operation, 
 					return nil, fmt.Errorf("migrations: nonnullable added field %s.%s requires default or staged backfill", key, field.Name)
 				}
 				operations = append(operations, AddField(previous, field))
+				previous = fieldStateAfter(previous, field.Name, field)
 				continue
 			}
 			delete(oldFields, field.Name)
 			if !fieldEquivalent(oldField, field) {
 				operations = append(operations, AlterField(previous, oldField, field))
+				previous = fieldStateAfter(previous, oldField.Name, field)
 			}
 		}
 		removed := []string{}
@@ -202,6 +225,17 @@ func Detect(before, after []models.Schema, options DetectOptions) ([]Operation, 
 				return nil, fmt.Errorf("migrations: removing %s.%s requires explicit intent", key, name)
 			}
 			operations = append(operations, RemoveField(previous, oldFields[name]))
+			remaining := make([]models.Field, 0, len(previous.Fields)-1)
+			for _, field := range previous.Fields {
+				if field.Name != name {
+					remaining = append(remaining, field)
+				}
+			}
+			previous.Fields = remaining
+		}
+		operations = append(operations, addIndexes...)
+		if indexOrder != nil {
+			operations = append(operations, *indexOrder)
 		}
 		delete(old, key)
 	}
@@ -295,6 +329,11 @@ func (e *Executor) Reverse(ctx context.Context, target string) (err error) {
 			}
 		}
 		if remove[m.Key()] {
+			if applied[m.Key()] != "" {
+				if err := e.validateIndexOperations(m, true); err != nil {
+					return err
+				}
+			}
 			for _, o := range m.Operations {
 				if o.Kind == "delete_model" || o.Kind == "remove_field" || (o.Kind == "sql" && o.ReverseSQL == "") || (o.Kind == "data" && o.Backward == nil) {
 					return fmt.Errorf("migrations: irreversible operation in %s", m.Key())
@@ -309,6 +348,9 @@ func (e *Executor) Reverse(ctx context.Context, target string) (err error) {
 		}
 		migrationEngine, err := e.withHistoricalSchemas(m.Key())
 		if err != nil {
+			return err
+		}
+		if err := migrationEngine.validateIndexOperations(m, true); err != nil {
 			return err
 		}
 		run := func(txCtx context.Context) error {
