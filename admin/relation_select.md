@@ -1,0 +1,18 @@
+# Ordinary relationship selects
+
+| Step | Runtime behavior |
+|---|---|
+| Register | Include an editable `ForeignKey` or `OneToOne` in `ModelAdmin.Fields`, register its target model, and supply the application's scoped `ResolveRelation`. |
+| Open | A standard model-choice select loads at most 1,001 target rows in target ordering with a primary-key tie-breaker. More than 1,000 candidates fails closed; configure `AutocompleteFields` for larger datasets. |
+| Authorize choices | Target model/object view policy, target store scope, and the application's resolver must all allow each candidate. The resolver must return that exact relationship identity, including declared unique non-primary-key target fields. |
+| Render | The first option is explicitly empty. Required fields never silently select the first record; optional nullable fields can be cleared. Hidden stored values are not appended to the options. Registered override choice IDs may narrow eligibility, never widen it. Labels come from the scoped target store and are escaped. |
+| Submit | Reload display choices inside the parent transaction. Cleaning and later revalidation query only the exact selected target, lock it with `ScopedStore.Get(..., true)`, re-run policy/resolver, then reload its scope and stored fingerprint after callbacks. |
+| Save | Parent, inlines, related saves, and audit share the existing atomic transaction. Immutable selected values must match what the source actually stores. After callback-bearing authorization finishes, prepare every fresh scope, then perform callback-free source and target reads. A late callback cannot retarget the source or change an earlier checked target. |
+| Audit | Visible relationship changes are recorded normally. If a prior nonempty relationship is no longer an eligible choice, omit that field's entire diff; do not disclose its hidden ID or misrepresent it as null. Other changed fields remain audited. |
+| Fail | Forged/stale choices produce validation errors. Scope, callback, provider, cancellation, identity/fingerprint, or final write-fence failures abort the transaction; provider details never enter the response. |
+
+Custom, disabled, readonly, raw-ID, and autocomplete widgets keep their explicit existing modes. This implementation covers ordinary parent forms; inline-specific choice population is a separate feature.
+
+Display generation deliberately invokes the application resolver once per policy-visible candidate per field. Submission rechecks do **not** repeat a full candidate scan: each performs one exact bounded target query, two locked target reads, and one resolver call. The final fence adds one locked source read and one locked target read per nonempty field. The ORM store's list implementation also counts results, so this is not a claim of one database query per field.
+
+Custom scoped stores must honor exact filters and transaction-held row locks, return current scoped records, and keep their low-level reads free of application mutation callbacks. Policies and resolvers may depend on additional domain state; they remain responsible for locking/fencing that state. Gogo fences the selected target rows, not arbitrary external services.

@@ -521,6 +521,7 @@ func (s *Site) form(w http.ResponseWriter, r *http.Request, p auth.Principal, op
 		s.failure(w, r, err)
 		return
 	}
+	var toOneSelects *toOneSelectState
 	makeForm := func(ctx context.Context, obj Object, bound bool) (*forms.ModelForm, error) {
 		currentReadonly := append([]string(nil), options.ReadonlyFields...)
 		if options.GetReadonlyFields != nil {
@@ -546,6 +547,10 @@ func (s *Site) form(w http.ResponseWriter, r *http.Request, p auth.Principal, op
 			return nil, err
 		}
 		overrides, err = prepopulatedOverrides(options, obj, currentReadonly, overrides)
+		if err != nil {
+			return nil, err
+		}
+		overrides, toOneSelects, err = s.toOneSelectOverrides(ctx, p, options, currentReadonly, overrides)
 		if err != nil {
 			return nil, err
 		}
@@ -581,7 +586,7 @@ func (s *Site) form(w http.ResponseWriter, r *http.Request, p auth.Principal, op
 				modelFields = append(modelFields, pk.Name)
 			}
 		}
-		return forms.NewModelForm(ctx, obj.Record, forms.ModelFormOptions{Fields: modelFields, Exclude: accountModelFields(options, options.Exclude), Readonly: accountModelFields(options, currentReadonly), Overrides: overrides, ResolveRelation: options.ResolveRelation, Checker: options.ConstraintChecker}, opts...)
+		return forms.NewModelForm(ctx, obj.Record, forms.ModelFormOptions{Fields: modelFields, Exclude: accountModelFields(options, options.Exclude), Readonly: accountModelFields(options, currentReadonly), Overrides: overrides, ResolveRelation: toOneSelects.resolve, Checker: options.ConstraintChecker}, opts...)
 	}
 	var modelForm *forms.ModelForm
 	var inlines []*inlineState
@@ -664,6 +669,9 @@ func (s *Site) form(w http.ResponseWriter, r *http.Request, p auth.Principal, op
 					return err
 				}
 				parentValid := modelForm.IsValid()
+				if toOneSelects.failure != nil {
+					return toOneSelects.failure
+				}
 				if err := modelForm.Err(); err != nil {
 					return err
 				}
@@ -673,6 +681,13 @@ func (s *Site) form(w http.ResponseWriter, r *http.Request, p auth.Principal, op
 				}
 				if !parentValid || !validInlines(inlines) || !grantForm.form.IsValid() {
 					return errInvalidForm
+				}
+				toOneValues, err := toOneSelects.snapshot(modelForm.Instance())
+				if err != nil {
+					return err
+				}
+				if err := toOneSelects.recheck(ctx, toOneValues); err != nil {
+					return err
 				}
 				if options.SaveModel != nil {
 					object, err = options.SaveModel(ctx, store, object)
@@ -712,7 +727,16 @@ func (s *Site) form(w http.ResponseWriter, r *http.Request, p auth.Principal, op
 					return err
 				}
 				accountGrantSnapshot(after, grantForm.selected())
-				return store.Audit(ctx, LogEntry{ActorID: p.ID, Site: s.config.Name, Model: options.Schema.Key(), ObjectID: object.ID, ObjectLabel: object.Label, Action: action, Changes: diff(before, after), At: time.Now().UTC()})
+				if err := toOneSelects.redactAudit(ctx, before, after); err != nil {
+					return err
+				}
+				if err := store.Audit(ctx, LogEntry{ActorID: p.ID, Site: s.config.Name, Model: options.Schema.Key(), ObjectID: object.ID, ObjectLabel: object.Label, Action: action, Changes: diff(before, after), At: time.Now().UTC()}); err != nil {
+					return err
+				}
+				if err := toOneSelects.recheck(ctx, toOneValues); err != nil {
+					return err
+				}
+				return toOneSelects.finalFence(ctx, object, toOneValues)
 			})
 		}
 		if options.userForms || options.groupForms {
