@@ -309,8 +309,12 @@ type toOneSnapshot struct {
 }
 
 func (state *toOneSelectState) snapshot(record models.Record) (map[string]toOneSnapshot, error) {
+	return snapshotToOneFields(record, state.names)
+}
+
+func snapshotToOneFields(record models.Record, names []string) (map[string]toOneSnapshot, error) {
 	values := map[string]toOneSnapshot{}
-	for _, name := range state.names {
+	for _, name := range names {
 		value, err := record.Get(name)
 		if err != nil {
 			return nil, err
@@ -342,88 +346,6 @@ func (state *toOneSelectState) recheck(ctx context.Context, values map[string]to
 		}
 		encoded, err := json.Marshal(resolved[0])
 		if err != nil || string(encoded) != values[name].Encoded {
-			return auth.ErrPermissionDenied
-		}
-	}
-	return ctx.Err()
-}
-
-func (state *toOneSelectState) finalFence(ctx context.Context, object Object, values map[string]toOneSnapshot) error {
-	if len(state.names) == 0 {
-		return nil
-	}
-	store, err := state.site.config.Store.Scope(ctx, state.principal, state.site.config.Name, state.options.Schema)
-	if err != nil {
-		return err
-	}
-	if store == nil {
-		return auth.ErrPermissionDenied
-	}
-	type targetFence struct {
-		scope     ScopedStore
-		field     models.Field
-		reference toOneReference
-	}
-	var targets []targetFence
-	// Resolve every callback-bearing scope before reading any final record.
-	// Later target callbacks may have changed an earlier target or the parent.
-	// From this point onward only trusted scoped storage reads are invoked.
-	for _, name := range state.names {
-		if values[name].Empty {
-			continue
-		}
-		field, _ := state.options.Schema.Field(name)
-		reference, checked := state.checked[name]
-		if !checked || reference.ChoiceID != values[name].ID {
-			return auth.ErrPermissionDenied
-		}
-		target := state.site.models[field.Relation.Target]
-		scope, err := state.site.config.Store.Scope(ctx, state.principal, state.site.config.Name, target.Schema)
-		if err != nil {
-			return err
-		}
-		if scope == nil {
-			return auth.ErrPermissionDenied
-		}
-		targets = append(targets, targetFence{scope: scope, field: field, reference: reference})
-	}
-	current, err := store.Get(ctx, object.ID, true)
-	if err != nil {
-		return err
-	}
-	if current.ID != object.ID || current.Record == nil || current.Record.Schema().Key() != state.options.Schema.Key() {
-		return auth.ErrPermissionDenied
-	}
-	for _, name := range state.names {
-		value, err := current.Record.Get(name)
-		if err != nil {
-			return err
-		}
-		encoded, err := json.Marshal(value)
-		if err != nil || string(encoded) != values[name].Encoded {
-			return auth.ErrPermissionDenied
-		}
-	}
-	for _, target := range targets {
-		current, err := target.scope.Get(ctx, target.reference.ObjectID, true)
-		if errors.Is(err, ErrNotFound) {
-			return auth.ErrPermissionDenied
-		}
-		if err != nil {
-			return err
-		}
-		if current.ID != target.reference.ObjectID || current.Record == nil || current.Record.Schema().Key() != target.field.Relation.Target {
-			return auth.ErrPermissionDenied
-		}
-		id, err := relationChoiceID(target.field, current)
-		if err != nil || id != target.reference.ChoiceID {
-			return auth.ErrPermissionDenied
-		}
-		version, err := objectFromRecord(current.Record)
-		if err != nil {
-			return err
-		}
-		if version.Version != target.reference.Version {
 			return auth.ErrPermissionDenied
 		}
 	}

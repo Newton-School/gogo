@@ -733,10 +733,8 @@ func (s *Site) form(w http.ResponseWriter, r *http.Request, p auth.Principal, op
 				if err := store.Audit(ctx, LogEntry{ActorID: p.ID, Site: s.config.Name, Model: options.Schema.Key(), ObjectID: object.ID, ObjectLabel: object.Label, Action: action, Changes: diff(before, after), At: time.Now().UTC()}); err != nil {
 					return err
 				}
-				if err := toOneSelects.recheck(ctx, toOneValues); err != nil {
-					return err
-				}
-				return toOneSelects.finalFence(ctx, object, toOneValues)
+				writes := append([]toOneWrite{{state: toOneSelects, object: object, values: toOneValues}}, inlineToOneWrites(inlines)...)
+				return finishToOneWrites(ctx, writes)
 			})
 		}
 		if options.userForms || options.groupForms {

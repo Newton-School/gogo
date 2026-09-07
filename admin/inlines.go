@@ -73,16 +73,20 @@ func (i *Inline) validate(parent models.Schema) error {
 }
 
 type inlineState struct {
-	config      Inline
-	store       ScopedStore
-	objects     []Object
-	forms       []*forms.ModelForm
-	set         *forms.FormSet
-	initial     int
-	canAdd      bool
-	parentValue any
-	before      []map[string]any
-	writable    []bool
+	config         Inline
+	store          ScopedStore
+	objects        []Object
+	forms          []*forms.ModelForm
+	set            *forms.FormSet
+	initial        int
+	canAdd         bool
+	parentValue    any
+	parentSnapshot toOneSnapshot
+	before         []map[string]any
+	writable       []bool
+	selections     []*toOneSelectState
+	selected       []map[string]toOneSnapshot
+	relationWrites []toOneWrite
 }
 
 func (s *Site) loadInlines(ctx context.Context, r *http.Request, p auth.Principal, options ModelAdmin, parent Object, bound bool) ([]*inlineState, error) {
@@ -143,6 +147,28 @@ func (s *Site) loadInlines(ctx context.Context, r *http.Request, p auth.Principa
 			ids = append(ids, object.ID)
 			byID[object.ID] = object
 		}
+		selectionReadonly := slices.Clone(config.Readonly)
+		initialWritable := map[string]bool{}
+		writableChoices := state.canAdd && config.Extra > 0
+		if bound && state.canAdd {
+			total, _ := strconv.Atoi(r.PostForm.Get(config.Name + "-TOTAL_FORMS"))
+			writableChoices = total > state.initial
+		}
+		for _, object := range existing {
+			initialWritable[object.ID] = parentWritable && s.config.Policy.Authorize(ctx, p, "change", auth.Resource{App: config.Schema.AppLabel, Model: config.Schema.Name, ID: object.ID, Object: object.Record}) == nil
+			if initialWritable[object.ID] {
+				writableChoices = true
+			}
+		}
+		if !writableChoices {
+			selectionReadonly = append(selectionReadonly, config.Fields...)
+		}
+		overrides, selectionBase, err := s.toOneSelectOverrides(ctx, p, inlineSelectionOptions(config), selectionReadonly, cloneOverrides(config.FormOverrides))
+		if err != nil {
+			return nil, err
+		}
+		rowSelections := map[int]*toOneSelectState{}
+		rowWritable := map[int]bool{}
 		fields := []forms.Field{}
 		for _, name := range config.Fields {
 			metadata, _ := config.Schema.Field(name)
@@ -150,7 +176,7 @@ func (s *Site) loadInlines(ctx context.Context, r *http.Request, p auth.Principa
 				continue
 			}
 			field, err := forms.FieldFromModel(metadata)
-			if override, ok := config.FormOverrides[name]; ok {
+			if override, ok := overrides[name]; ok {
 				field = override
 				field.Name = name
 				err = nil
@@ -177,9 +203,26 @@ func (s *Site) loadInlines(ctx context.Context, r *http.Request, p auth.Principa
 			set, err := forms.BindFormSet(ctx, fields, r.PostForm, forms.FormSetOptions{Prefix: config.Name, Initial: initial, ExistingIDs: ids, IdentityField: "_id", Minimum: config.Minimum, Maximum: config.Maximum, CanDelete: config.CanDelete, CanDeleteRow: func(ctx context.Context, id string) error {
 				return s.config.Policy.Authorize(ctx, p, "delete", auth.Resource{App: config.Schema.AppLabel, Model: config.Schema.Name, ID: id})
 			}, FieldsForRow: func(ctx context.Context, index int, id string, fields []forms.Field) ([]forms.Field, error) {
-				if object, ok := byID[id]; ok && s.config.Policy.Authorize(ctx, p, "change", auth.Resource{App: config.Schema.AppLabel, Model: config.Schema.Name, ID: id, Object: object.Record}) != nil {
+				readonly := slices.Clone(config.Readonly)
+				writable := state.canAdd
+				if object, ok := byID[id]; ok {
+					writable = initialWritable[id] && s.config.Policy.Authorize(ctx, p, "change", auth.Resource{App: config.Schema.AppLabel, Model: config.Schema.Name, ID: id, Object: object.Record}) == nil
+				}
+				rowWritable[index] = writable
+				if !writable {
+					readonly = append(readonly, config.Fields...)
 					for i := range fields {
 						fields[i].Disabled = true
+					}
+				}
+				row := inlineSelectionRow(selectionBase, readonly)
+				rowSelections[index] = row
+				for i := range fields {
+					metadata, _ := config.Schema.Field(fields[i].Name)
+					if metadata.Relation != nil {
+						fields[i].Resolve = func(ctx context.Context, ids []string) ([]any, error) {
+							return row.resolve(ctx, metadata, ids)
+						}
 					}
 				}
 				return fields, nil
@@ -188,6 +231,11 @@ func (s *Site) loadInlines(ctx context.Context, r *http.Request, p auth.Principa
 				return nil, err
 			}
 			state.set = set
+			for index := range set.Forms {
+				if selection := rowSelections[index]; selection != nil && selection.failure != nil {
+					return nil, selection.failure
+				}
+			}
 			total = len(set.Forms)
 			invalidManagement := false
 			for _, problem := range set.Errors {
@@ -251,13 +299,28 @@ func (s *Site) loadInlines(ctx context.Context, r *http.Request, p auth.Principa
 			writable := state.canAdd
 			readonly := append([]string(nil), config.Readonly...)
 			if index < state.initial {
-				writable = parentWritable && s.config.Policy.Authorize(ctx, p, "change", auth.Resource{App: config.Schema.AppLabel, Model: config.Schema.Name, ID: object.ID, Object: object.Record}) == nil
+				writable = initialWritable[object.ID]
+				if writable && (!bound || rowWritable[index]) {
+					writable = s.config.Policy.Authorize(ctx, p, "change", auth.Resource{App: config.Schema.AppLabel, Model: config.Schema.Name, ID: object.ID, Object: object.Record}) == nil
+				}
+			}
+			if bound {
+				// Once choice preparation or formset binding made a row
+				// readonly, a later callback cannot grant a wider form whose
+				// ordinary target authorization state was never prepared.
+				writable = writable && rowWritable[index]
 			}
 			if !writable {
 				readonly = append(readonly, config.Fields...)
 			}
 			state.writable = append(state.writable, writable)
-			form, err := forms.NewModelForm(ctx, object.Record, forms.ModelFormOptions{Fields: config.Fields, Exclude: config.Exclude, Readonly: readonly, Overrides: config.FormOverrides, Checker: config.ConstraintChecker, ResolveRelation: config.ResolveRelation}, opts...)
+			selection := rowSelections[index]
+			if selection == nil {
+				selection = inlineSelectionRow(selectionBase, readonly)
+			}
+			state.selections = append(state.selections, selection)
+			state.selected = append(state.selected, nil)
+			form, err := forms.NewModelForm(ctx, object.Record, forms.ModelFormOptions{Fields: config.Fields, Exclude: config.Exclude, Readonly: readonly, Overrides: overrides, Checker: config.ConstraintChecker, ResolveRelation: selection.resolve}, opts...)
 			if err != nil {
 				return nil, err
 			}
@@ -280,11 +343,19 @@ func (s *Site) loadInlines(ctx context.Context, r *http.Request, p auth.Principa
 					return nil, err
 				}
 				valid := form.IsValid()
+				if selection.failure != nil {
+					return nil, selection.failure
+				}
 				if err := form.Err(); err != nil {
 					return nil, err
 				}
 				if !valid {
 					state.set.Errors = append(state.set.Errors, forms.Error{Code: "invalid", Message: "Correct the errors in the inline rows."})
+				} else {
+					state.selected[index], err = selection.snapshot(form.Instance())
+					if err != nil {
+						return nil, err
+					}
 				}
 			}
 		}
@@ -301,22 +372,20 @@ func validInlines(states []*inlineState) bool {
 	return true
 }
 func (s *Site) saveInlines(ctx context.Context, p auth.Principal, parent Object, states []*inlineState) error {
+	if err := prepareInlineParentLinks(parent, states); err != nil {
+		return err
+	}
 	for _, state := range states {
-		parentField := parent.Record.Schema().PKFields()[0].Name
-		fk, _ := state.config.Schema.Field(state.config.FKName)
-		if len(fk.Relation.TargetFields) > 0 {
-			parentField = fk.Relation.TargetFields[0]
-		}
-		parentValue, err := parent.Record.Get(parentField)
-		if err != nil {
-			return err
-		}
 		for _, index := range state.set.Ordered {
 			if !state.writable[index] {
 				continue
 			}
 			object := state.objects[index]
-			if err = object.Record.Set(state.config.FKName, parentValue); err != nil {
+			if err := object.Record.Set(state.config.FKName, state.parentValue); err != nil {
+				return err
+			}
+			write, err := prepareInlineRelationWrite(ctx, state, index, object)
+			if err != nil {
 				return err
 			}
 			action := "change"
@@ -327,8 +396,13 @@ func (s *Site) saveInlines(ctx context.Context, p auth.Principal, parent Object,
 			if err != nil {
 				return err
 			}
+			write.object = saved
+			state.relationWrites = append(state.relationWrites, write)
 			after, err := snapshot(ModelAdmin{Schema: state.config.Schema}, saved)
 			if err != nil {
+				return err
+			}
+			if err := write.state.redactAudit(ctx, state.before[index], after); err != nil {
 				return err
 			}
 			if err = state.store.Audit(ctx, LogEntry{ActorID: p.ID, Site: s.config.Name, Model: state.config.Schema.Key(), ObjectID: saved.ID, ObjectLabel: saved.Label, Action: action, Changes: diff(state.before[index], after), At: time.Now().UTC()}); err != nil {
