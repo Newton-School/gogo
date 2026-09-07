@@ -351,10 +351,10 @@ func (r *renderer) render(nodes []node, data Context, overrides map[string][]nod
 			// conversion of context values (localtime off).
 			locale, _ := i18n.FromContext(r.ctx)
 			instant := locale.LocalTime(time.Now().UTC())
-			if len(fmt.Sprint(format)) > 4096 {
-				return ErrRender
+			value, err := formatTemporal(instant, fmt.Sprint(format), false)
+			if err != nil {
+				return err
 			}
-			value := formatDate(instant, fmt.Sprint(format))
 			if len(words) == 3 && words[1] == "as" {
 				data[words[2]] = value
 			} else if err = r.emit(out, value); err != nil {

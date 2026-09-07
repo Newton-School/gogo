@@ -46,9 +46,9 @@ no implicit naive-string parsing in templates; use forms or `Locale.ResolveLocal
 to validate wall times before rendering. Both sides of a daylight-saving overlap
 therefore preserve their actual offset. Direct time output retains Go's textual
 representation; use an explicit date/time filter for the desired presentation.
-The current date-format implementation is still partial, including localized
-format names and translated month/day names; this checkpoint is not complete
-Django date-format parity.
+The [date-format token catalog](date_format.md) has deterministic English
+fallbacks; locale-specific format names and translated month/day names remain
+open. This is not complete Django localization parity.
 
 Custom filters should use `templates.TimeValue(ctx, value)` to read either a Go
 instant or an explicitly converted template value with the current display rules.

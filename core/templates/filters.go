@@ -13,7 +13,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"time"
 	"unicode"
 )
 
@@ -355,21 +354,8 @@ func builtinFilters() map[string]Filter {
 		}
 		return fmt.Sprintf("%.1f %s", n, units[i]), nil
 	}
-	m["date"] = func(ctx context.Context, v, a any) (any, error) {
-		t, ok := templateTime(ctx, v)
-		if !ok {
-			return "", nil
-		}
-		format := "N j, Y"
-		if a != nil {
-			format = display(a)
-		}
-		if len(format) > 4096 {
-			return nil, ErrRender
-		}
-		return formatDate(t, format), nil
-	}
-	m["time"] = m["date"]
+	m["date"] = dateFilter(false)
+	m["time"] = dateFilter(true)
 	for name, filter := range timezoneFilters() {
 		m[name] = filter
 	}
@@ -418,26 +404,3 @@ func display(v any) string {
 var slugInvalid = regexp.MustCompile(`[^a-z0-9_\s-]`)
 var slugSeparators = regexp.MustCompile(`[-\s]+`)
 var tags = regexp.MustCompile(`<[^>]*>`)
-
-func formatDate(t time.Time, format string) string {
-	formats := map[rune]string{'Y': "2006", 'y': "06", 'm': "01", 'n': "1", 'd': "02", 'j': "2", 'D': "Mon", 'l': "Monday", 'M': "Jan", 'F': "January", 'N': "Jan", 'H': "15", 'h': "03", 'G': "15", 'g': "3", 'i': "04", 's': "05", 'a': "pm", 'A': "PM", 'T': "MST", 'O': "-0700", 'c': time.RFC3339}
-	var b strings.Builder
-	escaped := false
-	for _, r := range format {
-		if escaped {
-			b.WriteRune(r)
-			escaped = false
-			continue
-		}
-		if r == '\\' {
-			escaped = true
-			continue
-		}
-		if layout, ok := formats[r]; ok {
-			b.WriteString(t.Format(layout))
-		} else {
-			b.WriteRune(r)
-		}
-	}
-	return b.String()
-}
