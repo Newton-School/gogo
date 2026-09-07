@@ -355,8 +355,8 @@ func builtinFilters() map[string]Filter {
 		}
 		return fmt.Sprintf("%.1f %s", n, units[i]), nil
 	}
-	m["date"] = func(_ context.Context, v, a any) (any, error) {
-		t, ok := v.(time.Time)
+	m["date"] = func(ctx context.Context, v, a any) (any, error) {
+		t, ok := templateTime(ctx, v)
 		if !ok {
 			return "", nil
 		}
@@ -364,9 +364,15 @@ func builtinFilters() map[string]Filter {
 		if a != nil {
 			format = display(a)
 		}
+		if len(format) > 4096 {
+			return nil, ErrRender
+		}
 		return formatDate(t, format), nil
 	}
 	m["time"] = m["date"]
+	for name, filter := range timezoneFilters() {
+		m[name] = filter
+	}
 	m["dictsort"] = func(_ context.Context, v, a any) (any, error) {
 		items := sequence(v)
 		sort.SliceStable(items, func(i, j int) bool {
@@ -402,6 +408,9 @@ func builtinFilters() map[string]Filter {
 func display(v any) string {
 	if v == nil {
 		return ""
+	}
+	if value, ok := v.(zonedTime); ok {
+		return value.instant.String()
 	}
 	return fmt.Sprint(v)
 }

@@ -16,8 +16,12 @@ func projectValue(value any, depth int) (any, error) {
 		return nil, nil
 	}
 	switch v := value.(type) {
-	case SafeHTML, template.HTML, time.Time:
+	case SafeHTML, template.HTML:
 		return v, nil
+	case time.Time:
+		return copyTemplateTime(v), nil
+	case zonedTime:
+		return zonedTime{copyTemplateTime(v.instant)}, nil
 	case url.Values:
 		result := url.Values{}
 		for k, items := range v {
@@ -34,6 +38,16 @@ func projectValue(value any, depth int) (any, error) {
 		depth++
 		if depth > 64 {
 			return nil, ErrRender
+		}
+	}
+	// Pointer fields should retain the same recognized scalar type as direct
+	// values, without exposing methods or the source Location pointer.
+	if v.CanInterface() {
+		switch value := v.Interface().(type) {
+		case time.Time:
+			return copyTemplateTime(value), nil
+		case zonedTime:
+			return zonedTime{copyTemplateTime(value.instant)}, nil
 		}
 	}
 	switch v.Kind() {

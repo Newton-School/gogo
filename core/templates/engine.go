@@ -13,6 +13,8 @@ import (
 	"path"
 	"strings"
 	"sync"
+
+	"github.com/Newton-School/gogo/core/i18n"
 )
 
 var ErrNotFound = errors.New("templates: template not found")
@@ -74,6 +76,10 @@ type Config struct {
 	Filters                 map[string]Filter
 	Tags                    map[string]Tag
 	Libraries               []string
+	// LocaleResolver supplies the project default and the allowlist for tz
+	// overrides. Without it, an inherited locale or UTC is used; templates
+	// cannot load arbitrary timezone files at render time.
+	LocaleResolver *i18n.Resolver
 }
 type Engine struct {
 	config Config
@@ -153,6 +159,11 @@ func (e *Engine) load(ctx context.Context, name string) ([]node, error) {
 func (e *Engine) Render(ctx context.Context, name string, values Context) (string, error) {
 	if ctx == nil {
 		return "", ErrRender
+	}
+	var err error
+	ctx, err = e.timezoneContext(ctx)
+	if err != nil {
+		return "", err
 	}
 	data := Context{}
 	for _, processor := range e.config.Processors {
@@ -254,6 +265,9 @@ func (r *renderer) emit(out *strings.Builder, value any) error {
 	}
 	if value == nil {
 		value = ""
+	}
+	if instant, ok := templateTime(r.ctx, value); ok {
+		value = instant
 	}
 	switch v := value.(type) {
 	case SafeHTML:

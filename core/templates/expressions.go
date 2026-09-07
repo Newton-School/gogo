@@ -7,7 +7,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"time"
 )
 
 func (r *renderer) eval(expression string, data Context) (any, error) {
@@ -244,14 +243,19 @@ func compare(a, b any) (int, bool) {
 			return strings.Compare(x, y), true
 		}
 	}
-	if x, ok := a.(time.Time); ok {
-		if y, ok := b.(time.Time); ok {
+	if x, ok := rawTemplateTime(a); ok {
+		if y, ok := rawTemplateTime(b); ok {
 			return x.Compare(y), true
 		}
 	}
 	return 0, false
 }
 func equalValues(a, b any) bool {
+	if x, ok := rawTemplateTime(a); ok {
+		if y, ok := rawTemplateTime(b); ok {
+			return x.Equal(y)
+		}
+	}
 	if x, ok := exactNumber(a); ok {
 		if y, ok := exactNumber(b); ok {
 			return x.Cmp(y) == 0

@@ -9,6 +9,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/Newton-School/gogo/core/i18n"
 )
 
 func (r *renderer) renderTemplate(nodes []node, data Context, overrides map[string][]node, out *strings.Builder, depth int) error {
@@ -73,6 +75,11 @@ func (r *renderer) render(nodes []node, data Context, overrides map[string][]nod
 			if err != nil {
 				return err
 			}
+			if instant, ok := templateTime(r.ctx, value); ok {
+				// Keep explicit conversion intent until emit; autoescape-off
+				// stringification below must use the same selected timezone.
+				value = zonedTime{instant}
+			}
 			if !r.autoescape {
 				switch v := value.(type) {
 				case SafeHTML:
@@ -80,7 +87,7 @@ func (r *renderer) render(nodes []node, data Context, overrides map[string][]nod
 				case template.HTML:
 					value = v
 				default:
-					value = template.HTML(fmt.Sprint(value))
+					value = template.HTML(display(value))
 				}
 			}
 			if err = r.emit(out, value); err != nil {
@@ -281,6 +288,16 @@ func (r *renderer) render(nodes []node, data Context, overrides map[string][]nod
 			if err != nil {
 				return err
 			}
+		case "localtime", "timezone":
+			if err := r.timezoneBlock(n, data, overrides, out, depth); err != nil {
+				return err
+			}
+		case "get_current_timezone":
+			words := strings.Fields(n.arg)
+			if len(words) != 2 || words[0] != "as" || !timezoneVariable(words[1]) {
+				return ErrRender
+			}
+			data[words[1]] = currentTimeZone(r.ctx)
 		case "comment":
 			continue
 		case "partialdef":
@@ -292,7 +309,7 @@ func (r *renderer) render(nodes []node, data Context, overrides map[string][]nod
 			}
 		case "load":
 			for _, library := range strings.Fields(n.arg) {
-				if !slices.Contains(r.engine.config.Libraries, library) {
+				if library != "tz" && !slices.Contains(r.engine.config.Libraries, library) {
 					return fmt.Errorf("templates: unknown library %s", library)
 				}
 			}
@@ -323,14 +340,21 @@ func (r *renderer) render(nodes []node, data Context, overrides map[string][]nod
 			}
 		case "now":
 			words := splitQuoted(n.arg, ' ')
-			if len(words) < 1 {
+			if len(words) != 1 && (len(words) != 3 || words[1] != "as" || !timezoneVariable(words[2])) {
 				return ErrRender
 			}
 			format, err := r.eval(words[0], data)
 			if err != nil {
 				return err
 			}
-			value := formatDate(time.Now(), fmt.Sprint(format))
+			// now selects the current timezone independently of automatic
+			// conversion of context values (localtime off).
+			locale, _ := i18n.FromContext(r.ctx)
+			instant := locale.LocalTime(time.Now().UTC())
+			if len(fmt.Sprint(format)) > 4096 {
+				return ErrRender
+			}
+			value := formatDate(instant, fmt.Sprint(format))
 			if len(words) == 3 && words[1] == "as" {
 				data[words[2]] = value
 			} else if err = r.emit(out, value); err != nil {

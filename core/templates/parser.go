@@ -138,8 +138,11 @@ func (p *parser) sequence(stops map[string]bool) ([]node, string, error) {
 			if stop == "" && err == nil {
 				err = fmt.Errorf("templates: unclosed ifchanged")
 			}
-		case "block", "with", "autoescape", "filter", "spaceless", "comment", "partialdef":
+		case "block", "with", "autoescape", "filter", "spaceless", "comment", "partialdef", "localtime", "timezone":
 			n.children, stop, err = p.sequence(map[string]bool{"end" + kind: true})
+			if (kind == "localtime" || kind == "timezone") && stop != "end"+kind && err == nil {
+				err = ErrRender
+			}
 			if stop == "" && err == nil {
 				err = fmt.Errorf("templates: unclosed %s", kind)
 			}
