@@ -137,6 +137,24 @@ func TestListEditableSignedManifestAndAccessibleCells(t *testing.T) {
 	}
 }
 
+func TestListEditableHiddenLabelsUseTheCellContainingBlock(t *testing.T) {
+	site, _ := listTestSite(t)
+	page := perform(site, "GET", "/admin/shop/product/", principal(), nil, nil)
+	if page.Code != 200 || !strings.Contains(page.Body.String(), `<div class="list-edit-cell"><label class="visually-hidden"`) {
+		t.Fatal("cell lost its accessible label", page.Code)
+	}
+	css := string(site.css)
+	// The table deliberately scrolls horizontally. Absolute off-screen labels
+	// need a positioned cell ancestor, otherwise their containing block can be
+	// the document and they expand mobile page width beyond the table clip.
+	if !strings.Contains(css, `.list-edit-cell{position:relative;`) || !strings.Contains(css, `.table-scroll{overflow-x:auto}`) {
+		t.Fatal("hidden labels can escape the scrolling table's containing block")
+	}
+	if strings.Contains(css, "body{overflow") || strings.Contains(css, "html{overflow") {
+		t.Fatal("page-level overflow masking is not a containing-block fix")
+	}
+}
+
 func TestListEditableRejectsTamperedManagementAndStalePages(t *testing.T) {
 	for _, test := range []struct {
 		name   string
