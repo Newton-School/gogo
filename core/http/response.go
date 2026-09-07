@@ -153,18 +153,18 @@ func (r Response) Write(w http.ResponseWriter, req *http.Request) error {
 		w.Header().Set("Last-Modified", r.LastModified.UTC().Format(http.TimeFormat))
 	}
 	if r.Status == 200 && (req.Method == "GET" || req.Method == "HEAD") {
-		etag := req.Header.Get("If-None-Match")
+		etags := req.Header.Values("If-None-Match")
 		notModified := false
-		if etag != "" {
-			for _, v := range strings.Split(etag, ",") {
-				v = strings.TrimSpace(v)
-				if v == "*" || r.ETag != "" && strings.TrimPrefix(v, "W/") == strings.TrimPrefix(r.ETag, "W/") {
+		if len(etags) != 0 {
+			notModified = matchesIfNoneMatch(etags, r.ETag)
+		} else if !r.LastModified.IsZero() {
+			// The tag condition takes precedence even when it is empty or
+			// malformed. Dates are not a list: duplicate lines are ignored.
+			dates := req.Header.Values("If-Modified-Since")
+			if len(dates) == 1 {
+				if since, e := http.ParseTime(dates[0]); e == nil && !r.LastModified.Truncate(time.Second).After(since) {
 					notModified = true
 				}
-			}
-		} else if !r.LastModified.IsZero() {
-			if since, e := http.ParseTime(req.Header.Get("If-Modified-Since")); e == nil && !r.LastModified.Truncate(time.Second).After(since) {
-				notModified = true
 			}
 		}
 		if notModified {
