@@ -136,6 +136,9 @@ func (m *Memory) Reject(ctx context.Context, d async.Delivery, reason string, re
 	return nil
 }
 func (m *Memory) Reclaim(ctx context.Context, o async.ConsumeOptions, idle time.Duration) ([]async.Delivery, error) {
+	if o.ReclaimLimit < 0 || o.ReclaimLimit > 1000 {
+		return nil, async.ErrInvalid
+	}
 	if err := m.check(ctx, "reclaim"); err != nil {
 		return nil, err
 	}
@@ -150,6 +153,9 @@ func (m *Memory) Reclaim(ctx context.Context, o async.ConsumeOptions, idle time.
 					r.delivery.DeliveryCount++
 					m.pending[id] = r
 					out = append(out, copyOf(r.delivery))
+					if o.ReclaimLimit > 0 && len(out) >= o.ReclaimLimit {
+						return out, nil
+					}
 					break
 				}
 			}

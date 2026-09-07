@@ -23,14 +23,17 @@ type Worker struct {
 	ID          string
 	Queues      []string
 	Concurrency int
-	Lease       time.Duration
-	Heartbeat   time.Duration
-	Clock       func() time.Time
-	Jitter      func() float64
-	OnError     func(error)
-	Executor    Executor
-	Events      EventSink
-	Presence    WorkerPresenceStore
+	// Autoscale optionally varies Run's reservation loops between Min and Max.
+	// Concurrency must be unset or equal Max and remains the shared hard cap.
+	Autoscale *AutoscaleOptions
+	Lease     time.Duration
+	Heartbeat time.Duration
+	Clock     func() time.Time
+	Jitter    func() float64
+	OnError   func(error)
+	Executor  Executor
+	Events    EventSink
+	Presence  WorkerPresenceStore
 	// Controls explicitly enables only fixed remote commands. It must share
 	// the exact presence authority; nil leaves remote control disabled.
 	Controls    WorkerControlStore
@@ -44,6 +47,7 @@ type Worker struct {
 	taskSlots   map[string]chan struct{}
 	rateMu      sync.Mutex
 	rateBuckets map[string]localBucket
+	autoscale   *AutoscaleOptions
 }
 
 func (w *Worker) initialize() error {
@@ -78,6 +82,15 @@ func (w *Worker) defaults() error {
 			return err
 		}
 		w.ID = id
+	}
+	if w.Autoscale != nil {
+		options, err := normalizedAutoscale(*w.Autoscale)
+		if err != nil || w.Concurrency != 0 && w.Concurrency != options.Max {
+			w.activityMu.Unlock()
+			return ErrInvalid
+		}
+		w.autoscale = &options
+		w.Concurrency = options.Max
 	}
 	if w.Concurrency == 0 {
 		w.Concurrency = min(32, max(1, runtime.NumCPU()))
@@ -137,6 +150,9 @@ func (w *Worker) report(err error) {
 }
 
 func (w *Worker) Run(ctx context.Context) error {
+	if ctx == nil {
+		return ErrInvalid
+	}
 	if err := w.initialize(); err != nil {
 		return err
 	}
@@ -149,43 +165,15 @@ func (w *Worker) Run(ctx context.Context) error {
 	defer stopReserving()
 	stopControls := w.startControls(ctx, lease, stopReserving)
 	defer stopControls()
+	if w.autoscale != nil {
+		return w.runAutoscaled(ctx, reserveCtx, *w.autoscale)
+	}
 	var wg sync.WaitGroup
 	for slot := 0; slot < w.Concurrency; slot++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			lastReclaim := w.Clock()
-			for reserveCtx.Err() == nil {
-				if w.Clock().Sub(lastReclaim) >= w.Lease {
-					lastReclaim = w.Clock()
-					deliveries, err := w.Broker.Reclaim(reserveCtx, ConsumeOptions{Queues: w.Queues, Consumer: w.ID}, w.Lease)
-					if err != nil {
-						w.report(err)
-					} else {
-						for _, delivery := range deliveries {
-							if reserveCtx.Err() != nil {
-								break
-							}
-							w.report(w.Process(ctx, delivery))
-						}
-					}
-				}
-				d, err := w.Broker.Consume(reserveCtx, ConsumeOptions{Queues: w.Queues, Consumer: w.ID, Wait: time.Second})
-				if err != nil {
-					if !errors.Is(err, ErrNotFound) && reserveCtx.Err() == nil {
-						w.report(err)
-						select {
-						case <-reserveCtx.Done():
-						case <-time.After(100 * time.Millisecond):
-						}
-					}
-					continue
-				}
-				if reserveCtx.Err() != nil {
-					break // Keep an already reserved delivery pending for recovery.
-				}
-				w.report(w.Process(ctx, d))
-			}
+			w.runReservationLoop(ctx, reserveCtx, nil, nil)
 		}()
 	}
 	wg.Wait()
@@ -195,6 +183,9 @@ func (w *Worker) Run(ctx context.Context) error {
 // RunOnce reserves at most one task. An empty queue is a successful no-op,
 // useful for supervised batch jobs and deterministic management invocations.
 func (w *Worker) RunOnce(ctx context.Context) error {
+	if ctx == nil {
+		return ErrInvalid
+	}
 	if err := w.initialize(); err != nil {
 		return err
 	}
@@ -207,6 +198,13 @@ func (w *Worker) RunOnce(ctx context.Context) error {
 	defer stopReserving()
 	stopControls := w.startControls(ctx, lease, stopReserving)
 	defer stopControls()
+	if err := w.acquireSlot(reserveCtx); err != nil {
+		if ctx.Err() == nil {
+			return nil
+		}
+		return err
+	}
+	defer w.releaseSlot()
 	delivery, err := w.Broker.Consume(reserveCtx, ConsumeOptions{Queues: w.Queues, Consumer: w.ID})
 	if reserveCtx.Err() != nil && ctx.Err() == nil {
 		return nil
@@ -217,20 +215,47 @@ func (w *Worker) RunOnce(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	return w.Process(ctx, delivery)
+	return w.processReserved(ctx, delivery)
 }
 
 // Process handles a single reservation. Any uncertain result-store outcome leaves
 // the delivery pending; an old worker can never acknowledge uncommitted success.
 func (w *Worker) Process(ctx context.Context, delivery Delivery) error {
+	if ctx == nil {
+		return ErrInvalid
+	}
 	if err := w.initialize(); err != nil {
+		return err
+	}
+	if err := w.acquireSlot(ctx); err != nil {
+		return err
+	}
+	defer w.releaseSlot()
+	return w.processReserved(ctx, delivery)
+}
+
+func (w *Worker) acquireSlot(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
 		return err
 	}
 	select {
 	case w.slots <- struct{}{}:
-		defer func() { <-w.slots }()
+		if err := ctx.Err(); err != nil {
+			w.releaseSlot()
+			return err
+		}
+		return nil
 	case <-ctx.Done():
 		return ctx.Err()
+	}
+}
+
+func (w *Worker) releaseSlot() { <-w.slots }
+
+// processReserved requires a shared worker slot already held by its caller.
+func (w *Worker) processReserved(ctx context.Context, delivery Delivery) error {
+	if err := ctx.Err(); err != nil {
+		return err
 	}
 	e, err := DecodeEnvelope(delivery.Body)
 	if err != nil {

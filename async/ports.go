@@ -27,6 +27,9 @@ type ConsumeOptions struct {
 	Queues   []string
 	Consumer string
 	Wait     time.Duration
+	// ReclaimLimit caps Reclaim's reservation batch at 1..1000. Zero uses the
+	// backend's default. Consume still reserves at most one delivery.
+	ReclaimLimit int
 }
 
 type Broker interface {

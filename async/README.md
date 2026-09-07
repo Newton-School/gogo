@@ -69,6 +69,53 @@ Preparing resolves one current instance per target without mutation. Dispatch au
 
 `TaskOptions.PerWorkerConcurrency` limits one task type within each worker; `TaskOptions.Rate` explicitly chooses a local or distributed budget. Distributed mode requires the configured `Worker.RateLimiter`. Rate waiting retains a bounded worker slot and recoverable broker reservation without consuming execution retries. It is not a separate durable rate scheduler.
 
+Opt into local goroutine-pool autoscaling with `Worker.Autoscale`:
+
+```go
+worker.Autoscale = &async.AutoscaleOptions{
+    Min: 2, Max: 12,
+    Interval: time.Second,
+    IdleTimeout: 30 * time.Second,
+}
+```
+
+Leave `Worker.Concurrency` unset or set it to the same maximum. Initialization
+copies the options and rejects invalid bounds before reserving work. Min is at
+least one and Max is at most 1024; the sampling interval is 10 ms–1 minute
+(default one second), and idle timeout is between that interval and 24 hours
+(default 30 seconds). Configure the Worker before concurrent use. `RunOnce`
+still reserves at most one task, and a nil Autoscale keeps fixed concurrency.
+
+`Run` starts Min reservation loops. Each sampling tick can add one loop when all
+non-retiring loops are handling accepted deliveries, including admission waits.
+Merely waiting in an empty `Consume` or for a global slot does not trigger
+growth. A loop that remains idle for the timeout can retire, one per tick.
+Retirement cancels its reservation context only; it does not cancel accepted
+handlers. A late reservation that arrives after retirement remains pending for
+normal reclaim. Retiring loops count against Max until they actually exit, so
+slow cooperative cleanup cannot cause an unbounded replacement pool. This is
+local occupancy-based scaling, not queue-depth prediction or cluster scaling.
+
+The hard concurrency budget is shared across `Run`, `RunOnce` and direct
+`Process` calls on that Worker. Built-in runners acquire a slot before calling
+the broker and retain it through admission/execution. Idle blocking reservations
+therefore occupy part of the budget and can briefly delay direct `Process`
+callers. Runners request `ConsumeOptions.ReclaimLimit: 1`; adapters must honor
+this per-call cap even if their configured batch is larger. Zero preserves a
+custom caller's backend default. An oversized returned batch is reported as
+unavailable and left pending, never acknowledged or executed beyond capacity.
+Task-specific concurrency, rate and execution leases retain their existing
+semantics. Use dedicated queue workers for workload isolation; autoscaling does
+not promise global priority fairness or remove head-of-line admission waits.
+
+`WorkerSnapshot.Concurrency` reports the configured hard cap, not the current
+loop count. Remote graceful shutdown stops pool growth and reservations, then
+waits for all accepted handlers under the original runner context. Canceling
+that original context retains cooperative cancellation. Custom brokers and
+callbacks must honor cancellation; autoscaling cannot kill a stuck provider or
+handler. Scale-to-zero, process recycling and remote pool resizing are not
+implemented by this option.
+
 Management shutdown respects `GOGO_SHUTDOWN_GRACE`. `ErrShutdownTimeout` means non-cooperative handlers may still run; it never means Go goroutines were killed. When management is called as a library, core resources may close while those handlers remain active. Use subprocess isolation plus an external process supervisor when forced termination is required, and keep external effects idempotent.
 
 Compose nested workflows with `signature.Canvas()`, `canvas.Then(next)` and `Parallel(canvases...)`. Chains, groups and chords can be nested; the complete graph is validated before acceptance. Ordered collectors and dispatch claims persist together, so restarting a relay needs no original Go builder objects. Incompatible types/scopes are rejected before dispatch; failed prerequisites produce independent failed descendant records without running their handlers.
@@ -91,4 +138,4 @@ Return `async.Replace(canvas)` (or `taskContext.Replace(canvas)`) as the handler
 
 Completion hooks for yielded tasks run in the relay after the durable original result transition. They are best-effort observations (a crash can omit them), not transactional side effects; use declared callback tasks for durable follow-up. Configure relay `OnError` and `Events` if those observations should be reported. A callback or event-observer failure never replaces an already committed result.
 
-This implementation is under active conformance work. Ignore/requeue task controls, additional remote worker commands, autoscaling/recycling and some advanced calendar/retention features are not complete. Passing the included tests is not a claim of full Celery compatibility or production release readiness.
+This implementation is under active conformance work. Ignore/requeue task controls, additional remote worker commands, process recycling and some advanced calendar/retention features are not complete. Passing the included tests is not a claim of full Celery compatibility or production release readiness.

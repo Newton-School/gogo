@@ -210,8 +210,11 @@ func (b *Broker) Reclaim(ctx context.Context, o async.ConsumeOptions, idle time.
 	if batch == 0 {
 		batch = 1
 	}
-	if idle <= 0 || o.Consumer == "" || len(o.Queues) == 0 || batch < 1 || batch > 1000 {
+	if idle <= 0 || o.Consumer == "" || len(o.Queues) == 0 || batch < 1 || batch > 1000 || o.ReclaimLimit < 0 || o.ReclaimLimit > 1000 {
 		return nil, async.ErrInvalid
+	}
+	if o.ReclaimLimit > 0 {
+		batch = min(batch, o.ReclaimLimit)
 	}
 	b.reclaimMu.Lock()
 	defer b.reclaimMu.Unlock()
