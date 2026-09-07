@@ -17,6 +17,8 @@ var ErrDeleteLimit = errors.New("orm: deletion graph exceeds its object or work 
 
 const defaultDeleteLimit = 10000
 
+// DeleteEvent contains a detached, read-only record snapshot, not a model that
+// can be saved. Changing its values or state rejects the transaction.
 type DeleteEvent struct{ Record models.Record }
 type DeleteReceiver func(context.Context, DeleteEvent) error
 type FieldUpdate struct {
@@ -52,8 +54,9 @@ type JoinRemoval struct {
 type DeleteCollector struct {
 	Store *Store
 	Scope func(context.Context, models.Schema) (db.Predicate, error)
-	// Authorize checks the freshly locked execution graph, including updates.
-	// It must not mutate the plan and may return any application policy error.
+	// Authorize checks a detached read-only view of the freshly locked graph,
+	// including updates. Mutation fails with ErrDeleteCallbackMutation. View
+	// values must support safe detachment; see ErrDeleteCallbackView.
 	Authorize  func(context.Context, DeletionPlan) error
 	MaxObjects int
 	MaxWork    int
@@ -285,7 +288,7 @@ func (c DeleteCollector) collect(ctx context.Context, roots []models.Record, loc
 
 func (c DeleteCollector) records(ctx context.Context, schema models.Schema, where db.Predicate, lock bool, maximum int) ([]models.Record, error) {
 	if c.Scope != nil {
-		scope, err := c.Scope(ctx, schema)
+		scope, err := c.deletionScope(ctx, schema)
 		if err != nil {
 			return nil, err
 		}
@@ -384,6 +387,12 @@ func (c DeleteCollector) execute(ctx context.Context, roots []models.Record) (ma
 	if c.Store == nil || c.Store.Backend == nil {
 		return nil, errors.New("orm: backend required")
 	}
+	// Keep this operation's backend/registry and receiver lists stable even
+	// when a trusted callback changes the caller's future Store configuration.
+	store := *c.Store
+	store.BeforeDelete = append([]DeleteReceiver(nil), store.BeforeDelete...)
+	store.AfterDelete = append([]DeleteReceiver(nil), store.AfterDelete...)
+	c.Store = &store
 	err := db.Atomic(ctx, c.Store.Backend, db.AtomicOptions{}, func(ctx context.Context) error {
 		plan, err := c.collect(ctx, roots, true)
 		if err != nil {
@@ -392,14 +401,27 @@ func (c DeleteCollector) execute(ctx context.Context, roots []models.Record) (ma
 		if len(plan.Protected) > 0 {
 			return ErrProtectedRelation
 		}
+		if len(store.BeforeDelete)+len(store.AfterDelete) > 0 {
+			// Reject an unsafe callback value before invoking any receiver.
+			preflight := &deleteClone{}
+			for _, record := range plan.Objects {
+				view, err := preflight.record(record)
+				if err != nil {
+					return err
+				}
+				if _, err := guardDeleteRecord(view); err != nil {
+					return err
+				}
+			}
+		}
 		if c.Authorize != nil {
-			if err := c.Authorize(ctx, plan); err != nil {
+			if err := authorizeDelete(ctx, plan, c.Authorize); err != nil {
 				return err
 			}
 		}
 		for _, record := range plan.Objects {
 			for _, receiver := range c.Store.BeforeDelete {
-				if err := receiver(ctx, DeleteEvent{Record: record}); err != nil {
+				if err := deleteCallback(ctx, record, receiver); err != nil {
 					return err
 				}
 			}
@@ -420,7 +442,7 @@ func (c DeleteCollector) execute(ctx context.Context, roots []models.Record) (ma
 			}
 			counts[record.Schema().Key()]++
 			for _, receiver := range c.Store.AfterDelete {
-				if err := receiver(ctx, DeleteEvent{Record: record}); err != nil {
+				if err := deleteCallback(ctx, record, receiver); err != nil {
 					return err
 				}
 			}
@@ -450,7 +472,7 @@ func (c DeleteCollector) mutate(ctx context.Context, record models.Record, field
 		return err
 	}
 	if c.Scope != nil {
-		scope, err := c.Scope(ctx, schema)
+		scope, err := c.deletionScope(ctx, schema)
 		if err != nil {
 			return err
 		}
