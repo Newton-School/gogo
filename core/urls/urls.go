@@ -53,8 +53,9 @@ type compiledRoute struct {
 	converters map[string]Converter
 }
 type Router struct {
-	routes []compiledRoute
-	names  map[string]int
+	routes   []compiledRoute
+	names    map[string]int
+	notFound http.Handler
 }
 type Match struct {
 	Name    string
@@ -330,6 +331,10 @@ func (r *Router) Routes() []Route {
 	return out
 }
 func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	// Converters are application callbacks. Replacing the original router from
+	// a callback must not retarget the handler for this in-flight dispatch.
+	operation := *r
+	r = &operation
 	allow := []string{}
 	for _, route := range r.routes {
 		params, ok := route.match(req.URL.Path)
@@ -363,6 +368,17 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		} else {
 			http.Error(w, "method not allowed", 405)
 		}
+		return
+	}
+	if r.notFound != nil {
+		// A nested router may inherit an outer match. This router's fallback
+		// represents a miss; retain other request context without claiming the
+		// outer route's name or parameters as a local match.
+		req = req.WithContext(context.WithValue(req.Context(), matchKey{}, Match{}))
+		if req.Method == http.MethodHead {
+			w = headWriter{w}
+		}
+		r.notFound.ServeHTTP(w, req)
 		return
 	}
 	http.NotFound(w, req)
