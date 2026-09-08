@@ -35,6 +35,10 @@ type Command struct {
 	Name, Help    string
 	Resources     []string
 	OpenResources bool
+	// RequiredFlags names flags that must be explicitly supplied, regardless of
+	// their defaults. Call checks them after parsing (except help) and before
+	// resource selection. Configure remains responsible for value validation.
+	RequiredFlags []string
 	Configure     func(*flag.FlagSet) Runner
 	Validate      func([]string) error
 }
@@ -80,6 +84,14 @@ func (e *CommandError) Unwrap() error { return e.Cause }
 // Call is the programmatic entry point. Args start at the command name, unlike
 // Run's os.Args-compatible input. Flag parsing always precedes opening resources.
 func Call(ctx context.Context, project Project, args []string, options Options) error {
+	// Project declarations already exist at entry. Freeze the new required-flag
+	// contract before app registration/Freeze or Configure can retain and change
+	// its backing slice. Registry commands are captured when they are discovered.
+	project.Commands = slices.Clone(project.Commands)
+	projectRequired := make([]requiredFlagDeclaration, len(project.Commands))
+	for index, command := range project.Commands {
+		projectRequired[index] = captureRequiredFlags(command.RequiredFlags)
+	}
 	options = options.defaults()
 	if project.Root == "" {
 		project.Root = "."
@@ -92,7 +104,8 @@ func Call(ctx context.Context, project Project, args []string, options Options) 
 		return err
 	}
 	commands := map[string]Command{}
-	register := func(command Command) error {
+	required := map[string]requiredFlagDeclaration{}
+	register := func(command Command, declaration requiredFlagDeclaration) error {
 		if command.Name == "" || command.Configure == nil {
 			return errors.New("invalid management command")
 		}
@@ -100,15 +113,16 @@ func Call(ctx context.Context, project Project, args []string, options Options) 
 			return fmt.Errorf("duplicate management command: %s", command.Name)
 		}
 		commands[command.Name] = command
+		required[command.Name] = declaration
 		return nil
 	}
 	for _, command := range builtins(&project) {
-		if err = register(command); err != nil {
+		if err = register(command, captureRequiredFlags(command.RequiredFlags)); err != nil {
 			return err
 		}
 	}
-	for _, command := range project.Commands {
-		if err = register(command); err != nil {
+	for index, command := range project.Commands {
+		if err = register(command, projectRequired[index]); err != nil {
 			return err
 		}
 	}
@@ -118,7 +132,7 @@ func Call(ctx context.Context, project Project, args []string, options Options) 
 		if !ok {
 			return errors.New("invalid registered command")
 		}
-		if err = register(command); err != nil {
+		if err = register(command, captureRequiredFlags(command.RequiredFlags)); err != nil {
 			return err
 		}
 	}
@@ -149,10 +163,17 @@ func Call(ctx context.Context, project Project, args []string, options Options) 
 	if runner == nil {
 		return errors.New("management command runner required")
 	}
-	if err = parseFlags(flags, args[1:]); errors.Is(err, flag.ErrHelp) {
+	provided, parseErr := parseFlagsWithNames(flags, args[1:])
+	if err = parseErr; errors.Is(err, flag.ErrHelp) {
 		return nil
 	} else if err != nil {
 		return &CommandError{2, "Invalid command arguments", err}
+	}
+	if err = required[command.Name].validate(flags, provided); err != nil {
+		return &CommandError{2, "Invalid required command flags", err}
+	}
+	if err = captureFixtureCommandSelection(flags, flags.Args()); err != nil {
+		return &CommandError{2, "Invalid fixture command arguments", err}
 	}
 	if command.Validate != nil {
 		if err = command.Validate(flags.Args()); err != nil {
@@ -195,12 +216,56 @@ func Call(ctx context.Context, project Project, args []string, options Options) 
 			return err
 		}
 	}
+	completion := &fixtureCommandCompletion{}
+	runContext := context.WithValue(ctx, fixtureCommandCompletionKey{}, completion)
 	return runAndClose(ctx, application, settings.Duration("GOGO_SHUTDOWN_GRACE"), func() error {
-		return runner(ctx, invocation, flags.Args())
-	})
+		return runner(runContext, invocation, flags.Args())
+	}, completion)
 }
 
-func runAndClose(ctx context.Context, application *app.Application, grace time.Duration, run func() error) (err error) {
+type requiredFlagDeclaration struct {
+	names []string
+	err   error
+}
+
+func captureRequiredFlags(names []string) requiredFlagDeclaration {
+	invalid := func() requiredFlagDeclaration {
+		return requiredFlagDeclaration{err: errors.New("invalid required flag declaration")}
+	}
+	if len(names) > 128 {
+		return invalid()
+	}
+	seen := make(map[string]bool, len(names))
+	for _, name := range names {
+		if len(name) == 0 || len(name) > 128 || name[0] == '-' || seen[name] {
+			return invalid()
+		}
+		for _, char := range name {
+			if char < 33 || char > 126 || char == '=' {
+				return invalid()
+			}
+		}
+		seen[name] = true
+	}
+	return requiredFlagDeclaration{names: slices.Clone(names)}
+}
+
+func (d requiredFlagDeclaration) validate(flags *flag.FlagSet, provided map[string]bool) error {
+	if d.err != nil {
+		return d.err
+	}
+	for _, name := range d.names {
+		if flags.Lookup(name) == nil {
+			return errors.New("required flag is not configured")
+		}
+		if !provided[name] {
+			return errors.New("required flag was not supplied")
+		}
+	}
+	return nil
+}
+
+func runAndClose(ctx context.Context, application *app.Application, grace time.Duration, run func() error, completions ...*fixtureCommandCompletion) (err error) {
 	if grace <= 0 {
 		grace = app.DefaultShutdownGrace
 	}
@@ -208,9 +273,21 @@ func runAndClose(ctx context.Context, application *app.Application, grace time.D
 		if recover() != nil {
 			err = errors.New("management command callback panicked")
 		}
+		// Capture an actual fixture receipt before any closer/context callback.
+		// Ordinary runners install nothing and retain existing error semantics.
+		var project func(error) error
+		if len(completions) == 1 {
+			project = completions[0].projector()
+		}
 		cleanup, cancel := context.WithTimeout(context.WithoutCancel(ctx), grace)
 		defer cancel()
 		err = errors.Join(err, application.Close(cleanup))
+		if project != nil {
+			err = errors.Join(err, fixtureCommandContextError(ctx))
+			if err != nil {
+				err = project(err)
+			}
+		}
 	}()
 	return run()
 }
