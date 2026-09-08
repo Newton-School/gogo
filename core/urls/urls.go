@@ -53,9 +53,10 @@ type compiledRoute struct {
 	converters map[string]Converter
 }
 type Router struct {
-	routes   []compiledRoute
-	names    map[string]int
-	notFound http.Handler
+	routes            []compiledRoute
+	names             map[string]int
+	notFound          http.Handler
+	builtinConverters bool
 }
 type Match struct {
 	Name    string
@@ -108,8 +109,11 @@ func Builtins() map[string]Converter {
 		}},
 	}
 }
-func New(routes ...Route) (*Router, error) { return NewWithConverters(Builtins(), routes...) }
+func New(routes ...Route) (*Router, error) { return newWithConverters(Builtins(), true, routes...) }
 func NewWithConverters(converters map[string]Converter, routes ...Route) (*Router, error) {
+	return newWithConverters(converters, false, routes...)
+}
+func newWithConverters(converters map[string]Converter, builtinConverters bool, routes ...Route) (*Router, error) {
 	for name, c := range converters {
 		if !validIdentifier(name) || c.Pattern == "" || c.Decode == nil || c.Encode == nil {
 			return nil, errors.New("invalid URL converter")
@@ -119,7 +123,7 @@ func NewWithConverters(converters map[string]Converter, routes ...Route) (*Route
 			return nil, errors.New("converter patterns must not contain captures")
 		}
 	}
-	r := &Router{names: map[string]int{}}
+	r := &Router{names: map[string]int{}, builtinConverters: builtinConverters}
 	var add func(string, string, []Route) error
 	add = func(prefix, namespace string, items []Route) error {
 		for _, item := range items {
