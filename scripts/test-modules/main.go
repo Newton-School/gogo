@@ -30,7 +30,7 @@ func main() {
 		os.Exit(1)
 	}
 }
-func run(race bool) error {
+func run(race bool) (resultErr error) {
 	repo, err := os.Getwd()
 	if err != nil {
 		return err
@@ -42,7 +42,11 @@ func run(race bool) error {
 	if err != nil {
 		return err
 	}
-	defer os.RemoveAll(temp)
+	defer func() {
+		if err := removeTestDirectory(temp); err != nil {
+			resultErr = errors.Join(resultErr, fmt.Errorf("remove isolated module test artifacts: %w", err))
+		}
+	}()
 	proxy := filepath.Join(temp, "proxy")
 	for _, module := range modules {
 		if err = packageModule(repo, proxy, module); err != nil {
@@ -83,6 +87,25 @@ func run(race bool) error {
 		}
 	}
 	return testConsumer(ctx, temp, proxy)
+}
+
+// Downloaded modules contain read-only directories. os.RemoveAll alone cannot
+// remove their children on Unix, even though this runner created the cache.
+// Only restore owner permissions inside our freshly allocated temporary tree;
+// WalkDir does not follow symlinks into any external directory.
+func removeTestDirectory(root string) error {
+	if err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() {
+			return os.Chmod(path, 0700)
+		}
+		return nil
+	}); err != nil {
+		return err
+	}
+	return os.RemoveAll(root)
 }
 
 func testConsumer(ctx context.Context, temp, proxy string) error {
