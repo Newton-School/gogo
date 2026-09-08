@@ -7,6 +7,7 @@
 <section class="panel">
   {% if has_search or filters %}
   <form method="get" class="search-bar">
+    {% if show_all %}<input type="hidden" name="all" value="">{% endif %}
     {% if order %}<input type="hidden" name="o" value="{{ order }}">{% endif %}
     {% if has_search %}<label for="search">Search records</label><div class="search-input"><input id="search" type="search" name="q" value="{{ search }}" maxlength="256" placeholder="Search…"><button type="submit">Search</button></div>{% endif %}
     {% if filters %}<div class="list-filters">
@@ -30,6 +31,6 @@
     </table></div>
     {% if list_token %}<div class="submit-row"><button type="submit" name="_save_list" value="1">Save changes</button><span class="muted">Only changed editable rows on this page are saved.</span></div>{% endif %}
   </form>
-  <nav class="pagination" aria-label="Pagination"><span>Page {{ page }}</span><div>{% if has_previous %}<a href="{{ previous }}">← Previous</a>{% endif %}{% if has_next %}<a href="{{ next }}">Next →</a>{% endif %}</div></nav>
+  <nav class="pagination" aria-label="Pagination"><span>{% if show_all %}All matching records{% else %}Page {{ page }}{% endif %}</span><div>{% if has_previous %}<a href="{{ previous }}">← Previous</a>{% endif %}{% if has_next %}<a href="{{ next }}">Next →</a>{% endif %}{% if can_show_all %}<a href="{{ show_all_url }}">Show all</a>{% endif %}{% if show_all %}<a href="{{ paginated_url }}">Return to pagination</a>{% endif %}</div></nav>
 </section>
 {% endblock %}

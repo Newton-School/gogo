@@ -77,7 +77,8 @@ func listRowToken(object Object) (listEditRowToken, error) {
 }
 
 func (s *Site) listToken(p auth.Principal, options ModelAdmin, query url.Values, objects []Object) (string, error) {
-	if len(objects) == 0 || len(objects) > options.ListPerPage || len(objects) > 1000 {
+	limit, err := listEditableLimit(options, query)
+	if err != nil || len(objects) == 0 || len(objects) > limit || len(objects) > 1000 {
 		return "", errors.New("admin: invalid editable page size")
 	}
 	payload := listEditToken{Actor: p.ID, Site: s.config.Name, Model: options.Schema.Key(), Query: listDigest(query.Encode()), Fields: slices.Clone(options.ListEditable)}
@@ -101,7 +102,8 @@ func (s *Site) checkListToken(ctx context.Context, p auth.Principal, options Mod
 	if err := ctx.Err(); err != nil {
 		return listEditToken{}, err
 	}
-	if len(posted["_list_token"]) != 1 || len(posted["_save_list"]) != 1 || posted.Get("_save_list") != "1" || len(posted["action"]) > 1 || posted.Get("action") != "" || len(objects) == 0 || len(objects) > options.ListPerPage || len(objects) > 1000 {
+	limit, err := listEditableLimit(options, query)
+	if err != nil || len(posted["_list_token"]) != 1 || len(posted["_save_list"]) != 1 || posted.Get("_save_list") != "1" || len(posted["action"]) > 1 || posted.Get("action") != "" || len(objects) == 0 || len(objects) > limit || len(objects) > 1000 {
 		return listEditToken{}, errInvalidListManagement
 	}
 	raw, err := s.config.Signer.Verify(posted.Get("_list_token"), time.Hour)

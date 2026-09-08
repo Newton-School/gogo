@@ -268,21 +268,22 @@ func (s *Site) list(w http.ResponseWriter, r *http.Request, p auth.Principal, op
 			return
 		}
 	}
+	if _, err := url.ParseQuery(r.URL.RawQuery); err != nil {
+		http.Error(w, "Invalid list query", 400)
+		return
+	}
 	query := ListQuery{Search: r.URL.Query().Get("q"), SearchFields: options.SearchFields, Filters: map[string]string{}, Ordering: options.Ordering, Limit: options.ListPerPage}
 	if len(query.Search) > 256 || query.Search != "" && len(options.SearchFields) == 0 {
 		http.Error(w, "Search is too long", 400)
 		return
 	}
-	page := 1
-	if text := r.URL.Query().Get("p"); text != "" {
-		value, err := strconv.Atoi(text)
-		if err != nil || value < 1 || value > 1000000 {
-			http.Error(w, "Invalid page", 400)
-			return
-		}
-		page = value
+	paging, err := listPagination(options, r.URL.Query())
+	if err != nil {
+		http.Error(w, "Invalid pagination", 400)
+		return
 	}
-	query.Offset = (page - 1) * query.Limit
+	page := paging.number
+	query.Offset, query.Limit = paging.offset, paging.limit
 	ordering, err := listOrdering(options, r.URL.Query())
 	if err != nil {
 		http.Error(w, "Invalid ordering", 400)
@@ -290,7 +291,7 @@ func (s *Site) list(w http.ResponseWriter, r *http.Request, p auth.Principal, op
 	}
 	query.Ordering = ordering
 	for name, values := range r.URL.Query() {
-		if name == "q" || name == "p" || name == "o" {
+		if name == "q" || name == "p" || name == "o" || name == "all" {
 			continue
 		}
 		if !slices.Contains(options.ListFilter, name) || len(values) != 1 || len(values[0]) > 256 {
@@ -310,6 +311,26 @@ func (s *Site) list(w http.ResponseWriter, r *http.Request, p auth.Principal, op
 	if len(result.Objects) > query.Limit || result.Count < 0 {
 		s.failure(w, r, errors.New("invalid store page"))
 		return
+	}
+	if paging.all {
+		// Read one overflow sentinel independently of the count. A count/row
+		// mismatch is not a complete filtered set, including concurrent changes.
+		if result.Count > int64(options.ListMaxShowAll) || len(result.Objects) > options.ListMaxShowAll {
+			http.Error(w, "Show all exceeds the configured limit", 400)
+			return
+		}
+		if result.Count != int64(len(result.Objects)) {
+			s.failure(w, r, ErrConflict)
+			return
+		}
+		seen := map[string]bool{}
+		for _, object := range result.Objects {
+			if object.ID == "" || object.Record == nil || seen[object.ID] {
+				s.failure(w, r, errors.New("invalid store page identity"))
+				return
+			}
+			seen[object.ID] = true
+		}
 	}
 	editing, done := s.prepareListEdit(w, r, p, options, store, result.Objects)
 	if done {
@@ -420,7 +441,7 @@ func (s *Site) list(w http.ResponseWriter, r *http.Request, p auth.Principal, op
 			status = 400
 		}
 	}
-	s.render(w, r, p, "list.html", templates.Context{"title": options.Schema.Name, "columns": columns, "rows": rows, "count": result.Count, "search": query.Search, "has_search": len(options.SearchFields) > 0, "filters": filters, "order": r.URL.Query().Get("o"), "page": page, "previous": pageURL(max(1, page-1)), "next": pageURL(page + 1), "has_previous": page > 1, "has_next": int64(query.Offset+len(rows)) < result.Count, "can_add": s.allowed(r.Context(), p, "add", options, Object{}) == nil, "add_url": s.modelURL(options) + "add/", "actions": actions, "list_token": listToken, "list_form_count": len(rows), "list_invalid": editing != nil && !editing.valid, "list_errors": listFormProblems(editing, options.ListEditable)}, status)
+	s.render(w, r, p, "list.html", templates.Context{"title": options.Schema.Name, "columns": columns, "rows": rows, "count": result.Count, "search": query.Search, "has_search": len(options.SearchFields) > 0, "filters": filters, "order": r.URL.Query().Get("o"), "page": page, "previous": pageURL(max(1, page-1)), "next": pageURL(page + 1), "has_previous": !paging.all && page > 1, "has_next": !paging.all && int64(query.Offset+len(rows)) < result.Count, "show_all": paging.all, "show_all_url": listModeURL(r.URL.Query(), true), "paginated_url": listModeURL(r.URL.Query(), false), "can_show_all": !paging.all && result.Count > int64(options.ListPerPage) && result.Count <= int64(options.ListMaxShowAll), "can_add": s.allowed(r.Context(), p, "add", options, Object{}) == nil, "add_url": s.modelURL(options) + "add/", "actions": actions, "list_token": listToken, "list_form_count": len(rows), "list_invalid": editing != nil && !editing.valid, "list_errors": listFormProblems(editing, options.ListEditable)}, status)
 }
 
 type editToken struct{ Actor, Site, Model, ID, Version, Action string }

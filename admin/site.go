@@ -225,6 +225,9 @@ func (s *Site) Register(options ModelAdmin) error {
 	if options.ListPerPage < 1 || options.ListPerPage > 1000 || options.ListMaxShowAll < options.ListPerPage || options.ListMaxShowAll > 1000 {
 		return errors.New("admin: invalid pagination bounds")
 	}
+	if slices.Contains(options.ListFilter, "all") {
+		return errors.New("admin: all is reserved for list pagination")
+	}
 	if len(options.Fields) == 0 {
 		for _, field := range options.Schema.Fields {
 			if field.IsEditable() {
