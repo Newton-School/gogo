@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Developer reference</h1>
+<p>This reference describes explicitly selected declarations, not stored records or source files.</p>
+<nav aria-label="Reference sections"><a href="#reference-models">Models</a> · <a href="#reference-routes">Routes</a> · <a href="#reference-views">Views</a> · <a href="#reference-tags">Template tags</a> · <a href="#reference-filters">Template filters</a></nav>
+<section id="reference-models"><h2>Models</h2>
+{% for model in models %}<h3>{{ model.name }}</h3><p>{{ model.description }}</p>
+<table><caption>Selected fields for {{ model.name }}</caption><thead><tr><th scope="col">Field</th><th scope="col">Type</th><th scope="col">Nullable</th><th scope="col">Blank</th><th scope="col">Editable</th><th scope="col">Primary key</th><th scope="col">Description</th></tr></thead><tbody>
+{% for field in model.fields %}<tr><th scope="row">{{ field.name }}</th><td>{{ field.kind }}</td><td>{{ field.nullable|yesno:"Yes,No" }}</td><td>{{ field.blank|yesno:"Yes,No" }}</td><td>{{ field.editable|yesno:"Yes,No" }}</td><td>{{ field.primary|yesno:"Yes,No" }}</td><td>{{ field.description }}</td></tr>{% endfor %}
+</tbody></table>{% empty %}<p>No permitted models in this reference.</p>{% endfor %}</section>
+<section id="reference-routes"><h2>Routes</h2><table><caption>Declared route inventory</caption><thead><tr><th scope="col">Name</th><th scope="col">Pattern</th><th scope="col">Methods</th></tr></thead><tbody>
+{% for route in routes %}<tr><th scope="row">{{ route.name }}</th><td>{{ route.pattern }}</td><td>{{ route.methods }}</td></tr>{% empty %}<tr><td colspan="3">No routes.</td></tr>{% endfor %}
+</tbody></table></section>
+<section id="reference-views"><h2>Views</h2><table><caption>Explicitly documented views</caption><thead><tr><th scope="col">Route</th><th scope="col">Title</th><th scope="col">Description</th></tr></thead><tbody>
+{% for view in views %}<tr><th scope="row">{{ view.route }}</th><td>{{ view.title }}</td><td>{{ view.description }}</td></tr>{% empty %}<tr><td colspan="3">No documented views.</td></tr>{% endfor %}
+</tbody></table></section>
+<section id="reference-tags"><h2>Template tags</h2><p>Opening and standalone tag names; closing and branch delimiters belong to their enclosing syntax.</p><table><caption>Effective tag names</caption><thead><tr><th scope="col">Name</th><th scope="col">Description</th></tr></thead><tbody>
+{% for item in tags %}<tr><th scope="row">{{ item.name }}</th><td>{{ item.description }}</td></tr>{% empty %}<tr><td colspan="2">No tags.</td></tr>{% endfor %}
+</tbody></table></section>
+<section id="reference-filters"><h2>Template filters</h2><p>Names identify the configured engine. A custom filter may replace a builtin with the same name.</p><table><caption>Effective filter names</caption><thead><tr><th scope="col">Name</th><th scope="col">Description</th></tr></thead><tbody>
+{% for item in filters %}<tr><th scope="row">{{ item.name }}</th><td>{{ item.description }}</td></tr>{% empty %}<tr><td colspan="2">No filters.</td></tr>{% endfor %}
+</tbody></table></section>
+{% endblock %}
