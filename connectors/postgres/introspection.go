@@ -142,7 +142,7 @@ func inspectConstraints(ctx context.Context, executor db.Executor, schema, table
 COALESCE((SELECT pg_catalog.json_agg(a.attname ORDER BY k.ord)::pg_catalog.text FROM pg_catalog.unnest(x.conkey) WITH ORDINALITY k(num,ord) JOIN pg_catalog.pg_attribute a ON a.attrelid OPERATOR(pg_catalog.=) x.conrelid AND a.attnum OPERATOR(pg_catalog.=) k.num),'[]'),
 COALESCE(rn.nspname,''), COALESCE(rc.relname,''),
 COALESCE((SELECT pg_catalog.json_agg(a.attname ORDER BY k.ord)::pg_catalog.text FROM pg_catalog.unnest(x.confkey) WITH ORDINALITY k(num,ord) JOIN pg_catalog.pg_attribute a ON a.attrelid OPERATOR(pg_catalog.=) x.confrelid AND a.attnum OPERATOR(pg_catalog.=) k.num),'[]'),
-x.confdeltype::pg_catalog.text, x.confupdtype::pg_catalog.text, x.condeferrable, x.condeferred, x.convalidated
+x.confdeltype::pg_catalog.text, x.confupdtype::pg_catalog.text, x.condeferrable, x.condeferred, x.convalidated, x.connoinherit, x.confmatchtype::pg_catalog.text
 FROM pg_catalog.pg_constraint x JOIN pg_catalog.pg_class c ON c.oid OPERATOR(pg_catalog.=) x.conrelid JOIN pg_catalog.pg_namespace n ON n.oid OPERATOR(pg_catalog.=) c.relnamespace
 LEFT JOIN pg_catalog.pg_class rc ON rc.oid OPERATOR(pg_catalog.=) x.confrelid LEFT JOIN pg_catalog.pg_namespace rn ON rn.oid OPERATOR(pg_catalog.=) rc.relnamespace
 WHERE n.nspname OPERATOR(pg_catalog.=) $1 AND c.relname OPERATOR(pg_catalog.=) $2 ORDER BY x.conname LIMIT 1025`, schema, table)
@@ -154,7 +154,9 @@ WHERE n.nspname OPERATOR(pg_catalog.=) $1 AND c.relname OPERATOR(pg_catalog.=) $
 	for rows.Next() {
 		var value db.CatalogConstraint
 		var columns, referenced string
-		if err := rows.Scan(&value.Name, &value.Kind, &value.Definition, &value.Expression, &columns, &value.ReferencedSchema, &value.ReferencedTable, &referenced, &value.OnDelete, &value.OnUpdate, &value.Deferrable, &value.InitiallyDeferred, &value.Validated); err != nil {
+		var noInherit bool
+		var matchType string
+		if err := rows.Scan(&value.Name, &value.Kind, &value.Definition, &value.Expression, &columns, &value.ReferencedSchema, &value.ReferencedTable, &referenced, &value.OnDelete, &value.OnUpdate, &value.Deferrable, &value.InitiallyDeferred, &value.Validated, &noInherit, &matchType); err != nil {
 			return nil, err
 		}
 		if len(result) >= 1024 {
@@ -177,6 +179,15 @@ WHERE n.nspname OPERATOR(pg_catalog.=) $1 AND c.relname OPERATOR(pg_catalog.=) $
 		value.Kind = map[string]string{"p": "primary_key", "f": "foreign_key", "u": "unique", "c": "check", "x": "exclude", "n": "not_null"}[value.Kind]
 		if value.Kind == "" {
 			return nil, errors.New("postgres: unsupported catalog constraint kind")
+		}
+		if value.Kind == "check" && noInherit {
+			value.MappingIssue = "CHECK NO INHERIT is not representable by the portable constraint descriptor"
+		}
+		if value.Kind == "foreign_key" && matchType != "s" {
+			value.MappingIssue = "non-SIMPLE foreign-key matching requires an explicit mapping"
+		}
+		if err := budget.add(catalogTextLimit, value.MappingIssue); err != nil {
+			return nil, err
 		}
 		actions := map[string]string{"a": "NO ACTION", "r": "RESTRICT", "c": "CASCADE", "n": "SET NULL", "d": "SET DEFAULT"}
 		value.OnDelete, value.OnUpdate = actions[value.OnDelete], actions[value.OnUpdate]

@@ -17,6 +17,17 @@ func TestProjectAppAndPreserveExisting(t *testing.T) {
 	if string(env) != string(example) {
 		t.Fatal("env drift")
 	}
+	settings, err := os.ReadFile(filepath.Join(dir, "config/settings.go"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	connections, err := os.ReadFile(filepath.Join(dir, "config/connections.go"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(settings), "management.InspectDBCommand(connections.Inspection)") || !strings.Contains(string(connections), "db.CatalogIntrospector") || !strings.Contains(string(connections), "c.Database.Alias() != alias") {
+		t.Fatal("inspectdb lazy configured-alias registration missing")
+	}
 	if err := StartApp(dir, "catalog"); err != nil {
 		t.Fatal(err)
 	}

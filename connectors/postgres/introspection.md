@@ -1,8 +1,8 @@
 # Read-only catalog inspection
 
 `postgres.Introspector` implements the optional public `db.CatalogIntrospector`
-contract. This is the catalog foundation for `inspectdb`, not migration adoption
-or the source-generating management command.
+contract. This is the catalog foundation used by `management.InspectDB`; it does
+not itself generate source or adopt migrations.
 
 ```go
 catalog, err := (postgres.Introspector{}).InspectCatalog(ctx, backend, db.CatalogOptions{
@@ -38,6 +38,11 @@ The `Field` mapping is deliberately separate from the native `DatabaseType`,
 length/precision/nullability/PK/default metadata. Integer identity/serial columns
 use auto kinds. Generated columns use `Generated` with a scalar/array `Element`.
 One-dimensional built-in arrays retain their element descriptor.
+
+Column, index, and constraint `MappingIssue` fields provide stable diagnostics for native behavior which the
+current model source renderer cannot preserve. An empty diagnostic is not a
+schema-equivalence guarantee; consumers must validate their own supported fields
+and metadata independently.
 
 Unknown, domain, enum, range, extension, multidimensional array, and `timetz`
 types remain `Custom` without a codec; they never become text by guesswork.

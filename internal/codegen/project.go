@@ -167,17 +167,21 @@ import("github.com/Newton-School/gogo/core/conf";"github.com/Newton-School/gogo/
 func Settings() conf.Schema {return conf.CoreSchema()}
 func Project() management.Project {
  connections:=&Connections{}
- return management.Project{Name:` + strconv.Quote(filepath.Base(target)) + `,Schema:Settings(),Apps:InstalledApps(),RuntimeResources:[]string{"database"},ResourceFactory:connections.Resources,Commands:management.MigrationCommands(func()dbBackend{return connections.Database},func()dbEditor{return connections.Database.SchemaEditor()}),Handler:func(registry *app.Registry,settings conf.Values)(http.Handler,error){
+ return management.Project{Name:` + strconv.Quote(filepath.Base(target)) + `,Schema:Settings(),Apps:InstalledApps(),RuntimeResources:[]string{"database"},ResourceFactory:connections.Resources,Commands:append(management.MigrationCommands(func()dbBackend{return connections.Database},func()dbEditor{return connections.Database.SchemaEditor()}),management.InspectDBCommand(connections.Inspection)),Handler:func(registry *app.Registry,settings conf.Values)(http.Handler,error){
   router,err:=urls.New(Routes(registry)...);if err!=nil{return nil,err}
   headers,err:=security.Headers(security.HeadersConfig{AllowedHosts:settings.List("GOGO_ALLOWED_HOSTS")});if err!=nil{return nil,err};return headers(router),nil
  }}
 }
 `,
 		"config/connections.go": `package config
-import("context";"slices";"github.com/Newton-School/gogo/core/app";"github.com/Newton-School/gogo/core/conf";"github.com/Newton-School/gogo/core/db";"github.com/Newton-School/gogo/connectors/postgres")
+import("context";"errors";"slices";"github.com/Newton-School/gogo/core/app";"github.com/Newton-School/gogo/core/conf";"github.com/Newton-School/gogo/core/db";"github.com/Newton-School/gogo/connectors/postgres")
 type dbBackend = db.Backend
 type dbEditor = db.SchemaEditor
 type Connections struct { Database *postgres.Backend }
+func(c *Connections) Inspection(alias string)(db.Backend,db.CatalogIntrospector,error){
+ if c.Database==nil || c.Database.Alias()!=alias{return nil,nil,errors.New("inspectdb database alias is not configured or open")}
+ return c.Database,postgres.Introspector{},nil
+}
 func(c *Connections) Resources(settings conf.Values,required []string)([]app.Resource,error){
  if !slices.Contains(required,"database"){return nil,nil}
  return []app.Resource{{Name:"database",Open:func(ctx context.Context)(func(context.Context)error,error){

@@ -13,7 +13,7 @@ import (
 func inspectColumns(ctx context.Context, executor db.Executor, schema, table string, budget *catalogBudget) ([]db.CatalogColumn, error) {
 	rows, err := executor.Query(ctx, `SELECT a.attname, pg_catalog.format_type(a.atttypid,a.atttypmod), tn.nspname, t.typname, a.attnotnull, a.attidentity::pg_catalog.text, a.attgenerated::pg_catalog.text,
 COALESCE(pg_catalog.left(pg_catalog.pg_get_expr(d.adbin,d.adrelid,false),65537),''), CASE WHEN co.oid IS NULL THEN '' ELSE pg_catalog.format('%I.%I',cn.nspname,co.collname) END,
-EXISTS(SELECT 1 FROM pg_catalog.pg_index i WHERE i.indrelid OPERATOR(pg_catalog.=) a.attrelid AND i.indisprimary AND a.attnum OPERATOR(pg_catalog.=) ANY(i.indkey)),
+EXISTS(SELECT 1 FROM pg_catalog.pg_index i CROSS JOIN LATERAL pg_catalog.unnest(i.indkey) WITH ORDINALITY pk(num,ord) WHERE i.indrelid OPERATOR(pg_catalog.=) a.attrelid AND i.indisprimary AND pk.ord OPERATOR(pg_catalog.<=) i.indnkeyatts AND a.attnum OPERATOR(pg_catalog.=) pk.num),
 COALESCE(pg_catalog.pg_get_serial_sequence(pg_catalog.format('%I.%I',n.nspname,c.relname),a.attname),''), COALESCE(etn.nspname,''), COALESCE(et.typname,''), a.attndims
 FROM pg_catalog.pg_attribute a JOIN pg_catalog.pg_class c ON c.oid OPERATOR(pg_catalog.=) a.attrelid JOIN pg_catalog.pg_namespace n ON n.oid OPERATOR(pg_catalog.=) c.relnamespace
 JOIN pg_catalog.pg_type t ON t.oid OPERATOR(pg_catalog.=) a.atttypid JOIN pg_catalog.pg_namespace tn ON tn.oid OPERATOR(pg_catalog.=) t.typnamespace
@@ -75,6 +75,10 @@ WHERE n.nspname OPERATOR(pg_catalog.=) $1 AND c.relname OPERATOR(pg_catalog.=) $
 			}
 		}
 		column.Field = field
+		column.MappingIssue = catalogMappingIssue(column)
+		if err := budget.add(catalogTextLimit, column.MappingIssue); err != nil {
+			return nil, err
+		}
 		result = append(result, column)
 	}
 	return result, errors.Join(rows.Err(), rows.Close())

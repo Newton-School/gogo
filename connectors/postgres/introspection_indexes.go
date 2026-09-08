@@ -15,7 +15,7 @@ COALESCE((SELECT pg_catalog.json_agg(a.attname ORDER BY k.ord)::pg_catalog.text 
 COALESCE((SELECT pg_catalog.json_agg(pg_catalog.format('%I.%I',n.nspname,op.opcname) ORDER BY k.ord)::pg_catalog.text FROM pg_catalog.unnest(i.indclass) WITH ORDINALITY k(num,ord) JOIN pg_catalog.pg_opclass op ON op.oid OPERATOR(pg_catalog.=) k.num JOIN pg_catalog.pg_namespace n ON n.oid OPERATOR(pg_catalog.=) op.opcnamespace),'[]'),
 COALESCE((SELECT pg_catalog.json_agg(op.opcdefault ORDER BY k.ord)::pg_catalog.text FROM pg_catalog.unnest(i.indclass) WITH ORDINALITY k(num,ord) JOIN pg_catalog.pg_opclass op ON op.oid OPERATOR(pg_catalog.=) k.num),'[]'),
 COALESCE((SELECT pg_catalog.json_agg(CASE WHEN co.oid IS NULL THEN '' ELSE pg_catalog.format('%I.%I',n.nspname,co.collname) END ORDER BY k.ord)::pg_catalog.text FROM pg_catalog.unnest(i.indcollation) WITH ORDINALITY k(num,ord) LEFT JOIN pg_catalog.pg_collation co ON co.oid OPERATOR(pg_catalog.=) k.num LEFT JOIN pg_catalog.pg_namespace n ON n.oid OPERATOR(pg_catalog.=) co.collnamespace),'[]'),
-pg_catalog.array_to_json(i.indoption::pg_catalog.int2[])::pg_catalog.text, i.indisunique, i.indisprimary, i.indisvalid, i.indisready, NOT i.indnullsnotdistinct
+pg_catalog.array_to_json(i.indoption::pg_catalog.int2[])::pg_catalog.text, i.indisunique, i.indisprimary, i.indisvalid, i.indisready, NOT i.indnullsnotdistinct, COALESCE(pg_catalog.array_length(ic.reloptions,1),0) OPERATOR(pg_catalog.>) 0, ic.reltablespace OPERATOR(pg_catalog.<>) 0
 FROM pg_catalog.pg_index i JOIN pg_catalog.pg_class c ON c.oid OPERATOR(pg_catalog.=) i.indrelid JOIN pg_catalog.pg_namespace n ON n.oid OPERATOR(pg_catalog.=) c.relnamespace
 JOIN pg_catalog.pg_class ic ON ic.oid OPERATOR(pg_catalog.=) i.indexrelid JOIN pg_catalog.pg_am am ON am.oid OPERATOR(pg_catalog.=) ic.relam LEFT JOIN pg_catalog.pg_constraint con ON con.conindid OPERATOR(pg_catalog.=) i.indexrelid AND con.contype::pg_catalog.text  OPERATOR(pg_catalog.=)  ANY(ARRAY['p','u','x']::pg_catalog.text[])
 WHERE n.nspname OPERATOR(pg_catalog.=) $1 AND c.relname OPERATOR(pg_catalog.=) $2 ORDER BY ic.relname LIMIT 1025`, schema, table)
@@ -27,7 +27,14 @@ WHERE n.nspname OPERATOR(pg_catalog.=) $1 AND c.relname OPERATOR(pg_catalog.=) $
 	for rows.Next() {
 		var index db.CatalogIndex
 		var columns, expressions, include, opclasses, defaults, collations, options string
-		if err := rows.Scan(&index.Name, &index.Method, &index.Definition, &index.Condition, &index.Constraint, &columns, &expressions, &include, &opclasses, &defaults, &collations, &options, &index.Unique, &index.Primary, &index.Valid, &index.Ready, &index.NullsDistinct); err != nil {
+		var storageOptions, tablespace bool
+		if err := rows.Scan(&index.Name, &index.Method, &index.Definition, &index.Condition, &index.Constraint, &columns, &expressions, &include, &opclasses, &defaults, &collations, &options, &index.Unique, &index.Primary, &index.Valid, &index.Ready, &index.NullsDistinct, &storageOptions, &tablespace); err != nil {
+			return nil, err
+		}
+		if storageOptions || tablespace {
+			index.MappingIssue = "index storage parameters or explicit tablespace require an explicit mapping"
+		}
+		if err := budget.add(catalogTextLimit, index.MappingIssue); err != nil {
 			return nil, err
 		}
 		if len(result) >= 1024 {

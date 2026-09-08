@@ -40,6 +40,10 @@ type CatalogRelation struct {
 
 type CatalogColumn struct {
 	Name, DatabaseType, TypeSchema, TypeName string
+	// MappingIssue is a bounded connector diagnostic when native semantics
+	// cannot be represented by the current portable model/codec. Empty does
+	// not waive a consumer's independent validation of its supported fields.
+	MappingIssue string
 	// Field contains the connector's portable type mapping. Custom without a
 	// codec represents an unsupported type, never a fallback to text.
 	Field models.Field
@@ -50,6 +54,7 @@ type CatalogColumn struct {
 
 type CatalogConstraint struct {
 	Name, Kind, Definition, Expression       string
+	MappingIssue                             string
 	Columns                                  []string
 	ReferencedSchema, ReferencedTable        string
 	ReferencedColumns                        []string
@@ -59,6 +64,7 @@ type CatalogConstraint struct {
 
 type CatalogIndex struct {
 	Name, Method, Definition, Condition, Constraint string
+	MappingIssue                                    string
 	// OpClasses and Collations use fully qualified connector-quoted names.
 	Columns, Expressions, Include, OpClasses, Collations []string
 	// Options preserves per-key ordering/null-order flags from the connector;
