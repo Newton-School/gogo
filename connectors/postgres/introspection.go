@@ -40,11 +40,11 @@ func (Introspector) InspectCatalog(ctx context.Context, backend db.Backend, opti
 	}
 	defer tx.Rollback()
 	var namespace string
-	if err := db.QueryRow(ctx, tx, "SELECT CASE WHEN $1::pg_catalog.text OPERATOR(pg_catalog.=) '' THEN pg_catalog.current_schema() ELSE $1 END", []any{options.Schema}, &namespace); err != nil {
+	if err := catalogRow(ctx, tx, "SELECT CASE WHEN $1::pg_catalog.text OPERATOR(pg_catalog.=) '' THEN pg_catalog.current_schema() ELSE $1 END", []any{options.Schema}, &namespace); err != nil {
 		return db.Catalog{}, err
 	}
 	var exists bool
-	if err := db.QueryRow(ctx, tx, "SELECT EXISTS(SELECT 1 FROM pg_catalog.pg_namespace WHERE nspname OPERATOR(pg_catalog.=) $1)", []any{namespace}, &exists); err != nil {
+	if err := catalogRow(ctx, tx, "SELECT EXISTS(SELECT 1 FROM pg_catalog.pg_namespace WHERE nspname OPERATOR(pg_catalog.=) $1)", []any{namespace}, &exists); err != nil {
 		return db.Catalog{}, err
 	}
 	if !exists {
@@ -103,6 +103,30 @@ WHERE n.nspname OPERATOR(pg_catalog.=) $1 AND (c.relkind::pg_catalog.text  OPERA
 		return db.Catalog{}, err
 	}
 	return catalog, nil
+}
+
+// Unlike a convenience scalar query, inspection must account for close errors
+// too: even its namespace and existence reads are part of the complete snapshot.
+func catalogRow(ctx context.Context, executor db.Executor, query string, args []any, dest ...any) error {
+	rows, err := executor.Query(ctx, query, args...)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	if !rows.Next() {
+		err = errors.Join(rows.Err(), rows.Close())
+		if err == nil {
+			err = db.ErrNoRows
+		}
+		return err
+	}
+	if err := rows.Scan(dest...); err != nil {
+		return errors.Join(err, rows.Close())
+	}
+	if rows.Next() {
+		return errors.Join(errors.New("postgres: unexpected scalar catalog row count"), rows.Close())
+	}
+	return errors.Join(rows.Err(), rows.Close())
 }
 
 func catalogList[T any](raw string) ([]T, error) {

@@ -18,6 +18,7 @@ type catalogReadBackend struct {
 	t                                   *testing.T
 	begins, queries, commits, rollbacks int
 	failQuery                           int
+	failCloseQuery                      int
 	beforeQuery                         func(int)
 }
 
@@ -53,7 +54,17 @@ func (tx *catalogReadTx) Query(ctx context.Context, query string, args ...any) (
 	if tx.backend.queries == tx.backend.failQuery {
 		return nil, errors.New("catalog read failed")
 	}
-	return tx.Transaction.Query(ctx, query, args...)
+	rows, err := tx.Transaction.Query(ctx, query, args...)
+	if err == nil && tx.backend.queries == tx.backend.failCloseQuery {
+		rows = catalogCloseRows{Rows: rows}
+	}
+	return rows, err
+}
+
+type catalogCloseRows struct{ db.Rows }
+
+func (rows catalogCloseRows) Close() error {
+	return errors.Join(rows.Rows.Close(), errors.New("catalog close failed"))
 }
 func (tx *catalogReadTx) Commit() error   { tx.backend.commits++; return tx.Transaction.Commit() }
 func (tx *catalogReadTx) Rollback() error { tx.backend.rollbacks++; return tx.Transaction.Rollback() }
@@ -365,5 +376,16 @@ func TestPostgresCatalogLateCommitCancellationReturnsNoResult(t *testing.T) {
 	catalog, err := (postgres.Introspector{}).InspectCatalog(ctx, guard, db.CatalogOptions{})
 	if !errors.Is(err, context.Canceled) || catalog.Schema != "" || catalog.Relations != nil {
 		t.Fatalf("read success escaped cancellation: %+v %v", catalog, err)
+	}
+}
+
+func TestPostgresCatalogScalarCloseFailureReturnsNoResult(t *testing.T) {
+	backend := openTest(t)
+	for _, query := range []int{1, 2} {
+		guard := &catalogReadBackend{Backend: backend, t: t, failCloseQuery: query}
+		catalog, err := (postgres.Introspector{}).InspectCatalog(context.Background(), guard, db.CatalogOptions{})
+		if err == nil || catalog.Schema != "" || catalog.Relations != nil || guard.commits != 0 || guard.rollbacks != 1 {
+			t.Fatalf("query %d close failure escaped: %+v %v", query, catalog, err)
+		}
 	}
 }
