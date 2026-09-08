@@ -36,6 +36,7 @@ type Application struct {
 
 	mu               sync.Mutex
 	state            lifecycleState
+	started          bool
 	ready            bool
 	admissionStopped bool
 	startDone        chan struct{}
@@ -85,7 +86,7 @@ func (a *Application) Start(ctx context.Context, resources []Resource) error {
 		err = ErrClosed
 	}
 	if err == nil {
-		a.state, a.ready = running, !a.admissionStopped
+		a.state, a.started, a.ready = running, true, !a.admissionStopped
 	}
 	a.startErr = err
 	close(a.startDone)
