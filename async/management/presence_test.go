@@ -14,6 +14,7 @@ import (
 )
 
 func TestManagementInspectsWorkerPresenceAndMissingTargets(t *testing.T) {
+	isolateCommandEnvironment(t)
 	ctx := context.Background()
 	backend := fakes.NewMemory()
 	token, _ := async.NewID()

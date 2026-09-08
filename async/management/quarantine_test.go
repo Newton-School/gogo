@@ -15,6 +15,7 @@ import (
 )
 
 func TestQuarantineCommandListsOnlyAuthorizedRedactedPage(t *testing.T) {
+	isolateCommandEnvironment(t)
 	ctx := context.Background()
 	registry := async.NewRegistry()
 	task, err := async.Register(registry, "test.quarantine_cli", 1, func(_ context.Context, _ async.TaskContext, v string) (string, error) { return v, nil }, async.TaskOptions{})

@@ -16,6 +16,7 @@ import (
 )
 
 func TestQuarantineRemovalCommandRequiresCompleteIdentityAndDistinctGrant(t *testing.T) {
+	isolateCommandEnvironment(t)
 	ctx := context.Background()
 	registry := async.NewRegistry()
 	task, err := async.Register(registry, "test.remove_cli", 1, func(_ context.Context, _ async.TaskContext, value string) (string, error) { return value, nil }, async.TaskOptions{})

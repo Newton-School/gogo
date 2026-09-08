@@ -17,6 +17,7 @@ import (
 )
 
 func TestManagementWorkerTaskStatusAndScopedRevoke(t *testing.T) {
+	isolateCommandEnvironment(t)
 	ctx := context.Background()
 	registry := async.NewRegistry()
 	task, err := async.Register(registry, "test.management", 1, func(_ context.Context, _ async.TaskContext, n int) (int, error) { return n + 1, nil }, async.TaskOptions{})
@@ -72,6 +73,7 @@ func TestManagementWorkerTaskStatusAndScopedRevoke(t *testing.T) {
 }
 
 func TestManagementInvalidArgumentsBeforeAnyResourceOrFactory(t *testing.T) {
+	isolateCommandEnvironment(t)
 	opened, created := false, false
 	project := core.Project{Root: t.TempDir(), ResourceFactory: func(conf.Values, []string) ([]app.Resource, error) { opened = true; return nil, nil }, Commands: commands.Commands(commands.Factories{
 		Worker: func(context.Context, *core.Invocation) (commands.WorkerRuntime, error) {
@@ -91,6 +93,7 @@ func TestManagementInvalidArgumentsBeforeAnyResourceOrFactory(t *testing.T) {
 }
 
 func TestManagementChildUsesSameDeclaredRegistry(t *testing.T) {
+	isolateCommandEnvironment(t)
 	registry := async.NewRegistry()
 	_, err := async.Register(registry, "test.child", 1, func(_ context.Context, _ async.TaskContext, n int) (int, error) { return n + 1, nil }, async.TaskOptions{})
 	if err != nil {
@@ -114,6 +117,7 @@ func TestManagementChildUsesSameDeclaredRegistry(t *testing.T) {
 }
 
 func TestRevokeCommandRequiresReadGrantBeforeMutation(t *testing.T) {
+	isolateCommandEnvironment(t)
 	ctx := context.Background()
 	registry := async.NewRegistry()
 	task, err := async.Register(registry, "test.revoke_only", 1, func(_ context.Context, _ async.TaskContext, n int) (int, error) { return n, nil }, async.TaskOptions{})
