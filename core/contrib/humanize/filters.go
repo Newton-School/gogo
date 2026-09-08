@@ -53,7 +53,7 @@ func (f *Formatter) Filters() map[string]templates.Filter {
 				}
 			}
 			if value == nil {
-				return "", nil
+				return displayResult(ctx, "")
 			}
 			at, ok := templates.TimeValue(ctx, value)
 			if !ok {
