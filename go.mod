@@ -3,6 +3,7 @@ module github.com/Newton-School/gogo
 go 1.26.8
 
 require (
+	github.com/coder/websocket v1.8.15
 	golang.org/x/crypto v0.56.0
 	golang.org/x/text v0.41.0
 )
