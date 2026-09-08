@@ -376,6 +376,7 @@ func (s *Resource) representAction(request resourceRequest, record models.Record
 
 func (s *Resource) readHandler(read func(*http.Request) (any, error)) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w = resourceReadWriter{ResponseWriter: w}
 		w.Header().Set("Cache-Control", "private, no-store")
 		w.Header().Add("Vary", "Accept, Authorization, Cookie")
 		w.Header().Set("X-Content-Type-Options", "nosniff")
@@ -393,7 +394,9 @@ func (s *Resource) readHandler(read func(*http.Request) (any, error)) http.Handl
 		}
 		// A failed network write may already have emitted bytes. Never append
 		// a second JSON document/error to a partial response.
-		_ = response.Write(w, r)
+		if err := response.Write(w, r); err != nil {
+			panic(http.ErrAbortHandler)
+		}
 	})
 }
 
