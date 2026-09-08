@@ -69,6 +69,10 @@ func (q Query[T]) Annotate(expressions map[string]ResultExpression) Query[T] {
 			q.err = err
 			return q
 		}
+		if err := sqlcompiler.CheckSubqueryOutput(expression, output); err != nil {
+			q.err = err
+			return q
+		}
 		if len(q.selectAST.GroupBy) == 0 && !q.modelGrouping {
 			if err := sqlcompiler.ValidateProjectionExpression(expression); err != nil {
 				q.err = err

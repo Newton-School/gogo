@@ -11,14 +11,19 @@ import (
 )
 
 type Compiler struct {
-	Dialect        db.Dialect
-	Schema         models.Schema
-	Args           []any
-	Alias          string
-	Joins          map[string]db.Join
-	Aliases        map[string]db.Projection
-	depth, nodes   int
-	windowFunction int
+	Dialect             db.Dialect
+	Schema              models.Schema
+	Args                []any
+	Alias               string
+	Joins               map[string]db.Join
+	Aliases             map[string]db.Projection
+	depth, nodes        int
+	windowFunction      int
+	readExpressions     bool
+	outer               *outerQuery
+	subquerySerial      int
+	subqueryOccurrences int
+	usedAliases         map[string]bool
 }
 
 func (c *Compiler) enter() error {
@@ -53,6 +58,17 @@ func (c *Compiler) Predicate(p db.Predicate) (string, error) {
 	// Standalone predicate compilation is also used by deletion commands.
 	// Keep windows out of those paths without relying on SELECT validation.
 	if c.depth == 0 {
+		if !c.readExpressions {
+			query := db.Select{Where: p}
+			if err := inspectQueryExpressions(query, func(e *db.Expression, _, _ bool) error {
+				if IsSubqueryExpression(*e) {
+					return unsupportedSubquery("Query expressions require a read SELECT owner")
+				}
+				return nil
+			}); err != nil {
+				return "", err
+			}
+		}
 		if err := (&windowTree{compiler: c}).predicate(p, false, 0); err != nil {
 			return "", err
 		}
@@ -253,6 +269,9 @@ func (c *Compiler) Expression(e db.Expression) (string, error) {
 		return "", err
 	}
 	defer func() { c.depth-- }()
+	if e.Subquery != nil && e.Kind != "subquery" && e.Kind != "exists" {
+		return "", unsupportedSubquery("Subquery metadata requires a resolved query expression")
+	}
 	if e.Window != nil && e.Kind != "window" {
 		return "", errors.New("orm: OVER metadata requires a window expression")
 	}
@@ -260,6 +279,12 @@ func (c *Compiler) Expression(e db.Expression) (string, error) {
 		return "", &db.Error{Code: db.UnsupportedFeature, Message: "FILTER requires an aggregate expression"}
 	}
 	switch e.Kind {
+	case "subquery", "exists":
+		return c.subquery(e)
+	case "outer_ref":
+		return c.outerReference(e)
+	case "orm_subquery":
+		return "", unsupportedSubquery("ORM subquery requires terminal scope preparation")
 	case "invalid_tree":
 		return "", errors.New("orm: expression tree exceeds the depth or work limit")
 	case "case":
@@ -353,6 +378,26 @@ func init() {
 }
 func Select(dialect db.Dialect, schema models.Schema, query db.Select) (string, []any, error) {
 	c := &Compiler{Dialect: dialect, Schema: schema, Alias: query.Alias, Joins: map[string]db.Join{}, Aliases: map[string]db.Projection{}}
+	hasSubquery, err := c.validateSubqueries(&query)
+	if err != nil {
+		return "", nil, err
+	}
+	c.usedAliases = map[string]bool{query.Alias: true}
+	for _, join := range query.Joins {
+		c.usedAliases[join.Alias] = true
+		if join.Through != nil {
+			c.usedAliases[join.Through.Alias] = true
+		}
+	}
+	if hasSubquery && query.Alias == "" {
+		query.Alias = "gogo_outer"
+		for c.usedAliases[query.Alias] {
+			query.Alias += "_q"
+		}
+		c.Alias = query.Alias
+		c.usedAliases[query.Alias] = true
+	}
+	c.readExpressions = true
 	if len(query.Aliases) > 128 {
 		return "", nil, errors.New("orm: at most 128 row aliases are supported")
 	}

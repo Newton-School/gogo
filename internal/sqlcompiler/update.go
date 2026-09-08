@@ -46,7 +46,7 @@ func Update(dialect db.Dialect, schema models.Schema, where db.Predicate, assign
 		}
 		parts = append(parts, column+" = "+value)
 	}
-	if err := validateUpdatePredicate(where, 0); err != nil {
+	if err := validateUpdatePredicate(where, 0, false); err != nil {
 		return "", nil, err
 	}
 	filter, err := c.Predicate(where)
@@ -63,24 +63,40 @@ func Update(dialect db.Dialect, schema models.Schema, where db.Predicate, assign
 // ValidateUpdateExpression rejects aggregate/window operations before a write.
 // Conditional predicates and membership candidates are part of that tree too.
 func ValidateUpdateExpression(expression db.Expression) error {
-	return validateUpdateExpression(expression, 0, false)
+	query := db.Select{Projections: []db.Projection{{Expression: expression}}}
+	if err := inspectQueryExpressions(query, func(e *db.Expression, _, _ bool) error {
+		if IsSubqueryExpression(*e) {
+			return unsupportedSubquery("Subqueries are not supported in mutations")
+		}
+		return nil
+	}); err != nil {
+		return err
+	}
+	return validateUpdateExpression(expression, 0, false, false)
 }
 
 // ValidateRowExpression limits a per-row projection to scalar expressions.
 // Aggregate and window expressions need a different grouping/execution owner.
 func ValidateRowExpression(expression db.Expression) error {
-	return validateUpdateExpression(expression, 0, false)
+	return validateUpdateExpression(expression, 0, false, false)
 }
 
 // ValidateProjectionExpression additionally admits explicit window expressions
 // in a SELECT output. Predicate and mutation owners keep the row-only validator.
 func ValidateProjectionExpression(expression db.Expression) error {
-	return validateUpdateExpression(expression, 0, true)
+	return validateUpdateExpression(expression, 0, true, true)
 }
 
-func validateUpdateExpression(expression db.Expression, depth int, windows bool) error {
+func validateUpdateExpression(expression db.Expression, depth int, windows, subqueries bool) error {
 	if depth > 64 {
 		return errors.New("orm: row expression exceeds nesting limit")
+	}
+	if IsSubqueryExpression(expression) {
+		if !subqueries || expression.Kind == "outer_ref" {
+			return unsupportedSubquery("Query expressions are not supported by this expression owner")
+		}
+		// Complete SELECT validation owns the inner scope and shared tree bound.
+		return nil
 	}
 	if expression.Kind == "window" {
 		if !windows {
@@ -109,32 +125,32 @@ func validateUpdateExpression(expression db.Expression, depth int, windows bool)
 		}
 	}
 	for _, arg := range expression.Args {
-		if err := validateUpdateExpression(arg, depth+1, windows); err != nil {
+		if err := validateUpdateExpression(arg, depth+1, windows, subqueries); err != nil {
 			return err
 		}
 	}
 	for _, branch := range expression.Branches {
-		if err := validateUpdatePredicate(branch.Condition, depth+1); err != nil {
+		if err := validateUpdatePredicate(branch.Condition, depth+1, subqueries); err != nil {
 			return err
 		}
-		if err := validateUpdateExpression(branch.Then, depth+1, windows); err != nil {
+		if err := validateUpdateExpression(branch.Then, depth+1, windows, subqueries); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func validateUpdatePredicate(predicate db.Predicate, depth int) error {
+func validateUpdatePredicate(predicate db.Predicate, depth int, subqueries bool) error {
 	if depth > 64 {
 		return errors.New("orm: row predicate exceeds nesting limit")
 	}
 	if predicate.Expression != nil {
-		if err := validateUpdateExpression(*predicate.Expression, depth+1, false); err != nil {
+		if err := validateUpdateExpression(*predicate.Expression, depth+1, false, subqueries); err != nil {
 			return err
 		}
 	}
 	if expression, ok := predicate.Value.(db.Expression); ok {
-		if err := validateUpdateExpression(expression, depth+1, false); err != nil {
+		if err := validateUpdateExpression(expression, depth+1, false, subqueries); err != nil {
 			return err
 		}
 	} else if predicate.Lookup == "in" || predicate.Lookup == "range" {
@@ -142,7 +158,7 @@ func validateUpdatePredicate(predicate db.Predicate, depth int) error {
 		if value.IsValid() && (value.Kind() == reflect.Slice || value.Kind() == reflect.Array) {
 			for i := 0; i < value.Len(); i++ {
 				if expression, ok := value.Index(i).Interface().(db.Expression); ok {
-					if err := validateUpdateExpression(expression, depth+1, false); err != nil {
+					if err := validateUpdateExpression(expression, depth+1, false, subqueries); err != nil {
 						return err
 					}
 				}
@@ -150,7 +166,7 @@ func validateUpdatePredicate(predicate db.Predicate, depth int) error {
 		}
 	}
 	for _, child := range predicate.Children {
-		if err := validateUpdatePredicate(child, depth+1); err != nil {
+		if err := validateUpdatePredicate(child, depth+1, subqueries); err != nil {
 			return err
 		}
 	}

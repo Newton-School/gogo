@@ -81,6 +81,9 @@ func (q Query[T]) updateSQL(ctx context.Context, values map[string]any) (string,
 			}
 			value = cloneExpression(expression)
 		} else {
+			if err := sqlcompiler.ValidateUpdateExpression(Value(value)); err != nil {
+				return "", nil, err
+			}
 			value = cloneQueryValue(value)
 		}
 		names = append(names, name)

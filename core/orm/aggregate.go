@@ -133,6 +133,9 @@ func (q Query[T]) Aggregate(ctx context.Context, expressions map[string]ResultEx
 }
 
 func validateAggregateExpression(expression db.Expression, inside bool, depth int) (bool, error) {
+	if sqlcompiler.IsSubqueryExpression(expression) {
+		return false, unsupportedQueryExpression("Subqueries are not supported in terminal aggregate expressions")
+	}
 	if depth > 64 {
 		return false, errors.New("orm: aggregate expression exceeds depth bound")
 	}

@@ -99,6 +99,12 @@ func cloneExpressionAt(value db.Expression, state *cloneTree, depth int) db.Expr
 		}
 		value.Window = &window
 	}
+	if value.Subquery != nil {
+		inner := *value.Subquery
+		inner.Schema = inner.Schema.Clone()
+		inner.Query = cloneSubquerySelect(inner.Query, state, depth+1)
+		value.Subquery = &inner
+	}
 	value.Args = append([]db.Expression(nil), value.Args...)
 	for i := range value.Args {
 		value.Args[i] = cloneExpressionAt(value.Args[i], state, depth+1)

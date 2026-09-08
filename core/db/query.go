@@ -21,6 +21,9 @@ type Expression struct {
 	// Window is the data-only OVER clause when Kind is "window". Args then
 	// contains exactly one window-capable function. Nil means an empty OVER().
 	Window *WindowSpec
+	// Subquery is a resolved scalar SELECT or EXISTS expression. Its predicate
+	// already includes the independently supplied inner resource scope.
+	Subquery *Subquery
 }
 type WhenBranch struct {
 	Condition Predicate

@@ -196,6 +196,7 @@ func (q Query[T]) SQL() (string, []any, error) {
 
 // SQLContext resolves request-scoped predicates without executing a query.
 func (q Query[T]) SQLContext(ctx context.Context) (string, []any, error) {
+	q = q.snapshotReadSubqueries()
 	if err := ctx.Err(); err != nil {
 		return "", nil, err
 	}
@@ -218,16 +219,27 @@ func (q Query[T]) SQLContext(ctx context.Context) (string, []any, error) {
 	if err != nil {
 		return "", nil, err
 	}
+	q, err = q.prepareSubqueries(ctx)
+	if err != nil {
+		return "", nil, err
+	}
 	if len(q.selectAST.GroupBy) > 0 && !q.modelGrouping {
 		q.selectAST.Fields = append([]string(nil), q.selectAST.GroupBy...)
 	}
 	statement, args, err := sqlcompiler.Select(q.store.Backend.Dialect(), q.schema, q.selectAST)
+	if err == nil {
+		err = q.subqueryParameterLimit(args)
+	}
 	if canceled := ctx.Err(); canceled != nil {
 		return "", nil, canceled
+	}
+	if err != nil {
+		return "", nil, err
 	}
 	return statement, args, err
 }
 func (q Query[T]) Iterator(ctx context.Context) (*Iterator[T], error) {
+	q = q.snapshotReadSubqueries()
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -258,7 +270,14 @@ func (q Query[T]) Iterator(ctx context.Context) (*Iterator[T], error) {
 	if err != nil {
 		return nil, err
 	}
+	q, err = q.prepareSubqueries(ctx)
+	if err != nil {
+		return nil, err
+	}
 	statement, args, err := sqlcompiler.Select(q.store.Backend.Dialect(), q.schema, q.selectAST)
+	if err == nil {
+		err = q.subqueryParameterLimit(args)
+	}
 	if canceled := ctx.Err(); canceled != nil {
 		return nil, canceled
 	}
@@ -476,6 +495,7 @@ func (i *Iterator[T]) Close() error {
 // All returns the successfully decoded prefix together with any terminal
 // error. Callers must check err before treating that prefix as a query result.
 func (q Query[T]) All(ctx context.Context) ([]T, error) {
+	q = q.snapshotReadSubqueries()
 	if len(q.prefetches) > 0 {
 		return q.allPrefetched(ctx)
 	}
@@ -526,6 +546,7 @@ func (q Query[T]) Last(ctx context.Context) (T, error) {
 	return q.Reverse().First(ctx)
 }
 func (q Query[T]) Count(ctx context.Context) (int64, error) {
+	q = q.snapshotReadSubqueries()
 	if q.err != nil {
 		return 0, q.err
 	}
@@ -550,6 +571,7 @@ func (q Query[T]) Exists(ctx context.Context) (bool, error) {
 	return err == nil, err
 }
 func (q Query[T]) Values(ctx context.Context, fields ...string) ([]map[string]any, error) {
+	q = q.snapshotReadSubqueries()
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -586,6 +608,10 @@ func (q Query[T]) Values(ctx context.Context, fields ...string) ([]map[string]an
 	if err != nil {
 		return nil, err
 	}
+	q, err = q.prepareSubqueries(ctx)
+	if err != nil {
+		return nil, err
+	}
 	aliases := map[string]db.Projection{}
 	for _, alias := range q.selectAST.Aliases {
 		aliases[alias.Alias] = alias
@@ -606,6 +632,9 @@ func (q Query[T]) Values(ctx context.Context, fields ...string) ([]map[string]an
 		}
 	}
 	statement, args, err := sqlcompiler.Select(q.store.Backend.Dialect(), q.schema, q.selectAST)
+	if err == nil {
+		err = q.subqueryParameterLimit(args)
+	}
 	if canceled := ctx.Err(); canceled != nil {
 		return nil, canceled
 	}

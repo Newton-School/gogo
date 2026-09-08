@@ -84,6 +84,7 @@ func Open(ctx context.Context, config Config) (*Backend, error) {
 	// PostgreSQL's UPDATE command count includes matched rows whose values did
 	// not change. Query.Update must not silently promise this for every driver.
 	backend.capabilities["update_matched_rows"] = true
+	backend.capabilities["correlated_subqueries"] = true
 	probe, cancel := context.WithTimeout(ctx, config.ConnectTimeout)
 	defer cancel()
 	if err := backend.Ping(probe); err != nil {
