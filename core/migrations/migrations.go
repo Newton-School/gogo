@@ -207,6 +207,9 @@ func (e *Executor) Plan(target string) ([]Migration, error) {
 	return order, nil
 }
 func (e *Executor) History(ctx context.Context) ([]Applied, error) {
+	if err := db.CheckBoundBackend(e.Backend); err != nil {
+		return nil, err
+	}
 	if e.Backend == nil {
 		return nil, errors.New("migrations: backend is required")
 	}
@@ -246,6 +249,9 @@ func (e *Executor) initialize(ctx context.Context) error {
 	return err
 }
 func (e *Executor) Apply(ctx context.Context, target string) (err error) {
+	if err := db.CheckBoundBackend(e.Backend); err != nil {
+		return err
+	}
 	if e.Backend == nil || e.Editor == nil {
 		return errors.New("migrations: backend and schema editor are required")
 	}

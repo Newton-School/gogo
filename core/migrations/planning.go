@@ -30,6 +30,9 @@ func (r *recordingExecutor) Query(context.Context, string, ...any) (db.Rows, err
 
 // SQL previews a single migration; data callbacks are described, never invoked.
 func (e *Executor) SQL(ctx context.Context, key string, reverse bool) ([]Statement, error) {
+	if err := db.CheckBoundBackend(e.Backend); err != nil {
+		return nil, err
+	}
 	var migration *Migration
 	for i := range e.Migrations {
 		if e.Migrations[i].Key() == key {
@@ -298,6 +301,9 @@ func fieldEquivalent(a, b models.Field) bool {
 // Reverse keeps target and its dependencies, undoing later migrations in the
 // same app and applied downstream dependents. Use app.zero for no app migrations.
 func (e *Executor) Reverse(ctx context.Context, target string) (err error) {
+	if err := db.CheckBoundBackend(e.Backend); err != nil {
+		return err
+	}
 	app, _, ok := strings.Cut(target, ".")
 	if !ok {
 		return errors.New("migrations: reverse target must be app.name or app.zero")
