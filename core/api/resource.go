@@ -162,6 +162,9 @@ func (s *Resource) requestAction(r *http.Request, action string) (resourceReques
 	if err != nil {
 		return resourceRequest{}, err
 	}
+	// Capture built-in predicate data before any later context/provider hook.
+	// A reused scope buffer must not retarget this request's count or page.
+	root = orm.SnapshotPredicate(root)
 	if err := ctx.Err(); err != nil {
 		return resourceRequest{}, err
 	}
@@ -177,6 +180,7 @@ func (s *Resource) requestAction(r *http.Request, action string) (resourceReques
 		if err != nil {
 			return db.Predicate{}, err
 		}
+		predicate = orm.SnapshotPredicate(predicate)
 		scopes[schema.Key()] = predicate
 		return predicate, nil
 	}

@@ -86,13 +86,13 @@ func (q Query[T]) prepareAggregateRelations(ctx context.Context) (Query[T], erro
 				join.Through = &db.JoinThrough{Schema: through.schema, Alias: fmt.Sprintf("gogo_bridge_%d", len(q.selectAST.Joins)+1), SourceField: through.source.Name, TargetField: through.target.Name}
 				if q.scope != nil && !through.automatic {
 					join.Through.Where, err = q.scope(ctx, through.schema)
+					join.Through.Where = clonePredicate(join.Through.Where)
 					if canceled := ctx.Err(); canceled != nil {
 						return q, canceled
 					}
 					if err != nil {
 						return q, err
 					}
-					join.Through.Where = clonePredicate(join.Through.Where)
 				}
 			} else if binding.reverse {
 				key, err := relationTargetField(source, binding.field)
@@ -109,6 +109,7 @@ func (q Query[T]) prepareAggregateRelations(ctx context.Context) (Query[T], erro
 			}
 			if q.scope != nil {
 				join.Where, err = q.scope(ctx, binding.target)
+				join.Where = clonePredicate(join.Where)
 				if canceled := ctx.Err(); canceled != nil {
 					return q, canceled
 				}
@@ -116,7 +117,6 @@ func (q Query[T]) prepareAggregateRelations(ctx context.Context) (Query[T], erro
 					return q, err
 				}
 			}
-			join.Where = clonePredicate(join.Where)
 			q.selectAST.Alias = "gogo_root"
 			q.selectAST.Joins = append(q.selectAST.Joins, join)
 			resolved[path] = binding.target

@@ -66,6 +66,7 @@ func (q Query[T]) prepareRelated(ctx context.Context) (Query[T], error) {
 	}
 	if q.scope != nil {
 		where, err := q.scope(ctx, q.schema)
+		where = clonePredicate(where)
 		if err != nil {
 			return q, err
 		}
@@ -159,6 +160,7 @@ func (q Query[T]) prepareRelated(ctx context.Context) (Query[T], error) {
 			}
 			if q.scope != nil {
 				join.Where, err = q.scope(ctx, binding.target)
+				join.Where = clonePredicate(join.Where)
 				if err != nil {
 					return q, err
 				}
