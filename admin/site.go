@@ -67,6 +67,9 @@ type ModelAdmin struct {
 	SensitiveFields             []string
 	FormOverrides               map[string]forms.Field
 	ConstraintChecker           models.ConstraintChecker
+	// SaveOnTop repeats the existing authorized save controls above the form.
+	// The default retains only the bottom row; submission semantics are unchanged.
+	SaveOnTop bool
 	// Authorize may impose additional model/object restrictions. It runs only
 	// after the site's global policy permits the request and cannot widen it.
 	Authorize         func(context.Context, auth.Principal, string, Object) error

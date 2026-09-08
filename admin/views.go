@@ -867,7 +867,7 @@ func (s *Site) form(w http.ResponseWriter, r *http.Request, p auth.Principal, op
 	if invalidForm {
 		status = 400
 	}
-	s.render(w, r, p, "form.html", templates.Context{"title": title, "form": formHTML, "inlines": inlineHTML, "readonly": readonlyValues, "edit_token": token, "relation_token": relationToken, "account_grants_token": grantToken, "can_change": canChange, "can_add": s.allowed(r.Context(), p, "add", options, Object{}) == nil, "can_delete": id != "" && s.allowed(r.Context(), p, "delete", options, object) == nil, "delete_url": s.modelURL(options) + url.PathEscape(id) + "/delete/", "history_url": s.modelURL(options) + url.PathEscape(id) + "/history/", "has_object": id != "", "can_manage_password": options.userForms && id != "" && canChange, "user_password_url": s.modelURL(options) + url.PathEscape(id) + "/password/"}, status)
+	s.render(w, r, p, "form.html", templates.Context{"title": title, "form": formHTML, "inlines": inlineHTML, "readonly": readonlyValues, "edit_token": token, "relation_token": relationToken, "account_grants_token": grantToken, "save_on_top": options.SaveOnTop, "can_change": canChange, "can_add": s.allowed(r.Context(), p, "add", options, Object{}) == nil, "can_delete": id != "" && s.allowed(r.Context(), p, "delete", options, object) == nil, "delete_url": s.modelURL(options) + url.PathEscape(id) + "/delete/", "history_url": s.modelURL(options) + url.PathEscape(id) + "/history/", "has_object": id != "", "can_manage_password": options.userForms && id != "" && canChange, "user_password_url": s.modelURL(options) + url.PathEscape(id) + "/password/"}, status)
 }
 
 var errInvalidForm = errors.New("invalid form")
