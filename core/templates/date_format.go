@@ -8,11 +8,42 @@ import (
 	"strings"
 	"time"
 	"unicode/utf8"
+
+	"github.com/Newton-School/gogo/core/i18n"
 )
 
 var errDateInTime = errors.New("templates: date token in time-only format")
 
 const maxTemporalOutput = 256 << 10
+
+type temporalMode uint8
+
+const (
+	temporalDateTime temporalMode = iota
+	temporalTimeOnly
+	temporalCalendarOnly
+)
+
+// FormatCalendarDate formats only at's selected year, month and day, without
+// converting them to another timezone or retaining the original clock time.
+// It returns bounded plain text, never trusted HTML. The c token is date-only;
+// I is empty and time-of-day tokens are invalid. Only r and U need an instant:
+// they resolve midnight in the context locale (UTC when absent), returning
+// i18n's stable errors for ambiguous, nonexistent or unsupported midnight.
+// Named formats, escaping and output bounds are shared with the date filter.
+func FormatCalendarDate(ctx context.Context, at time.Time, format string) (string, error) {
+	if ctx == nil {
+		return "", ErrRender
+	}
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
+	out, err := formatTemporalMode(ctx, at, format, temporalCalendarOnly)
+	if ctx.Err() != nil {
+		return "", ctx.Err()
+	}
+	return out, err
+}
 
 func dateFilter(timeOnly bool) Filter {
 	return func(ctx context.Context, value, argument any) (any, error) {
@@ -39,8 +70,20 @@ func dateFilter(timeOnly bool) Filter {
 // templateTime is the sole owner of automatic/explicit conversion before this
 // formatter runs. English names/defaults are deterministic, never process-local.
 func formatTemporal(at time.Time, format string, timeOnly bool) (string, error) {
+	mode := temporalDateTime
+	if timeOnly {
+		mode = temporalTimeOnly
+	}
+	return formatTemporalMode(nil, at, format, mode)
+}
+
+func formatTemporalMode(ctx context.Context, at time.Time, format string, mode temporalMode) (string, error) {
 	if len(format) > 4096 || !utf8.ValidString(format) || strings.ContainsRune(format, 0) || at.Year() < 1 || at.Year() > 9999 {
 		return "", ErrRender
+	}
+	if mode == temporalCalendarOnly {
+		// These are calendar fields, not a conversion of the source instant.
+		at = time.Date(at.Year(), at.Month(), at.Day(), 0, 0, 0, 0, time.UTC)
 	}
 	_, offset := at.Zone()
 	if offset <= -86400 || offset >= 86400 {
@@ -48,6 +91,8 @@ func formatTemporal(at time.Time, format string, timeOnly bool) (string, error) 
 	}
 	format = temporalFormatName(format)
 	var result strings.Builder
+	var midnight time.Time
+	midnightResolved := false
 	// Recognize only characters not immediately preceded by a backslash,
 	// then unescape literal runs once. This intentionally preserves Django's
 	// multiple-backslash semantics instead of treating pairs as Go escapes.
@@ -56,10 +101,34 @@ func formatTemporal(at time.Time, format string, timeOnly bool) (string, error) 
 	for index, token := range format {
 		if previous != '\\' && strings.ContainsRune("aAbcdDeEfFgGhHiIjlLmMnNoOPrsStTuUwWyYzZ", token) {
 			result.WriteString(unescapeDateLiteral(format[literalStart:index]))
-			if timeOnly && strings.ContainsRune("bcdDEFIjlLmMnNortSUwWyYz", token) {
+			if mode == temporalTimeOnly && strings.ContainsRune("bcdDEFIjlLmMnNortSUwWyYz", token) {
 				return "", errDateInTime
 			}
-			expanded := temporalToken(at, token)
+			expanded := ""
+			if mode == temporalCalendarOnly {
+				switch {
+				case strings.ContainsRune("aAefgGhHiOPsTuZ", token):
+					return "", ErrRender
+				case token == 'c':
+					expanded = at.Format("2006-01-02")
+				case token == 'I':
+					// A date alone has no daylight-saving state.
+				case token == 'r' || token == 'U':
+					if !midnightResolved {
+						locale, _ := i18n.FromContext(ctx)
+						instant, err := locale.ResolveLocal(ctx, i18n.LocalDateTime{Year: at.Year(), Month: at.Month(), Day: at.Day()})
+						if err != nil {
+							return "", err
+						}
+						midnight, midnightResolved = locale.LocalTime(instant), true
+					}
+					expanded = temporalToken(midnight, token)
+				default:
+					expanded = temporalToken(at, token)
+				}
+			} else {
+				expanded = temporalToken(at, token)
+			}
 			if len(expanded) > maxTemporalOutput-result.Len() {
 				return "", ErrRender
 			}
