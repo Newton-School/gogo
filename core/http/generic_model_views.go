@@ -111,49 +111,57 @@ func NewDetailView(options DetailViewOptions) (http.Handler, error) {
 	if err != nil {
 		return nil, err
 	}
-	identity := model.schema.PKFields()
 	return newReadView(model.readOptions(options.ReadViewOptions), func(call *readViewCall) (readViewResult, error) {
 		ctx := call.base.Context()
 		query, err := model.query(ctx)
 		if err != nil {
 			return readViewResult{}, err
 		}
-		raw, err := key(call.request())
-		if err != nil {
-			if err == ErrInvalidLookup {
-				return readViewResult{}, ErrNotFound
-			}
-			return readViewResult{}, ErrUnavailable
-		}
-		if len(raw) != len(identity) {
-			return readViewResult{}, ErrNotFound
-		}
-		// Decode and freeze every key value before any later context/provider
-		// callback. Only intrinsic scalar parsers run; never model validators.
-		for _, field := range identity {
-			value, err := decodeGenericLookupValue(field, raw[field.Name])
-			if err != nil {
-				return readViewResult{}, ErrNotFound
-			}
-			query = query.Filter(orm.Q(field.Name, value))
-		}
-		rows, err := model.readRows(ctx, query.OrderBy().Limit(2), 2)
-		if err != nil {
-			return readViewResult{}, err
-		}
-		if len(rows) == 0 {
-			return readViewResult{}, ErrNotFound
-		}
-		if len(rows) != 1 {
-			return readViewResult{}, ErrUnavailable
-		}
-		objects, finalize, err := model.projectRows(ctx, rows, true)
-		if err != nil {
-			return readViewResult{}, err
-		}
-		response, err := renderer.renderWith(call, templates.Context{"object": objects[0]})
-		return readViewResult{response: response, finalize: finalize}, err
+		return model.detailResponse(call, renderer, key, query)
 	})
+}
+
+// The caller supplies an already scoped query, optionally narrowed by a dated
+// detail boundary. Identity decoding, cardinality, projection and final grants
+// remain identical for both constructors.
+func (model *genericModel) detailResponse(call *readViewCall, renderer *genericTemplate, key func(*http.Request) (map[string]any, error), query orm.Query[*models.MapRecord]) (readViewResult, error) {
+	ctx := call.base.Context()
+	identity := model.schema.PKFields()
+	raw, err := key(call.request())
+	if err != nil {
+		if err == ErrInvalidLookup {
+			return readViewResult{}, ErrNotFound
+		}
+		return readViewResult{}, ErrUnavailable
+	}
+	if len(raw) != len(identity) {
+		return readViewResult{}, ErrNotFound
+	}
+	// Decode and freeze every key value before any later context/provider
+	// callback. Only intrinsic scalar parsers run; never model validators.
+	for _, field := range identity {
+		value, err := decodeGenericLookupValue(field, raw[field.Name])
+		if err != nil {
+			return readViewResult{}, ErrNotFound
+		}
+		query = query.Filter(orm.Q(field.Name, value))
+	}
+	rows, err := model.readRows(ctx, query.OrderBy().Limit(2), 2)
+	if err != nil {
+		return readViewResult{}, err
+	}
+	if len(rows) == 0 {
+		return readViewResult{}, ErrNotFound
+	}
+	if len(rows) != 1 {
+		return readViewResult{}, ErrUnavailable
+	}
+	objects, finalize, err := model.projectRows(ctx, rows, true)
+	if err != nil {
+		return readViewResult{}, err
+	}
+	response, err := renderer.renderWith(call, templates.Context{"object": objects[0]})
+	return readViewResult{response: response, finalize: finalize}, err
 }
 
 func genericPaginationValues(values url.Values, mode pagination.Mode) bool {
