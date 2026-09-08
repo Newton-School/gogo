@@ -69,27 +69,34 @@ func drainOwnedProcessGroup(pid int, timeout time.Duration, inspect func(int, ti
 		return ErrInvalid
 	}
 	deadline := time.Now().Add(timeout)
+	var permissionErr error
 	for {
 		if !time.Now().Before(deadline) {
-			return errProcessGroupCleanup
+			return errors.Join(errProcessGroupCleanup, permissionErr)
 		}
 		signalErr := signal(pid)
+		if signalErr == syscall.EPERM {
+			permissionErr = signalErr
+		}
 		exited, err := inspect(pid, deadline)
 		if !time.Now().Before(deadline) {
-			return errors.Join(errProcessGroupCleanup, signalErr, err)
+			return errors.Join(errProcessGroupCleanup, permissionErr, signalErr, err)
 		}
 		if err != nil {
-			return errors.Join(signalErr, err)
+			return errors.Join(permissionErr, signalErr, err)
 		}
 		if exited {
 			return nil
 		} // Darwin may return EPERM for only zombies.
-		if signalErr != nil && !errors.Is(signalErr, syscall.ESRCH) {
-			return signalErr
+		// Darwin can publish NOTE_EXIT before the zombie state is visible.
+		// Keep observing a permission-denied group within the original bound;
+		// EPERM alone never proves exit, and a persistent denial stays an error.
+		if signalErr != nil && signalErr != syscall.EPERM && !errors.Is(signalErr, syscall.ESRCH) {
+			return errors.Join(permissionErr, signalErr)
 		}
 		remaining := time.Until(deadline)
 		if remaining <= 0 {
-			return errProcessGroupCleanup
+			return errors.Join(errProcessGroupCleanup, permissionErr)
 		}
 		time.Sleep(min(time.Millisecond, remaining))
 	}
