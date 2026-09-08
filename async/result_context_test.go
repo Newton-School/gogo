@@ -162,3 +162,30 @@ func TestCoreDispatchResultDependencySafeContexts(t *testing.T) {
 		}
 	}
 }
+
+type resultClosedDoneContext struct {
+	context.Context
+	done <-chan struct{}
+}
+
+func (c resultClosedDoneContext) Done() <-chan struct{} { return c.done }
+
+func TestResultClosedDoneWithoutErrorNeverCompletesQueuedTask(t *testing.T) {
+	for _, method := range []string{"get", "wait"} {
+		t.Run(method, func(t *testing.T) {
+			result, store, record := resultBoundaryFixture(t, func(context.Context, string, string, string) error { return nil })
+			reads := 0
+			store.lookup = func(context.Context, string) (async.Record, error) { reads++; return record, nil }
+			done := make(chan struct{})
+			close(done)
+			ctx := resultClosedDoneContext{Context: context.Background(), done: done}
+			wait := result.Get
+			if method == "wait" {
+				wait = result.Wait
+			}
+			if value, err := wait(ctx); value != 0 || err != async.ErrUnavailable || reads != 1 {
+				t.Fatal("malformed context fabricated queued task success", value, err, reads)
+			}
+		})
+	}
+}

@@ -135,7 +135,12 @@ func (r *Result[O]) Get(ctx context.Context) (out O, err error) {
 		}
 		select {
 		case <-ctx.Done():
-			return out, groupContextError(ctx)
+			if err := groupContextError(ctx); err != nil {
+				return out, err
+			}
+			// A closed Done with no cancellation error violates Context's
+			// contract; it is not successful completion of a nonterminal task.
+			return out, ErrUnavailable
 		case <-timer.C:
 		}
 	}
