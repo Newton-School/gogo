@@ -6,6 +6,8 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"reflect"
+
 	"github.com/Newton-School/gogo/core/models"
 )
 
@@ -173,12 +175,24 @@ func IsCode(err error, code ErrorCode) bool {
 
 var ErrNoRows = sql.ErrNoRows
 
-func QueryRow(ctx context.Context, executor Executor, query string, args []any, dest ...any) error {
+// QueryRow scans only the first row and closes the remaining result stream.
+// A returned row is provisional until stream completion: providers can report
+// deferred statement/constraint failures from Close or its subsequent Err.
+// Destinations must only be used when the returned error is nil.
+func QueryRow(ctx context.Context, executor Executor, query string, args []any, dest ...any) (err error) {
 	rows, err := executor.Query(ctx, query, args...)
+	if !nilRows(rows) {
+		defer func() {
+			err = rowTerminalError(err, rows.Close())
+			err = rowTerminalError(err, rows.Err())
+		}()
+	}
 	if err != nil {
 		return err
 	}
-	defer rows.Close()
+	if nilRows(rows) {
+		return &Error{Code: Unavailable, Message: "Database query returned no result stream"}
+	}
 	if !rows.Next() {
 		if err := rows.Err(); err != nil {
 			return err
@@ -189,6 +203,30 @@ func QueryRow(ctx context.Context, executor Executor, query string, args []any, 
 		return err
 	}
 	return rows.Err()
+}
+
+func nilRows(rows Rows) bool {
+	if rows == nil {
+		return true
+	}
+	v := reflect.ValueOf(rows)
+	switch v.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
+		return v.IsNil()
+	}
+	return false
+}
+
+func rowTerminalError(primary, terminal error) error {
+	if terminal == nil {
+		return primary
+	}
+	// A provider failure is not proof that a row was absent. In particular,
+	// callers must not mistake a late failure for an ordinary upsert miss.
+	if primary == nil || primary == ErrNoRows {
+		return terminal
+	}
+	return errors.Join(primary, terminal)
 }
 func Quote(dialect Dialect, identifier string) (string, error) {
 	value, err := dialect.QuoteIdentifier(identifier)
