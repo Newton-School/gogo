@@ -51,6 +51,13 @@ type HeadersConfig struct {
 }
 
 func Headers(config HeadersConfig) (func(http.Handler) http.Handler, error) {
+	// A constructed middleware owns its trust policy. Caller-side config reuse
+	// must not mutate host/proxy/CORS allowlists or race with live requests.
+	config.AllowedHosts = slices.Clone(config.AllowedHosts)
+	config.TrustedProxies = slices.Clone(config.TrustedProxies)
+	config.CORSOrigins = slices.Clone(config.CORSOrigins)
+	config.CORSMethods = slices.Clone(config.CORSMethods)
+	config.CORSHeaders = slices.Clone(config.CORSHeaders)
 	if len(config.AllowedHosts) == 0 {
 		return nil, errors.New("explicit allowed hosts required")
 	}
