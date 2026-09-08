@@ -12,6 +12,9 @@ import (
 // FullClean, field PreSave, or instance Save receivers. Missing database rows
 // have Written=false; duplicate input primary keys are rejected before writes.
 func BulkUpdate[T models.Model](ctx context.Context, store *Store, objects []T, names []string, options BulkOptions) ([]BulkOutcome[T], error) {
+	if e := store.refuseRouting(); e != nil {
+		return nil, e
+	}
 	if store == nil || store.Backend == nil {
 		return nil, errors.New("orm: bulk backend required")
 	}

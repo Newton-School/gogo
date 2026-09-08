@@ -48,12 +48,18 @@ func (s *Store) Save(ctx context.Context, model models.Model, options SaveOption
 	if s == nil {
 		return errors.New("orm: backend required")
 	}
+	if s.routingErr != nil {
+		return db.ErrRouting
+	}
 	// Freeze this operation's configuration before context/model/provider or
 	// hook callbacks run. A receiver can register hooks or replace the original
 	// Store for a later Save without retargeting this write or its post hooks.
 	// Backend/registry services and the mutable SaveEvent remain caller-owned;
 	// this is not synchronization for concurrent Store configuration changes.
 	operation := *s
+	if operation.routing != nil {
+		operation.Backend = operation.routing.RoutingBackend()
+	}
 	operation.BeforeSave = slices.Clone(operation.BeforeSave)
 	operation.AfterSave = slices.Clone(operation.AfterSave)
 	s = &operation
@@ -70,6 +76,15 @@ func (s *Store) Save(ctx context.Context, model models.Model, options SaveOption
 	}
 	schema := record.Schema()
 	options.guardRecord = record
+	if s.routed() {
+		schema = schema.Clone()
+		var routeErr error
+		s, routeErr = s.bindRoute(ctx, schema, db.RouteWrite, true)
+		if routeErr != nil {
+			return routeErr
+		}
+		ctx = s.routeBinding.Context()
+	}
 	if options.ForceInsert && (options.ForceUpdate || len(options.UpdateFields) > 0) {
 		return errors.New("orm: cannot force both insert and update")
 	}
@@ -98,6 +113,11 @@ func (s *Store) Save(ctx context.Context, model models.Model, options SaveOption
 		}
 	}
 	event := SaveEvent{Model: model, Record: record, UpdateFields: append([]string(nil), options.UpdateFields...), Raw: options.Raw}
+	if s.routed() {
+		// Model callbacks retain their original record, but cannot substitute a
+		// different table/schema after the route's model permission was granted.
+		record = schemaRecord{Record: record, schema: schema}
+	}
 	for _, receiver := range s.BeforeSave {
 		if err := receiver(ctx, event); err != nil {
 			return err
@@ -511,9 +531,26 @@ func (s *Store) decodeField(field models.Field, value any) (any, error) {
 	return decodeField(field, value)
 }
 func (s *Store) RefreshFromDB(ctx context.Context, model models.Model, fields ...string) error {
+	if s != nil && s.routingErr != nil {
+		return db.ErrRouting
+	}
+	if s.routed() {
+		copy := *s
+		s = &copy
+		fields = slices.Clone(fields)
+	}
 	record, err := models.Bind(model)
 	if err != nil {
 		return err
+	}
+	if s.routed() {
+		schema := record.Schema().Clone()
+		s, err = s.bindRoute(ctx, schema, db.RouteRead, false)
+		if err != nil {
+			return err
+		}
+		ctx = s.routeBinding.Context()
+		record = schemaRecord{Record: record, schema: schema}
 	}
 	dialect := s.Backend.Dialect()
 	table, err := dialect.QuoteIdentifier(record.Schema().DBTable())

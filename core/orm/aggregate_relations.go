@@ -15,6 +15,9 @@ import (
 // collections have ordinary SQL multiplication semantics; callers explicitly
 // request DISTINCT aggregates when that is the desired counting operation.
 func (q Query[T]) prepareAggregateRelations(ctx context.Context) (Query[T], error) {
+	if e := q.checkRoutingShape(); e != nil {
+		return q, e
+	}
 	if err := ctx.Err(); err != nil {
 		return q, err
 	}

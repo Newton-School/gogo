@@ -63,6 +63,9 @@ type DeleteCollector struct {
 }
 
 func (c DeleteCollector) Collect(ctx context.Context, root models.Record) (DeletionPlan, error) {
+	if e := c.Store.refuseRouting(); e != nil {
+		return DeletionPlan{}, e
+	}
 	return c.collect(ctx, []models.Record{root}, false)
 }
 
@@ -380,6 +383,9 @@ func recordIdentity(record models.Record) (string, error) {
 }
 
 func (c DeleteCollector) Execute(ctx context.Context, root models.Record) (map[string]int64, error) {
+	if e := c.Store.refuseRouting(); e != nil {
+		return nil, e
+	}
 	return c.execute(ctx, []models.Record{root})
 }
 func (c DeleteCollector) execute(ctx context.Context, roots []models.Record) (map[string]int64, error) {
@@ -551,6 +557,9 @@ func (c DeleteCollector) removeJoin(ctx context.Context, join JoinRemoval) error
 }
 
 func (s *Store) Delete(ctx context.Context, model models.Model) (map[string]int64, error) {
+	if e := s.refuseRouting(); e != nil {
+		return nil, e
+	}
 	record, err := models.Bind(model)
 	if err != nil {
 		return nil, err
@@ -559,6 +568,9 @@ func (s *Store) Delete(ctx context.Context, model models.Model) (map[string]int6
 }
 
 func (q Query[T]) Delete(ctx context.Context) (map[string]int64, error) {
+	if e := q.store.refuseRouting(); e != nil {
+		return nil, e
+	}
 	if q.err != nil {
 		return nil, q.err
 	}

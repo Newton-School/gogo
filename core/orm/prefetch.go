@@ -84,6 +84,9 @@ func (q Query[T]) EagerLimit(maximum int) Query[T] {
 }
 
 func (q Query[T]) allPrefetched(ctx context.Context) ([]T, error) {
+	if e := q.store.refuseRouting(); e != nil {
+		return nil, e
+	}
 	if q.err != nil {
 		return nil, q.err
 	}

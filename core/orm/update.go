@@ -27,6 +27,26 @@ import (
 // triggers automatic replay. A committed-callback error retains the matched
 // count; all other errors return zero, including an uncertain commit.
 func (q Query[T]) Update(ctx context.Context, values map[string]any) (int64, error) {
+	if q.store.routed() {
+		owned := make(map[string]any, len(values))
+		candidate := q.clone()
+		for name, value := range values {
+			owned[name] = cloneQueryValue(value)
+			expression, ok := owned[name].(db.Expression)
+			if !ok {
+				expression = Value(owned[name])
+			}
+			candidate.selectAST.Projections = append(candidate.selectAST.Projections, db.Projection{Expression: expression})
+		}
+		values = owned
+		if e := candidate.checkRoutingShape(); e != nil {
+			return 0, e
+		}
+	}
+	q, ctx, routeErr := q.route(ctx, db.RouteWrite)
+	if routeErr != nil {
+		return 0, routeErr
+	}
 	if q.err != nil {
 		return 0, q.err
 	}
@@ -41,7 +61,18 @@ func (q Query[T]) Update(ctx context.Context, values map[string]any) (int64, err
 		return 0, err
 	}
 	var matched int64
-	err = db.Atomic(ctx, q.store.Backend, db.AtomicOptions{}, func(ctx context.Context) error {
+	routed := q.store.routeBinding != nil
+	ownedRouted := routed && !db.InTransaction(ctx, q.store.Backend.Alias())
+	observedCommit := false
+	err = q.store.operationAtomic(ctx, db.AtomicOptions{}, func(ctx context.Context) error {
+		if ownedRouted {
+			// Register first, before Exec/RowsAffected can add application
+			// callbacks. Only this owned Atomic's actual Commit(nil) fires the
+			// receipt. A provider-supplied error type is not commit evidence.
+			if err := db.OnCommit(ctx, q.store.Backend.Alias(), func(context.Context) error { observedCommit = true; return nil }, false); err != nil {
+				return err
+			}
+		}
 		result, err := db.ExecutorFor(ctx, q.store.Backend).Exec(ctx, statement, args...)
 		if err != nil {
 			return err
@@ -53,9 +84,17 @@ func (q Query[T]) Update(ctx context.Context, values map[string]any) (int64, err
 		return err
 	})
 	if err != nil {
-		var committed *db.CommittedCallbackError
-		if !errors.As(err, &committed) {
-			matched = 0
+		if routed {
+			// A nested savepoint has no durable commit to observe. Do not keep
+			// a receipt in its parent or retain counts on a nested error.
+			if !observedCommit {
+				matched = 0
+			}
+		} else {
+			var committed *db.CommittedCallbackError
+			if !errors.As(err, &committed) {
+				matched = 0
+			}
 		}
 	}
 	return matched, err

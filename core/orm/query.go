@@ -17,6 +17,10 @@ var ErrMultipleObjects = errors.New("orm: multiple objects returned")
 var ErrNotUpdated = errors.New("orm: forced update did not affect a row")
 
 type Store struct {
+	routing                   *db.Router
+	routingAlias              string
+	routingErr                error
+	routeBinding              *db.RouteBinding
 	Backend                   db.Backend
 	Registry                  *models.Registry
 	BeforeSave, AfterSave     []SaveReceiver
@@ -50,6 +54,13 @@ type Query[T models.Model] struct {
 }
 
 func For[T models.Model](store *Store, factory func() T) Query[T] {
+	if store.routed() {
+		copy := *store
+		store = &copy
+		if store.routing != nil {
+			store.Backend = store.routing.RoutingBackend()
+		}
+	}
 	q := Query[T]{store: store, factory: factory}
 	if store == nil || store.Backend == nil || factory == nil {
 		q.err = errors.New("orm: backend and model factory required")
@@ -62,6 +73,9 @@ func For[T models.Model](store *Store, factory func() T) Query[T] {
 		return q
 	}
 	q.schema = record.Schema()
+	if store.routed() {
+		q.schema = q.schema.Clone()
+	}
 	q.selectAST.Table = q.schema.DBTable()
 	for _, f := range q.schema.Fields {
 		if f.IsStored() {
@@ -196,6 +210,12 @@ func (q Query[T]) SQL() (string, []any, error) {
 
 // SQLContext resolves request-scoped predicates without executing a query.
 func (q Query[T]) SQLContext(ctx context.Context) (string, []any, error) {
+	if e := q.store.refuseRouting(); e != nil {
+		return "", nil, e
+	}
+	return q.sqlContext(ctx)
+}
+func (q Query[T]) sqlContext(ctx context.Context) (string, []any, error) {
 	q = q.snapshotReadSubqueries()
 	if err := ctx.Err(); err != nil {
 		return "", nil, err
@@ -239,6 +259,10 @@ func (q Query[T]) SQLContext(ctx context.Context) (string, []any, error) {
 	return statement, args, err
 }
 func (q Query[T]) Iterator(ctx context.Context) (*Iterator[T], error) {
+	q, ctx, routeErr := q.route(ctx, db.RouteRead)
+	if routeErr != nil {
+		return nil, routeErr
+	}
 	q = q.snapshotReadSubqueries()
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -495,6 +519,9 @@ func (i *Iterator[T]) Close() error {
 // All returns the successfully decoded prefix together with any terminal
 // error. Callers must check err before treating that prefix as a query result.
 func (q Query[T]) All(ctx context.Context) ([]T, error) {
+	if e := q.checkRoutingShape(); e != nil {
+		return nil, e
+	}
 	q = q.snapshotReadSubqueries()
 	if len(q.prefetches) > 0 {
 		return q.allPrefetched(ctx)
@@ -546,6 +573,10 @@ func (q Query[T]) Last(ctx context.Context) (T, error) {
 	return q.Reverse().First(ctx)
 }
 func (q Query[T]) Count(ctx context.Context) (int64, error) {
+	q, ctx, routeErr := q.route(ctx, db.RouteRead)
+	if routeErr != nil {
+		return 0, routeErr
+	}
 	q = q.snapshotReadSubqueries()
 	if q.err != nil {
 		return 0, q.err
@@ -553,7 +584,7 @@ func (q Query[T]) Count(ctx context.Context) (int64, error) {
 	if q.selectAST.ForUpdate && !db.InTransaction(ctx, q.store.Backend.Alias()) {
 		return 0, errors.New("orm: SelectForUpdate requires Atomic")
 	}
-	statement, args, err := q.SQLContext(ctx)
+	statement, args, err := q.sqlContext(ctx)
 	if err != nil {
 		return 0, err
 	}
@@ -562,6 +593,9 @@ func (q Query[T]) Count(ctx context.Context) (int64, error) {
 	return count, err
 }
 func (q Query[T]) Exists(ctx context.Context) (bool, error) {
+	if e := q.checkRoutingShape(); e != nil {
+		return false, e
+	}
 	q = q.clone()
 	q.prefetches = nil
 	_, err := q.First(ctx)
@@ -571,6 +605,18 @@ func (q Query[T]) Exists(ctx context.Context) (bool, error) {
 	return err == nil, err
 }
 func (q Query[T]) Values(ctx context.Context, fields ...string) ([]map[string]any, error) {
+	if q.store.routed() {
+		fields = append([]string(nil), fields...)
+		projected := q.clone()
+		projected.selectAST.Fields = append(projected.selectAST.Fields, fields...)
+		if e := projected.checkRoutingShape(); e != nil {
+			return nil, e
+		}
+	}
+	q, ctx, routeErr := q.route(ctx, db.RouteRead)
+	if routeErr != nil {
+		return nil, routeErr
+	}
 	q = q.snapshotReadSubqueries()
 	if err := ctx.Err(); err != nil {
 		return nil, err

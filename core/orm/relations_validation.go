@@ -8,6 +8,9 @@ import (
 )
 
 func (s *Store) ValidateRelation(ctx context.Context, record models.Record, field models.Field) error {
+	if e := s.refuseRouting(); e != nil {
+		return e
+	}
 	if field.Relation == nil || s.Registry == nil {
 		return errors.New("orm: relation validation requires complete model registry")
 	}

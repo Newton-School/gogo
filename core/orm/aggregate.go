@@ -57,6 +57,27 @@ func FilteredAggregate(expression db.Expression, predicate db.Predicate) db.Expr
 // Grouped, annotated, sliced, DISTINCT and locked source queries require a
 // separate subquery execution path and are rejected, never silently rewritten.
 func (q Query[T]) Aggregate(ctx context.Context, expressions map[string]ResultExpression) (map[string]any, error) {
+	if q.store.routed() {
+		if len(expressions) == 0 || len(expressions) > 128 {
+			return nil, db.ErrRouting
+		}
+		owned := make(map[string]ResultExpression, len(expressions))
+		for name, spec := range expressions {
+			owned[name] = ResultExpression{Expression: cloneExpression(spec.Expression), Output: cloneQueryValue(spec.Output).(models.Field)}
+		}
+		expressions = owned
+		candidate := q.clone()
+		for _, spec := range expressions {
+			candidate.selectAST.Projections = append(candidate.selectAST.Projections, db.Projection{Expression: cloneExpression(spec.Expression)})
+		}
+		if e := candidate.checkRoutingShape(); e != nil {
+			return nil, e
+		}
+	}
+	q, ctx, routeErr := q.route(ctx, db.RouteRead)
+	if routeErr != nil {
+		return nil, routeErr
+	}
 	if q.err != nil {
 		return nil, q.err
 	}

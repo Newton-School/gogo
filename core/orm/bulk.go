@@ -39,6 +39,9 @@ func (e *BulkError) Unwrap() error { return e.Cause }
 // insert-time and codec preparation still apply. Results are keyed by explicit
 // primary/unique identity; ignored rows never receive fabricated generated IDs.
 func BulkCreate[T models.Model](ctx context.Context, store *Store, objects []T, options BulkOptions) ([]BulkOutcome[T], error) {
+	if e := store.refuseRouting(); e != nil {
+		return nil, e
+	}
 	if store == nil || store.Backend == nil {
 		return nil, errors.New("orm: bulk backend required")
 	}

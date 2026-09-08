@@ -34,6 +34,9 @@ func (q Query[T]) SelectRelated(paths ...string) Query[T] {
 }
 
 func (q Query[T]) prepareRelated(ctx context.Context) (Query[T], error) {
+	if e := q.checkRoutingShape(); e != nil {
+		return q, e
+	}
 	if q.prepared {
 		return q, nil
 	}
@@ -65,12 +68,19 @@ func (q Query[T]) prepareRelated(ctx context.Context) (Query[T], error) {
 		}
 	}
 	if q.scope != nil {
-		where, err := q.scope(ctx, q.schema)
+		scopeSchema := q.schema
+		if q.store.routed() {
+			scopeSchema = scopeSchema.Clone()
+		}
+		where, err := q.scope(ctx, scopeSchema)
 		where = clonePredicate(where)
 		if err != nil {
 			return q, err
 		}
 		q.selectAST.Where = And(q.selectAST.Where, where)
+	}
+	if e := q.checkRoutingShape(); e != nil {
+		return q, e
 	}
 	if len(q.relatedPaths) == 0 {
 		return q.prepareAggregateRelations(ctx)

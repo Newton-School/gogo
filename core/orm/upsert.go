@@ -21,9 +21,17 @@ type Defaults map[string]any
 type DefaultFactory func(context.Context) (any, error)
 
 func (q Query[T]) GetOrCreate(ctx context.Context, key UniqueKey, defaults Defaults) (T, bool, error) {
+	if e := q.store.refuseRouting(); e != nil {
+		var zero T
+		return zero, false, e
+	}
 	return q.getOrCreate(ctx, key, defaults, nil, false)
 }
 func (q Query[T]) UpdateOrCreate(ctx context.Context, key UniqueKey, defaults Defaults, createDefaults ...Defaults) (T, bool, error) {
+	if e := q.store.refuseRouting(); e != nil {
+		var zero T
+		return zero, false, e
+	}
 	if len(createDefaults) > 1 {
 		var zero T
 		return zero, false, errors.New("orm: at most one creation defaults map is allowed")

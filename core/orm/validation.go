@@ -11,6 +11,9 @@ import (
 )
 
 func (s *Store) ValidateUnique(ctx context.Context, record models.Record, exclude []string) error {
+	if e := s.refuseRouting(); e != nil {
+		return e
+	}
 	skip := excludedFields(exclude)
 	validation := &models.ValidationError{}
 	for _, field := range record.Schema().Fields {
@@ -76,6 +79,9 @@ func excludedFields(exclude []string) map[string]bool {
 }
 
 func (s *Store) ValidateConstraints(ctx context.Context, record models.Record, exclude []string) error {
+	if e := s.refuseRouting(); e != nil {
+		return e
+	}
 	skip := excludedFields(exclude)
 	validation := &models.ValidationError{}
 	for _, constraint := range record.Schema().Constraints {

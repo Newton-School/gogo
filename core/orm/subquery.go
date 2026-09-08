@@ -113,6 +113,12 @@ func (b *subqueryReadBackend) MaxParameters() int {
 // snapshotReadSubqueries precedes Context and provider callbacks. Scopes may
 // themselves add an expression, so a scoped query freezes its selection too.
 func (q Query[T]) snapshotReadSubqueries() Query[T] {
+	if q.store.routed() {
+		if e := q.checkRoutingShape(); e != nil {
+			q.err = e
+		}
+		return q
+	}
 	if q.store == nil || q.err != nil {
 		return q
 	}
@@ -161,6 +167,9 @@ func (q Query[T]) snapshotReadSubqueries() Query[T] {
 }
 
 func (q Query[T]) prepareSubqueries(ctx context.Context) (Query[T], error) {
+	if q.store.routed() {
+		return q, q.checkRoutingShape()
+	}
 	cache := map[*subquerySource]*db.Subquery{}
 	owned := map[*db.Subquery]bool{}
 	found := false

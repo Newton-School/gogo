@@ -57,6 +57,9 @@ func reverseAccessorName(schema models.Schema, field models.Field) string {
 }
 
 func (m RelationManager) resolveName(query bool) (relationBinding, error) {
+	if e := m.Store.refuseRouting(); e != nil {
+		return relationBinding{}, e
+	}
 	if m.Store == nil || m.Store.Backend == nil || m.Store.Registry == nil || m.Source == nil {
 		return relationBinding{}, errors.New("orm: relation manager requires backend, source and complete registry")
 	}
