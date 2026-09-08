@@ -369,37 +369,40 @@ func (s *Store) insert(ctx context.Context, record models.Record, options SaveOp
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	_, err = s.returning(ctx, record, query, args, names)
-	return err
+	found, err := s.returning(ctx, record, query, args, names)
+	if err != nil {
+		return err
+	}
+	if !found {
+		return errors.New("orm: insert did not return a saved row")
+	}
+	return nil
 }
 func (s *Store) returning(ctx context.Context, record models.Record, query string, args []any, names []string) (bool, error) {
-	rows, err := db.ExecutorFor(ctx, s.Backend).Query(ctx, query, args...)
-	if err != nil {
+	values, found, err := readSaveReturning(ctx, db.ExecutorFor(ctx, s.Backend), query, args, len(names))
+	if err != nil || !found {
 		return false, err
 	}
-	defer rows.Close()
-	if !rows.Next() {
-		return false, rows.Err()
-	}
-	values := make([]any, len(names))
-	dest := make([]any, len(names))
-	for i := range values {
-		dest[i] = &values[i]
-	}
-	if err := rows.Scan(dest...); err != nil {
-		return false, err
-	}
+	// RETURNING is provisional until the complete statement succeeds. In
+	// autocommit a deferred constraint failure can follow its first row. Do not
+	// hydrate generated values, mark persisted, or send post-save hooks early.
+	decoded := make([]any, len(values))
 	for i, name := range names {
 		field, _ := record.Schema().Field(name)
-		value, err := s.decodeField(field, values[i])
-		if err == nil {
-			err = record.Set(name, value)
-		}
+		decoded[i], err = s.decodeField(field, values[i])
 		if err != nil {
 			return false, err
 		}
 	}
-	return true, rows.Err()
+	if err := ctx.Err(); err != nil {
+		return false, err
+	}
+	for i, name := range names {
+		if err := record.Set(name, decoded[i]); err != nil {
+			return false, err
+		}
+	}
+	return true, nil
 }
 func returningFields(dialect db.Dialect, schema models.Schema) (string, []string, error) {
 	columns, names := []string{}, []string{}
