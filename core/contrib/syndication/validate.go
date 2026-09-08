@@ -193,7 +193,7 @@ func (r *Renderer) normalize(ctx context.Context, feed Feed) (Feed, error) {
 		if value == nil {
 			return nil
 		}
-		if value.Name == "" {
+		if value.Name == "" && value.Email == "" {
 			return ErrInvalidFeed
 		}
 		if err := text(4096, value.Name, value.Email, value.URL); err != nil {
@@ -309,11 +309,31 @@ func (r *Renderer) normalize(ctx context.Context, feed Feed) (Feed, error) {
 				return Feed{}, err
 			}
 			media, params, err := mime.ParseMediaType(e.MIMEType)
-			if err != nil || len(params) != 0 || media == "" {
+			if err != nil || len(params) != 0 || !concreteMediaType(media) {
 				return Feed{}, ErrInvalidFeed
 			}
 			e.MIMEType = media
 		}
 	}
 	return snapshot, nil
+}
+
+// Enclosures name a representation, not an Accept media range or a bare MIME
+// token. Apply the bounded type/subtype grammar from RFC 6838 section 4.2.
+func concreteMediaType(value string) bool {
+	major, minor, ok := strings.Cut(value, "/")
+	if !ok {
+		return false
+	}
+	for _, name := range []string{major, minor} {
+		if len(name) < 1 || len(name) > 127 {
+			return false
+		}
+		for i, c := range name {
+			if !(c >= 'a' && c <= 'z' || c >= '0' && c <= '9' || i > 0 && strings.ContainsRune("!#$&-^_.+", c)) {
+				return false
+			}
+		}
+	}
+	return true
 }

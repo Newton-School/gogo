@@ -127,6 +127,47 @@ func TestRenderRejectsUnsafeOriginsURLsAndMetadata(t *testing.T) {
 	}
 }
 
+func TestRenderEnclosuresRequireConcreteMediaTypes(t *testing.T) {
+	r, err := New(renderConfig())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, media := range []string{"audio", "*/*", "audio/*", "*/mpeg", "audio/mp*", "audio/mpeg/extra", "audio/mpeg; charset=utf-8"} {
+		feed := sampleFeed()
+		feed.Items[0].Enclosures[0].MIMEType = media
+		if doc, err := r.Render(context.Background(), feed); !errors.Is(err, ErrInvalidFeed) || doc.Body != nil {
+			t.Fatalf("invalid media type %q accepted: %v", media, err)
+		}
+	}
+	for _, media := range []string{"audio/mpeg", "application/vnd.example.audio+json", "AUDIO/MPEG"} {
+		feed := sampleFeed()
+		feed.Items[0].Enclosures[0].MIMEType = media
+		if _, err := r.Render(context.Background(), feed); err != nil {
+			t.Fatalf("valid media type %q rejected: %v", media, err)
+		}
+	}
+}
+
+func TestRenderRSSAllowsEmailOnlyAuthorsButAtomRequiresNames(t *testing.T) {
+	feed := sampleFeed()
+	feed.Author = &Author{Email: "editor@example.test"}
+	feed.Items[0].Author = &Author{Email: "writer@example.test"}
+	r, err := New(renderConfig())
+	if err != nil {
+		t.Fatal(err)
+	}
+	doc, err := r.Render(context.Background(), feed)
+	if err != nil || !strings.Contains(string(doc.Body), "<author>writer@example.test</author>") || !strings.Contains(string(doc.Body), "<managingEditor>editor@example.test</managingEditor>") {
+		t.Fatal("RSS email-only author rejected", err, string(doc.Body))
+	}
+	cfg := renderConfig()
+	cfg.Format = Atom1{}
+	r, _ = New(cfg)
+	if doc, err := r.Render(context.Background(), feed); !errors.Is(err, ErrInvalidFeed) || doc.Body != nil {
+		t.Fatal("Atom name requirement was weakened", err)
+	}
+}
+
 func TestRenderPublicPoliciesAreDetachedReadOnlyAndOperationBound(t *testing.T) {
 	cfg := renderConfig()
 	feed := sampleFeed()

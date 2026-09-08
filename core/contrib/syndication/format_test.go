@@ -383,6 +383,29 @@ func TestAtom1RequiresAbsoluteIRIsWithoutRewritingIdentifiers(t *testing.T) {
 	}
 }
 
+func TestAtom1CategorySchemesMustBeIRIs(t *testing.T) {
+	for _, scheme := range []string{"relative", "/category", "urn:bad%", "https://example.test/has space"} {
+		for _, entry := range []bool{false, true} {
+			feed := formatFixture()
+			if entry {
+				feed.Items[0].Categories[0].Scheme = scheme
+			} else {
+				feed.Categories[0].Scheme = scheme
+			}
+			var output bytes.Buffer
+			if err := (Atom1{}).Encode(context.Background(), &output, feed); !errors.Is(err, ErrInvalidFeed) || output.Len() != 0 {
+				t.Fatalf("invalid category scheme %q accepted: %v", scheme, err)
+			}
+			// RSS category domains are a separate, opaque vocabulary label.
+			encodeFormat(t, RSS2{}, feed)
+		}
+	}
+	feed := formatFixture()
+	feed.Categories[0].Scheme = "urn:category:public"
+	feed.Items[0].Categories[0].Scheme = "https://例え.テスト/分類"
+	encodeFormat(t, Atom1{}, feed)
+}
+
 type formatTestWriter struct {
 	bytes.Buffer
 	write  func([]byte) (int, error)

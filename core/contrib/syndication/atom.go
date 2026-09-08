@@ -19,14 +19,14 @@ func (Atom1) Encode(ctx context.Context, dst io.Writer, feed Feed) error {
 	if err := feedEncodeInput(ctx, dst); err != nil {
 		return err
 	}
-	if !atomIDValid(feed.ID) || feed.Title == "" || !atomDateValid(feed.Updated) || !atomAuthorValid(feed.Author) || (feed.Author == nil && len(feed.Items) == 0) {
+	if !atomIDValid(feed.ID) || feed.Title == "" || !atomDateValid(feed.Updated) || !atomAuthorValid(feed.Author) || !atomCategorySchemesValid(feed.Categories) || (feed.Author == nil && len(feed.Items) == 0) {
 		return ErrInvalidFeed
 	}
 	for _, item := range feed.Items {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		if !atomIDValid(item.ID) || item.Title == "" || item.Link == "" || !atomDateValid(item.Updated) || !atomAuthorValid(item.Author) || (feed.Author == nil && item.Author == nil) {
+		if !atomIDValid(item.ID) || item.Title == "" || item.Link == "" || !atomDateValid(item.Updated) || !atomAuthorValid(item.Author) || !atomCategorySchemesValid(item.Categories) || (feed.Author == nil && item.Author == nil) {
 			return ErrInvalidFeed
 		}
 		if !item.Published.IsZero() && !atomDateValid(item.Published) {
@@ -86,6 +86,15 @@ func atomDateValid(at time.Time) bool {
 }
 
 func atomAuthorValid(author *Author) bool { return author == nil || author.Name != "" }
+
+func atomCategorySchemesValid(categories []Category) bool {
+	for _, category := range categories {
+		if category.Scheme != "" && !atomIDValid(category.Scheme) {
+			return false
+		}
+	}
+	return true
+}
 
 // Atom IDs are absolute IRIs, not necessarily dereferenceable HTTP URLs. Check
 // RFC 3987 syntax without normalization: case, escaping and Unicode spelling are

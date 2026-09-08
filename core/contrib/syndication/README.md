@@ -35,7 +35,7 @@ flowchart TD
 | Source | Application-owned query uses tenant/site scope, public status and publication-time filters, stable ordering with an identity tie-breaker, and the supplied limit. Return overflow/error explicitly. The framework preserves order and does not invent queries, authorization or metadata timestamps. |
 | Consistency | Source and policies must use a coherent application snapshot if publication changes concurrently. The renderer itself opens no transaction. A site selector or matching origin is not authorization. |
 | URLs | HTTP(S) absolute or root-relative links only; feed/self links stay on `Origin`. Other links require that origin or an explicit `AdditionalOrigins` entry. DNS A-labels/ASCII and IP literals are supported; no IDNA conversion, DNS lookup or asset fetch occurs. |
-| Enclosures | Explicit public policy, nonnegative byte length and parameter-free MIME type; no URL query or fragment, credentials or signed/private storage URLs. Public paths remain an application decision, not something URL validation can prove. |
+| Enclosures | Explicit public policy, nonnegative byte length and concrete parameter-free MIME type/subtype using RFC 6838 names (no wildcard); no URL query or fragment, credentials or signed/private storage URLs. Public paths remain an application decision, not something URL validation can prove. |
 | Text | XML 1.0 UTF-8 text is escaped, never interpolated as raw XML. Descriptions are plain text unless trusted application code explicitly sets `Content.HTML` after applying its HTML policy; XML escaping is not an HTML sanitizer. |
 | Dates | Required feed/item `Updated`, optional item `Published`, valid years 1–9999; publication cannot follow item update, and item update cannot follow feed update. Output uses UTC. |
 | Limits | Defaults: 100 items, 1 MiB document, 30-second HTTP deadline. Configurable maxima: 10,000 items, 16 MiB, 5 minutes. Metadata, nesting, category/enclosure counts and custom output are separately bounded. No silent truncation. Callbacks must honor context; Go callbacks are not forcibly killed. |
@@ -51,9 +51,9 @@ flowchart TD
 | Feed identity | No native RSS field | Absolute IRI, unchanged; defaults to normalized self URL |
 | Item identity | Opaque GUID unless explicitly `IDIsPermalink`; missing ID defaults to normalized item link | Absolute IRI, unchanged; missing ID defaults to normalized item link |
 | Item title / description | At least one; HTML-safe description | Required title; typed text/HTML summary and required alternate link |
-| Authors | Mailbox plus escaped name; name-only uses Dublin Core creator | Feed author inherited by entries, or author on every entry; empty feed requires feed author; name/email/URI |
+| Authors | Email-only or mailbox plus escaped name; name-only uses Dublin Core creator | Feed author inherited by entries, or author on every entry; empty feed requires feed author; name required, email/URI optional |
 | Dates | Feed `lastBuildDate`, optional item `pubDate`; no native item-updated field | Feed/entry `updated`, optional entry `published` |
-| Categories | Term and optional domain | Term, optional scheme and label |
+| Categories | Term and optional opaque domain | Term, optional absolute-IRI scheme and label |
 | Enclosures | At most one per item, URL/length/type | Up to configured metadata limit (16) as enclosure links |
 | Other metadata | Language, generator, feed copyright, item comments | Language, generator, feed/item rights |
 
