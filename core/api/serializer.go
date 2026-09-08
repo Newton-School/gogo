@@ -73,6 +73,9 @@ type Field struct {
 	Validate                                         FieldValidator
 	Represent                                        func(context.Context, any) (any, error)
 	Compute                                          func(context.Context, ValueReader) (any, error)
+	// OutputSchema describes an otherwise ambiguous custom representation.
+	// New freezes its metadata; OutputSchema generation checks completeness.
+	OutputSchema *WireSchema
 }
 type Definition struct {
 	Fields       []Field
@@ -120,9 +123,10 @@ func ComputedField(name string, compute func(context.Context, ValueReader) (any,
 func New(def Definition) (*Serializer, error) {
 	s := &Serializer{validate: def.Validate, allowUnknown: def.AllowUnknown}
 	seen, writable := map[string]bool{}, map[string]bool{}
+	outputBudget := outputSchemaBudget{nodes: outputSchemaMaxNodes, text: outputSchemaMaxBytes}
 	for _, f := range def.Fields {
 		var err error
-		f, err = freezeField(f, 0)
+		f, err = freezeField(f, 0, &outputBudget)
 		if err != nil {
 			return nil, err
 		}
@@ -146,9 +150,16 @@ func New(def Definition) (*Serializer, error) {
 	}
 	return s, nil
 }
-func freezeField(f Field, depth int) (Field, error) {
+func freezeField(f Field, depth int, outputBudget *outputSchemaBudget) (Field, error) {
 	if depth > 32 {
 		return Field{}, errors.New("api: recursive field definition")
+	}
+	if f.OutputSchema != nil {
+		var err error
+		f.OutputSchema, err = freezeOutputSchema(f.OutputSchema, outputBudget)
+		if err != nil {
+			return Field{}, err
+		}
 	}
 	if f.ReadOnly && (f.WriteOnly || f.Hidden) || f.Compute != nil && !f.ReadOnly || f.Hidden && f.Default == nil {
 		return Field{}, errors.New("api: conflicting field direction or missing hidden default")
@@ -160,7 +171,7 @@ func freezeField(f Field, depth int) (Field, error) {
 		if f.Element.ReadOnly || f.Element.WriteOnly || f.Element.Hidden || f.Element.Compute != nil {
 			return Field{}, errors.New("api: set collection direction on its parent field")
 		}
-		child, err := freezeField(*f.Element, depth+1)
+		child, err := freezeField(*f.Element, depth+1, outputBudget)
 		if err != nil {
 			return Field{}, err
 		}
