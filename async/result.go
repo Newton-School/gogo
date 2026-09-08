@@ -13,17 +13,21 @@ type resultOperation struct {
 }
 
 func (r *Result[O]) operation(ctx context.Context) (resultOperation, error) {
-	if ctx == nil || r == nil || r.client == nil || !idPattern.MatchString(r.Receipt.ID) {
+	if r == nil || r.client == nil {
 		return resultOperation{}, ErrInvalid
-	}
-	if err := ctx.Err(); err != nil {
-		return resultOperation{}, err
 	}
 	// Client's private configuration is immutable and contains no mutex. Copy
 	// its value so callback assignment through the public *Client cannot swap
 	// configured provider ports or grants during this operation or wait.
 	client := *r.client
-	return resultOperation{client: &client, id: r.Receipt.ID}, nil
+	id := r.Receipt.ID
+	if !idPattern.MatchString(id) {
+		return resultOperation{}, ErrInvalid
+	}
+	if err := groupContextError(ctx); err != nil {
+		return resultOperation{}, err
+	}
+	return resultOperation{client: &client, id: id}, nil
 }
 
 func (op resultOperation) snapshot(ctx context.Context) (out Record, err error) {
@@ -31,24 +35,24 @@ func (op resultOperation) snapshot(ctx context.Context) (out Record, err error) 
 		if recover() != nil {
 			out, err = Record{}, ErrUnavailable
 		}
-		if ctx.Err() != nil {
-			out, err = Record{}, ctx.Err()
+		if contextErr := groupContextError(ctx); contextErr != nil {
+			out, err = Record{}, contextErr
 		}
 	}()
-	if err := ctx.Err(); err != nil {
+	if err := groupContextError(ctx); err != nil {
 		return Record{}, err
 	}
 	record, err := op.client.config.Results.Lookup(ctx, op.id)
 	if err != nil {
 		return Record{}, resultReadError(err)
 	}
-	if ctx.Err() != nil {
-		return Record{}, ctx.Err()
-	}
-	// Validate and detach before authorization: the callback may retain a
-	// provider-owned slice/map, but cannot rewrite what is returned afterward.
+	// Validate and detach before context or authorization callbacks: they may
+	// retain provider-owned data but cannot rewrite the detached observation.
 	record, err = resultRecord(record, op.id)
 	if err != nil {
+		return Record{}, err
+	}
+	if err := groupContextError(ctx); err != nil {
 		return Record{}, err
 	}
 	if err := op.client.authorize(ctx, "read", record.Envelope.Scope, op.id); err != nil {
@@ -94,9 +98,9 @@ func (r *Result[O]) Get(ctx context.Context) (out O, err error) {
 			var zero O
 			out, err = zero, ErrUnavailable
 		}
-		if ctx != nil && ctx.Err() != nil {
+		if contextErr := groupContextError(ctx); contextErr != nil {
 			var zero O
-			out, err = zero, ctx.Err()
+			out, err = zero, contextErr
 		}
 	}()
 	op, err := r.operation(ctx)
@@ -131,7 +135,7 @@ func (r *Result[O]) Get(ctx context.Context) (out O, err error) {
 		}
 		select {
 		case <-ctx.Done():
-			return out, ctx.Err()
+			return out, groupContextError(ctx)
 		case <-timer.C:
 		}
 	}
@@ -157,7 +161,7 @@ func (r *Result[O]) command(ctx context.Context, action string) (err error) {
 	if err := op.client.authorize(ctx, action, record.Envelope.Scope, op.id); err != nil {
 		return err
 	}
-	if err := ctx.Err(); err != nil {
+	if err := groupContextError(ctx); err != nil {
 		return err
 	}
 	if action == "forget" {
