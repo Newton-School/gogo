@@ -68,6 +68,16 @@ func NewCreateView(options CreateViewOptions) (handler http.Handler, err error) 
 			handler, err = nil, ErrGenericConfiguration
 		}
 	}()
+	view, err := newGenericCreate(options)
+	if err != nil {
+		return nil, err
+	}
+	return http.HandlerFunc(view.serve), nil
+}
+
+// newGenericCreate owns the frozen, bounded form infrastructure shared by the
+// concrete create and update flows. It does not invoke request authorization.
+func newGenericCreate(options CreateViewOptions) (*genericCreate, error) {
 	if options.Factory == nil || options.ValidateWrite == nil || options.SuccessURL == nil || options.Authorize == nil || options.Timeout < 0 || options.Timeout > time.Minute || options.Timeout > 0 && options.Timeout < time.Millisecond || options.MaxBodyBytes < 0 || options.MaxBodyBytes > 10<<20 {
 		return nil, ErrGenericConfiguration
 	}
@@ -113,7 +123,7 @@ func NewCreateView(options CreateViewOptions) (handler http.Handler, err error) 
 		return nil, ErrGenericConfiguration
 	}
 	view := &genericCreate{options: options, model: model, template: renderer, csrf: csrfMiddleware, editable: editable, fingerprint: fingerprint}
-	return http.HandlerFunc(view.serve), nil
+	return view, nil
 }
 
 func (v *genericCreate) serve(w http.ResponseWriter, r *http.Request) {
@@ -136,6 +146,10 @@ func (v *genericCreate) serve(w http.ResponseWriter, r *http.Request) {
 }
 
 func (v *genericCreate) execute(r *http.Request) (response Response, frozen *http.Request, err error) {
+	return v.executeForm(r, v.authorize, v.run)
+}
+
+func (v *genericCreate) executeForm(r *http.Request, authorize func(*readViewCall) error, run func(*readViewCall, url.Values) (Response, error)) (response Response, frozen *http.Request, err error) {
 	defer func() {
 		if recover() != nil {
 			response, err = Response{}, ErrUnavailable
@@ -185,11 +199,11 @@ func (v *genericCreate) execute(r *http.Request) (response Response, frozen *htt
 	}
 	frozen = frozen.WithContext(ctx)
 	call := &readViewCall{base: frozen, routeParams: params}
-	if err := v.authorize(call); err != nil {
+	if err := authorize(call); err != nil {
 		return Response{}, frozen, err
 	}
 	if frozen.Method == http.MethodOptions {
-		if err := v.authorize(call); err != nil {
+		if err := authorize(call); err != nil {
 			return Response{}, frozen, err
 		}
 		return Response{Status: 200, Headers: http.Header{"Allow": {allow}}}, frozen, nil
@@ -234,7 +248,7 @@ func (v *genericCreate) execute(r *http.Request) (response Response, frozen *htt
 	v.csrf(http.HandlerFunc(func(_ http.ResponseWriter, req *http.Request) {
 		called = true
 		inner := &readViewCall{base: req, routeParams: params}
-		response, err = v.run(inner, data)
+		response, err = run(inner, data)
 	})).ServeHTTP(capture, csrfRequest)
 	if !called {
 		if capture.status == 403 {
