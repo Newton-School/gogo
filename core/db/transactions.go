@@ -39,6 +39,11 @@ func current(ctx context.Context, alias string) *transactionContext {
 }
 func InTransaction(ctx context.Context, alias string) bool { return current(ctx, alias) != nil }
 func ExecutorFor(ctx context.Context, backend Backend) Executor {
+	// A routed handle owns admission and the exact ambient transaction witness.
+	// Returning a raw same-alias transaction here would bypass that boundary.
+	if routed, ok := backend.(*routeBackend); ok {
+		return routed
+	}
 	if tx := current(ctx, backend.Alias()); tx != nil {
 		return tx.tx
 	}
