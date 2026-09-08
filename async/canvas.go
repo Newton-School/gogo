@@ -324,69 +324,6 @@ type GroupResult struct {
 }
 
 func RestoreGroup(c *Client, id string) *GroupResult { return &GroupResult{ID: id, client: c} }
-func (g *GroupResult) Revoke(ctx context.Context) error {
-	graph, err := g.Snapshot(ctx)
-	if err != nil {
-		return err
-	}
-	if err := g.client.authorize(ctx, "revoke", graph.Scope, g.ID); err != nil {
-		return err
-	}
-	return g.client.config.Workflows.CancelGraph(ctx, g.ID, graph.Scope, g.client.advance)
-}
-func (g *GroupResult) Snapshot(ctx context.Context) (Graph, error) {
-	if g == nil || g.client == nil || g.ID == "" {
-		return Graph{}, ErrInvalid
-	}
-	if g.client.config.Workflows == nil {
-		return Graph{}, ErrUnavailable
-	}
-	graph, err := g.client.config.Workflows.ReadGraph(ctx, g.ID)
-	if err != nil {
-		return Graph{}, err
-	}
-	if err := g.client.authorize(ctx, "read", graph.Scope, g.ID); err != nil {
-		return Graph{}, err
-	}
-	return graph, nil
-}
-func (g *GroupResult) Join(ctx context.Context) ([]json.RawMessage, error) {
-	if ctx.Value(workerContextKey{}) != nil {
-		return nil, ErrWorkerJoin
-	}
-	ticker := time.NewTicker(20 * time.Millisecond)
-	defer ticker.Stop()
-	for {
-		graph, err := g.Snapshot(ctx)
-		if err != nil {
-			return nil, err
-		}
-		if graph.State.Terminal() {
-			if graph.Failure != nil {
-				return nil, *graph.Failure
-			}
-			var outputs []json.RawMessage
-			collectionRoot := false
-			if graph.Kind == "dag" {
-				for _, node := range graph.Plan {
-					collectionRoot = collectionRoot || node.ID == graph.RootNode && node.Kind == "collect"
-				}
-			}
-			if graph.Kind == "chain" || graph.Kind == "chord" || graph.Kind == "dag" && !collectionRoot {
-				return []json.RawMessage{graph.Output}, nil
-			}
-			if err := json.Unmarshal(graph.Output, &outputs); err != nil {
-				return nil, err
-			}
-			return outputs, nil
-		}
-		select {
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		case <-ticker.C:
-		}
-	}
-}
 
 // IntentRelay makes cross-store delivery explicit: target acceptance occurs
 // before source acknowledgement. A crash can repeat the same target identity.

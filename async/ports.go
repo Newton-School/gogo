@@ -175,6 +175,9 @@ type CanvasNode struct {
 
 type WorkflowStore interface {
 	CreateGraph(context.Context, Graph, []Intent) error
+	// ReadGraph returns exact identity and valid bounded durable metadata. This
+	// trusted port grants no caller access; GroupResult validates, detaches and
+	// authorizes the observation before exposing it to application callers.
 	ReadGraph(context.Context, string) (Graph, error)
 	// RecordMember validates expected child identity and commits completion and
 	// successor intents together. A duplicate must not increment the barrier.

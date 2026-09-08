@@ -40,26 +40,41 @@ func resultRecord(record Record, id string) (Record, error) {
 }
 
 func detachResultTimes(record *Record) {
-	copyTime := func(value *time.Time) {
-		location := value.Location()
-		_ = location.String()
-		detached := *location
-		*value = value.In(&detached)
+	detachEnvelopeTimes(&record.Envelope)
+	for _, value := range []*time.Time{&record.LeaseUntil, &record.FinishedAt, &record.PayloadExpiresAt, &record.TombstoneUntil, &record.ReplayUntil} {
+		detachWireTime(value)
 	}
-	for _, value := range []*time.Time{&record.Envelope.CreatedAt, &record.Envelope.ETA, &record.Envelope.ExpiresAt, &record.LeaseUntil, &record.FinishedAt, &record.PayloadExpiresAt, &record.TombstoneUntil, &record.ReplayUntil} {
-		copyTime(value)
+
+}
+
+func detachWireTime(value *time.Time) {
+	location := value.Location()
+	_ = location.String()
+	detached := *location
+	*value = value.In(&detached)
+}
+
+func detachEnvelopeTimes(value *Envelope) {
+	detachWireTime(&value.CreatedAt)
+	detachWireTime(&value.ETA)
+	detachWireTime(&value.ExpiresAt)
+	for i := range value.Callbacks {
+		detachSignatureTimes(&value.Callbacks[i])
 	}
-	var links func([]Signature)
-	links = func(values []Signature) {
-		for i := range values {
-			copyTime(&values[i].Options.ETA)
-			copyTime(&values[i].Options.ExpiresAt)
-			links(values[i].Callbacks)
-			links(values[i].Errbacks)
-		}
+	for i := range value.Errbacks {
+		detachSignatureTimes(&value.Errbacks[i])
 	}
-	links(record.Envelope.Callbacks)
-	links(record.Envelope.Errbacks)
+}
+
+func detachSignatureTimes(value *Signature) {
+	detachWireTime(&value.Options.ETA)
+	detachWireTime(&value.Options.ExpiresAt)
+	for i := range value.Callbacks {
+		detachSignatureTimes(&value.Callbacks[i])
+	}
+	for i := range value.Errbacks {
+		detachSignatureTimes(&value.Errbacks[i])
+	}
 }
 
 // Charge a lower bound of the wire size before JSON encoding. This limits work

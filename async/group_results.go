@@ -48,18 +48,19 @@ func (g *GroupResult) Failed(ctx context.Context) (bool, error) {
 func (g *GroupResult) Iterate(ctx context.Context) iter.Seq2[GroupMember, error] {
 	return func(yield func(GroupMember, error) bool) {
 		fail := func(err error) { yield(GroupMember{}, err) }
+		op, err := g.operation(ctx)
+		if err != nil {
+			fail(err)
+			return
+		}
 		if ctx.Value(workerContextKey{}) != nil {
 			fail(ErrWorkerJoin)
 			return
 		}
-		if g == nil || g.client == nil {
-			fail(ErrInvalid)
-			return
-		}
-		handle := *g
 		seen := map[string]bool{}
 		var expected []string
 		var scope string
+		var layout string
 		initialized := false
 		ticker := time.NewTicker(20 * time.Millisecond)
 		defer ticker.Stop()
@@ -68,13 +69,17 @@ func (g *GroupResult) Iterate(ctx context.Context) iter.Seq2[GroupMember, error]
 				fail(err)
 				return
 			}
-			graph, err := handle.Snapshot(ctx)
+			graph, err := op.snapshot(ctx)
 			if err != nil {
 				fail(err)
 				return
 			}
 			if graph.Kind != "group" {
 				fail(ErrInvalid)
+				return
+			}
+			if err := matchGroupLayout(&layout, graph); err != nil {
+				fail(err)
 				return
 			}
 			if !initialized {
@@ -120,7 +125,7 @@ func (g *GroupResult) Iterate(ctx context.Context) iter.Seq2[GroupMember, error]
 					fail(err)
 					return
 				}
-				if err := handle.client.authorize(ctx, "read", scope, handle.ID); err != nil {
+				if err := op.authorize(ctx, "read", scope); err != nil {
 					fail(err)
 					return
 				}
@@ -128,7 +133,7 @@ func (g *GroupResult) Iterate(ctx context.Context) iter.Seq2[GroupMember, error]
 					// Oversized coordination drops copied aggregate payloads, not
 					// successful child results. Recover through an independently
 					// authorized child lookup; never fabricate an expired value.
-					record, err := RestoreResult[json.RawMessage](handle.client, id).Snapshot(ctx)
+					record, err := RestoreResult[json.RawMessage](op.client, id).Snapshot(ctx)
 					if err != nil {
 						fail(err)
 						return
@@ -140,6 +145,10 @@ func (g *GroupResult) Iterate(ctx context.Context) iter.Seq2[GroupMember, error]
 					outcome.Output = record.Output
 					if len(outcome.Output) == 0 {
 						fail(ErrResultExpired)
+						return
+					}
+					if err := op.authorize(ctx, "read", scope); err != nil {
+						fail(err)
 						return
 					}
 				}

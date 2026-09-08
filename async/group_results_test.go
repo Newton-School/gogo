@@ -99,14 +99,7 @@ func (s resultWorkflow) ReadGraph(ctx context.Context, id string) (async.Graph, 
 
 func outcomeGraph(t *testing.T, count int) async.Graph {
 	t.Helper()
-	id, _ := async.NewID()
-	graph := async.Graph{ID: id, Kind: "group", Scope: "tenant", State: async.Succeeded, Revision: 1, Members: map[string]async.Completion{}, Output: json.RawMessage(`[]`)}
-	for i := 0; i < count; i++ {
-		id := async.StableID(graph.ID, strings.Repeat("x", i+1))
-		graph.Children = append(graph.Children, async.Envelope{ID: id, Scope: graph.Scope})
-		graph.Members[id] = async.Completion{ID: id, State: async.Succeeded, Output: json.RawMessage(`1`)}
-	}
-	return graph
+	return groupBoundaryGraph(t, count)
 }
 
 func outcomeClient(t *testing.T, workflow async.WorkflowStore, authorize func(context.Context, string, string, string) error) *async.Client {
@@ -265,14 +258,44 @@ func TestGroupIterationWorkerDeadlockGuard(t *testing.T) {
 }
 
 func TestGroupJoinCollectionBudgetDoesNotLimitStreaming(t *testing.T) {
+	ctx := context.Background()
 	graph := outcomeGraph(t, 40)
+	graph.Output = nil
 	payload, _ := json.Marshal(strings.Repeat("x", 240<<10))
+	backend := fakes.NewMemory()
 	for _, child := range graph.Children {
 		outcome := graph.Members[child.ID]
-		outcome.Output = payload
+		// The durable graph stays below its 8 MiB budget. Large copied
+		// outcomes are recovered from individually authorized child results.
+		outcome.Output = nil
 		graph.Members[child.ID] = outcome
+		if err := backend.Register(ctx, child, async.Queued); err != nil {
+			t.Fatal(err)
+		}
+		claim, err := backend.Claim(ctx, child, "worker", time.Minute)
+		if err != nil || !claim.Acquired {
+			t.Fatal(claim, err)
+		}
+		if err := backend.Transition(ctx, async.Transition{ID: child.ID, Fence: claim.Record.Fence, Owner: "worker", State: async.Succeeded, Output: payload}); err != nil {
+			t.Fatal(err)
+		}
 	}
-	client := outcomeClient(t, resultWorkflow{read: func(context.Context, string) (async.Graph, error) { return graph, nil }}, nil)
+	grants := map[string]int{}
+	client, err := async.NewClient(async.ClientConfig{Registry: async.NewRegistry(), Broker: backend, Results: backend, Workflows: resultWorkflow{read: func(context.Context, string) (async.Graph, error) { return graph, nil }}, Authorize: func(_ context.Context, operation, scope, id string) error {
+		if operation != "read" || scope != graph.Scope {
+			return async.ErrDenied
+		}
+		if id != graph.ID {
+			if _, exists := graph.Members[id]; !exists {
+				return async.ErrDenied
+			}
+			grants[id]++
+		}
+		return nil
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
 	group := async.RestoreGroup(client, graph.ID)
 	outcomes, err := group.JoinOutcomes(context.Background())
 	if !errors.Is(err, async.ErrResultCollectionTooLarge) || len(outcomes) == 0 || len(outcomes) >= 40 {
@@ -288,6 +311,11 @@ func TestGroupJoinCollectionBudgetDoesNotLimitStreaming(t *testing.T) {
 	if count != 40 {
 		t.Fatal(count)
 	}
+	for _, child := range graph.Children {
+		if grants[child.ID] == 0 {
+			t.Fatal("child read was not authorized", child.ID)
+		}
+	}
 }
 
 func TestGroupIterationRecoversCopiedOutputWithChildAuthorizationAndExpiry(t *testing.T) {
@@ -296,6 +324,7 @@ func TestGroupIterationRecoversCopiedOutputWithChildAuthorizationAndExpiry(t *te
 	id := graph.Children[0].ID
 	e := async.Envelope{ID: id, ProtocolVersion: 1, Task: "result.recover", Version: 1, Queue: "default", Scope: graph.Scope, WorkflowID: graph.ID, Args: json.RawMessage(`1`), CreatedAt: time.Now().UTC()}
 	graph.Children[0] = e
+	graph.Signatures[0] = async.Signature{Task: e.Task, Version: e.Version, Args: e.Args, Options: async.DispatchOptions{Scope: graph.Scope}}
 	graph.Members[id] = async.Completion{ID: id, State: async.Succeeded}
 	backend := fakes.NewMemory()
 	if err := backend.Register(ctx, e, async.Queued); err != nil {
