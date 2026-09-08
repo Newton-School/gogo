@@ -9,7 +9,7 @@
   <form method="get" class="search-bar">
     {% if show_all %}<input type="hidden" name="all" value="">{% endif %}
     {% if order %}<input type="hidden" name="o" value="{{ order }}">{% endif %}
-    {% if has_search %}<label for="search">Search records</label><div class="search-input"><input id="search" type="search" name="q" value="{{ search }}" maxlength="256" placeholder="Search…"><button type="submit">Search</button></div>{% endif %}
+    {% if has_search %}<label for="search">Search records</label><div class="search-input"><input id="search" type="search" name="q" value="{{ search }}" maxlength="256" placeholder="Search…"{% if search_help_text %} aria-describedby="search-help"{% endif %}><button type="submit">Search</button></div>{% if search_help_text %}<p id="search-help" class="helptext">{{ search_help_text }}</p>{% endif %}{% endif %}
     {% if filters %}<div class="list-filters">
       {% for filter in filters %}<div><label for="filter_{{ filter.name }}">{{ filter.label }}</label>
         {% if filter.choices %}<select id="filter_{{ filter.name }}" name="{{ filter.name }}"><option value="">All</option>{% for choice in filter.choices %}<option value="{{ choice.value }}"{% if choice.selected %} selected{% endif %}>{{ choice.label }}</option>{% endfor %}</select>

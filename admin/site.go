@@ -11,6 +11,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"unicode/utf8"
 
 	"github.com/Newton-School/gogo/core/auth"
 	"github.com/Newton-School/gogo/core/forms"
@@ -49,6 +50,9 @@ type ModelAdmin struct {
 	AutocompleteFields, RawIDFields                                   []string
 	ListDisplay, ListDisplayLinks, SearchFields, ListFilter, Ordering []string
 	ListEditable                                                      []string
+	// SearchHelpText is escaped guidance shown only when SearchFields is enabled.
+	// It is limited to 4096 UTF-8 bytes and cannot contain NUL characters.
+	SearchHelpText string
 	// SortableBy restricts user-selected sorting to these displayed columns.
 	// Nil keeps all available column sorts; an empty slice disables user sorting.
 	// Configured Ordering remains independent of this presentation allowlist.
@@ -194,6 +198,9 @@ func (s *Site) Register(options ModelAdmin) error {
 	}
 	if err := options.Schema.Validate(); err != nil {
 		return err
+	}
+	if len(options.SearchHelpText) > 4096 || !utf8.ValidString(options.SearchHelpText) || strings.ContainsRune(options.SearchHelpText, 0) {
+		return errors.New("admin: invalid search help text")
 	}
 	key := options.Schema.Key()
 	if _, ok := s.models[key]; ok {
