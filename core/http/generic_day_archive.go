@@ -45,8 +45,14 @@ type genericDayArchive struct {
 // AllowField also gates DateField metadata, even when it is not in Fields.
 // Denied neighbors are omitted, never replaced by scanning farther rows.
 func NewDayArchiveView(options DayArchiveViewOptions) (http.Handler, error) {
+	return newDayArchiveView(options, false)
+}
+
+// Both public day selectors share one query, navigation and emission boundary.
+// Today selects its date and publication cutoff from one request-local instant.
+func newDayArchiveView(options DayArchiveViewOptions, useToday bool) (http.Handler, error) {
 	date, clock := options.Date, options.Clock
-	if date == nil {
+	if !useToday && date == nil {
 		return nil, ErrGenericConfiguration
 	}
 	if clock == nil {
@@ -118,26 +124,31 @@ func NewDayArchiveView(options DayArchiveViewOptions) (http.Handler, error) {
 		if err != nil {
 			return readViewResult{}, err
 		}
-		raw, err := date(call.request())
-		if !genericContextOK(ctx) {
-			return readViewResult{}, ErrUnavailable
-		}
-		if err != nil {
-			if err == ErrInvalidLookup {
+		raw := ""
+		var day time.Time
+		if !useToday {
+			raw, err = date(call.request())
+			if !genericContextOK(ctx) {
+				return readViewResult{}, ErrUnavailable
+			}
+			if err != nil {
+				if err == ErrInvalidLookup {
+					return readViewResult{}, ErrNotFound
+				}
+				return readViewResult{}, ErrUnavailable
+			}
+			var valid bool
+			day, valid = genericCalendarDate(raw)
+			if !valid {
 				return readViewResult{}, ErrNotFound
 			}
-			return readViewResult{}, ErrUnavailable
-		}
-		day, valid := genericCalendarDate(raw)
-		if !valid {
-			return readViewResult{}, ErrNotFound
 		}
 		locale, _ := i18n.FromContext(ctx)
 		if !genericContextOK(ctx) {
 			return readViewResult{}, ErrUnavailable
 		}
 		today := ""
-		if !archive.allowFuture {
+		if useToday || !archive.allowFuture {
 			value, valid := genericModelTemporal(models.DateTime, clock(), genericLookupTextBytes)
 			if !valid || !genericContextOK(ctx) {
 				return readViewResult{}, ErrUnavailable
@@ -148,11 +159,20 @@ func NewDayArchiveView(options DayArchiveViewOptions) (http.Handler, error) {
 				return readViewResult{}, ErrUnavailable
 			}
 			today = local.Format("2006-01-02")
-			var cutoff any = now
-			if field.Kind == models.Date {
-				cutoff = today
+			if useToday {
+				raw = today
+				day, valid = genericCalendarDate(raw)
+				if !valid {
+					return readViewResult{}, ErrUnavailable
+				}
 			}
-			query = query.Filter(orm.Q(field.Name+"__lte", cutoff))
+			if !archive.allowFuture {
+				var cutoff any = now
+				if field.Kind == models.Date {
+					cutoff = today
+				}
+				query = query.Filter(orm.Q(field.Name+"__lte", cutoff))
+			}
 		}
 		predicate, err := genericDatePredicate(ctx, locale, field, day, raw)
 		if err != nil {
