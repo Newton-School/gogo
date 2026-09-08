@@ -11,6 +11,7 @@ import (
 )
 
 func TestInvalidInvocationDoesNotOpenResources(t *testing.T) {
+	isolateCommandEnvironment(t)
 	opened := false
 	p := Project{Root: t.TempDir(), RuntimeResources: []string{"database"}, ResourceFactory: func(conf.Values, []string) ([]app.Resource, error) { opened = true; return nil, nil }}
 	var output bytes.Buffer
@@ -20,6 +21,7 @@ func TestInvalidInvocationDoesNotOpenResources(t *testing.T) {
 	}
 }
 func TestAppCommandResolutionBeforeReady(t *testing.T) {
+	isolateCommandEnvironment(t)
 	ready := false
 	called := false
 	p := Project{Root: t.TempDir(), Apps: []app.Config{{Name: "catalog", Label: "catalog", Ready: func(context.Context, *app.Registry) error { ready = true; return nil }, Register: func(r *app.Registry) error {
@@ -32,6 +34,7 @@ func TestAppCommandResolutionBeforeReady(t *testing.T) {
 	}
 }
 func TestSafeCLIErrorAndConditionalRequirements(t *testing.T) {
+	isolateCommandEnvironment(t)
 	var output bytes.Buffer
 	p := Project{Root: t.TempDir(), RuntimeResources: []string{"database"}, Commands: []Command{{Name: "fail", Configure: func(*flag.FlagSet) Runner {
 		return func(context.Context, *Invocation, []string) error { return errors.New("private password") }

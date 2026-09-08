@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"os"
 	"reflect"
 	"strings"
 	"testing"
@@ -16,6 +17,7 @@ import (
 
 func inspectionCommandProject(t *testing.T, provider *inspectionProvider) (Project, *[]string) {
 	t.Helper()
+	isolateCommandEnvironment(t)
 	var events []string
 	command := InspectDBCommand(func(alias string) (db.Backend, db.CatalogIntrospector, error) {
 		events = append(events, "resolve:"+alias)
@@ -69,7 +71,7 @@ func TestInspectDBCommandUsesLazyAliasAndCompleteWriter(t *testing.T) {
 	if err := Call(context.Background(), project, []string{"inspectdb"}, Options{Stdout: inspectionShortWriter{}}); !errors.Is(err, io.ErrShortWrite) {
 		t.Fatal("short writer reported success", err)
 	}
-	if (*events)[len(*events)-1] != "close" {
+	if len(*events) == 0 || (*events)[len(*events)-1] != "close" {
 		t.Fatal("failed output did not close resources")
 	}
 }
@@ -89,12 +91,53 @@ func TestInspectDBCommandKeepsProviderErrorsPrivateAndMappingErrorsActionable(t 
 		project, events := inspectionCommandProject(t, provider)
 		var stdout, stderr bytes.Buffer
 		code := Run(context.Background(), project, []string{"manage", "inspectdb"}, Options{Stdout: &stdout, Stderr: &stderr})
-		if code != 1 || stdout.Len() != 0 || strings.Contains(stderr.String(), "private-provider-value") || (*events)[len(*events)-1] != "close" {
+		if code != 1 || stdout.Len() != 0 || strings.Contains(stderr.String(), "private-provider-value") || len(*events) == 0 || (*events)[len(*events)-1] != "close" {
 			t.Fatal(code, stdout.String(), stderr.String(), *events)
 		}
 		if mapping && (!strings.Contains(stderr.String(), `relation "account"`) || !strings.Contains(stderr.String(), `column "display_name"`)) {
 			t.Fatal("mapping error not actionable", stderr.String())
 		}
+	}
+}
+
+func TestInspectionCommandFixtureIsolatesAndRestoresAmbientConfiguration(t *testing.T) {
+	values := map[string]string{
+		"GOGO_TEST_POSTGRES_DSN":     "unused-test-service-setting",
+		"GOGO_TEST_REQUIRE_SERVICES": "1",
+		"GOGO_DB_MAX_OPEN":           "invalid-live-project-setting",
+		"GOGO_TEST_EMPTY":            "",
+	}
+	for key, value := range values {
+		t.Setenv(key, value)
+	}
+	const unrelated = "CORE_MANAGEMENT_FIXTURE_UNRELATED"
+	t.Setenv(unrelated, "unchanged")
+	t.Run("isolated command", func(t *testing.T) {
+		provider := &inspectionProvider{catalog: inspectionFixture()}
+		project, events := inspectionCommandProject(t, provider)
+		for key := range values {
+			if _, exists := os.LookupEnv(key); exists {
+				t.Fatalf("fixture retained ambient key %s", key)
+			}
+		}
+		if os.Getenv(unrelated) != "unchanged" {
+			t.Fatal("fixture changed an unrelated variable")
+		}
+		var output bytes.Buffer
+		if err := Call(context.Background(), project, []string{"inspectdb"}, Options{Stdout: &output}); err != nil {
+			t.Fatal(err)
+		}
+		if provider.calls != 1 || len(*events) != 3 || output.Len() == 0 {
+			t.Fatal("isolated fixture did not execute", provider.calls, *events)
+		}
+	})
+	for key, want := range values {
+		if got, exists := os.LookupEnv(key); !exists || got != want {
+			t.Fatalf("fixture did not restore %s", key)
+		}
+	}
+	if os.Getenv(unrelated) != "unchanged" {
+		t.Fatal("fixture changed an unrelated variable after cleanup")
 	}
 }
 
