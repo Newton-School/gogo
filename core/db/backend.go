@@ -105,6 +105,17 @@ type SchemaResolverEditor interface {
 	WithSchemas([]models.Schema) (SchemaEditor, error)
 }
 
+// SchemaTransitionEditor separates immutable starting and ending migration
+// metadata. Plain default/choice containers are detached; callbacks and opaque
+// custom runtime values remain trusted configuration, not objects to mutate.
+// Removed automatic relations must be resolved from the starting
+// inventory; new relational DDL uses the ending inventory. Reverse execution
+// supplies the states in reverse order. Returned editors must isolate mutable
+// deferred/drop bookkeeping from the shared backend and other migrations.
+type SchemaTransitionEditor interface {
+	WithSchemaTransition(before, after []models.Schema) (SchemaEditor, error)
+}
+
 // AutoKeyAllocator reserves generated numeric keys before a batch so RETURNING
 // values can be matched by identity, never by undocumented database row order.
 type AutoKeyAllocator interface {

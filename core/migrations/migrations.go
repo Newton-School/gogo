@@ -103,14 +103,43 @@ type Executor struct {
 }
 type Applied struct{ Key, Checksum string }
 
-func (e *Executor) withHistoricalSchemas(target string) (*Executor, error) {
+func (e *Executor) withHistoricalSchemas(target string, reverse bool) (*Executor, error) {
 	copy := *e
-	if resolver, ok := e.Editor.(db.SchemaResolverEditor); ok {
-		schemas, err := e.State(target)
-		if err != nil {
+	plan, err := e.Plan(target)
+	if err != nil {
+		return nil, err
+	}
+	if len(plan) == 0 {
+		return nil, errors.New("migrations: schema transition requires a migration")
+	}
+	after, err := schemaState(plan)
+	if err != nil {
+		return nil, err
+	}
+	before, err := schemaState(plan[:len(plan)-1])
+	if err != nil {
+		return nil, err
+	}
+	if err := validateAutomaticTransitionTargets(plan[len(plan)-1], before, after); err != nil {
+		return nil, err
+	}
+	for _, schemas := range [][]models.Schema{before, after} {
+		if err := detachTransitionValues(schemas); err != nil {
 			return nil, err
 		}
-		copy.Editor, err = resolver.WithSchemas(schemas)
+	}
+	if resolver, ok := e.Editor.(db.SchemaTransitionEditor); ok {
+		if reverse {
+			before, after = after, before
+		}
+		copy.Editor, err = resolver.WithSchemaTransition(before, after)
+		return &copy, err
+	}
+	if !reverse && needsAutomaticTransition(plan[len(plan)-1], before, after) {
+		return nil, &db.Error{Code: db.UnsupportedFeature, Message: "Automatic relation removal requires a historical schema transition editor"}
+	}
+	if resolver, ok := e.Editor.(db.SchemaResolverEditor); ok {
+		copy.Editor, err = resolver.WithSchemas(after)
 		if err != nil {
 			return nil, err
 		}
@@ -229,7 +258,7 @@ func (e *Executor) Apply(ctx context.Context, target string) (err error) {
 		if err := e.validateIndexOperations(migration, false); err != nil {
 			return err
 		}
-		resolved, err := e.withHistoricalSchemas(migration.Key())
+		resolved, err := e.withHistoricalSchemas(migration.Key(), false)
 		if err != nil {
 			return err
 		}

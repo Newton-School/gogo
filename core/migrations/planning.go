@@ -46,7 +46,7 @@ func (e *Executor) SQL(ctx context.Context, key string, reverse bool) ([]Stateme
 	if err := e.validateIndexOperations(*migration, reverse); err != nil {
 		return nil, err
 	}
-	resolved, err := e.withHistoricalSchemas(key)
+	resolved, err := e.withHistoricalSchemas(key, reverse)
 	if err != nil {
 		return nil, err
 	}
@@ -81,6 +81,10 @@ func (e *Executor) State(target string) ([]models.Schema, error) {
 	if err != nil {
 		return nil, err
 	}
+	return schemaState(plan)
+}
+
+func schemaState(plan []Migration) ([]models.Schema, error) {
 	state := map[string]models.Schema{}
 	for _, migration := range plan {
 		for _, operation := range migration.Operations {
@@ -152,7 +156,7 @@ func (e *Executor) State(target string) ([]models.Schema, error) {
 	sort.Strings(keys)
 	result := []models.Schema{}
 	for _, key := range keys {
-		result = append(result, state[key])
+		result = append(result, state[key].Clone())
 	}
 	return result, nil
 }
@@ -363,7 +367,7 @@ func (e *Executor) Reverse(ctx context.Context, target string) (err error) {
 				if err := e.validateIndexOperations(m, true); err != nil {
 					return err
 				}
-				resolved, err := e.withHistoricalSchemas(m.Key())
+				resolved, err := e.withHistoricalSchemas(m.Key(), true)
 				if err != nil {
 					return err
 				}

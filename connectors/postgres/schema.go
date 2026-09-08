@@ -15,12 +15,15 @@ import (
 type SchemaEditor struct {
 	Dialect  Dialect
 	schemas  map[string]models.Schema
+	previous map[string]models.Schema
+	through  map[string]models.Schema
 	deferred map[string]models.Schema
 	dropped  map[string]bool
 }
 
 func (e SchemaEditor) WithSchemas(schemas []models.Schema) (db.SchemaEditor, error) {
 	e.schemas = map[string]models.Schema{}
+	e.through = map[string]models.Schema{}
 	e.deferred = map[string]models.Schema{}
 	e.dropped = map[string]bool{}
 	for _, schema := range schemas {
@@ -46,9 +49,31 @@ func (e SchemaEditor) WithSchemas(schemas []models.Schema) (db.SchemaEditor, err
 				return nil, errors.New("postgres: intermediary schema collision")
 			}
 			e.schemas[through.Key()] = through
+			if !source.Unmanaged && !source.Proxy && !source.Abstract {
+				e.through[through.Key()] = through
+			}
 		}
 	}
+	e.previous = e.schemas
 	return e, nil
+}
+
+// WithSchemaTransition keeps removed automatic bridges separate from the
+// ending relation metadata used for new columns and deferred table creation.
+func (e SchemaEditor) WithSchemaTransition(before, after []models.Schema) (db.SchemaEditor, error) {
+	ending, err := e.WithSchemas(after)
+	if err != nil {
+		return nil, err
+	}
+	starting, err := e.WithSchemas(before)
+	if err != nil {
+		return nil, err
+	}
+	result := ending.(SchemaEditor)
+	old := starting.(SchemaEditor)
+	result.previous = old.schemas
+	result.through = old.through
+	return result, nil
 }
 
 // FlushDeferred creates automatic intermediary tables after all ordinary tables
@@ -78,6 +103,9 @@ func (e SchemaEditor) queueThrough(source models.Schema, field models.Field) err
 		return errors.New("postgres: automatic intermediary requires WithSchemas and FlushDeferred")
 	}
 	target, ok := e.schemas[field.Relation.Target]
+	if !ok {
+		target, ok = e.previous[field.Relation.Target]
+	}
 	if !ok {
 		return errors.New("postgres: historical many-to-many target schema missing")
 	}
@@ -301,14 +329,21 @@ func (e SchemaEditor) constraint(schema models.Schema, constraint models.Constra
 	return sql, nil
 }
 func (e SchemaEditor) DeleteModel(ctx context.Context, executor db.Executor, schema models.Schema) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	if schema.Unmanaged || schema.Proxy || schema.Abstract {
 		return nil
 	}
+	bridges := make(map[string]models.Schema, len(e.through)+len(e.deferred))
+	for key, through := range e.through {
+		bridges[key] = through
+	}
+	for key, through := range e.deferred {
+		bridges[key] = through
+	}
 	keys := []string{}
-	for key, through := range e.schemas {
-		if through.AutoCreatedBy == "" {
-			continue
-		}
+	for key, through := range bridges {
 		for _, field := range through.Fields {
 			if field.Relation != nil && field.Relation.Target == schema.Key() {
 				keys = append(keys, key)
@@ -318,7 +353,7 @@ func (e SchemaEditor) DeleteModel(ctx context.Context, executor db.Executor, sch
 	}
 	sort.Strings(keys)
 	for _, key := range keys {
-		if err := e.dropThrough(ctx, executor, e.schemas[key]); err != nil {
+		if err := e.dropThrough(ctx, executor, bridges[key]); err != nil {
 			return err
 		}
 	}
@@ -330,11 +365,18 @@ func (e SchemaEditor) DeleteModel(ctx context.Context, executor db.Executor, sch
 	return err
 }
 func (e SchemaEditor) dropThrough(ctx context.Context, executor db.Executor, through models.Schema) error {
-	if e.dropped[through.Key()] {
-		return nil
-	}
 	if _, pending := e.deferred[through.Key()]; pending {
 		delete(e.deferred, through.Key())
+		// A replacement can be queued after the historical table was dropped.
+		// Cancel the pending table even when this logical bridge is marked gone.
+		if e.dropped[through.Key()] {
+			return nil
+		}
+		if _, existed := e.through[through.Key()]; !existed {
+			return nil
+		}
+	}
+	if e.dropped[through.Key()] {
 		return nil
 	}
 	table, err := e.Dialect.QuoteIdentifier(through.DBTable())
@@ -389,7 +431,10 @@ func (e SchemaEditor) RemoveField(ctx context.Context, executor db.Executor, sch
 		if field.Relation.Through != "" {
 			return nil
 		}
-		target, ok := e.schemas[field.Relation.Target]
+		target, ok := e.previous[field.Relation.Target]
+		if !ok {
+			target, ok = e.schemas[field.Relation.Target]
+		}
 		if !ok {
 			return errors.New("postgres: historical many-to-many target schema missing")
 		}
