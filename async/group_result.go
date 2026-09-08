@@ -16,32 +16,22 @@ func (g *GroupResult) operation(ctx context.Context) (groupOperation, error) {
 	if ctx == nil || g == nil || g.client == nil || !idPattern.MatchString(g.ID) {
 		return groupOperation{}, ErrInvalid
 	}
-	if err := ctx.Err(); err != nil {
-		return groupOperation{}, err
-	}
-	if g.client.config.Workflows == nil {
-		return groupOperation{}, ErrUnavailable
-	}
 	// Client has immutable private configuration and no mutex. Copy the value
 	// so replacing the public client object cannot swap ports or grants midway
 	// through a command/wait. Provider internals remain the provider's contract.
 	client := *g.client
-	return groupOperation{client: &client, id: g.ID}, nil
+	op := groupOperation{client: &client, id: g.ID}
+	if err := groupContextError(ctx); err != nil {
+		return groupOperation{}, err
+	}
+	if client.config.Workflows == nil {
+		return groupOperation{}, ErrUnavailable
+	}
+	return op, nil
 }
 
 func (op groupOperation) authorize(ctx context.Context, action, scope string) (err error) {
-	defer func() {
-		if recover() != nil {
-			err = ErrUnavailable
-		}
-		if ctx.Err() != nil {
-			err = ctx.Err()
-		}
-	}()
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-	return op.client.authorize(ctx, action, scope, op.id)
+	return op.authorizeID(ctx, action, scope, op.id)
 }
 
 func (op groupOperation) snapshot(ctx context.Context) (out Graph, err error) {
@@ -49,23 +39,23 @@ func (op groupOperation) snapshot(ctx context.Context) (out Graph, err error) {
 		if recover() != nil {
 			out, err = Graph{}, ErrUnavailable
 		}
-		if ctx.Err() != nil {
-			out, err = Graph{}, ctx.Err()
+		if ctxErr := groupContextError(ctx); ctxErr != nil {
+			out, err = Graph{}, ctxErr
 		}
 	}()
-	if err := ctx.Err(); err != nil {
+	if err := groupContextError(ctx); err != nil {
 		return Graph{}, err
 	}
 	graph, err := op.client.config.Workflows.ReadGraph(ctx, op.id)
 	if err != nil {
 		return Graph{}, resultReadError(err)
 	}
-	if ctx.Err() != nil {
-		return Graph{}, ctx.Err()
-	}
 	graph, err = groupRecord(graph, op.id)
 	if err != nil {
 		return Graph{}, err
+	}
+	if ctxErr := groupContextError(ctx); ctxErr != nil {
+		return Graph{}, ctxErr
 	}
 	if err := op.authorize(ctx, "read", graph.Scope); err != nil {
 		return Graph{}, err
@@ -117,8 +107,10 @@ func (g *GroupResult) Revoke(ctx context.Context) (err error) {
 // It never treats an absent retained payload as a successful nil result.
 func (g *GroupResult) Join(ctx context.Context) (out []json.RawMessage, err error) {
 	defer func() {
-		if ctx != nil && ctx.Err() != nil {
-			out, err = nil, ctx.Err()
+		if ctx != nil {
+			if ctxErr := groupContextError(ctx); ctxErr != nil {
+				out, err = nil, ctxErr
+			}
 		}
 	}()
 	op, err := g.operation(ctx)
@@ -151,6 +143,9 @@ func (g *GroupResult) Join(ctx context.Context) (out []json.RawMessage, err erro
 }
 
 func joinedGroupOutput(graph Graph) ([]json.RawMessage, error) {
+	if graph.PayloadForgotten {
+		return nil, ErrResultExpired
+	}
 	if graph.Failure != nil {
 		return nil, *graph.Failure
 	}

@@ -78,6 +78,10 @@ func (g *GroupResult) Iterate(ctx context.Context) iter.Seq2[GroupMember, error]
 				fail(ErrInvalid)
 				return
 			}
+			if graph.PayloadForgotten {
+				fail(ErrResultExpired)
+				return
+			}
 			if err := matchGroupLayout(&layout, graph); err != nil {
 				fail(err)
 				return

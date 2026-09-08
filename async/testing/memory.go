@@ -535,6 +535,33 @@ func (m *Memory) RecordMember(ctx context.Context, id string, c async.Completion
 	}
 	return nil
 }
+func (m *Memory) ForgetGraphPayload(ctx context.Context, id, scope string, revision uint64) error {
+	if revision == 0 {
+		return async.ErrInvalid
+	}
+	if err := m.check(ctx, "forget_graph"); err != nil {
+		return err
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	graph, ok := m.graphs[id]
+	if !ok {
+		return async.ErrNotFound
+	}
+	if graph.Scope != scope {
+		return async.ErrDenied
+	}
+	if graph.Revision != revision {
+		return async.ErrConflict
+	}
+	next, err := async.ForgetGroupPayload(graph)
+	if err != nil {
+		return err
+	}
+	m.graphs[id] = next
+	return nil
+}
+
 func (m *Memory) CancelGraph(ctx context.Context, id, scope string, advance func(async.Graph) (async.Graph, []async.Intent, error)) error {
 	if err := m.check(ctx, "cancel_graph"); err != nil {
 		return err

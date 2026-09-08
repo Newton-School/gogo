@@ -16,6 +16,16 @@ func groupRecord(graph Graph, id string) (Graph, error) {
 	if graph.State != Running && !graph.State.Terminal() {
 		return Graph{}, ErrUnavailable
 	}
+	if graph.PayloadForgotten {
+		if graph.Kind != "group" || !graph.State.Terminal() || len(graph.Output) != 0 {
+			return Graph{}, ErrUnavailable
+		}
+		for _, member := range graph.Members {
+			if len(member.Output) != 0 {
+				return Graph{}, ErrUnavailable
+			}
+		}
+	}
 	b := groupReadBudget{remaining: MaxWorkflowDurableBytes}
 	if !b.text(graph.ID, graph.Kind, graph.Scope, graph.CallbackID, graph.RootNode, graph.OriginTaskID, graph.OriginDigest) || !b.payload(graph.Output, MaxWorkflowDurableBytes) || !b.failure(graph.Failure, graph.State) || !b.failure(graph.AbortFailure, Failed) {
 		return Graph{}, ErrUnavailable

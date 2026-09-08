@@ -140,6 +140,40 @@ func (w *Workflows) RecordMember(ctx context.Context, id string, c async.Complet
 	}
 	return async.ErrBusy
 }
+
+// ForgetGraphPayload releases only payload copies in one retained graph. The
+// caller owns child-result authorization/deletion; this CAS preserves intents,
+// inventory, member identities and every other coordination field.
+func (w *Workflows) ForgetGraphPayload(ctx context.Context, id, scope string, revision uint64) error {
+	if w == nil || revision == 0 || (async.WorkflowInventoryPage{IDs: []string{id}}).Validate(1) != nil {
+		return async.ErrInvalid
+	}
+	// Do not copy Workflows' live atomic rotation state. Only this operation's
+	// connection handle is captured before provider/context callbacks.
+	bound := Workflows{Connection: w.Connection}
+	graph, err := bound.ReadGraph(ctx, id)
+	if err != nil {
+		return err
+	}
+	if graph.ID != id {
+		return async.ErrUnavailable
+	}
+	if graph.Scope != scope {
+		return async.ErrDenied
+	}
+	if graph.Revision != revision {
+		return async.ErrConflict
+	}
+	next, err := async.ForgetGroupPayload(graph)
+	if err != nil {
+		return err
+	}
+	if next.Revision == graph.Revision {
+		return nil
+	}
+	return bound.write(ctx, graph.Revision, next, nil)
+}
+
 func (w *Workflows) CancelGraph(ctx context.Context, id, scope string, advance func(async.Graph) (async.Graph, []async.Intent, error)) error {
 	if advance == nil {
 		return async.ErrInvalid

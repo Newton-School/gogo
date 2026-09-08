@@ -160,6 +160,10 @@ type Graph struct {
 	OriginTaskID     string                `json:"origin_task_id,omitempty"`
 	OriginDigest     string                `json:"origin_digest,omitempty"`
 	AbortFailure     *Failure              `json:"abort_failure,omitempty"`
+	// PayloadForgotten is a terminal flat group's explicit payload-retention
+	// marker. Status/failure metadata remains; payload readers must not recover
+	// child outputs when it is set. False preserves the existing wire form.
+	PayloadForgotten bool `json:"payload_forgotten,omitempty"`
 }
 
 // CanvasNode is a portable compiled workflow node. Collect nodes execute no
@@ -184,6 +188,16 @@ type WorkflowStore interface {
 	RecordMember(context.Context, string, Completion, func(Graph) (Graph, []Intent, error)) error
 	CancelGraph(context.Context, string, string, func(Graph) (Graph, []Intent, error)) error
 	IntentStore
+}
+
+// WorkflowPayloadStore is an optional trusted retention port. It atomically
+// checks exact graph ID, scope, expected revision and terminal flat-group shape,
+// then applies ForgetGroupPayload without changing intents or task pins. The
+// caller separately authorizes and confirms each child payload release first.
+// Errors may follow an applied CAS; nil includes an already-forgotten result.
+// It must never recreate a missing graph or erase its replay identities.
+type WorkflowPayloadStore interface {
+	ForgetGraphPayload(context.Context, string, string, uint64) error
 }
 
 type DelayedItem struct {
