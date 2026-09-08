@@ -32,6 +32,7 @@ type ClientConfig struct {
 	Authorize      func(context.Context, string, string, string) error
 	Clock          func() time.Time
 	NewID          func() (string, error)
+	PublishRetry   *PublishRetryPolicy
 }
 
 type Client struct {
@@ -43,6 +44,11 @@ type Client struct {
 func NewClient(config ClientConfig) (*Client, error) {
 	if config.Registry == nil || config.Broker == nil || config.Results == nil {
 		return nil, ErrInvalid
+	}
+	var retryErr error
+	config.PublishRetry, retryErr = normalizePublishRetry(config.PublishRetry)
+	if retryErr != nil {
+		return nil, retryErr
 	}
 	if config.EventTimeout == 0 {
 		config.EventTimeout = time.Second
@@ -252,6 +258,8 @@ type AcceptanceError struct {
 	Confirmed bool
 	Cause     error
 	envelope  Envelope
+	state     State
+	accepted  bool
 }
 
 func (e *AcceptanceError) Error() string {
@@ -263,33 +271,14 @@ func (e *AcceptanceError) Unwrap() error { return e.Cause }
 // creation time and converted countdown. Rebuilding a signature can change those
 // immutable dispatch inputs and is not equivalent to replaying the same request.
 func (e *AcceptanceError) Retry(ctx context.Context, c *Client) (Receipt, error) {
-	if c == nil || e.envelope.ID == "" {
+	if e == nil {
 		return Receipt{}, ErrInvalid
 	}
-	envelope := cloneJSON(e.envelope)
-	if err := c.authorize(ctx, "enqueue", envelope.Scope, envelope.ID); err != nil {
-		return Receipt{}, err
-	}
-	receipt, err := c.publish(ctx, envelope)
-	if err == nil {
-		c.observeAccepted(ctx, envelope, receipt.State)
-	}
-	return receipt, err
+	return runProducer(ctx, c, nil, e)
 }
 
 func (c *Client) Enqueue(ctx context.Context, s Signature) (Receipt, error) {
-	e, err := c.prepare(s)
-	if err != nil {
-		return Receipt{}, err
-	}
-	if err := c.authorize(ctx, "enqueue", e.Scope, e.ID); err != nil {
-		return Receipt{}, err
-	}
-	receipt, err := c.publish(ctx, e)
-	if err == nil {
-		c.observeAccepted(ctx, e, receipt.State)
-	}
-	return receipt, err
+	return runProducer(ctx, c, &s, nil)
 }
 
 func (c *Client) publish(ctx context.Context, e Envelope) (Receipt, error) {
@@ -300,13 +289,13 @@ func (c *Client) publish(ctx context.Context, e Envelope) (Receipt, error) {
 			return Receipt{}, ErrUnavailable
 		}
 		if err := c.config.Schedules.Schedule(ctx, e); err != nil {
-			return Receipt{}, &AcceptanceError{ID: e.ID, Cause: err, envelope: cloneJSON(e)}
+			return Receipt{}, &AcceptanceError{ID: e.ID, Cause: err, envelope: copyProducerEnvelope(e), state: state}
 		}
 	} else if err := c.config.Broker.Publish(ctx, e); err != nil {
-		return Receipt{}, &AcceptanceError{ID: e.ID, Cause: err, envelope: cloneJSON(e)}
+		return Receipt{}, &AcceptanceError{ID: e.ID, Cause: err, envelope: copyProducerEnvelope(e), state: state}
 	}
 	if err := c.config.Results.Register(ctx, e, state); err != nil {
-		return Receipt{}, &AcceptanceError{ID: e.ID, Confirmed: true, Cause: err, envelope: cloneJSON(e)}
+		return Receipt{}, &AcceptanceError{ID: e.ID, Confirmed: true, Cause: err, envelope: copyProducerEnvelope(e), state: state, accepted: true}
 	}
 	return Receipt{ID: e.ID, State: state, AcceptedAt: c.config.Clock().UTC()}, nil
 }

@@ -238,17 +238,33 @@ func (t *Task[I, O]) Signature(args I) (Signature, error) {
 	}
 	return Signature{Task: t.definition.name, Version: t.definition.version, Args: b}, nil
 }
-func (t *Task[I, O]) Delay(ctx context.Context, c *Client, args I, options ...DispatchOption) (*Result[O], error) {
-	s, err := t.Signature(args)
+func (t *Task[I, O]) Delay(ctx context.Context, c *Client, args I, options ...DispatchOption) (result *Result[O], err error) {
+	started := time.Now()
+	defer func() {
+		if recover() != nil {
+			result, err = nil, ErrUnavailable
+		}
+	}()
+	if t == nil || t.definition == nil || c == nil {
+		return nil, ErrInvalid
+	}
+	// Freeze handles before argument encoding, validation or dispatch-option
+	// callbacks. The returned result must retain the client that accepted it.
+	task, client := *t, *c
+	options = append([]DispatchOption(nil), options...)
+	if err := publishContextError(ctx); err != nil {
+		return nil, err
+	}
+	s, err := task.Signature(args)
 	if err != nil {
 		return nil, err
 	}
 	s = s.Set(options...)
-	receipt, err := c.Enqueue(ctx, s)
+	receipt, err := runProducerStarted(ctx, &client, &s, nil, started)
 	if err != nil {
 		return nil, err
 	}
-	return &Result[O]{Receipt: receipt, client: c}, nil
+	return &Result[O]{Receipt: receipt, client: &client}, nil
 }
 
 // Apply is explicit eager execution through the same JSON validation path. It
