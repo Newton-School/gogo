@@ -24,8 +24,8 @@ import (
 // authorization. Sliced, joined, grouped and inherited writes are unsupported.
 // Ordinary ordering/projection do not affect which unsliced rows are updated.
 // The operation uses an owned transaction or an ambient savepoint. No error
-// triggers automatic replay. A committed-callback error retains the matched
-// count; all other errors return zero, including an uncertain commit.
+// triggers automatic replay. Only an observed commit retains the matched count
+// on error; savepoint failures and uncertain commits return zero.
 func (q Query[T]) Update(ctx context.Context, values map[string]any) (int64, error) {
 	if q.store.routed() {
 		owned := make(map[string]any, len(values))
@@ -50,6 +50,14 @@ func (q Query[T]) Update(ctx context.Context, values map[string]any) (int64, err
 	if q.err != nil {
 		return 0, q.err
 	}
+	routed := q.store.routeBinding != nil
+	if !routed {
+		// Capture the selected provider before context/scope callbacks can
+		// replace the caller's Store.Backend. Retain its concrete interface for
+		// compiler capabilities; only the Atomic handoff gets an alias adapter.
+		store := *q.store
+		q.store = &store
+	}
 	if err := ctx.Err(); err != nil {
 		return 0, err
 	}
@@ -61,19 +69,35 @@ func (q Query[T]) Update(ctx context.Context, values map[string]any) (int64, err
 		return 0, err
 	}
 	var matched int64
-	routed := q.store.routeBinding != nil
-	ownedRouted := routed && !db.InTransaction(ctx, q.store.Backend.Alias())
+	backend := q.store.Backend
+	atomic := q.store.operationAtomic
+	var legacy *updateAtomicBackend
+	if !routed {
+		// Compilation already snapshots assignments before trusted callbacks.
+		// Read Alias only once, on that same captured provider, and do not hide
+		// any optional compiler metadata interfaces behind this adapter.
+		legacy = &updateAtomicBackend{Backend: backend, alias: backend.Alias()}
+		backend = legacy
+		atomic = func(ctx context.Context, options db.AtomicOptions, fn func(context.Context) error) error {
+			return db.Atomic(ctx, legacy, options, fn)
+		}
+	}
+	ownedRouted := routed && !db.InTransaction(ctx, backend.Alias())
 	observedCommit := false
-	err = q.store.operationAtomic(ctx, db.AtomicOptions{}, func(ctx context.Context) error {
-		if ownedRouted {
+	err = atomic(ctx, db.AtomicOptions{}, func(ctx context.Context) error {
+		// Atomic's child context contains the actual selected frame. Resolve
+		// its executor once through the fixed alias, retaining the original
+		// transaction and its optional interfaces without wrapping/copying it.
+		executor := db.ExecutorFor(ctx, backend)
+		if ownedRouted || (legacy != nil && legacy.began) {
 			// Register first, before Exec/RowsAffected can add application
 			// callbacks. Only this owned Atomic's actual Commit(nil) fires the
 			// receipt. A provider-supplied error type is not commit evidence.
-			if err := db.OnCommit(ctx, q.store.Backend.Alias(), func(context.Context) error { observedCommit = true; return nil }, false); err != nil {
+			if err := db.OnCommit(ctx, backend.Alias(), func(context.Context) error { observedCommit = true; return nil }, false); err != nil {
 				return err
 			}
 		}
-		result, err := db.ExecutorFor(ctx, q.store.Backend).Exec(ctx, statement, args...)
+		result, err := executor.Exec(ctx, statement, args...)
 		if err != nil {
 			return err
 		}
@@ -83,21 +107,31 @@ func (q Query[T]) Update(ctx context.Context, values map[string]any) (int64, err
 		}
 		return err
 	})
-	if err != nil {
-		if routed {
-			// A nested savepoint has no durable commit to observe. Do not keep
-			// a receipt in its parent or retain counts on a nested error.
-			if !observedCommit {
-				matched = 0
-			}
-		} else {
-			var committed *db.CommittedCallbackError
-			if !errors.As(err, &committed) {
-				matched = 0
-			}
-		}
+	if err != nil && !observedCommit {
+		// A nested savepoint has no durable commit to observe. Do not keep
+		// a receipt in its parent or retain counts on a nested error.
+		matched = 0
 	}
 	return matched, err
+}
+
+// updateAtomicBackend changes only the legacy Atomic handoff. A preliminary
+// InTransaction check could observe a different cooperative context than Atomic
+// itself. Only a successful BeginTx call proves this operation owns a root;
+// same-alias savepoints (including A -> B -> A) never set began or keep receipts.
+type updateAtomicBackend struct {
+	db.Backend
+	alias string
+	began bool
+}
+
+func (b *updateAtomicBackend) Alias() string { return b.alias }
+func (b *updateAtomicBackend) BeginTx(ctx context.Context, options db.TxOptions) (db.Transaction, error) {
+	tx, err := b.Backend.BeginTx(ctx, options)
+	if err == nil {
+		b.began = true
+	}
+	return tx, err
 }
 
 func (q Query[T]) updateSQL(ctx context.Context, values map[string]any) (string, []any, error) {
