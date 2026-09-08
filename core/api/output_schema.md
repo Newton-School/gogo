@@ -33,4 +33,4 @@ Custom/unsupported output requires a declaration or generation fails. Overrides 
 
 Generation has depth, node, string and document-size limits, observes cancellation, rejects recursive/malformed metadata and returns no partial document on failure. Returned bytes belong to the caller. No references are fetched, no executable schema hooks run, and no private sample values are collected.
 
-This is the serializer-output foundation. Input/write schemas, route and authentication metadata, complete OpenAPI generation, management commands, typed client generation and browsable documentation remain separate work. It is not a Django/DRF compatibility or release claim.
+This is the serializer-output foundation. For handler-bound read routes and explicit authentication metadata, see [read-route OpenAPI documents](openapi.md). Input/write schemas, complete route coverage, management commands, typed client generation and browsable documentation remain separate work. Neither API is a Django/DRF compatibility or release claim.
