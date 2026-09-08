@@ -9,7 +9,18 @@ import (
 
 func scaffoldCommands() []Command {
 	return []Command{
-		{Name: "generate", Help: "Generate typed model references and registrations", Validate: noArgs, Configure: fixed(func(_ context.Context, i *Invocation, _ []string) error { return codegen.Generate(i.Project.Root) })},
+		{Name: "generate", Help: "Generate typed model references and registrations", Validate: noArgs, Configure: func(flags *flag.FlagSet) Runner {
+			check := flags.Bool("check", false, "verify descriptors without writing source")
+			return func(ctx context.Context, invocation *Invocation, _ []string) error {
+				if err := ctx.Err(); err != nil {
+					return err
+				}
+				if *check {
+					return codegen.CheckGenerated(invocation.Project.Root)
+				}
+				return codegen.Generate(invocation.Project.Root)
+			}
+		}},
 		{Name: "startapp", Help: "Create and explicitly register an app", Validate: func(args []string) error {
 			if len(args) != 1 {
 				return errors.New("one app label required")
