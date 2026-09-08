@@ -28,6 +28,7 @@ type Memory struct {
 	graphs              map[string]async.Graph
 	workflowIDs         []string
 	delayed             map[string]async.DelayedItem
+	periodic            map[string]async.PeriodicSchedule
 	workers             map[string]workerPresence
 	controls            map[string]map[string]workerControl
 	queue               []async.Delivery
@@ -38,7 +39,7 @@ type Memory struct {
 }
 
 func NewMemory() *Memory {
-	return &Memory{Clock: time.Now, records: map[string]async.Record{}, intents: map[string]async.Intent{}, graphs: map[string]async.Graph{}, delayed: map[string]async.DelayedItem{}, pending: map[string]reserved{}}
+	return &Memory{Clock: time.Now, records: map[string]async.Record{}, intents: map[string]async.Intent{}, graphs: map[string]async.Graph{}, delayed: map[string]async.DelayedItem{}, periodic: map[string]async.PeriodicSchedule{}, pending: map[string]reserved{}}
 }
 func copyOf[T any](v T) T {
 	b, _ := json.Marshal(v)
