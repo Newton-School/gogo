@@ -266,10 +266,32 @@ func (q Query[T]) Iterator(ctx context.Context) (*Iterator[T], error) {
 		return nil, err
 	}
 	rows, err := db.ExecutorFor(ctx, q.store.Backend).Query(ctx, statement, args...)
-	if err != nil {
-		return nil, err
+	if nilSaveRows(rows) {
+		if err == nil {
+			err = errors.New("orm: backend returned no row reader")
+		}
+		return nil, errors.Join(err, ctx.Err())
 	}
-	return &Iterator[T]{rows: rows, query: q, ctx: ctx}, nil
+	iterator := &Iterator[T]{rows: rows, query: q, ctx: ctx, err: err}
+	// A failed Query may still return a resource that belongs to its caller.
+	// Install cleanup before consulting user-provided context callbacks.
+	accepted := false
+	defer func() {
+		if !accepted {
+			if cause := recover(); cause != nil {
+				defer func() { _ = recover(); panic(cause) }()
+			}
+			iterator.Close()
+		}
+	}()
+	if canceled := ctx.Err(); canceled != nil {
+		iterator.err = errors.Join(iterator.err, canceled)
+	}
+	if iterator.err != nil {
+		return nil, iterator.Close()
+	}
+	accepted = true
+	return iterator, nil
 }
 
 type Iterator[T models.Model] struct {
@@ -285,16 +307,49 @@ func (i *Iterator[T]) Next() bool {
 	if i.closed || i.err != nil {
 		return false
 	}
+	published := false
+	defer func() {
+		// Exhaustion, read/decoder failure and provider panics all release the
+		// reader. Panics keep their existing propagation behavior.
+		if !published {
+			if cause := recover(); cause != nil {
+				i.err = errors.Join(i.err, errors.New("orm: row reader panicked"))
+				defer func() { _ = recover(); panic(cause) }()
+			}
+			i.Close()
+		}
+	}()
+	if canceled := i.ctx.Err(); canceled != nil {
+		i.err = errors.Join(i.err, canceled)
+	}
+	if i.err != nil || i.closed {
+		return false
+	}
 	if !i.rows.Next() {
-		i.err = i.rows.Err()
-		i.Close()
+		return false
+	}
+	if canceled := i.ctx.Err(); canceled != nil {
+		i.err = errors.Join(i.err, canceled)
+	}
+	if i.err != nil || i.closed {
 		return false
 	}
 	model := i.query.factory()
+	if canceled := i.ctx.Err(); canceled != nil {
+		i.err = errors.Join(i.err, canceled)
+	}
+	if i.err != nil || i.closed {
+		return false
+	}
 	record, err := models.Bind(model)
 	if err != nil {
-		i.err = err
-		i.Close()
+		i.err = errors.Join(i.err, err)
+		return false
+	}
+	if canceled := i.ctx.Err(); canceled != nil {
+		i.err = errors.Join(i.err, canceled)
+	}
+	if i.err != nil || i.closed {
 		return false
 	}
 	values := make([]any, len(i.query.selectAST.Fields)+len(i.query.selectAST.Projections))
@@ -303,8 +358,13 @@ func (i *Iterator[T]) Next() bool {
 		dest[index] = &values[index]
 	}
 	if err := i.rows.Scan(dest...); err != nil {
-		i.err = err
-		i.Close()
+		i.err = errors.Join(i.err, err)
+		return false
+	}
+	if canceled := i.ctx.Err(); canceled != nil {
+		i.err = errors.Join(i.err, canceled)
+	}
+	if i.err != nil || i.closed {
 		return false
 	}
 	record.State().Deferred = map[string]bool{}
@@ -319,18 +379,32 @@ func (i *Iterator[T]) Next() bool {
 		}
 		f, _ := i.query.schema.Field(name)
 		value, err := i.query.store.decodeField(f, values[index])
-		if err == nil {
-			err = record.Set(name, value)
-		}
 		if err != nil {
-			i.err = err
-			i.Close()
+			i.err = errors.Join(i.err, err)
+		}
+		if canceled := i.ctx.Err(); canceled != nil {
+			i.err = errors.Join(i.err, canceled)
+		}
+		if i.err != nil || i.closed {
+			return false
+		}
+		if err := record.Set(name, value); err != nil {
+			i.err = errors.Join(i.err, err)
+		}
+		if canceled := i.ctx.Err(); canceled != nil {
+			i.err = errors.Join(i.err, canceled)
+		}
+		if i.err != nil || i.closed {
 			return false
 		}
 	}
 	if err := i.query.attachJoined(record, values); err != nil {
-		i.err = err
-		i.Close()
+		i.err = errors.Join(i.err, err)
+	}
+	if canceled := i.ctx.Err(); canceled != nil {
+		i.err = errors.Join(i.err, canceled)
+	}
+	if i.err != nil || i.closed {
 		return false
 	}
 	record.State().Annotations = nil
@@ -339,8 +413,12 @@ func (i *Iterator[T]) Next() bool {
 		for index, projection := range i.query.selectAST.Projections {
 			value, err := i.query.store.decodeAnnotation(i.ctx, projection, values[len(i.query.selectAST.Fields)+index])
 			if err != nil {
-				i.err = err
-				i.Close()
+				i.err = errors.Join(i.err, err)
+			}
+			if canceled := i.ctx.Err(); canceled != nil {
+				i.err = errors.Join(i.err, canceled)
+			}
+			if i.err != nil || i.closed {
 				return false
 			}
 			record.State().Annotations[projection.Alias] = value
@@ -348,18 +426,55 @@ func (i *Iterator[T]) Next() bool {
 	}
 	record.State().Persisted = true
 	record.State().Database = i.query.store.Backend.Alias()
+	if canceled := i.ctx.Err(); canceled != nil {
+		i.err = errors.Join(i.err, canceled)
+	}
+	if i.err != nil || i.closed {
+		return false
+	}
 	i.value = model
+	published = true
 	return true
 }
 func (i *Iterator[T]) Value() T   { return i.value }
 func (i *Iterator[T]) Err() error { return i.err }
+
+// Close releases the reader once and retains every observed read, cleanup and
+// cancellation error. Repeated calls return the remembered outcome.
 func (i *Iterator[T]) Close() error {
 	if i.closed {
-		return nil
+		return i.err
 	}
 	i.closed = true
-	return i.rows.Close()
+	// Finish each bounded cleanup step even if a provider panics, then propagate
+	// the first panic unchanged. Store returned errors before the next callback
+	// so later panics cannot erase them. Recovered callers still see failure.
+	var firstPanic any
+	step := func(callback func() error) {
+		defer func() {
+			if cause := recover(); cause != nil {
+				if firstPanic == nil {
+					firstPanic = cause
+				}
+				i.err = errors.Join(i.err, errors.New("orm: row reader cleanup panicked"))
+			}
+		}()
+		if failure := callback(); failure != nil {
+			i.err = errors.Join(i.err, failure)
+		}
+	}
+	step(i.rows.Err)
+	step(i.rows.Close)
+	step(i.rows.Err)
+	step(i.ctx.Err)
+	if firstPanic != nil {
+		panic(firstPanic)
+	}
+	return i.err
 }
+
+// All returns the successfully decoded prefix together with any terminal
+// error. Callers must check err before treating that prefix as a query result.
 func (q Query[T]) All(ctx context.Context) ([]T, error) {
 	if len(q.prefetches) > 0 {
 		return q.allPrefetched(ctx)
