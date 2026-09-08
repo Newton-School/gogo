@@ -97,6 +97,23 @@ func runProducer(ctx context.Context, client *Client, signature *Signature, repl
 
 func runProducerStarted(ctx context.Context, client *Client, signature *Signature, replay *AcceptanceError, started time.Time) (receipt Receipt, err error) {
 	var op producerOperation
+	return runProducerOperation(ctx, client, signature, replay, started, &op)
+}
+
+// producerAdmission is evidence from this invocation, never from callback errors.
+// The operation and its observation are private and are not passed to providers.
+type producerAdmission struct {
+	id                  string
+	attempted, accepted bool
+}
+
+func runProducerObserved(ctx context.Context, client *Client, signature *Signature) (Receipt, producerAdmission, error) {
+	var op producerOperation
+	receipt, err := runProducerOperation(ctx, client, signature, nil, time.Now(), &op)
+	return receipt, producerAdmission{id: op.envelope.ID, attempted: op.attempted, accepted: op.accepted}, err
+}
+
+func runProducerOperation(ctx context.Context, client *Client, signature *Signature, replay *AcceptanceError, started time.Time, op *producerOperation) (receipt Receipt, err error) {
 	complete := false
 	contextChecked := false
 	var finalContextErr error
