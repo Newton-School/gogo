@@ -63,18 +63,34 @@ func Update(dialect db.Dialect, schema models.Schema, where db.Predicate, assign
 // ValidateUpdateExpression rejects aggregate/window operations before a write.
 // Conditional predicates and membership candidates are part of that tree too.
 func ValidateUpdateExpression(expression db.Expression) error {
-	return validateUpdateExpression(expression, 0)
+	return validateUpdateExpression(expression, 0, false)
 }
 
 // ValidateRowExpression limits a per-row projection to scalar expressions.
 // Aggregate and window expressions need a different grouping/execution owner.
 func ValidateRowExpression(expression db.Expression) error {
-	return validateUpdateExpression(expression, 0)
+	return validateUpdateExpression(expression, 0, false)
 }
 
-func validateUpdateExpression(expression db.Expression, depth int) error {
+// ValidateProjectionExpression additionally admits explicit window expressions
+// in a SELECT output. Predicate and mutation owners keep the row-only validator.
+func ValidateProjectionExpression(expression db.Expression) error {
+	return validateUpdateExpression(expression, 0, true)
+}
+
+func validateUpdateExpression(expression db.Expression, depth int, windows bool) error {
 	if depth > 64 {
 		return errors.New("orm: row expression exceeds nesting limit")
+	}
+	if expression.Kind == "window" {
+		if !windows {
+			return unsupportedWindow("Window expressions are not supported in row predicates or updates")
+		}
+		_, err := (&windowTree{}).expression(expression, true, false, depth)
+		return err
+	}
+	if expression.Window != nil {
+		return errors.New("orm: OVER metadata requires a window expression")
 	}
 	if expression.Filter != nil || expression.Distinct {
 		return errors.New("orm: row expression cannot contain aggregate filters or distinct expressions")
@@ -93,7 +109,7 @@ func validateUpdateExpression(expression db.Expression, depth int) error {
 		}
 	}
 	for _, arg := range expression.Args {
-		if err := validateUpdateExpression(arg, depth+1); err != nil {
+		if err := validateUpdateExpression(arg, depth+1, windows); err != nil {
 			return err
 		}
 	}
@@ -101,7 +117,7 @@ func validateUpdateExpression(expression db.Expression, depth int) error {
 		if err := validateUpdatePredicate(branch.Condition, depth+1); err != nil {
 			return err
 		}
-		if err := validateUpdateExpression(branch.Then, depth+1); err != nil {
+		if err := validateUpdateExpression(branch.Then, depth+1, windows); err != nil {
 			return err
 		}
 	}
@@ -113,12 +129,12 @@ func validateUpdatePredicate(predicate db.Predicate, depth int) error {
 		return errors.New("orm: row predicate exceeds nesting limit")
 	}
 	if predicate.Expression != nil {
-		if err := validateUpdateExpression(*predicate.Expression, depth+1); err != nil {
+		if err := validateUpdateExpression(*predicate.Expression, depth+1, false); err != nil {
 			return err
 		}
 	}
 	if expression, ok := predicate.Value.(db.Expression); ok {
-		if err := validateUpdateExpression(expression, depth+1); err != nil {
+		if err := validateUpdateExpression(expression, depth+1, false); err != nil {
 			return err
 		}
 	} else if predicate.Lookup == "in" || predicate.Lookup == "range" {
@@ -126,7 +142,7 @@ func validateUpdatePredicate(predicate db.Predicate, depth int) error {
 		if value.IsValid() && (value.Kind() == reflect.Slice || value.Kind() == reflect.Array) {
 			for i := 0; i < value.Len(); i++ {
 				if expression, ok := value.Index(i).Interface().(db.Expression); ok {
-					if err := validateUpdateExpression(expression, depth+1); err != nil {
+					if err := validateUpdateExpression(expression, depth+1, false); err != nil {
 						return err
 					}
 				}

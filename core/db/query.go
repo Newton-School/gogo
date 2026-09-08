@@ -18,6 +18,9 @@ type Expression struct {
 	Filter *Predicate
 	// Branches is the ordered conditional branch list for a CASE expression.
 	Branches []WhenBranch
+	// Window is the data-only OVER clause when Kind is "window". Args then
+	// contains exactly one window-capable function. Nil means an empty OVER().
+	Window *WindowSpec
 }
 type WhenBranch struct {
 	Condition Predicate

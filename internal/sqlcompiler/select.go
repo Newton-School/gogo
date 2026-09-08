@@ -11,13 +11,14 @@ import (
 )
 
 type Compiler struct {
-	Dialect      db.Dialect
-	Schema       models.Schema
-	Args         []any
-	Alias        string
-	Joins        map[string]db.Join
-	Aliases      map[string]db.Projection
-	depth, nodes int
+	Dialect        db.Dialect
+	Schema         models.Schema
+	Args           []any
+	Alias          string
+	Joins          map[string]db.Join
+	Aliases        map[string]db.Projection
+	depth, nodes   int
+	windowFunction int
 }
 
 func (c *Compiler) enter() error {
@@ -49,6 +50,13 @@ func (c *Compiler) modelField(name string) (models.Field, string, error) {
 	return reference.field, reference.alias, err
 }
 func (c *Compiler) Predicate(p db.Predicate) (string, error) {
+	// Standalone predicate compilation is also used by deletion commands.
+	// Keep windows out of those paths without relying on SELECT validation.
+	if c.depth == 0 {
+		if err := (&windowTree{compiler: c}).predicate(p, false, 0); err != nil {
+			return "", err
+		}
+	}
 	if err := c.enter(); err != nil {
 		return "", err
 	}
@@ -245,6 +253,9 @@ func (c *Compiler) Expression(e db.Expression) (string, error) {
 		return "", err
 	}
 	defer func() { c.depth-- }()
+	if e.Window != nil && e.Kind != "window" {
+		return "", errors.New("orm: OVER metadata requires a window expression")
+	}
 	if e.Filter != nil && (e.Kind != "function" || !IsAggregateFunction(e.Name)) {
 		return "", &db.Error{Code: db.UnsupportedFeature, Message: "FILTER requires an aggregate expression"}
 	}
@@ -253,6 +264,8 @@ func (c *Compiler) Expression(e db.Expression) (string, error) {
 		return "", errors.New("orm: expression tree exceeds the depth or work limit")
 	case "case":
 		return c.conditional(e)
+	case "window":
+		return c.window(e)
 	case "cast":
 		return c.cast(e)
 	case "json_path", "json_text_path":
@@ -283,6 +296,9 @@ func (c *Compiler) Expression(e db.Expression) (string, error) {
 		return "(" + a + " " + e.Name + " " + b + ")", nil
 	case "function":
 		name := strings.ToUpper(e.Name)
+		if IsWindowFunction(name) && c.windowFunction == 0 {
+			return "", unsupportedWindow("Window functions require an explicit OVER specification")
+		}
 		if !functions[name] {
 			return "", fmt.Errorf("orm: unsupported function %s", name)
 		}
@@ -349,11 +365,6 @@ func Select(dialect db.Dialect, schema models.Schema, query db.Select) (string, 
 		if err := ValidateOutputField(*alias.Output); err != nil {
 			return "", nil, err
 		}
-		if len(query.GroupBy) == 0 {
-			if err := ValidateRowExpression(alias.Expression); err != nil {
-				return "", nil, err
-			}
-		}
 		c.Aliases[alias.Alias] = alias
 	}
 	table, err := dialect.QuoteIdentifier(query.Table)
@@ -400,6 +411,18 @@ func Select(dialect db.Dialect, schema models.Schema, query db.Select) (string, 
 		}
 		c.Joins[join.Path] = join
 		aliases[join.Alias] = true
+	}
+	if err := c.validateWindows(query); err != nil {
+		return "", nil, err
+	}
+	// The shared bounded walk above must precede validators that inspect an
+	// individual alias: raw connector ASTs can contain shared expression DAGs.
+	if len(query.GroupBy) == 0 {
+		for _, alias := range query.Aliases {
+			if err := ValidateProjectionExpression(alias.Expression); err != nil {
+				return "", nil, err
+			}
+		}
 	}
 	if len(query.GroupBy) > 0 {
 		if err := c.validateGrouped(query); err != nil {

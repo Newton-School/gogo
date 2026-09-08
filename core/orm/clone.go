@@ -79,6 +79,26 @@ func cloneExpressionAt(value db.Expression, state *cloneTree, depth int) db.Expr
 		predicate := clonePredicateAt(*value.Filter, state, depth+1)
 		value.Filter = &predicate
 	}
+	if value.Window != nil {
+		window := *value.Window
+		if len(window.PartitionBy) > 64 || len(window.OrderBy) > 64 {
+			state.invalid = true
+			return invalidExpression()
+		}
+		window.PartitionBy = append([]db.Expression(nil), window.PartitionBy...)
+		for i := range window.PartitionBy {
+			window.PartitionBy[i] = cloneExpressionAt(window.PartitionBy[i], state, depth+1)
+		}
+		window.OrderBy = append([]db.WindowOrder(nil), window.OrderBy...)
+		for i := range window.OrderBy {
+			window.OrderBy[i].Expression = cloneExpressionAt(window.OrderBy[i].Expression, state, depth+1)
+		}
+		if window.Frame != nil {
+			frame := *window.Frame
+			window.Frame = &frame
+		}
+		value.Window = &window
+	}
 	value.Args = append([]db.Expression(nil), value.Args...)
 	for i := range value.Args {
 		value.Args[i] = cloneExpressionAt(value.Args[i], state, depth+1)

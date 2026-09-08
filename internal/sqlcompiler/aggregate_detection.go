@@ -44,6 +44,11 @@ func (s *aggregateDetector) expression(expression db.Expression, depth int) (boo
 	if expression.Kind == "invalid_tree" {
 		return false, errors.New("orm: invalid expression tree")
 	}
+	// Aggregate-over-window preserves rows and must not trigger GROUP BY.
+	// Window validation separately checks its complete bounded specification.
+	if expression.Kind == "window" {
+		return false, nil
+	}
 	if expression.Kind == "field" {
 		// Match the compiler's precedence: a declared root field wins even
 		// when its exact name contains the JSON path separator.

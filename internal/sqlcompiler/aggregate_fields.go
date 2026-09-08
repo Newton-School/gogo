@@ -35,6 +35,11 @@ func AggregateFieldReferences(schema models.Schema, projections, aliases []db.Pr
 		if value.Kind == "invalid_tree" {
 			return errors.New("orm: invalid aggregate relation expression")
 		}
+		// Window aggregates preserve rows; their arguments use only already
+		// resolved scalar/to-one paths, never inferred collection joins.
+		if value.Kind == "window" {
+			return nil
+		}
 		if value.Kind == "field" {
 			if _, stored := schema.Field(value.Name); !stored {
 				prefix, _, _ := strings.Cut(value.Name, "__")

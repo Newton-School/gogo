@@ -136,6 +136,9 @@ func validateAggregateExpression(expression db.Expression, inside bool, depth in
 	if depth > 64 {
 		return false, errors.New("orm: aggregate expression exceeds depth bound")
 	}
+	if expression.Kind == "window" {
+		return false, &db.Error{Code: db.UnsupportedFeature, Message: "Aggregate over a window requires an explicit subquery"}
+	}
 	aggregate := expression.Kind == "function" && sqlcompiler.IsAggregateFunction(expression.Name)
 	if aggregate && inside {
 		return false, errors.New("orm: nested aggregate requires an explicit subquery")

@@ -18,8 +18,8 @@ import (
 // fields. Values can select those names; filters and ordering can refer to
 // them. Scalar references to related records require explicit scoped
 // SelectRelated paths. Aggregate arguments and FILTER clauses infer forward and
-// reverse FK joins without hydrating those relations. M2M inference is not yet
-// supported. Multiple visible collections multiply SQL rows; use explicit
+// reverse FK and M2M joins without hydrating those relations. Multiple visible
+// collections multiply SQL rows; use explicit
 // DistinctAggregate where appropriate. At most 64 relation joins and eight
 // segments per path are inferred. Output declares decoding, not a conversion:
 // use Cast to convert a
@@ -30,8 +30,9 @@ import (
 // model identity and hydration are preserved. GroupBy instead requests grouped
 // Values, not model instances. Filter routes aggregate-dependent conditions to
 // HAVING while keeping ordinary row conditions before grouping. Having applies
-// an explicit group condition. Window annotations require a separate window
-// execution path. Construction snapshots data and invokes no provider hook.
+// an explicit group condition. Window annotations preserve rows in ungrouped,
+// unlocked queries; window-dependent filters require a future subquery path.
+// Construction snapshots data and invokes no provider hook.
 func (q Query[T]) Annotate(expressions map[string]ResultExpression) Query[T] {
 	q = q.clone()
 	if q.err != nil {
@@ -69,7 +70,7 @@ func (q Query[T]) Annotate(expressions map[string]ResultExpression) Query[T] {
 			return q
 		}
 		if len(q.selectAST.GroupBy) == 0 && !q.modelGrouping {
-			if err := sqlcompiler.ValidateRowExpression(expression); err != nil {
+			if err := sqlcompiler.ValidateProjectionExpression(expression); err != nil {
 				q.err = err
 				return q
 			}
