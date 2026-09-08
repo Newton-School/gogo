@@ -14,6 +14,7 @@ import (
 	"github.com/Newton-School/gogo/core/urls"
 	"io"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 )
@@ -133,28 +134,17 @@ func (r Response) Write(w http.ResponseWriter, req *http.Request) error {
 	if strings.ContainsAny(r.ETag, "\r\n") {
 		return errors.New("invalid ETag")
 	}
-	body := r.Body
-	if r.Render != nil {
-		var err error
-		body, err = r.Render(req.Context())
-		if err != nil {
-			return err
-		}
-	}
-	for key, values := range r.Headers {
-		for _, value := range values {
-			w.Header().Add(key, value)
-		}
-	}
-	if r.ETag != "" {
-		w.Header().Set("ETag", r.ETag)
-	}
-	if !r.LastModified.IsZero() {
-		w.Header().Set("Last-Modified", r.LastModified.UTC().Format(http.TimeFormat))
-	}
-	if r.Status == 200 && (req.Method == "GET" || req.Method == "HEAD") {
+	// Freeze validated metadata and caller-owned bytes before a renderer,
+	// context or ResponseWriter callback can change their backing storage.
+	r.Headers = r.Headers.Clone()
+	body := slices.Clone(r.Body)
+	method := req.Method
+	// Snapshot the pure conditional decision without cloning arbitrary request
+	// header slices: the existing tag parser retains its line/byte bounds.
+	// Rendering still runs before any 304 is emitted, preserving error priority.
+	notModified := false
+	if r.Status == 200 && (method == "GET" || method == "HEAD") {
 		etags := req.Header.Values("If-None-Match")
-		notModified := false
 		if len(etags) != 0 {
 			notModified = matchesIfNoneMatch(etags, r.ETag)
 		} else if !r.LastModified.IsZero() {
@@ -167,16 +157,38 @@ func (r Response) Write(w http.ResponseWriter, req *http.Request) error {
 				}
 			}
 		}
-		if notModified {
-			w.WriteHeader(304)
-			return nil
+	}
+	if r.Render != nil {
+		var err error
+		body, err = r.Render(req.Context())
+		if err != nil {
+			return err
+		}
+		body = slices.Clone(body)
+	}
+	for key, values := range r.Headers {
+		for _, value := range values {
+			w.Header().Add(key, value)
 		}
 	}
-	w.WriteHeader(r.Status)
-	if req.Method == "HEAD" || r.Status == 204 || r.Status == 304 {
+	if r.ETag != "" {
+		w.Header().Set("ETag", r.ETag)
+	}
+	if !r.LastModified.IsZero() {
+		w.Header().Set("Last-Modified", r.LastModified.UTC().Format(http.TimeFormat))
+	}
+	if notModified {
+		w.WriteHeader(304)
 		return nil
 	}
-	_, err := w.Write(body)
+	w.WriteHeader(r.Status)
+	if method == "HEAD" || r.Status == 204 || r.Status == 304 {
+		return nil
+	}
+	n, err := w.Write(body)
+	if err == nil && n != len(body) {
+		return io.ErrShortWrite
+	}
 	return err
 }
 
