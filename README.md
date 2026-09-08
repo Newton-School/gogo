@@ -35,6 +35,15 @@ requires supported PostgreSQL and Redis tooling and uses owned disposable
 fixtures; ordinary tests may explicitly skip unavailable local services.
 Run `make vet build` for the workspace static and compilation checks.
 
+`make audit-dependencies` runs the pinned Go vulnerability scanner against all
+workspace modules and the selected Go standard library. It queries the live Go
+vulnerability database and requires network access; it does not add a runtime
+dependency to client projects. Reachable vulnerabilities fail the command.
+Verbose output also lists advisories for unused packages inside required
+modules; distinguish those from vulnerabilities affecting imported code. Record
+the source revision and toolchain with results: a clean scan is dated evidence,
+not a security guarantee or a replacement for code review and integration tests.
+
 Independent-module tests use their packaged Gogo sources first, then the
 configured `GOPROXY` for third-party dependencies (the public Go proxy by
 default). An explicitly configured file proxy can reuse already downloaded
