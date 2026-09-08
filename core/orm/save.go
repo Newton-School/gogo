@@ -45,13 +45,25 @@ type SaveEvent struct {
 type SaveReceiver func(context.Context, SaveEvent) error
 
 func (s *Store) Save(ctx context.Context, model models.Model, options SaveOptions) error {
-	if s == nil || s.Backend == nil {
+	if s == nil {
 		return errors.New("orm: backend required")
 	}
+	// Freeze this operation's configuration before context/model/provider or
+	// hook callbacks run. A receiver can register hooks or replace the original
+	// Store for a later Save without retargeting this write or its post hooks.
+	// Backend/registry services and the mutable SaveEvent remain caller-owned;
+	// this is not synchronization for concurrent Store configuration changes.
+	operation := *s
+	operation.BeforeSave = slices.Clone(operation.BeforeSave)
+	operation.AfterSave = slices.Clone(operation.AfterSave)
+	s = &operation
+	if s.Backend == nil {
+		return errors.New("orm: backend required")
+	}
+	options.UpdateFields = slices.Clone(options.UpdateFields)
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	options.UpdateFields = slices.Clone(options.UpdateFields)
 	record, err := models.Bind(model)
 	if err != nil {
 		return err
