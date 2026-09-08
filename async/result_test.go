@@ -513,3 +513,102 @@ func TestResultBoundaryTimestampLocationsAreDetached(t *testing.T) {
 		t.Fatal("returned timestamp locations still alias")
 	}
 }
+
+func resultBoundaryClient(t *testing.T, store async.ResultStore, authorize func(context.Context, string, string, string) error) *async.Client {
+	t.Helper()
+	client, err := async.NewClient(async.ClientConfig{Registry: async.NewRegistry(), Broker: fakes.NewMemory(), Results: store, Authorize: authorize})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return client
+}
+
+func TestResultBoundaryFreezesClientPortsBeforeCallbacks(t *testing.T) {
+	for _, operation := range []string{"forget", "revoke"} {
+		for _, replaceAt := range []string{"lookup", "read", operation} {
+			t.Run(operation+"/"+replaceAt, func(t *testing.T) {
+				_, originalStore, record := resultBoundaryFixture(t, func(context.Context, string, string, string) error { return nil })
+				originalCommands, replacementCommands, replacementReads := 0, 0, 0
+				var originalGrants, replacementGrants []string
+				replacementStore := &resultBoundaryStore{ResultStore: originalStore.ResultStore,
+					lookup: func(context.Context, string) (async.Record, error) { replacementReads++; return record, nil },
+					forget: func(context.Context, string) error { replacementCommands++; return nil },
+					revoke: func(context.Context, string, string) error { replacementCommands++; return nil },
+				}
+				replacement := resultBoundaryClient(t, replacementStore, func(_ context.Context, action, _, _ string) error {
+					replacementGrants = append(replacementGrants, action)
+					return nil
+				})
+				var client *async.Client
+				originalStore.lookup = func(context.Context, string) (async.Record, error) {
+					if replaceAt == "lookup" {
+						*client = *replacement
+					}
+					return record, nil
+				}
+				originalStore.forget = func(_ context.Context, id string) error {
+					if id != record.Envelope.ID {
+						t.Fatal("task identity changed", id)
+					}
+					originalCommands++
+					return nil
+				}
+				originalStore.revoke = func(_ context.Context, id, scope string) error {
+					if id != record.Envelope.ID || scope != record.Envelope.Scope {
+						t.Fatal("task identity/scope changed", id, scope)
+					}
+					originalCommands++
+					return nil
+				}
+				client = resultBoundaryClient(t, originalStore, func(_ context.Context, action, scope, id string) error {
+					if id != record.Envelope.ID || scope != record.Envelope.Scope {
+						t.Fatal("grant identity/scope changed", id, scope)
+					}
+					originalGrants = append(originalGrants, action)
+					if action == replaceAt {
+						*client = *replacement
+					}
+					return nil
+				})
+				result := async.RestoreResult[int](client, record.Envelope.ID)
+				command := result.Forget
+				if operation == "revoke" {
+					command = result.Revoke
+				}
+				if err := command(context.Background()); err != nil || originalCommands != 1 || replacementCommands != 0 || replacementReads != 0 || len(replacementGrants) != 0 || !reflect.DeepEqual(originalGrants, []string{"read", operation}) {
+					t.Fatal("client replacement retargeted an in-flight command", originalCommands, replacementCommands, replacementReads, originalGrants, replacementGrants, err)
+				}
+				// A later operation observes the caller's replacement normally.
+				if _, err := result.Snapshot(context.Background()); err != nil || replacementReads != 1 || !reflect.DeepEqual(replacementGrants, []string{"read"}) {
+					t.Fatal("replacement did not affect later call", replacementReads, replacementGrants, err)
+				}
+			})
+		}
+	}
+}
+
+func TestResultBoundaryWaitFreezesClientValueAcrossPolls(t *testing.T) {
+	_, store, record := resultBoundaryFixture(t, func(context.Context, string, string, string) error { return nil })
+	reads, grants, replacementReads := 0, 0, 0
+	store.lookup = func(context.Context, string) (async.Record, error) {
+		reads++
+		if reads == 1 {
+			return record, nil
+		}
+		return terminalBoundaryRecord(record), nil
+	}
+	replacementStore := &resultBoundaryStore{ResultStore: store.ResultStore, lookup: func(context.Context, string) (async.Record, error) {
+		replacementReads++
+		out := terminalBoundaryRecord(record)
+		out.Output = json.RawMessage("9")
+		return out, nil
+	}}
+	replacement := resultBoundaryClient(t, replacementStore, func(context.Context, string, string, string) error { return nil })
+	var client *async.Client
+	client = resultBoundaryClient(t, store, func(context.Context, string, string, string) error { grants++; *client = *replacement; return nil })
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if out, err := async.RestoreResult[int](client, record.Envelope.ID).Wait(ctx); err != nil || out != 1 || reads != 2 || grants != 2 || replacementReads != 0 {
+		t.Fatal("wait switched client configuration", out, reads, grants, replacementReads, err)
+	}
+}

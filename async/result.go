@@ -19,7 +19,11 @@ func (r *Result[O]) operation(ctx context.Context) (resultOperation, error) {
 	if err := ctx.Err(); err != nil {
 		return resultOperation{}, err
 	}
-	return resultOperation{client: r.client, id: r.Receipt.ID}, nil
+	// Client's private configuration is immutable and contains no mutex. Copy
+	// its value so callback assignment through the public *Client cannot swap
+	// configured provider ports or grants during this operation or wait.
+	client := *r.client
+	return resultOperation{client: &client, id: r.Receipt.ID}, nil
 }
 
 func (op resultOperation) snapshot(ctx context.Context) (out Record, err error) {
