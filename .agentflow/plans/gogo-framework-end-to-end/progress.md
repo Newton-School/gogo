@@ -7,6 +7,8 @@ This is an execution ledger, not a requirements document or an AgentFlow complet
 
 ## Verified checkpoints so far
 
+- `8cb9f38` adds bounded public RSS 2.0/Atom 1.0 rendering, explicit feed/item/enclosure grants, detached read-only metadata, configured-origin URL validation, custom XML formats and named-route HTTP integration. `5b97701` closes invalid Atom category IRIs and non-concrete enclosure media types, preserves RSS email-only authors, and adds actual PostgreSQL publication/withdrawal/deletion/overflow/denial/provider-failure tests. Root/Async/Admin reviews closed; final independent three-repeat syndication and PostgreSQL suites passed (1.444s/2.437s), root syndication/HTTP/URL suites passed (2.291s/3.707s/2.921s), and URL fuzzing exercised 978,567 inputs. Exact-body ETags reauthorize before 304, errors are no-store and late writes abort the stream. Mappings: `contrib-feeds`, `http-responses`; complete Django feed-helper and extension-format conformance remains open.
+- `cf3ff91` adds the Site model with explicit migrations, trusted-host/explicit-ID resolution, detached request context, optional versioned namespaced positive caching and transaction-aware cache bypass. Root/Admin reviews closed; repeated unit races and actual PostgreSQL tests passed (independent 1.226s/1.671s), host fuzzing exercised 3,393,928 inputs, and vet/diff checks passed. Host selection is not tenant authorization; no automatic Admin registration, seed record or default site fallback is created. Mappings: `contrib-sites`, `data-builtin-models`; complete site-consumer integration and conformance remain open.
 - The immutable `20063d1e25cf6e2166b91a3e2239d3dfea6e6833` snapshot passed strict actual PostgreSQL/Redis integration (189.564s; demo 11.558s), six Admin JavaScript contracts (47.730ms), vet/build, and all six independent public modules plus a fresh generated consumer with workspace overrides disabled. The explicitly configured dependency file proxy retained fresh module caches and checksum verification; this is not a network-publication test. This supersedes `9f9330e` as the latest whole-snapshot gate. Later fixes and working features are excluded.
 - `20063d1` adds optional connector-neutral catalog inspection and a PostgreSQL read-only repeatable-read implementation, with exact raw metadata, explicit unsupported mappings, qualified system operations, bounded definitions/counts and no migration adoption. Root/Async reviews, broad data races/vet and actual PostgreSQL catalog tests pass. `c529137` subsequently closes scalar-query row-close failures with local bounded reading and permanent first/second-query regressions (independent three repetitions 1.554s; own two repetitions 1.878s). Mappings: `models-legacy`, `postgres-schema`, `connectors-extend`; source generation and the full legacy workflow remain in progress.
 - `d05b166` adds bounded, snapshotted, escaped Admin search help with conditional ARIA linkage, without changing query or list-edit authority. Root/Async reviews closed, focused races repeated three times (1.837s; independent 1.491s), actual PostgreSQL Admin integration passed (41.273s; Admin 1.382s), and vet/diff checks passed. Mappings: `admin-options`, `admin-list`; no new browser-verification claim.
@@ -202,14 +204,14 @@ Service availability and skipped tests must always be reported separately from a
 | `fixtures-data` | Export and import structured fixtures | Pending implementation or audit |
 | `contrib-admindocs` | Generate developer-facing model and route reference | Pending implementation or audit |
 | `contrib-contenttypes` | Resolve model identities and generic relations | Partial code; full conformance pending |
-| `contrib-feeds` | Generate RSS or Atom syndication feeds | Pending implementation or audit |
+| `contrib-feeds` | Generate RSS or Atom syndication feeds | Partial code; full conformance pending |
 | `contrib-flatpages` | Serve a registered flat page | Pending implementation or audit |
 | `contrib-gis-import` | Import, transform and export spatial datasets | Pending implementation or audit |
 | `contrib-gis-query` | Declare and query spatial data through PostGIS | Pending implementation or audit |
 | `contrib-humanize` | Format human-readable display values | Partial code; full conformance pending |
 | `contrib-redirects` | Apply a site-bound redirect after route miss | Pending implementation or audit |
 | `contrib-sitemap` | Generate sitemap indexes and bounded sitemap pages | Pending implementation or audit |
-| `contrib-sites` | Resolve the current site and scope site-owned content | Pending implementation or audit |
+| `contrib-sites` | Resolve the current site and scope site-owned content | Partial code; full conformance pending |
 | `async-beat` | Evaluate periodic schedules and dispatch one occurrence | Partial code; full conformance pending |
 | `async-callbacks` | Dispatch callbacks, errbacks and task replacement | Partial code; full conformance pending |
 | `async-cancel` | Revoke pending work or cooperatively cancel execution | Partial code; full conformance pending |
