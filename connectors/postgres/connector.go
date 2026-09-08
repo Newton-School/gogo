@@ -170,6 +170,11 @@ type safeRows struct{ *sql.Rows }
 func (r safeRows) Scan(dest ...any) error { return translate(r.Rows.Scan(dest...), false) }
 func (r safeRows) Err() error             { return translate(r.Rows.Err(), false) }
 
+// Closing RETURNING rows may consume a deferred server error after the row was
+// received. Keep the ordinary statement classification, never raw provider text
+// or an inferred claim that an unavailable autocommit write was rolled back.
+func (r safeRows) Close() error { return translate(r.Rows.Close(), false) }
+
 type transaction struct{ *sql.Tx }
 
 func (t *transaction) Exec(ctx context.Context, q string, args ...any) (db.Result, error) {
