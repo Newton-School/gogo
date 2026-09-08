@@ -34,7 +34,15 @@ func (m *genericModel) readOptions(options ReadViewOptions) ReadViewOptions {
 }
 
 func (m *genericModel) readRows(ctx context.Context, query orm.Query[*models.MapRecord], limit int) (rows []genericModelRow, err error) {
-	if limit < 1 || limit > 201 || !genericContextOK(ctx) {
+	budget := templateContextBudget{remainingValues: templateContextMaxValues, remainingBytes: templateContextMaxBytes}
+	jsonBudget := &genericModelJSONBudget{values: templateContextMaxValues, text: templateContextMaxBytes, raw: templateContextMaxBytes}
+	return m.readRowsWithBudget(ctx, query, limit, &budget, jsonBudget)
+}
+
+// Archive pages share their materialization budget with bounded navigation
+// reads. Ordinary list/detail callers continue to allocate one fresh budget.
+func (m *genericModel) readRowsWithBudget(ctx context.Context, query orm.Query[*models.MapRecord], limit int, budget *templateContextBudget, jsonBudget *genericModelJSONBudget) (rows []genericModelRow, err error) {
+	if limit < 1 || limit > 201 || budget == nil || jsonBudget == nil || !genericContextOK(ctx) {
 		return nil, ErrUnavailable
 	}
 	iterator, err := query.Iterator(ctx)
@@ -48,8 +56,6 @@ func (m *genericModel) readRows(ctx context.Context, query orm.Query[*models.Map
 			rows, err = nil, ErrUnavailable
 		}
 	}()
-	budget := templateContextBudget{remainingValues: templateContextMaxValues, remainingBytes: templateContextMaxBytes}
-	jsonBudget := &genericModelJSONBudget{values: templateContextMaxValues, text: templateContextMaxBytes, raw: templateContextMaxBytes}
 	identities := make(map[string]bool, len(m.schema.PKFields()))
 	for _, field := range m.schema.PKFields() {
 		identities[field.Name] = true
