@@ -12,6 +12,10 @@ func TestProjectAppAndPreserveExisting(t *testing.T) {
 	if err := StartProject(dir, ProjectOptions{Module: "example.com/storefront"}); err != nil {
 		t.Fatal(err)
 	}
+	module, err := os.ReadFile(filepath.Join(dir, "go.mod"))
+	if err != nil || !strings.Contains(string(module), "\ngo 1.26.8\n") {
+		t.Fatal("generated project must require the patched Go toolchain", err)
+	}
 	env, _ := os.ReadFile(filepath.Join(dir, ".env"))
 	example, _ := os.ReadFile(filepath.Join(dir, ".env.example"))
 	if string(env) != string(example) {

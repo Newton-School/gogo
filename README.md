@@ -18,6 +18,12 @@ This renders the review and enables its project-local comment writer without ope
 
 ## Contributor checks
 
+Go 1.26.8 or newer is required by every module and generated client. Use a
+current patched toolchain: older Go 1.26 releases include filesystem-confinement
+and HTTP/template security issues ([Go release history](https://go.dev/doc/devel/release)).
+The Go command can select the required toolchain automatically; no global Go
+installation change is required.
+
 Run `make test` for workspace race tests and Admin JavaScript contract tests.
 The latter use Node.js 20+ built-ins only, with no npm dependencies or browser;
 `make test-js` runs them separately. Node.js is a contributor test dependency,

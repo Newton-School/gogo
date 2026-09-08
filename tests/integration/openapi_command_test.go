@@ -71,7 +71,7 @@ func TestOpenAPICommandExternalManageConsumer(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	module := fmt.Sprintf("module example.com/openapi-command-client\n\ngo 1.26.0\n\nrequire github.com/Newton-School/gogo v0.0.0\n\nreplace github.com/Newton-School/gogo => %q\n", root)
+	module := fmt.Sprintf("module example.com/openapi-command-client\n\ngo 1.26.8\n\nrequire github.com/Newton-School/gogo v0.0.0\n\nreplace github.com/Newton-School/gogo => %q\n", root)
 	// Reuse the repository's verified dependency checksums while resolving only
 	// already cached sources. Missing dependencies fail; verification stays on.
 	checksums, err := os.ReadFile(filepath.Join(root, "go.sum"))

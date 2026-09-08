@@ -50,7 +50,7 @@ func TestPostgresInspectDBGeneratedModelsCompileAndQuery(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(dir, "apps", "legacy"), 0700); err != nil {
 		t.Fatal(err)
 	}
-	module := fmt.Sprintf("module example.com/inspection\n\ngo 1.26.0\n\nrequire (\ngithub.com/Newton-School/gogo v0.0.0\ngithub.com/Newton-School/gogo/connectors/postgres v0.0.0\n)\nreplace github.com/Newton-School/gogo => %q\nreplace github.com/Newton-School/gogo/connectors/postgres => %q\n", root, filepath.Join(root, "connectors", "postgres"))
+	module := fmt.Sprintf("module example.com/inspection\n\ngo 1.26.8\n\nrequire (\ngithub.com/Newton-School/gogo v0.0.0\ngithub.com/Newton-School/gogo/connectors/postgres v0.0.0\n)\nreplace github.com/Newton-School/gogo => %q\nreplace github.com/Newton-School/gogo/connectors/postgres => %q\n", root, filepath.Join(root, "connectors", "postgres"))
 	for path, content := range map[string][]byte{"go.mod": []byte(module), "apps/legacy/models.go": source, "apps/legacy/models_test.go": []byte(inspectedClientTest)} {
 		if err := os.WriteFile(filepath.Join(dir, path), content, 0600); err != nil {
 			t.Fatal(err)

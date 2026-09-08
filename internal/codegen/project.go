@@ -156,7 +156,7 @@ func StartProject(target string, options ProjectOptions) error {
 	module := options.Module
 	env := conf.CoreSchema().EnvTemplate()
 	files := map[string]string{
-		"go.mod":    fmt.Sprintf("module %s\n\ngo 1.26.0\n\nrequire (\n %s %s\n %s/connectors/postgres %s\n)\n", module, moduleRoot, options.Version, moduleRoot, options.Version),
+		"go.mod":    fmt.Sprintf("module %s\n\ngo 1.26.8\n\nrequire (\n %s %s\n %s/connectors/postgres %s\n)\n", module, moduleRoot, options.Version, moduleRoot, options.Version),
 		"manage.go": fmt.Sprintf("package main\nimport (\"%s\";\"%s/config\")\nfunc main(){gogo.Main(config.Project())}\n", moduleRoot, module),
 		"config/apps.go": `package config
 import "github.com/Newton-School/gogo/core/app"

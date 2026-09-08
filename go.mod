@@ -1,6 +1,6 @@
 module github.com/Newton-School/gogo
 
-go 1.26.0
+go 1.26.8
 
 require (
 	golang.org/x/crypto v0.56.0

@@ -1,6 +1,6 @@
 module github.com/Newton-School/gogo/connectors/redis
 
-go 1.26.0
+go 1.26.8
 
 require github.com/redis/go-redis/v9 v9.22.0
 
