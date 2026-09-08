@@ -128,6 +128,12 @@ func newGenericTemplate(options TemplateViewOptions) (*genericTemplate, error) {
 }
 
 func (t *genericTemplate) render(call *readViewCall) (Response, error) {
+	return t.renderWith(call, nil)
+}
+
+// Model-derived reserved values win over every application context producer.
+// They are already detached from records and are never passed to Context.
+func (t *genericTemplate) renderWith(call *readViewCall, reserved templates.Context) (Response, error) {
 	values := templates.Context(call.params())
 	for k, v := range t.extra {
 		values[k] = v
@@ -147,6 +153,9 @@ func (t *genericTemplate) render(call *readViewCall) (Response, error) {
 		for k, v := range data {
 			values[k] = v
 		}
+	}
+	for k, v := range reserved {
+		values[k] = v
 	}
 	values, err := snapshotTemplateContext(values)
 	if err != nil {
