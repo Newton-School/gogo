@@ -47,14 +47,19 @@ func (g *GroupResult) Failed(ctx context.Context) (bool, error) {
 // logical collectors are not silently reinterpreted as flat Group members.
 func (g *GroupResult) Iterate(ctx context.Context) iter.Seq2[GroupMember, error] {
 	return func(yield func(GroupMember, error) bool) {
-		fail := func(err error) { yield(GroupMember{}, err) }
+		fail := func(err error) {
+			if err == nil {
+				err = ErrUnavailable
+			}
+			yield(GroupMember{}, err)
+		}
 		op, err := g.operation(ctx)
 		if err != nil {
 			fail(err)
 			return
 		}
-		if ctx.Value(workerContextKey{}) != nil {
-			fail(ErrWorkerJoin)
+		if err := groupWaitAllowed(ctx); err != nil {
+			fail(err)
 			return
 		}
 		seen := map[string]bool{}
@@ -65,7 +70,7 @@ func (g *GroupResult) Iterate(ctx context.Context) iter.Seq2[GroupMember, error]
 		ticker := time.NewTicker(20 * time.Millisecond)
 		defer ticker.Stop()
 		for {
-			if err := ctx.Err(); err != nil {
+			if err := groupContextError(ctx); err != nil {
 				fail(err)
 				return
 			}
@@ -125,7 +130,7 @@ func (g *GroupResult) Iterate(ctx context.Context) iter.Seq2[GroupMember, error]
 					fail(ErrUnavailable)
 					return
 				}
-				if err := ctx.Err(); err != nil {
+				if err := groupContextError(ctx); err != nil {
 					fail(err)
 					return
 				}
@@ -164,6 +169,15 @@ func (g *GroupResult) Iterate(ctx context.Context) iter.Seq2[GroupMember, error]
 				if !yield(GroupMember{Index: index, Outcome: cloneJSON(outcome)}, nil) {
 					return
 				}
+				if err := groupContextError(ctx); err != nil {
+					fail(err)
+					return
+				}
+			}
+			// Include empty groups and polls whose members were already yielded.
+			if err := groupContextError(ctx); err != nil {
+				fail(err)
+				return
 			}
 			if graph.State.Terminal() {
 				if len(seen) != len(expected) {
@@ -171,11 +185,9 @@ func (g *GroupResult) Iterate(ctx context.Context) iter.Seq2[GroupMember, error]
 				}
 				return
 			}
-			select {
-			case <-ctx.Done():
-				fail(ctx.Err())
+			if err := groupWaitPoll(ctx, ticker.C); err != nil {
+				fail(err)
 				return
-			case <-ticker.C:
 			}
 		}
 	}
@@ -211,6 +223,11 @@ func (g *GroupResult) JoinOutcomes(ctx context.Context) ([]Completion, error) {
 	outcomes := make([]Completion, len(observed))
 	for i, member := range observed {
 		outcomes[i] = member.Outcome
+	}
+	if failure == nil {
+		// Preserve real observed members if cancellation arrives during final
+		// collection work; it cannot turn that work into a fabricated success.
+		failure = groupContextError(ctx)
 	}
 	return outcomes, failure
 }

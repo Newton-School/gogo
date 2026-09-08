@@ -117,8 +117,8 @@ func (g *GroupResult) Join(ctx context.Context) (out []json.RawMessage, err erro
 	if err != nil {
 		return nil, err
 	}
-	if ctx.Value(workerContextKey{}) != nil {
-		return nil, ErrWorkerJoin
+	if err := groupWaitAllowed(ctx); err != nil {
+		return nil, err
 	}
 	ticker := time.NewTicker(20 * time.Millisecond)
 	defer ticker.Stop()
@@ -134,10 +134,8 @@ func (g *GroupResult) Join(ctx context.Context) (out []json.RawMessage, err erro
 		if graph.State.Terminal() {
 			return joinedGroupOutput(graph)
 		}
-		select {
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		case <-ticker.C:
+		if err := groupWaitPoll(ctx, ticker.C); err != nil {
+			return nil, err
 		}
 	}
 }
