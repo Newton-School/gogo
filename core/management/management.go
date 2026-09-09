@@ -10,6 +10,7 @@ import (
 	"github.com/Newton-School/gogo/core/app"
 	"github.com/Newton-School/gogo/core/checks"
 	"github.com/Newton-School/gogo/core/conf"
+	"github.com/Newton-School/gogo/internal/version"
 	"io"
 	"net/http"
 	"os"
@@ -20,7 +21,7 @@ import (
 	"time"
 )
 
-const Version = "0.0.0-dev"
+const Version = version.Version
 
 type Invocation struct {
 	Project        *Project

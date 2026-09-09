@@ -3,12 +3,12 @@ module example.com/gogo-integration
 go 1.26.8
 
 require (
-	github.com/Newton-School/gogo v0.0.0
-	github.com/Newton-School/gogo/admin v0.0.0
-	github.com/Newton-School/gogo/async v0.0.0
-	github.com/Newton-School/gogo/async/redis v0.0.0
-	github.com/Newton-School/gogo/connectors/postgres v0.0.0
-	github.com/Newton-School/gogo/connectors/redis v0.0.0
+	github.com/Newton-School/gogo v1.0.0-alpha.1
+	github.com/Newton-School/gogo/admin v1.0.0-alpha.1
+	github.com/Newton-School/gogo/async v1.0.0-alpha.1
+	github.com/Newton-School/gogo/async/redis v1.0.0-alpha.1
+	github.com/Newton-School/gogo/connectors/postgres v1.0.0-alpha.1
+	github.com/Newton-School/gogo/connectors/redis v1.0.0-alpha.1
 	github.com/coder/websocket v1.8.15
 	github.com/jackc/pgx/v5 v5.10.0
 )

@@ -4,7 +4,7 @@ go 1.26.8
 
 require github.com/redis/go-redis/v9 v9.22.0
 
-require github.com/Newton-School/gogo v0.0.0
+require github.com/Newton-School/gogo v1.0.0-alpha.1
 
 require (
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect

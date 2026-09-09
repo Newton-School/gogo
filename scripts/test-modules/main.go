@@ -9,6 +9,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"github.com/Newton-School/gogo/internal/version"
 	"io"
 	"io/fs"
 	"os"
@@ -68,8 +69,8 @@ func run(race bool) (resultErr error) {
 		if err = os.MkdirAll(copyDir, 0755); err != nil {
 			return err
 		}
-		zipFile := filepath.Join(proxy, escape(name), "@v", "v0.0.0.zip")
-		if err = extract(zipFile, copyDir, name+"@v0.0.0/"); err != nil {
+		zipFile := filepath.Join(proxy, escape(name), "@v", version.Module+".zip")
+		if err = extract(zipFile, copyDir, name+"@"+version.Module+"/"); err != nil {
 			return err
 		}
 		args := []string{"test", "-mod=mod"}
@@ -204,12 +205,12 @@ func packageModule(repo, proxy, module string) error {
 	if err = os.MkdirAll(dest, 0755); err != nil {
 		return err
 	}
-	for file, value := range map[string][]byte{"v0.0.0.mod": mod, "list": []byte("v0.0.0\n"), "v0.0.0.info": []byte(`{"Version":"v0.0.0","Time":"2000-01-01T00:00:00Z"}`)} {
+	for file, value := range map[string][]byte{version.Module + ".mod": mod, "list": []byte(version.Module + "\n"), version.Module + ".info": []byte(`{"Version":"` + version.Module + `","Time":"2000-01-01T00:00:00Z"}`)} {
 		if err = os.WriteFile(filepath.Join(dest, file), value, 0644); err != nil {
 			return err
 		}
 	}
-	file, err := os.Create(filepath.Join(dest, "v0.0.0.zip"))
+	file, err := os.Create(filepath.Join(dest, version.Module+".zip"))
 	if err != nil {
 		return err
 	}
@@ -251,7 +252,7 @@ func packageModule(repo, proxy, module string) error {
 		if e != nil {
 			return e
 		}
-		out, e := writer.Create(name + "@v0.0.0/" + relative)
+		out, e := writer.Create(name + "@" + version.Module + "/" + relative)
 		if e != nil {
 			return e
 		}

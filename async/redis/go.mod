@@ -3,9 +3,9 @@ module github.com/Newton-School/gogo/async/redis
 go 1.26.8
 
 require (
-	github.com/Newton-School/gogo v0.0.0
-	github.com/Newton-School/gogo/async v0.0.0
-	github.com/Newton-School/gogo/connectors/redis v0.0.0
+	github.com/Newton-School/gogo v1.0.0-alpha.1
+	github.com/Newton-School/gogo/async v1.0.0-alpha.1
+	github.com/Newton-School/gogo/connectors/redis v1.0.0-alpha.1
 	github.com/redis/go-redis/v9 v9.22.0
 )
 

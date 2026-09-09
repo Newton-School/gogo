@@ -36,7 +36,7 @@ func scaffoldCommands() []Command {
 			return nil
 		}, Configure: func(f *flag.FlagSet) Runner {
 			module := f.String("module", "", "new Go module path (required)")
-			version := f.String("framework-version", "v0.0.0", "framework module version")
+			version := f.String("framework-version", "v"+Version, "framework module version")
 			return func(_ context.Context, _ *Invocation, args []string) error {
 				return codegen.StartProject(args[0], codegen.ProjectOptions{Module: *module, Version: *version})
 			}

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/Newton-School/gogo/core/conf"
+	"github.com/Newton-School/gogo/internal/version"
 	"go/ast"
 	"go/format"
 	"go/parser"
@@ -148,7 +149,7 @@ func StartProject(target string, options ProjectOptions) error {
 		return errors.New("valid Go module path required")
 	}
 	if options.Version == "" {
-		options.Version = "v0.0.0"
+		options.Version = version.Module
 	}
 	if !regexp.MustCompile(`^v[0-9]+\.[0-9]+\.[0-9]+(?:[-+][A-Za-z0-9.-]+)?$`).MatchString(options.Version) {
 		return errors.New("valid framework module version required")

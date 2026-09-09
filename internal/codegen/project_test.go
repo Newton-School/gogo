@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/Newton-School/gogo/internal/version"
 )
 
 func TestProjectAppAndPreserveExisting(t *testing.T) {
@@ -15,6 +17,9 @@ func TestProjectAppAndPreserveExisting(t *testing.T) {
 	module, err := os.ReadFile(filepath.Join(dir, "go.mod"))
 	if err != nil || !strings.Contains(string(module), "\ngo 1.26.8\n") {
 		t.Fatal("generated project must require the patched Go toolchain", err)
+	}
+	if strings.Count(string(module), " "+version.Module+"\n") != 2 {
+		t.Fatal("generated Core and PostgreSQL must pin the running release")
 	}
 	env, _ := os.ReadFile(filepath.Join(dir, ".env"))
 	example, _ := os.ReadFile(filepath.Join(dir, ".env.example"))
