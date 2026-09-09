@@ -245,7 +245,7 @@ func packageModule(repo, proxy, module string) error {
 		if strings.HasPrefix(entry.Name(), ".") || entry.Name() == "go.work" || entry.Name() == "go.work.sum" {
 			return nil
 		}
-		if module == "" && !strings.Contains(relative, "/") && entry.Name() != "go.mod" && entry.Name() != "go.sum" && entry.Name() != "gogo.go" && entry.Name() != "README.md" && entry.Name() != "LICENSE" {
+		if module == "" && !strings.Contains(relative, "/") && entry.Name() != "go.mod" && entry.Name() != "go.sum" && entry.Name() != "gogo.go" && entry.Name() != "README.md" && entry.Name() != "LICENSE" && entry.Name() != "THIRD_PARTY_NOTICES.md" {
 			return nil
 		}
 		content, e := os.ReadFile(path)

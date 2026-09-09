@@ -2,6 +2,24 @@
 
 A Go backend framework under development with structured applications, its own ORM, an optional Admin module, and an optional Async task system. PostgreSQL and Redis are the initial external data backends.
 
+## Alpha release
+
+The rebuilt framework targets **v1.0.0-alpha.1**. This is a preview, not stable
+1.0 or complete Django/Celery parity. See the [release and migration notes](releases/v1.0.0-alpha.1.md)
+for all six module versions and compatibility boundaries.
+
+```sh
+go install github.com/Newton-School/gogo/cmd/gogo@v1.0.0-alpha.1
+gogo startproject storefront --module example.com/storefront
+cd storefront
+go mod tidy
+go run manage.go startapp catalog
+```
+
+Configure the generated `.env` before `check`, migrations or serving. Required
+secrets have no built-in credential defaults. Pin this prerelease explicitly;
+`@latest` may select the older stable implementation.
+
 ## Architecture review
 
 Architecture is maintained only through AgentFlow. Architecture version 2 is approved; implementation is in progress under the registered `gogo-framework-end-to-end` plan. Approval does not mean the framework is implemented or ready for production.
