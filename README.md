@@ -4,7 +4,7 @@ A Go backend framework under development with structured applications, its own O
 
 ## Alpha release
 
-The rebuilt framework targets **v1.0.0-alpha.1**. This is a preview, not stable
+The rebuilt framework is published as **[v1.0.0-alpha.1](https://github.com/Newton-School/gogo/releases/tag/v1.0.0-alpha.1)**. This is a preview, not stable
 1.0 or complete Django/Celery parity. See the [release and migration notes](releases/v1.0.0-alpha.1.md)
 for all six module versions and compatibility boundaries.
 
@@ -19,6 +19,18 @@ go run manage.go startapp catalog
 Configure the generated `.env` before `check`, migrations or serving. Required
 secrets have no built-in credential defaults. Pin this prerelease explicitly;
 `@latest` may select the older stable implementation.
+
+## Runnable showcase
+
+Start with [examples/showcase](examples/showcase/README.md): a standalone client
+pinned to all six published alpha modules, with no workspace replacements.
+It connects PostgreSQL models and migrations, authenticated Admin, a scoped
+public API, forms, Redis cache/sessions and a separate Async worker.
+
+Its [coverage map](examples/showcase/COVERAGE.md) groups 40 model kinds, 29 form
+kinds, 21 widget configurations, 23 API serializer field constructors and
+additional executable recipes by feature. It labels descriptor-only support,
+compile-only examples and remaining gaps explicitly.
 
 ## Architecture review
 
