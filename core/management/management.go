@@ -10,7 +10,6 @@ import (
 	"github.com/Newton-School/gogo/core/app"
 	"github.com/Newton-School/gogo/core/checks"
 	"github.com/Newton-School/gogo/core/conf"
-	ghttp "github.com/Newton-School/gogo/core/http"
 	"io"
 	"net/http"
 	"os"
@@ -83,7 +82,25 @@ func (e *CommandError) Unwrap() error { return e.Cause }
 
 // Call is the programmatic entry point. Args start at the command name, unlike
 // Run's os.Args-compatible input. Flag parsing always precedes opening resources.
-func Call(ctx context.Context, project Project, args []string, options Options) error {
+func Call(ctx context.Context, project Project, args []string, options Options) (result error) {
+	var serverEntry *runServerEntry
+	serverExitCode := 1
+	if len(args) > 0 && (args[0] == "serve" || args[0] == "runserver") {
+		defer func() {
+			if recover() != nil {
+				result = errors.New("server callback panicked")
+			}
+			if result != nil {
+				result = &runServerFailure{cause: result, code: serverExitCode}
+			}
+		}()
+		var err error
+		project, serverEntry, err = captureRunServerProject(project)
+		if err != nil {
+			return err
+		}
+		args = slices.Clone(args)
+	}
 	// Project declarations already exist at entry. Freeze the new required-flag
 	// contract before app registration/Freeze or Configure can retain and change
 	// its backing slice. Registry commands are captured when they are discovered.
@@ -167,16 +184,20 @@ func Call(ctx context.Context, project Project, args []string, options Options) 
 	if err = parseErr; errors.Is(err, flag.ErrHelp) {
 		return nil
 	} else if err != nil {
+		serverExitCode = 2
 		return &CommandError{2, "Invalid command arguments", err}
 	}
 	if err = required[command.Name].validate(flags, provided); err != nil {
+		serverExitCode = 2
 		return &CommandError{2, "Invalid required command flags", err}
 	}
 	if err = captureFixtureCommandSelection(flags, flags.Args()); err != nil {
+		serverExitCode = 2
 		return &CommandError{2, "Invalid fixture command arguments", err}
 	}
 	if command.Validate != nil {
 		if err = command.Validate(flags.Args()); err != nil {
+			serverExitCode = 2
 			return &CommandError{2, "Invalid command arguments", err}
 		}
 	}
@@ -186,17 +207,34 @@ func Call(ctx context.Context, project Project, args []string, options Options) 
 		resources = append(resources, project.RuntimeResources...)
 	}
 	env := map[string]string{}
-	file, e := os.Open(filepath.Join(project.Root, ".env"))
-	if e == nil {
-		env, e = conf.ReadEnv(file)
-		_ = file.Close()
-		if e != nil {
-			return e
+	if serverEntry != nil {
+		root, openErr := os.OpenRoot(project.Root)
+		if openErr != nil {
+			return serverFailure(openErr)
 		}
-	} else if !errors.Is(e, os.ErrNotExist) {
-		return errors.New("cannot read project environment")
+		var readErr error
+		env, readErr = readReloadEnvironment(root)
+		readErr = errors.Join(readErr, root.Close())
+		if readErr != nil {
+			return serverFailure(readErr)
+		}
+	} else {
+		file, e := os.Open(filepath.Join(project.Root, ".env"))
+		if e == nil {
+			env, e = conf.ReadEnv(file)
+			_ = file.Close()
+			if e != nil {
+				return e
+			}
+		} else if !errors.Is(e, os.ErrNotExist) {
+			return errors.New("cannot read project environment")
+		}
 	}
-	env = conf.Merge(env, project.Environment, conf.Environment(os.Environ()))
+	processEnvironment := conf.Environment(os.Environ())
+	if serverEntry != nil {
+		processEnvironment = conf.Environment(serverEntry.environment)
+	}
+	env = conf.Merge(env, project.Environment, processEnvironment)
 	settings, err := project.Schema.Load(env, resources...)
 	if err != nil {
 		return err
@@ -218,6 +256,9 @@ func Call(ctx context.Context, project Project, args []string, options Options) 
 	}
 	completion := &fixtureCommandCompletion{}
 	runContext := context.WithValue(ctx, fixtureCommandCompletionKey{}, completion)
+	if serverEntry != nil {
+		runContext = context.WithValue(runContext, runServerEntryKey{}, serverEntry)
+	}
 	return runAndClose(ctx, application, settings.Duration("GOGO_SHUTDOWN_GRACE"), func() error {
 		return runner(runContext, invocation, flags.Args())
 	}, completion)
@@ -293,12 +334,23 @@ func runAndClose(ctx context.Context, application *app.Application, grace time.D
 }
 func Run(ctx context.Context, project Project, args []string, options Options) int {
 	options = options.defaults()
+	serverCommand := len(args) > 1 && (args[1] == "serve" || args[1] == "runserver")
 	if len(args) > 0 {
 		args = args[1:]
 	}
 	err := Call(ctx, project, args, options)
 	if err == nil {
 		return 0
+	}
+	if serverCommand {
+		// Only the private outer Call witness may choose a server exit code.
+		// Never traverse callback/provider causes for public CLI metadata.
+		code := 1
+		if serverErr, ok := err.(*runServerFailure); ok && serverErr.code == 2 {
+			code = 2
+		}
+		_, _ = fmt.Fprintln(options.Stderr, "development server operation failed")
+		return code
 	}
 	var commandErr *CommandError
 	if errors.As(err, &commandErr) {
@@ -388,29 +440,7 @@ func builtins(project *Project) []Command {
 			}
 		}},
 	}...)
-	for _, name := range []string{"serve", "runserver"} {
-		commands = append(commands, Command{Name: name, Help: "Serve the explicitly configured project", Resources: []string{"runtime"}, OpenResources: true, Validate: noArgs, Configure: func(f *flag.FlagSet) Runner {
-			address := f.String("addr", "", "listen address override")
-			return func(ctx context.Context, i *Invocation, _ []string) error {
-				if i.Project.Handler == nil {
-					return errors.New("project HTTP handler required")
-				}
-				handler, err := i.Project.Handler(i.Application.Registry, i.Settings)
-				if err != nil {
-					return err
-				}
-				addr := *address
-				if addr == "" {
-					addr = i.Settings.String("GOGO_HTTP_ADDR")
-				}
-				server, err := ghttp.NewServer(ghttp.ServerConfig{Address: addr, Handler: handler, ReadHeaderTimeout: i.Settings.Duration("GOGO_HTTP_READ_HEADER_TIMEOUT"), IdleTimeout: i.Settings.Duration("GOGO_HTTP_IDLE_TIMEOUT"), ShutdownGrace: i.Settings.Duration("GOGO_SHUTDOWN_GRACE")})
-				if err != nil {
-					return err
-				}
-				return server.ListenAndServe(ctx)
-			}
-		}})
-	}
+	commands = append(commands, runServerCommands()...)
 	return commands
 }
 func split(value string) []string {
