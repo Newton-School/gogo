@@ -1,0 +1,16 @@
+# Private local configuration
+.env
+.env.*
+!.env.example
+
+# Runtime data and generated build output
+/bin/
+/var/
+/coverage/
+*.test
+coverage.out
+
+# Editors and operating system
+.DS_Store
+.idea/
+.vscode/
