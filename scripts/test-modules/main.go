@@ -128,6 +128,9 @@ func testConsumer(ctx context.Context, temp, proxy string) error {
 	if err := command(consumer, "run", "manage.go", "startapp", "catalog"); err != nil {
 		return err
 	}
+	if err := command(consumer, "run", "manage.go", "generate", "--check"); err != nil {
+		return fmt.Errorf("fresh app descriptor consistency: %w", err)
+	}
 	model := `package catalog
 import "github.com/Newton-School/gogo/core/models"
 type Product struct { models.Base; ID int64; Name string; Price string; Stock int64 }
@@ -141,7 +144,7 @@ models.IntegerField("stock",models.WithStructField("Stock")),
 	if err := os.WriteFile(filepath.Join(consumer, "apps", "catalog", "models.go"), []byte(model), 0644); err != nil {
 		return err
 	}
-	for _, args := range [][]string{{"run", "manage.go", "generate"}, {"run", "manage.go", "makemigrations", "catalog"}, {"run", "manage.go", "makemigrations", "catalog", "--check"}, {"test", "./..."}, {"build", "-o", filepath.Join(temp, "manage"), "manage.go"}} {
+	for _, args := range [][]string{{"run", "manage.go", "generate"}, {"run", "manage.go", "generate", "--check"}, {"run", "manage.go", "runserver", "--help"}, {"run", "manage.go", "makemigrations", "catalog"}, {"run", "manage.go", "makemigrations", "catalog", "--check"}, {"test", "./..."}, {"build", "-o", filepath.Join(temp, "manage"), "manage.go"}} {
 		if err := command(consumer, args...); err != nil {
 			return fmt.Errorf("generated consumer %v: %w", args, err)
 		}
