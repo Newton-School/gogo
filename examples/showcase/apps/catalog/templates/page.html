@@ -1,0 +1,29 @@
+{{define "page.html"}}<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>{{.Title}} · Gogo showcase</title><link rel="stylesheet" href="/assets/showcase.css"></head>
+<body>
+<header><a class="brand" href="/">gogo<span> / showcase</span></a><nav aria-label="Main"><a href="/api/v1/products/">API</a><a href="/fields/">Fields</a><a href="/forms/">Forms</a><a class="admin" href="/admin/">Open Admin ↗</a></nav></header>
+<main>
+<div class="eyebrow">GO, WITH STRUCTURE · {{.Version}}</div><h1>{{.Title}}</h1>
+{{if .Groups}}
+<p class="intro">An executable inventory of the fields and widgets in this release. Each entry states its evidence and boundaries; a descriptor is not a promise of full database or Admin support.</p>
+<nav class="field-nav" aria-label="Field categories">{{range .Groups}}<a href="#{{.ID}}">{{.Name}} ({{len .Entries}})</a>{{end}}</nav>
+{{range .Groups}}<section id="{{.ID}}"><h2>{{.Name}} <small>{{len .Entries}}</small></h2><p>{{.Description}}</p><div class="table-scroll"><table><thead><tr><th scope="col">Name / kind</th><th scope="col">Demonstration</th><th scope="col">Boundary</th></tr></thead><tbody>{{range .Entries}}<tr><th scope="row">{{.Name}}<code>{{.Kind}}</code></th><td>{{.Demonstration}}</td><td>{{if .Limitation}}{{.Limitation}}{{else}}Covered by the stated executable examples.{{end}}</td></tr>{{end}}</tbody></table></div></section>{{end}}
+{{else if .Form}}
+<p class="intro">Real Gogo form binding, normalization, widgets and validation. This playground deliberately has no persistence. File fields are represented in the field laboratory tests, not accepted by this endpoint.</p>
+{{if .Message}}<p class="notice" role="status">{{.Message}}</p>{{end}}
+<form method="post" action="/forms/"><input type="hidden" name="csrfmiddlewaretoken" value="{{.CSRF}}">{{.Form}}<button type="submit">Validate values</button></form>
+{{else}}
+<p class="intro">A standalone client installed from the published Gogo prerelease. Follow real models through PostgreSQL, public APIs, staff administration and Redis-backed jobs.</p>
+<div class="cards">
+<a href="/api/v1/products/"><span class="number">01 / DATA</span><h2>Catalog API</h2><p>Published products only. Explicit serializers, scoped queries, pagination and entity tags.</p><span class="link">Explore JSON →</span></a>
+<a href="/admin/"><span class="number">02 / OPERATIONS</span><h2>Staff workspace</h2><p>Password login, Redis sessions, editable lists, inline notes, fieldsets and audited actions.</p><span class="link">Sign in to Admin →</span></a>
+<a href="/fields/"><span class="number">03 / REFERENCE</span><h2>Field laboratory</h2><p>Model fields, form constructors and widgets with executable validation evidence.</p><span class="link">Browse the inventory →</span></a>
+<a href="/forms/"><span class="number">04 / INPUT</span><h2>Form playground</h2><p>Enter values and inspect real field errors. Bound forms are request-local and CSRF protected.</p><span class="link">Try the fields →</span></a>
+</div>
+<section class="workflow"><div><span class="eyebrow">BACKGROUND WORK</span><h2>Same project. Separate workers.</h2><p>Run a worker in another terminal, then try task, delayed, group, chain and chord demonstrations.</p></div><pre>go run manage.go worker
+go run manage.go demoasync chord</pre></section>
+<section><h2>Small links, useful evidence</h2><p><a href="/api/schema/">OpenAPI document</a> · <a href="/health/live/">Liveness</a> · <a href="/health/ready/">Readiness</a> · <a href="/cache-demo/">Redis cache demonstration</a></p></section>
+{{end}}
+</main><footer>Gogo {{.Version}} · Alpha software, not Django/Celery compatibility certification. See README and executable tests for exact coverage.</footer>
+</body></html>{{end}}
