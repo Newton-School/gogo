@@ -442,6 +442,25 @@ ignored:
 	if h.event(fourth.PID, "closed") != "" {
 		t.Fatal("missing candidate setting stopped the healthy child")
 	}
+	// Preflight must use the same entry snapshot as the eventual server. A
+	// Register hook cannot supply a missing setting after that snapshot and
+	// trick check/diffsettings into admitting a child that runserver rejects.
+	lateEnvironment := strings.Replace(withDefinition, "func Project()management.Project{", "func Project()management.Project{\n environment:=map[string]string{}", 1)
+	lateEnvironment = strings.Replace(lateEnvironment, `Name:"reload-client",`, `Name:"reload-client",Environment:environment,`, 1)
+	lateEnvironment = strings.Replace(lateEnvironment, "Register:func(r *app.Registry)error{return", `Register:func(r *app.Registry)error{environment["GOGO_RELOAD_LABEL"]="late-hook-value";return`, 1)
+	if !strings.Contains(lateEnvironment, `environment["GOGO_RELOAD_LABEL"]="late-hook-value"`) || !strings.Contains(lateEnvironment, "Environment:environment,") {
+		t.Fatal("late registration fixture did not apply")
+	}
+	failed = strings.Count(process.output.snapshot(t), "Reload build failed; waiting for changes")
+	h.write("config/settings.go", lateEnvironment)
+	h.wait("late registration preflight refusal", func() bool {
+		if h.event(fourth.PID, "closed") != "" {
+			t.Fatal("preflight admitted settings inconsistent with runserver and stopped the healthy child")
+		}
+		return strings.Count(process.output.snapshot(t), "Reload build failed; waiting for changes") > failed
+	})
+	h.same(address, fourth)
+	h.write("config/settings.go", withDefinition)
 	configured := "# Development test settings\nGOGO_DEBUG=false\nGOGO_SHUTDOWN_GRACE=2s\n\n# Public reload fixture value\nGOGO_RELOAD_LABEL=new-schema-value\n"
 	h.write(".env", configured)
 	h.write(".env.example", configured)

@@ -32,6 +32,83 @@ func TestRunServerAddressUsesConcreteLegacyDefault(t *testing.T) {
 	}
 }
 
+func TestReloadPreflightCapturesSettingsBeforeRegistration(t *testing.T) {
+	for _, command := range []string{"check", "diffsettings"} {
+		for _, phase := range []string{"register", "freeze"} {
+			t.Run(command+"/"+phase, func(t *testing.T) {
+				isolateCommandEnvironment(t)
+				environment := map[string]string{"GOGO_DEBUG": "invalid-declared-value"}
+				project := Project{Root: t.TempDir(), Environment: environment}
+				change := func(*app.Registry) error {
+					environment["GOGO_DEBUG"] = "false"
+					return nil
+				}
+				if phase == "register" {
+					project.Apps = []app.Config{{Name: "demo", Label: "demo", Register: change}}
+				} else {
+					project.Freeze = change
+				}
+				err := Call(context.Background(), project, []string{command}, Options{Stdout: io.Discard, Stderr: io.Discard})
+				var invalid *conf.ConfigError
+				if !errors.As(err, &invalid) || invalid.Code != "CONFIG_INVALID" || len(invalid.Names) != 1 || invalid.Names[0] != "GOGO_DEBUG" {
+					t.Fatal("preflight accepted settings that runserver captures and rejects", err)
+				}
+			})
+		}
+	}
+}
+
+func TestReloadPreflightCapturesSchemaProcessAndResourceDeclarations(t *testing.T) {
+	for _, mutation := range []string{"schema", "process", "resources", "requirements"} {
+		for _, command := range []string{"check", "diffsettings"} {
+			if command == "diffsettings" && (mutation == "resources" || mutation == "requirements") {
+				continue // Only check selects runtime requirements; diffsettings stays resource-free.
+			}
+			t.Run(command+"/"+mutation, func(t *testing.T) {
+				isolateCommandEnvironment(t)
+				schema := append(conf.CoreSchema(), conf.Definition{Name: "GOGO_RELOAD_REQUIRED", RequiredFor: []string{"reload_fixture"}})
+				project := Project{Root: t.TempDir(), Schema: schema, Environment: map[string]string{}}
+				code, key := "CONFIG_INVALID", "GOGO_DEBUG"
+				var change func()
+				switch mutation {
+				case "schema":
+					project.Environment["GOGO_DEBUG"] = "invalid-declared-value"
+					change = func() {
+						for index := range schema {
+							if schema[index].Name == "GOGO_DEBUG" {
+								schema[index].Kind = conf.String
+							}
+						}
+					}
+				case "process":
+					t.Setenv("GOGO_DEBUG", "invalid-declared-value")
+					change = func() {
+						if err := os.Setenv("GOGO_DEBUG", "false"); err != nil {
+							t.Fatal(err)
+						}
+					}
+				default:
+					code, key = "CONFIG_REQUIRED", "GOGO_RELOAD_REQUIRED"
+					project.RuntimeResources = []string{"reload_fixture"}
+					change = func() {
+						if mutation == "resources" {
+							project.RuntimeResources[0] = "unselected"
+						} else {
+							schema[len(schema)-1].RequiredFor[0] = "unselected"
+						}
+					}
+				}
+				project.Apps = []app.Config{{Name: "demo", Label: "demo", Register: func(*app.Registry) error { change(); return nil }}}
+				err := Call(context.Background(), project, []string{command}, Options{Stdout: io.Discard, Stderr: io.Discard})
+				var invalid *conf.ConfigError
+				if !errors.As(err, &invalid) || invalid.Code != code || len(invalid.Names) != 1 || invalid.Names[0] != key {
+					t.Fatal("preflight declaration changed after capture", err)
+				}
+			})
+		}
+	}
+}
+
 func TestRunServerRejectsReloadBeforeOpeningResources(t *testing.T) {
 	isolateCommandEnvironment(t)
 	dir := t.TempDir()

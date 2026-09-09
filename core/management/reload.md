@@ -42,6 +42,11 @@ The supervisor/preflight commands do not call the framework's resource factory,
 registered read-only system checks still run. Those callbacks and the compiled
 project are trusted application code, not a sandbox.
 
+`check`, `diffsettings` and the server commands capture schema, code-defined
+environment, resource declarations and process environment before registration.
+Declare settings before calling management; registration hooks cannot supply or
+rewrite them afterward. Check registrations themselves remain available normally.
+
 ## Source selection
 
 Default selection includes Go files, Go module/workspace files, the root `.env`

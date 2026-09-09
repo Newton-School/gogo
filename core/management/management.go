@@ -94,6 +94,12 @@ func Call(ctx context.Context, project Project, args []string, options Options) 
 				result = &runServerFailure{cause: result, code: serverExitCode}
 			}
 		}()
+	}
+	// These read-only commands are also the reload candidate preflight. They
+	// must validate the same entry-owned declarations as the eventual server,
+	// not values changed later by Register/Freeze callbacks. Their ordinary
+	// CLI error semantics remain separate from the server-only witness above.
+	if len(args) > 0 && (args[0] == "serve" || args[0] == "runserver" || args[0] == "check" || args[0] == "diffsettings") {
 		var err error
 		project, serverEntry, err = captureRunServerProject(project)
 		if err != nil {
