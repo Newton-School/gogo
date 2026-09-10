@@ -1,0 +1,138 @@
+name: gogo-showcase
+
+# Explicit local profile. Host .env values are not injected into containers.
+x-app: &app
+  image: ${COMPOSE_PROJECT_NAME:-gogo-showcase}-app:local
+  build:
+    context: .
+  init: true
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  tmpfs: [/tmp]
+  stop_grace_period: 65s
+  environment:
+    GOGO_ENV: development
+    GOGO_DEBUG: "false"
+    GOGO_HTTP_ADDR: 0.0.0.0:8000
+    GOGO_ALLOWED_HOSTS: localhost,127.0.0.1
+    GOGO_REDIS_URL: redis://127.0.0.1:6379/0
+    GOGO_REDIS_NAMESPACE: gogo_showcase
+  volumes:
+    - credentials:/run/showcase:ro
+
+services:
+  setup:
+    <<: *app
+    user: "0:0"
+    cap_add: [CHOWN, FOWNER, DAC_OVERRIDE]
+    network_mode: none
+    command: [setup]
+    volumes:
+      - credentials:/run/showcase
+    restart: "no"
+
+  # All runtime roles share this local namespace, preserving the alpha's
+  # loopback-only development Redis contract. Only HTTP reaches the host.
+  postgres:
+    image: postgres:18-alpine@sha256:d3e1620b530c944afa6e887d22eb899824da68e19c52024bf98f5220c88a65b2
+    depends_on:
+      setup:
+        condition: service_completed_successfully
+    environment:
+      POSTGRES_USER: gogo
+      POSTGRES_DB: gogo_showcase
+      POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256
+    entrypoint:
+      - /bin/sh
+      - -ec
+      - |
+        POSTGRES_PASSWORD="$$(cat /run/showcase/database-password)"
+        test "$${#POSTGRES_PASSWORD}" -eq 64
+        case "$$POSTGRES_PASSWORD" in *[!0-9a-f]*) exit 1 ;; esac
+        export POSTGRES_PASSWORD
+        exec /usr/local/bin/docker-entrypoint.sh "$$@"
+      - postgres-entrypoint
+    command: [postgres, -c, listen_addresses=127.0.0.1]
+    ports:
+      - "127.0.0.1:8000:8000"
+    volumes:
+      - postgres-data:/var/lib/postgresql
+      - credentials:/run/showcase:ro
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -h 127.0.0.1 -U gogo -d gogo_showcase"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+      start_period: 10s
+    stop_grace_period: 65s
+    restart: unless-stopped
+
+  redis:
+    image: redis:8-alpine@sha256:becdda6c7f4b3fb42e42fd7f120bbf5c54c4caaaf16f26da24e4563d2c1f0576
+    network_mode: service:postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
+        restart: true
+    command: [redis-server, --bind, 127.0.0.1, --appendonly, "yes", --maxmemory-policy, noeviction]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: [CMD, redis-cli, -h, 127.0.0.1, ping]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+    stop_grace_period: 65s
+    restart: unless-stopped
+
+  initialize:
+    <<: *app
+    network_mode: service:postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: [initialize]
+    restart: "no"
+
+  web:
+    <<: *app
+    network_mode: service:postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
+        restart: true
+      redis:
+        condition: service_healthy
+      initialize:
+        condition: service_completed_successfully
+    command: [runserver]
+    healthcheck:
+      test: [CMD, /app/docker/entrypoint.sh, healthcheck]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+    restart: unless-stopped
+
+  worker:
+    <<: *app
+    network_mode: service:postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
+        restart: true
+      redis:
+        condition: service_healthy
+      initialize:
+        condition: service_completed_successfully
+    command: [worker]
+    restart: unless-stopped
+
+# Compose down preserves all three volumes. Removing them is a destructive reset.
+volumes:
+  credentials:
+  postgres-data:
+  redis-data:
