@@ -4,7 +4,7 @@ import Link from '@docusaurus/Link';
 
 const paths = [
   ['01', 'Start building', 'Create a project, define a model, generate a migration, and serve your first route.', '/docs/quickstart', 'Your first project'],
-  ['02', 'Learn the core', 'Find models and queries, routing and APIs, forms, accounts, and application services.', '/docs/category/data', 'Explore the framework'],
+  ['02', 'Learn the core', 'Find models and queries, routing and APIs, forms, accounts, and application services.', '/docs/index', 'Explore the framework'],
   ['03', 'Add Admin', 'Build staff tools with model registration, lists, editable forms, relationships, and permissions.', '/docs/admin', 'Build your admin'],
   ['04', 'Run background work', 'Register tasks, run workers, compose workflows, and handle retries and scheduling.', '/docs/async', 'Use Async'],
 ];

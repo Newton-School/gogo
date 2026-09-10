@@ -54,6 +54,10 @@
 .theme-doc-markdown code {overflow-wrap: anywhere;}
 .theme-doc-markdown pre code {overflow-wrap: normal;}
 .table-of-contents {font-size: .79rem; line-height: 1.65;}
+.theme-doc-card-container {box-shadow: none !important; border-color: var(--gogo-border) !important; height: 100%;}
+.theme-doc-card-container .text--truncate {white-space: normal; overflow: visible; text-overflow: unset; overflow-wrap: anywhere;}
+.theme-doc-card-description {color: var(--gogo-muted); font-size: .88rem; line-height: 1.65;}
+.theme-doc-card-heading {font-size: 1.1rem;}
 .footer {border-top: 1px solid var(--gogo-border); font-size: .8rem; color: var(--gogo-muted);}
 /* The landing page is a reading map, not another exhaustive sidebar. */
 .docs-home {max-width: 1180px; padding: 3.75rem 2rem 2.5rem;}

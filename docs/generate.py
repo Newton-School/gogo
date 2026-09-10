@@ -176,12 +176,12 @@ def compile_tree(tree, pages):
             children = [convert(child) for child in item.get("items", [])] + [document(note) for note in notes]
             if not children:
                 return leaf
-            return {"type": "category", "label": leaf["label"], "link": {"type": "doc", "id": identifier}, "collapsed": True, "items": children}
+            return {"type": "category", "label": leaf["label"], "description": pages[identifier].get("description", "Explore " + leaf["label"].lower() + "."), "link": {"type": "doc", "id": identifier}, "collapsed": True, "items": children}
         category = item["id"]
         if category in categories:
             raise ValueError("Duplicate category: " + category)
         categories.add(category)
-        return {"type": "category", "label": item["label"], "collapsed": True,
+        return {"type": "category", "label": item["label"], "description": item["description"], "collapsed": True,
                 "link": {"type": "generated-index", "title": item["label"], "description": item["description"], "slug": "/category/" + category},
                 "items": [convert(child) for child in item["items"]]}
 
@@ -242,6 +242,9 @@ def collect_pages(manifest, catalog, revision):
         references.setdefault(owner["section"], []).append(identifier)
     if set(owners) != actual:
         raise ValueError("Guide maps nonexistent public packages: " + str(sorted(set(owners) - actual)))
+    # Keep reference families in the same learning order as the human guides,
+    # not the incidental order in which alphabetical package paths were scanned.
+    references = {section: references[section] for section in dict.fromkeys(entry["section"] for entry in manifest) if section in references}
     for section, identifiers in references.items():
         inventory += ["## " + section, "", "| Package | Learn it |", "| --- | --- |"]
         for identifier in identifiers:
@@ -281,6 +284,8 @@ def generate():
         if page.get("references"):
             body += "\n\n## Go API reference\n\n" + "\n".join(f"- [{pages[identifier]['title']}]({identifier}.md)" for identifier in page["references"])
         frontmatter = {"title": page["title"], "slug": "/" + page["id"], "pagination_label": page["title"]}
+        if page.get("description"):
+            frontmatter["description"] = page["description"]
         if page.get("api"):
             frontmatter["toc_max_heading_level"] = 2
         if page.get("file"):

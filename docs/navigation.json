@@ -1,42 +1,391 @@
 [
-  {"id":"index","title":"Introduction","section":"Start here","file":"docs/index.md","packages":["."]},
-  {"id":"quickstart","title":"Your first project","section":"Start here","file":"docs/guides/quickstart.md"},
-  {"id":"showcase","title":"Run the showcase","section":"Start here","file":"docs/guides/showcase.md"},
-  {"id":"structure","title":"Projects and applications","section":"Fundamentals","file":"docs/guides/structure.md","packages":["core/app"]},
-  {"id":"configuration","title":"Configuration","section":"Fundamentals","file":"docs/guides/configuration.md","packages":["core/conf"]},
-  {"id":"commands","title":"Management commands","section":"Fundamentals","file":"docs/guides/commands.md","packages":["core/management","core/checks"]},
-  {"id":"models","title":"Models","section":"Data","file":"docs/guides/models.md","packages":["core/models"]},
-  {"id":"model-fields","title":"Model field reference","section":"Data","file":"docs/guides/model-fields.md"},
-  {"id":"queries","title":"Querying and saving","section":"Data","file":"docs/guides/queries.md","packages":["core/orm"]},
-  {"id":"relations","title":"Relationships and deletion","section":"Data","file":"docs/guides/relations.md"},
-  {"id":"transactions","title":"Transactions and database routing","section":"Data","file":"docs/guides/transactions.md","packages":["core/db"]},
-  {"id":"migrations","title":"Migrations","section":"Data","file":"docs/guides/migrations.md","packages":["core/migrations"]},
-  {"id":"fixtures","title":"Fixtures and serialization","section":"Data","file":"docs/guides/fixtures.md","packages":["core/serialization"]},
-  {"id":"routing","title":"URLs and routing","section":"HTTP and APIs","file":"docs/guides/routing.md","packages":["core/urls"]},
-  {"id":"views","title":"Views, responses and WebSockets","section":"HTTP and APIs","file":"docs/guides/views.md","packages":["core/http"]},
-  {"id":"api","title":"REST APIs and serializers","section":"HTTP and APIs","file":"docs/guides/api.md","packages":["core/api"]},
-  {"id":"pagination","title":"Pagination and rate limits","section":"HTTP and APIs","file":"docs/guides/pagination.md","packages":["core/pagination","core/ratelimit"]},
-  {"id":"forms","title":"Forms and widgets","section":"Forms and presentation","file":"docs/guides/forms.md","packages":["core/forms"]},
-  {"id":"templates","title":"Templates","section":"Forms and presentation","file":"docs/guides/templates.md","packages":["core/templates"]},
-  {"id":"i18n","title":"Translation, timezones and humanize","section":"Forms and presentation","file":"docs/guides/i18n.md","packages":["core/i18n","core/contrib/humanize"]},
-  {"id":"auth","title":"Authentication and permissions","section":"Security and accounts","file":"docs/guides/auth.md","packages":["core/auth","core/auth/views"]},
-  {"id":"sessions","title":"Sessions and flash messages","section":"Security and accounts","file":"docs/guides/sessions.md","packages":["core/sessions","core/messages"]},
-  {"id":"security","title":"CSRF, signing and HTTP security","section":"Security and accounts","file":"docs/guides/security.md","packages":["core/security"]},
-  {"id":"admin","title":"Admin setup and customization","section":"Admin","file":"docs/guides/admin.md","packages":["admin"]},
-  {"id":"admindocs","title":"Staff documentation","section":"Admin","file":"docs/guides/admindocs.md","packages":["admin/admindocs"]},
-  {"id":"async","title":"Tasks and workers","section":"Async","file":"docs/guides/async.md","packages":["async","async/management","core/tasks"]},
-  {"id":"workflows","title":"Chains, groups and chords","section":"Async","file":"docs/guides/workflows.md"},
-  {"id":"scheduling","title":"Scheduling, retries and recovery","section":"Async","file":"docs/guides/scheduling.md"},
-  {"id":"files","title":"Files, uploads and downloads","section":"Services","file":"docs/guides/files.md","packages":["core/files"]},
-  {"id":"static","title":"Static assets","section":"Services","file":"docs/guides/static.md","packages":["core/static"]},
-  {"id":"cache","title":"Caching","section":"Services","file":"docs/guides/cache.md","packages":["core/cache"]},
-  {"id":"mail","title":"Email","section":"Services","file":"docs/guides/mail.md","packages":["core/mail"]},
-  {"id":"signals","title":"Signals","section":"Services","file":"docs/guides/signals.md","packages":["core/signals"]},
-  {"id":"contrib","title":"Sites, content types, pages and feeds","section":"Services","file":"docs/guides/contrib.md","packages":["core/contrib/contenttypes","core/contrib/flatpages","core/contrib/redirects","core/contrib/sites","core/contrib/sitemaps","core/contrib/syndication"]},
-  {"id":"connectors","title":"PostgreSQL, Redis and extension contracts","section":"Operations","file":"docs/guides/connectors.md","packages":["connectors/postgres","connectors/redis","async/redis"]},
-  {"id":"deployment","title":"Deployment and process roles","section":"Operations","file":"docs/guides/deployment.md"},
-  {"id":"observability","title":"Health checks and telemetry","section":"Operations","file":"docs/guides/observability.md","packages":["core/health","core/observability"]},
-  {"id":"testing","title":"Testing your application","section":"Operations","file":"docs/guides/testing.md","packages":["async/testing","connectors/redis/testing"]},
-  {"id":"compatibility","title":"Alpha limits and upgrading","section":"Reference","file":"docs/guides/compatibility.md"},
-  {"id":"troubleshooting","title":"Troubleshooting","section":"Reference","file":"docs/guides/troubleshooting.md"}
+  {
+    "id": "index",
+    "title": "Introduction",
+    "section": "Start here",
+    "file": "docs/index.md",
+    "packages": [
+      "."
+    ],
+    "description": "Understand the framework, its optional modules, and how the documentation fits together."
+  },
+  {
+    "id": "quickstart",
+    "title": "Your first project",
+    "section": "Start here",
+    "file": "docs/guides/quickstart.md",
+    "description": "Create an app, define a model, generate a migration, and serve your first route."
+  },
+  {
+    "id": "showcase",
+    "title": "Run the showcase",
+    "section": "Start here",
+    "file": "docs/guides/showcase.md",
+    "description": "Run the complete alpha demonstration locally with Docker, PostgreSQL, and Redis."
+  },
+  {
+    "id": "structure",
+    "title": "Projects and applications",
+    "section": "Fundamentals",
+    "file": "docs/guides/structure.md",
+    "packages": [
+      "core/app"
+    ],
+    "description": "Find your way around manage.go, project configuration, and application folders."
+  },
+  {
+    "id": "configuration",
+    "title": "Configuration",
+    "section": "Fundamentals",
+    "file": "docs/guides/configuration.md",
+    "packages": [
+      "core/conf"
+    ],
+    "description": "Load typed settings and configure only the resources your application uses."
+  },
+  {
+    "id": "commands",
+    "title": "Management commands",
+    "section": "Fundamentals",
+    "file": "docs/guides/commands.md",
+    "packages": [
+      "core/management",
+      "core/checks"
+    ],
+    "description": "Generate code, run checks, manage migrations, and register your own commands."
+  },
+  {
+    "id": "models",
+    "title": "Models",
+    "section": "Data",
+    "file": "docs/guides/models.md",
+    "packages": [
+      "core/models"
+    ],
+    "description": "Declare model schemas, register them, and make validation explicit."
+  },
+  {
+    "id": "model-fields",
+    "title": "Model field reference",
+    "section": "Data",
+    "file": "docs/guides/model-fields.md",
+    "description": "Look up every model field kind, its options, and its current support boundaries."
+  },
+  {
+    "id": "queries",
+    "title": "Querying and saving",
+    "section": "Data",
+    "file": "docs/guides/queries.md",
+    "packages": [
+      "core/orm"
+    ],
+    "description": "Read and save records, compose queries, and enforce visibility before evaluation."
+  },
+  {
+    "id": "relations",
+    "title": "Relationships and deletion",
+    "section": "Data",
+    "file": "docs/guides/relations.md",
+    "description": "Configure related models, reverse accessors, many-to-many tables, and deletion policies."
+  },
+  {
+    "id": "transactions",
+    "title": "Transactions and database routing",
+    "section": "Data",
+    "file": "docs/guides/transactions.md",
+    "packages": [
+      "core/db"
+    ],
+    "description": "Keep writes atomic and route database operations to the correct backend."
+  },
+  {
+    "id": "migrations",
+    "title": "Migrations",
+    "section": "Data",
+    "file": "docs/guides/migrations.md",
+    "packages": [
+      "core/migrations"
+    ],
+    "description": "Generate schema changes, inspect their plan, and apply them in dependency order."
+  },
+  {
+    "id": "fixtures",
+    "title": "Fixtures and serialization",
+    "section": "Data",
+    "file": "docs/guides/fixtures.md",
+    "packages": [
+      "core/serialization"
+    ],
+    "description": "Export records and import supported scalar fixtures with atomic insert semantics."
+  },
+  {
+    "id": "routing",
+    "title": "URLs and routing",
+    "section": "HTTP and APIs",
+    "file": "docs/guides/routing.md",
+    "packages": [
+      "core/urls"
+    ],
+    "description": "Compose named URL trees, mount handlers, and reverse route names."
+  },
+  {
+    "id": "views",
+    "title": "Views, responses and WebSockets",
+    "section": "HTTP and APIs",
+    "file": "docs/guides/views.md",
+    "packages": [
+      "core/http"
+    ],
+    "description": "Handle requests and responses, use generic views, and serve streams or WebSockets."
+  },
+  {
+    "id": "api",
+    "title": "REST APIs and serializers",
+    "section": "HTTP and APIs",
+    "file": "docs/guides/api.md",
+    "packages": [
+      "core/api"
+    ],
+    "description": "Validate input, serialize output, and expose resources with explicit access scopes."
+  },
+  {
+    "id": "pagination",
+    "title": "Pagination and rate limits",
+    "section": "HTTP and APIs",
+    "file": "docs/guides/pagination.md",
+    "packages": [
+      "core/pagination",
+      "core/ratelimit"
+    ],
+    "description": "Bound query results and apply rate limits at the request boundary."
+  },
+  {
+    "id": "forms",
+    "title": "Forms and widgets",
+    "section": "Forms and presentation",
+    "file": "docs/guides/forms.md",
+    "packages": [
+      "core/forms"
+    ],
+    "description": "Bind and validate input with fields, widgets, model forms, and formsets."
+  },
+  {
+    "id": "templates",
+    "title": "Templates",
+    "section": "Forms and presentation",
+    "file": "docs/guides/templates.md",
+    "packages": [
+      "core/templates"
+    ],
+    "description": "Render HTML with templates, built-in tags, filters, and explicit context."
+  },
+  {
+    "id": "i18n",
+    "title": "Translation, timezones and humanize",
+    "section": "Forms and presentation",
+    "file": "docs/guides/i18n.md",
+    "packages": [
+      "core/i18n",
+      "core/contrib/humanize"
+    ],
+    "description": "Select locales, load translation catalogs, and format time and human-readable values."
+  },
+  {
+    "id": "auth",
+    "title": "Authentication and permissions",
+    "section": "Security and accounts",
+    "file": "docs/guides/auth.md",
+    "packages": [
+      "core/auth",
+      "core/auth/views"
+    ],
+    "description": "Wire users, groups, permissions, passwords, account views, and API tokens."
+  },
+  {
+    "id": "sessions",
+    "title": "Sessions and flash messages",
+    "section": "Security and accounts",
+    "file": "docs/guides/sessions.md",
+    "packages": [
+      "core/sessions",
+      "core/messages"
+    ],
+    "description": "Persist sessions and deliver flash messages with an explicitly selected store."
+  },
+  {
+    "id": "security",
+    "title": "CSRF, signing and HTTP security",
+    "section": "Security and accounts",
+    "file": "docs/guides/security.md",
+    "packages": [
+      "core/security"
+    ],
+    "description": "Protect requests with CSRF, signing, and HTTP security policies."
+  },
+  {
+    "id": "admin",
+    "title": "Admin setup and customization",
+    "section": "Admin",
+    "file": "docs/guides/admin.md",
+    "packages": [
+      "admin"
+    ],
+    "description": "Register models and configure staff-facing lists, forms, actions, and permissions."
+  },
+  {
+    "id": "admindocs",
+    "title": "Staff documentation",
+    "section": "Admin",
+    "file": "docs/guides/admindocs.md",
+    "packages": [
+      "admin/admindocs"
+    ],
+    "description": "Publish model and template documentation only to authorized staff."
+  },
+  {
+    "id": "async",
+    "title": "Tasks and workers",
+    "section": "Async",
+    "file": "docs/guides/async.md",
+    "packages": [
+      "async",
+      "async/management",
+      "core/tasks"
+    ],
+    "description": "Register typed tasks, publish jobs, run workers, and retrieve their results."
+  },
+  {
+    "id": "workflows",
+    "title": "Chains, groups and chords",
+    "section": "Async",
+    "file": "docs/guides/workflows.md",
+    "description": "Compose chains, groups, and chords, then inspect and clean up workflow results."
+  },
+  {
+    "id": "scheduling",
+    "title": "Scheduling, retries and recovery",
+    "section": "Async",
+    "file": "docs/guides/scheduling.md",
+    "description": "Schedule periodic tasks and handle retries, delayed work, and recovery."
+  },
+  {
+    "id": "files",
+    "title": "Files, uploads and downloads",
+    "section": "Services",
+    "file": "docs/guides/files.md",
+    "packages": [
+      "core/files"
+    ],
+    "description": "Store uploads and authorize private downloads through explicit file services."
+  },
+  {
+    "id": "static",
+    "title": "Static assets",
+    "section": "Services",
+    "file": "docs/guides/static.md",
+    "packages": [
+      "core/static"
+    ],
+    "description": "Collect and serve application assets with a defined public URL boundary."
+  },
+  {
+    "id": "cache",
+    "title": "Caching",
+    "section": "Services",
+    "file": "docs/guides/cache.md",
+    "packages": [
+      "core/cache"
+    ],
+    "description": "Choose a cache store, set expiry, and invalidate entries after committed changes."
+  },
+  {
+    "id": "mail",
+    "title": "Email",
+    "section": "Services",
+    "file": "docs/guides/mail.md",
+    "packages": [
+      "core/mail"
+    ],
+    "description": "Configure an email backend and construct and send application messages."
+  },
+  {
+    "id": "signals",
+    "title": "Signals",
+    "section": "Services",
+    "file": "docs/guides/signals.md",
+    "packages": [
+      "core/signals"
+    ],
+    "description": "Connect typed, process-local signals without hiding domain decisions."
+  },
+  {
+    "id": "contrib",
+    "title": "Sites, content types, pages and feeds",
+    "section": "Services",
+    "file": "docs/guides/contrib.md",
+    "packages": [
+      "core/contrib/contenttypes",
+      "core/contrib/flatpages",
+      "core/contrib/redirects",
+      "core/contrib/sites",
+      "core/contrib/sitemaps",
+      "core/contrib/syndication"
+    ],
+    "description": "Use sites, content types, flat pages, redirects, sitemaps, and feeds."
+  },
+  {
+    "id": "connectors",
+    "title": "PostgreSQL, Redis and extension contracts",
+    "section": "Operations",
+    "file": "docs/guides/connectors.md",
+    "packages": [
+      "connectors/postgres",
+      "connectors/redis",
+      "async/redis"
+    ],
+    "description": "Connect PostgreSQL and Redis and understand the contracts for future backends."
+  },
+  {
+    "id": "deployment",
+    "title": "Deployment and process roles",
+    "section": "Operations",
+    "file": "docs/guides/deployment.md",
+    "description": "Run servers, workers, schedulers, and migration jobs as separate processes."
+  },
+  {
+    "id": "observability",
+    "title": "Health checks and telemetry",
+    "section": "Operations",
+    "file": "docs/guides/observability.md",
+    "packages": [
+      "core/health",
+      "core/observability"
+    ],
+    "description": "Expose health checks and instrument operations without leaking sensitive values."
+  },
+  {
+    "id": "testing",
+    "title": "Testing your application",
+    "section": "Operations",
+    "file": "docs/guides/testing.md",
+    "packages": [
+      "async/testing",
+      "connectors/redis/testing"
+    ],
+    "description": "Test apps, tasks, and integrations using the appropriate helpers and service fixtures."
+  },
+  {
+    "id": "compatibility",
+    "title": "Alpha limits and upgrading",
+    "section": "Reference",
+    "file": "docs/guides/compatibility.md",
+    "description": "Check alpha limitations, unsupported combinations, and upgrade boundaries."
+  },
+  {
+    "id": "troubleshooting",
+    "title": "Troubleshooting",
+    "section": "Reference",
+    "file": "docs/guides/troubleshooting.md",
+    "description": "Find the next check for configuration, migration, routing, Admin, and worker failures."
+  }
 ]

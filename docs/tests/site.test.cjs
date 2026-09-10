@@ -37,6 +37,7 @@ test('navigation uses four bounded reading paths, not one flat package list', ()
         if (node.type === 'category') {
           assert.equal(node.collapsed, true);
           assert.ok(node.link, `${node.label} needs a landing page`);
+          assert.ok(node.description?.length > 10, `${node.label} needs a useful overview-card description`);
           walk(node.items, depth + 1);
         }
         if (name !== 'referenceSidebar' && node.type === 'doc') assert.ok(!node.id.startsWith('api-'));
@@ -70,6 +71,13 @@ test('reference type anchors remain stable without enormous symbol outlines', ()
   assert.match(html, /id="schema"/);
   assert.match(read('.generated/content/api-core-models.md'), /toc_max_heading_level: 2/);
   assert.match(read('.generated/content/api-admin.md'), /\{#modeladmin\}/);
+});
+
+test('every extracted declaration is represented once, including type methods', () => {
+  const count = fs.readdirSync(path.join(root, '.generated/content'))
+    .filter(name => name.startsWith('api-'))
+    .reduce((total, name) => total + (read('.generated/content/' + name).match(/^\[Source\]/gm) || []).length, 0);
+  assert.equal(count, coverage.declarations);
 });
 
 test('public output contains no source include directives or machine paths', () => {
