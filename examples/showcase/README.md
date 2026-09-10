@@ -60,6 +60,38 @@ the whole shared network namespace. The image does not live-mount source or run
 autoreload. If host port 8000 is occupied, change only the published port in
 `compose.yaml`, retaining the `127.0.0.1` bind, and use that port in browser URLs.
 
+### Showcase resource limits
+
+Every container has a hard CPU quota, memory limit and process/thread limit in
+`compose.yaml`. No additional environment variables are needed.
+
+| Container | CPU cores | RAM | Processes/threads |
+| --- | ---: | ---: | ---: |
+| PostgreSQL | 0.75 | 512 MiB | 128 |
+| Redis | 0.25 | 128 MiB | 64 |
+| Web | 0.50 | 256 MiB | 128 |
+| Worker | 0.50 | 256 MiB | 128 |
+| Setup (one-shot) | 0.50 | 256 MiB | 128 |
+| Initialize (one-shot) | 0.50 | 256 MiB | 128 |
+
+The four long-running containers total **2 CPU cores and 1,152 MiB RAM** at
+their limits. Setup finishes before PostgreSQL starts, and initialization finishes
+before web/worker start. Additional `docker compose run` commands each inherit the
+web limit and add to that total while running. Application `/tmp` mounts are capped
+at 32 MiB and count toward their container's memory limit.
+
+CPU use is throttled at the quota; a container that exhausts its memory can be
+OOM-killed. Swap is disabled by setting `memswap_limit` equal to `mem_limit`, as
+described in the [Compose resource settings](https://docs.docker.com/reference/compose-file/services/#memswap_limit).
+These caps apply to runtime containers, not image builds, Docker Desktop's VM
+overhead, other projects or persistent-volume disk usage. They are showcase
+budgets, not production sizing or a guarantee against Docker Desktop hangs.
+
+After changing limits, recreate the stack with `docker compose down` followed by
+`docker compose up --build -d --wait`; restarting existing containers is not enough.
+Neither command removes the named data volumes. Inspect runtime usage with
+`docker stats --no-stream` after startup.
+
 ### Local-only container boundary
 
 The alpha's development Redis connector requires a loopback host. PostgreSQL,
