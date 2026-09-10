@@ -77,5 +77,7 @@ audit. Required read-only graph policy, bounded final effect checks and confirme
 transaction outcomes are independent of UI visibility. Delete receipt replay is
 not enabled; operation-key headers are rejected.
 
-Reverse-cursor navigation, custom action metadata, OpenAPI and
-browsable documentation are not implemented by this resource yet.
+Explicit read-route OpenAPI metadata is available through `ReadOpenAPIRoutes`
+and `OpenAPI`; see the [schema command guide](../management/openapi.md).
+Reverse-cursor navigation, complete custom-action metadata and an interactive
+browsable API are not implemented by this resource yet.

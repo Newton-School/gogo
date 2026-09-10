@@ -3,8 +3,8 @@
 Typed Go tasks, leased workers, durable chains/groups/chords, retry intents and periodic scheduling. Install the Redis adapter separately:
 
 ```sh
-go get github.com/Newton-School/gogo/async
-go get github.com/Newton-School/gogo/async/redis
+go get github.com/Newton-School/gogo/async@v1.0.0-alpha.1
+go get github.com/Newton-School/gogo/async/redis@v1.0.0-alpha.1
 ```
 
 Register tasks before freezing the registry. Producers call `Task.Delay` or `Client.ApplyCanvas`. Workers run `Worker.Run`; run `IntentRelay` alongside workers and `Beat` for periodic schedules. `DelayedDispatcher` processes scheduled work, and the Redis `Reconciler` combines reclaim, relay, delayed dispatch and bounded result cleanup. Backend roles can use separate Redis servers.

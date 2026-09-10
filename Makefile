@@ -8,6 +8,18 @@ SHELL := /bin/bash
 .PHONY: help test test-js test-modules test-integration audit-dependencies vet build
 help: agentflow-help
 	@echo 'Product: make test | test-js | test-modules | test-integration | audit-dependencies | vet | build'
+	@echo 'Documentation: make docs | docs-check'
+
+# Public documentation; no web server, npm packages, or framework runtime needed.
+.PHONY: docs docs-check
+docs:
+	python3 docs/build.py
+
+docs-check:
+	python3 -m unittest discover -s docs/tests -p 'test_*.py'
+	go test ./docs/...
+	node --check docs/assets/site.js
+	python3 docs/build.py
 
 # Contributor workspace checks; public modules are independently tested below.
 MODULE_PACKAGES := ./... ./admin/... ./async/... ./connectors/postgres/... ./connectors/redis/... ./async/redis/... ./tests/integration/...

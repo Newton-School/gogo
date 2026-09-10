@@ -68,7 +68,8 @@ Close it after use. Reads and seeks observe the context supplied to `Open`.
 `Exists`, `Size`, and `ModifiedTime` distinguish absence from provider failure.
 No stored key or file path is returned by `URL`: local direct URLs always return
 `ErrStorageCapabilityUnavailable`. An authorized download service must recheck
-current grants before using `Open`; this package supplies no such handler yet.
+current grants before using `Open`; use the explicitly configured
+[file service](service.md) and [download handler](download.md) for that boundary.
 
 `List` returns sorted keys after an optional exact key cursor. Its default page
 size is 100 and maximum is 1000. It scans directory entries in bounded batches and

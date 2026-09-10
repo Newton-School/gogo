@@ -2,6 +2,15 @@
 
 A Go backend framework under development with structured applications, its own ORM, an optional Admin module, and an optional Async task system. PostgreSQL and Redis are the initial external data backends.
 
+## Documentation
+
+Start with the [developer documentation](docs/index.md), [first-project tutorial](docs/guides/quickstart.md),
+or [documentation build instructions](docs/README.md). Run `make docs` and open
+`docs/_site/index.html` for the complete searchable framework documentation:
+feature-parent guides, working examples, detailed contracts, all settings and a
+generated reference for every public Go library package. The site works offline
+without running Gogo, PostgreSQL or Redis.
+
 ## Alpha release
 
 The rebuilt framework is published as **[v1.0.0-alpha.1](https://github.com/Newton-School/gogo/releases/tag/v1.0.0-alpha.1)**. This is a preview, not stable
