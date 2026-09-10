@@ -35,7 +35,7 @@ case "${1:-runserver}" in
             wait "$child"
             child=
         done
-        echo 'Initialization complete. Create an Admin account with: docker compose run --rm web createadmin'
+        echo 'Initialization complete. Create an Admin account with: docker compose run --rm --no-deps web createadmin'
         ;;
     createadmin)
         GOGO_SHOWCASE_ADMIN_IDENTIFIER=admin

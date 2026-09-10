@@ -7,6 +7,12 @@ certification that the entire approved framework architecture is implemented.
 ## Application tree
 
 ```text
+docker compose up --build -d --wait             optional local launcher
+├── setup                                      preserve private random credentials
+├── PostgreSQL / Redis                         owned persistent volumes, loopback
+├── initialize                                 check → migrate → seed; stop on error
+└── web / worker                               start after successful initialization
+
 manage.go
 ├── check / build / generate / makemigrations / migrate
 ├── seed / createadmin                         explicit operator writes
@@ -30,6 +36,8 @@ App code is under `apps/catalog/` and `apps/fieldlab/`. Configuration, explicit
 connections, installed apps and HTTP composition are under `config/`.
 Migrations never run as a web-startup side effect. Seeding never resets existing
 credentials. The single-organization staff policy is not a multi-tenant demo.
+Docker performs migrations in its separate initialization service, not in either
+runtime entrypoint. Admin creation remains an explicit operator command.
 
 ## Fields and widgets
 

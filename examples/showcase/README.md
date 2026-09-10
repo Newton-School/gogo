@@ -6,7 +6,81 @@ This is an alpha showcase, not a statement of Django/Celery feature parity. The 
 
 Use the [coverage map](COVERAGE.md) to navigate features and their evidence levels.
 
-## Start here
+## Run locally with Docker
+
+Only Docker with Docker Compose v2.17+ is required. From this directory:
+
+```sh
+docker compose up --build -d --wait
+```
+
+Open [the showcase](http://localhost:8000/), [fields](http://localhost:8000/fields/),
+[forms](http://localhost:8000/forms/) or [the API](http://localhost:8000/api/v1/products/).
+The image builds against the published alpha, runs tests and migration-drift
+checks, and includes the compiled application rather than a Go development server.
+The first build needs internet access to download images and public Go modules.
+
+The stack generates random private credentials, starts PostgreSQL and Redis,
+then runs a separate `check` → `migrate` → `seed` initialization job before the
+web process and worker. No host Go installation, database setup or `.env` editing
+is needed. This profile deliberately does not inject the host `.env` into its
+containers; the native setup below remains independent.
+
+Create the administrator once, then explicitly display its generated credentials:
+
+```sh
+docker compose run --rm --no-deps web createadmin
+docker compose run --rm --no-deps web credentials
+```
+
+Sign in at [Admin](http://localhost:8000/admin/). Creating it again fails instead
+of resetting the password. You can change the password inside Admin; `credentials`
+shows only the original bootstrap password, not a subsequently changed password.
+Credentials are never printed by ordinary startup or application logs.
+
+The worker is already running. Try its commands without a local Go toolchain:
+
+```sh
+docker compose run --rm --no-deps web demoasync task
+docker compose run --rm --no-deps web demoasync group
+docker compose run --rm --no-deps web demoasync chain
+docker compose run --rm --no-deps web demoasync chord
+docker compose ps
+docker compose logs --tail=50 web worker initialize
+```
+
+Stop the whole stack with `docker compose down`. PostgreSQL data, Redis data and
+generated credentials remain in project-scoped named volumes; the next `up`
+preserves them. Removing volumes, including `down -v`, is a destructive reset of
+this sample. Do not remove the credential volume while retaining the data volumes.
+
+For source changes, run `docker compose down` followed by
+`docker compose up --build -d --wait`. These commands preserve data and recreate
+the whole shared network namespace. The image does not live-mount source or run
+autoreload. If host port 8000 is occupied, change only the published port in
+`compose.yaml`, retaining the `127.0.0.1` bind, and use that port in browser URLs.
+
+### Local-only container boundary
+
+The alpha's development Redis connector requires a loopback host. PostgreSQL,
+Redis, initialization, web and worker therefore share PostgreSQL's container
+network namespace: both backend URLs use `127.0.0.1`, while the web process
+listens on `0.0.0.0:8000` inside that namespace. Only HTTP is published, on host
+`127.0.0.1:8000`; neither database is exposed to the host or LAN. Manage/recreate
+this stack together rather than replacing PostgreSQL independently. Compose
+dependency restart propagation is not a distributed recovery guarantee.
+
+The web/worker run non-root with a read-only root filesystem. A short setup job
+owns the credential volume; application roles mount it read-only. Anyone with
+Docker-daemon access can read these local credentials. This is a single-user
+development profile, not a production secret manager, scaling topology or TLS
+deployment. It does not weaken the published Redis connector's checks.
+
+Use `compose run ... web <command>` as shown: it invokes the credential-loading
+entrypoint. A raw `docker compose exec web /app/manage ...` does not inherit the
+credentials exported inside the main process and is not the supported command path.
+
+## Run natively without Docker
 
 Prerequisites: Go 1.26.8, a dedicated PostgreSQL database and Redis 7.2+ with `maxmemory-policy noeviction`. Development Redis must be loopback. Production connectors require their TLS/authentication/durability policies; this example is not a deployment recipe.
 
@@ -107,6 +181,14 @@ Each command prints the accepted identity before awaiting results, with a 45-sec
 GOWORK=off go test -race ./...
 GOWORK=off go vet ./...
 ```
+
+The Docker image build also runs the Linux unit tests, vet and descriptor/migration
+checks; it does not claim race or live-service coverage during image construction.
+`docker/http_test.go` provides an opt-in black-box check of the running stack:
+set `SHOWCASE_TEST_HTTP_URL=http://127.0.0.1:8000` and
+`SHOWCASE_TEST_ADMIN_PASSWORD` to the current local Admin password, then run
+`GOWORK=off go test -race ./docker`. It covers public pages, API visibility,
+CSRF, wrong-password denial and authenticated Admin access without a browser.
 
 Native tests are opt-in: set `GOGO_SHOWCASE_TEST_POSTGRES_DSN` to an explicitly disposable PostgreSQL database, then run:
 
