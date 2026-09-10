@@ -1,0 +1,23 @@
+{
+  "guideSidebar": [
+    {"label":"Start here","id":"start","description":"Understand Gogo, create your first app, or run the complete Docker showcase.","items":["index","quickstart","showcase"]},
+    {"label":"Project fundamentals","id":"fundamentals","description":"Learn how apps register, settings load, and manage.go runs commands.","items":["structure","configuration","commands"]},
+    {"label":"Models and databases","id":"data","description":"Define a model, work with records, and evolve your database safely.","items":[{"guide":"models","items":["model-fields","relations"]},"queries","transactions","migrations","fixtures"]},
+    {"label":"HTTP and REST APIs","id":"http","description":"Route requests to views, validate input, and expose scoped APIs.","items":["routing","views","api","pagination"]},
+    {"label":"Forms and templates","id":"presentation","description":"Validate forms, render HTML, and localize the user experience.","items":["forms","templates","i18n"]},
+    {"label":"Accounts and security","id":"security","description":"Wire authentication, permissions, sessions, and request protection.","items":["auth","sessions","security"]},
+    {"label":"Application services","id":"services","description":"Add file storage, static assets, caching, email, signals, and site features.","items":["files","static","cache","mail","signals","contrib"]},
+    {"label":"Deploy and operate","id":"operations","description":"Choose connectors, separate processes, test your application, and diagnose failures.","items":["connectors","deployment","observability","testing","troubleshooting","compatibility"]}
+  ],
+  "adminSidebar": [
+    {"guide":"admin","label":"Set up Admin","notes":[]},
+    {"label":"Lists, search and display","id":"admin-lists","description":"Choose columns, sort and paginate records, and tune search and empty values.","items":["detail-admin-list-ordering","detail-admin-list-pagination","detail-admin-list-edit","detail-admin-search-help","detail-admin-empty-display"]},
+    {"label":"Forms and relationships","id":"admin-forms","description":"Configure editing, child rows, related-object selectors, and form controls.","items":["detail-admin-inline-relations","detail-admin-relation-select","detail-admin-prepopulate","detail-admin-save-on-top"]},
+    {"label":"Accounts and staff tools","id":"admin-staff","description":"Use domain-backed account forms and publish authorized staff documentation.","items":["detail-admin-accounts","admindocs"]}
+  ],
+  "asyncSidebar": [
+    {"guide":"async","label":"Tasks and workers","notes":["detail-async-readme","detail-core-tasks-readme"]},
+    {"guide":"workflows","notes":["detail-async-result","detail-async-group-result","detail-async-group-forget"]},
+    {"guide":"scheduling","notes":["detail-async-publish-retry","detail-async-testing-periodic"]}
+  ]
+}

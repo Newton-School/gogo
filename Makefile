@@ -8,19 +8,25 @@ SHELL := /bin/bash
 .PHONY: help test test-js test-modules test-integration audit-dependencies vet build
 help: agentflow-help
 	@echo 'Product: make test | test-js | test-modules | test-integration | audit-dependencies | vet | build'
-	@echo 'Documentation: make docs | docs-check'
+	@echo 'Documentation: make docs-dev | docs | docs-serve | docs-check'
 
-# Public documentation; no web server, npm packages, or framework runtime needed.
-.PHONY: docs docs-check
-docs:
-	python3 docs/build.py
+# Documentation tooling is isolated from the Go framework and client apps.
+.PHONY: docs-install docs-dev docs docs-serve docs-check
+docs-install:
+	npm --prefix docs ci --no-fund
 
-docs-check:
-	python3 -m unittest discover -s docs/tests -p 'test_*.py'
+docs-dev: docs-install
+	npm --prefix docs start
+
+docs: docs-install
+	npm --prefix docs run build
+
+docs-serve:
+	npm --prefix docs run serve
+
+docs-check: docs-install
 	go test ./docs/...
-	node --check docs/assets/site.js
-	node --test docs/tests/*.test.cjs
-	python3 docs/build.py
+	npm --prefix docs run check
 
 # Contributor workspace checks; public modules are independently tested below.
 MODULE_PACKAGES := ./... ./admin/... ./async/... ./connectors/postgres/... ./connectors/redis/... ./async/redis/... ./tests/integration/...

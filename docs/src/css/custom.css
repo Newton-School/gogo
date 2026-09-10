@@ -1,0 +1,88 @@
+/* Shared documentation theme: native Docusaurus navigation and components. */
+:root {
+  --ifm-color-primary: #087f76;
+  --ifm-color-primary-dark: #07726a;
+  --ifm-color-primary-darker: #076c64;
+  --ifm-color-primary-darkest: #065953;
+  --ifm-color-primary-light: #098c82;
+  --ifm-color-primary-lighter: #099288;
+  --ifm-color-primary-lightest: #0aa599;
+  --ifm-font-family-base: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --ifm-font-family-monospace: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+  --ifm-code-font-size: 87%;
+  --ifm-font-size-base: 16px;
+  --ifm-line-height-base: 1.75;
+  --ifm-heading-line-height: 1.25;
+  --ifm-heading-color: #162d35;
+  --ifm-navbar-shadow: none;
+  --ifm-global-radius: 8px;
+  --doc-sidebar-width: 280px;
+  --gogo-border: #dfe8e9;
+  --gogo-muted: #52646b;
+  --gogo-soft: #f5f9f8;
+}
+[data-theme='dark'] {
+  --ifm-color-primary: #65d6c8;
+  --ifm-color-primary-dark: #48cebd;
+  --ifm-color-primary-darker: #3ac9b8;
+  --ifm-color-primary-darkest: #2cab9c;
+  --ifm-color-primary-light: #82ded3;
+  --ifm-color-primary-lighter: #90e3d9;
+  --ifm-color-primary-lightest: #bceee9;
+  --ifm-background-color: #131c21;
+  --ifm-background-surface-color: #19252b;
+  --ifm-heading-color: #edf5f5;
+  --gogo-border: #31424a;
+  --gogo-muted: #adbec5;
+  --gogo-soft: #19252b;
+}
+.navbar {border-bottom: 1px solid var(--gogo-border);}
+.navbar__brand {font-size: 1.4rem; letter-spacing: -.05em; margin-right: 2rem;}
+.navbar__logo {height: 28px;}
+.release-link {font: .75rem var(--ifm-font-family-monospace); color: var(--gogo-muted);}
+.menu {font-size: .88rem; padding: 1.2rem .7rem !important;}
+.menu__link {line-height: 1.45; padding-top: .5rem; padding-bottom: .5rem;}
+.menu__list .menu__list {border-left: 1px solid var(--gogo-border); margin-left: .8rem; padding-left: .55rem;}
+.theme-doc-markdown {max-width: 850px;}
+.theme-doc-markdown h1 {font-size: 2.4rem; letter-spacing: -.035em;}
+.theme-doc-markdown h2 {font-size: 1.55rem; margin-top: 2.5rem;}
+.theme-doc-markdown h3 {font-size: 1.15rem;}
+.theme-doc-markdown > p:first-of-type {font-size: 1.05rem; color: var(--gogo-muted);}
+.theme-doc-markdown table {font-size: .88rem; line-height: 1.6; max-width: 100%;}
+.theme-doc-markdown th {text-align: left;}
+.theme-doc-markdown blockquote {background: var(--gogo-soft); padding: 1rem 1.2rem; font-size: .94rem;}
+.theme-doc-markdown code {overflow-wrap: anywhere;}
+.theme-doc-markdown pre code {overflow-wrap: normal;}
+.table-of-contents {font-size: .79rem; line-height: 1.65;}
+.footer {border-top: 1px solid var(--gogo-border); font-size: .8rem; color: var(--gogo-muted);}
+/* The landing page is a reading map, not another exhaustive sidebar. */
+.docs-home {max-width: 1180px; padding: 3.75rem 2rem 2.5rem;}
+.home-heading {max-width: 850px;}
+.home-kicker {color: var(--ifm-color-primary); font-size: .73rem; font-weight: 700; letter-spacing: .15em; margin-bottom: 1rem;}
+.home-heading h1 {font-size: clamp(2.5rem, 4.5vw, 3.8rem); letter-spacing: -.055em; margin-bottom: 1.4rem;}
+.home-heading > p {color: var(--gogo-muted); max-width: 700px; font-size: 1.06rem;}
+.home-actions {display: flex; flex-wrap: wrap; gap: .7rem; margin: 1.7rem 0 1.25rem;}
+.home-actions .button {font-size: .9rem; padding: .8rem 1.15rem;}
+.home-heading .alpha-note {font-size: .8rem; max-width: none; margin-bottom: 3rem;}
+.alpha-badge {display: inline-block; font: .7rem var(--ifm-font-family-monospace); border: 1px solid var(--gogo-border); border-radius: 4px; padding: .25rem .4rem; margin-right: .35rem;}
+.section-heading {display: flex; justify-content: space-between; gap: 1rem; align-items: baseline; margin-bottom: 1rem;}
+.section-heading h2, .lookup-section h2 {font-size: 1.25rem; letter-spacing: -.025em; margin-bottom: .6rem;}
+.section-heading a {font-size: .85rem;}
+.path-grid {display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1rem;}
+.path-card {display: flex; flex-direction: column; padding: 1.35rem; border: 1px solid var(--gogo-border); border-radius: 10px; color: var(--ifm-heading-color); transition: border-color .15s, background .15s;}
+.path-card:hover {text-decoration: none; border-color: var(--ifm-color-primary); background: var(--gogo-soft);}
+.path-number {color: var(--ifm-color-primary); font: .78rem var(--ifm-font-family-monospace); margin-bottom: 1.25rem;}
+.path-card h3 {font-size: 1.1rem;}
+.path-card p {color: var(--gogo-muted); font-size: .87rem; line-height: 1.65; flex: 1;}
+.path-action {font-size: .82rem; color: var(--ifm-color-primary); font-weight: 600;}
+.lookup-section {display: grid; grid-template-columns: 1fr 1.3fr; gap: 2rem; margin-top: 2.5rem; padding-top: 2rem; border-top: 1px solid var(--gogo-border);}
+.lookup-section p {color: var(--gogo-muted); font-size: .9rem;}
+.lookup-links {display: grid; grid-template-columns: 1fr 1fr; gap: .6rem 1.3rem; align-content: start; font-size: .88rem;}
+@media (max-width: 996px) {.path-grid {grid-template-columns: repeat(2, minmax(0, 1fr));} .docs-home {padding-top: 2.5rem;}}
+@media (max-width: 600px) {
+  .docs-home {padding: 2rem 1.25rem;}
+  .path-grid, .lookup-section, .lookup-links {grid-template-columns: 1fr;}
+  .section-heading {display: block;}
+  .home-actions {flex-direction: column;}
+  .theme-doc-markdown h1 {font-size: 2rem;}
+}

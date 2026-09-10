@@ -1,0 +1,31 @@
+{
+  "name": "gogo-documentation",
+  "version": "1.0.0-alpha.1",
+  "private": true,
+  "scripts": {
+    "generate": "python3 generate.py",
+    "start": "npm run generate && docusaurus start --host 127.0.0.1 --port 3000 --no-open",
+    "build": "npm run generate && docusaurus build",
+    "serve": "docusaurus serve --host 127.0.0.1 --port 3000 --no-open",
+    "test": "python3 -m unittest discover -s tests -p 'test_*.py'",
+    "check": "npm test && npm run build && node --test tests/*.test.cjs"
+  },
+  "engines": {"node": ">=20.0"},
+  "overrides": {
+    "serialize-javascript": "7.1.1",
+    "express": {"qs": "6.16.0"},
+    "sockjs": {"uuid": "11.1.1"}
+  },
+  "dependencies": {
+    "@docusaurus/core": "3.10.2",
+    "@docusaurus/preset-classic": "3.10.2",
+    "@easyops-cn/docusaurus-search-local": "0.55.3",
+    "prism-react-renderer": "2.4.1",
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
+  },
+  "browserslist": {
+    "production": [">0.5%", "not dead", "not op_mini all"],
+    "development": ["last 3 chrome versions", "last 3 firefox versions", "last 5 safari versions"]
+  }
+}

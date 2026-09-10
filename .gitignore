@@ -16,6 +16,12 @@ coverage.out
 
 # Generated public documentation
 /docs/_site/
+/docs/.generated/
+/docs/.docusaurus/
+/docs/build/
+
+# Documentation dependencies
+/docs/node_modules/
 
 # Editor and operating system files
 .DS_Store
