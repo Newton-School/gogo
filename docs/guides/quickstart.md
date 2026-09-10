@@ -10,6 +10,8 @@ Create a project, add a model, generate a migration, and run the server. Use [th
 
 Redis, Admin and Async are not required for this first project.
 
+Create client projects outside the framework checkout. Its `go.work` is for framework contributors; if you intentionally work inside that checkout, use `GOWORK=off` for the independent client commands.
+
 ## 1. Install and create
 
 ```sh

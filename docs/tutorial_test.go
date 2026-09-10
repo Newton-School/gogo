@@ -22,6 +22,11 @@ func TestFirstProjectTutorial(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if _, err := os.Stat(filepath.Join(root, "connectors", "postgres", "go.mod")); os.IsNotExist(err) {
+		t.Skip("tutorial integration requires a complete multi-module repository checkout, not a packaged Core module")
+	} else if err != nil {
+		t.Fatal(err)
+	}
 	client := filepath.Join(t.TempDir(), "storefront")
 	if err := codegen.StartProject(client, codegen.ProjectOptions{Module: "example.com/storefront"}); err != nil {
 		t.Fatal(err)

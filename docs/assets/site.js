@@ -1,5 +1,17 @@
 "use strict";
-(() => {
+function searchDocumentation(entries, input) {
+  const query = input.trim().toLowerCase().slice(0, 200);
+  if (!query) return [];
+  const words = query.split(/\s+/);
+  return entries.map((item) => {
+    const title = item.title.toLowerCase();
+    const text = (item.title + " " + item.group + " " + item.text).toLowerCase();
+    const score = words.every((word) => text.includes(word)) ? (title === query ? 100 : title.includes(query) ? 70 : words.every((word) => title.includes(word)) ? 50 : 10) : 0;
+    return { item, score };
+  }).filter((result) => result.score).sort((a, b) => b.score - a.score).slice(0, 40);
+}
+if (typeof module !== "undefined") module.exports = { searchDocumentation };
+if (typeof document !== "undefined") (() => {
   const byID = (id) => document.getElementById(id);
   const dialog = byID("search-dialog"), input = byID("search-input"), results = byID("search-results");
   let previousFocus;
@@ -22,13 +34,7 @@
     const query = input.value.trim().toLowerCase().slice(0, 200);
     results.replaceChildren();
     if (!query) { byID("search-status").textContent = "Search tutorials, guides, settings, and every public API declaration."; return; }
-    const words = query.split(/\s+/);
-    const found = (window.GOGO_SEARCH || []).map((item) => {
-      const title = item.title.toLowerCase();
-      const text = (item.title + " " + item.group + " " + item.text).toLowerCase();
-      const score = words.every((word) => text.includes(word)) ? (title === query ? 100 : title.includes(query) ? 70 : words.every((word) => title.includes(word)) ? 50 : 10) : 0;
-      return { item, score };
-    }).filter((result) => result.score).sort((a, b) => b.score - a.score).slice(0, 40);
+    const found = searchDocumentation(window.GOGO_SEARCH || [], query);
     byID("search-status").textContent = found.length ? `${found.length} results${found.length === 40 ? " (showing the first 40)" : ""}` : "No results. Try a package name or a shorter feature name.";
     for (const { item } of found) {
       const row = document.createElement("li"), link = document.createElement("a"), group = document.createElement("small");
@@ -67,5 +73,10 @@
       }
       setTimeout(() => { button.textContent = "Copy"; }, 1800);
     });
+  }
+  const current = document.querySelector('#navigation a[aria-current="page"]');
+  if (current) {
+    const navigation = byID("navigation");
+    navigation.scrollTop = Math.max(0, current.offsetTop - navigation.offsetTop - navigation.clientHeight / 3);
   }
 })();

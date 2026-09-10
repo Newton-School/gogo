@@ -30,6 +30,22 @@ class MarkdownTests(unittest.TestCase):
         parser = docs.Links()
         parser.feed(rendered)
 
+    def test_headings_cannot_reuse_shell_ids(self):
+        _, toc = docs.markdown("## Content\n\n## Navigation")
+        self.assertEqual([entry[2] for entry in toc], ["content-1", "navigation-1"])
+
+    def test_all_model_and_form_kinds_have_human_documentation(self):
+        import re
+        cases = [("core/models/schema.go", "docs/guides/model-fields.md"),
+                 ("core/forms/fields.go", "docs/guides/forms.md")]
+        for source, guide in cases:
+            definitions = docs.safe_file(source).read_text()
+            names = re.findall(r'^\s*([A-Z][A-Za-z]+)\s+Kind\s*=', definitions, re.M)
+            text = docs.safe_file(guide).read_text()
+            self.assertGreater(len(names), 20)
+            for name in names:
+                self.assertIn(name, text, f"{guide} does not describe {name}")
+
     def test_tables_keep_pipes_in_code(self):
         rendered, _ = docs.markdown("| Example | Meaning |\n| --- | --- |\n| `a|b` | Either |")
         self.assertIn("<code>a|b</code>", rendered)

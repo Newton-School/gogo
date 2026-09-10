@@ -34,6 +34,12 @@ These are the 23 constructors exercised by the showcase recipes. Configure nulla
 
 Call `Serializer.Validate(ctx, input, api.BindOptions{...})` to obtain cleaned values, and `Representation` for output. `Save` takes an explicit persistence policy. Partial input, defaults and hidden fields have defined behavior; partial validation is not permission to ignore authorization. Nested validation is not automatic nested database persistence.
 
+## Validate and represent a value
+
+This complete test needs no database or server:
+
+{{code docs/examples/api_test.go}}
+
 ## Create, update and delete
 
 `NewResource` does not silently enable writes. Add the explicit create, PUT/PATCH and delete handlers with their required factories, row/graph policy, validation and transactional audit callbacks.

@@ -19,6 +19,7 @@ docs-check:
 	python3 -m unittest discover -s docs/tests -p 'test_*.py'
 	go test ./docs/...
 	node --check docs/assets/site.js
+	node --test docs/tests/*.test.cjs
 	python3 docs/build.py
 
 # Contributor workspace checks; public modules are independently tested below.

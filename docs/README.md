@@ -26,6 +26,6 @@ Use headings, paragraphs, fenced code, tables, flat lists, block quotes, inline 
 
 `{{code repository/path.go}}` includes the exact source as a code block. `{{include repository/guide.md}}` embeds an existing technical document. Includes are confined to repository files. Keep examples free of secrets, private URLs and local machine paths.
 
-Run `make docs-check` before committing changes. It runs renderer tests, the Go examples/tutorial, JavaScript syntax validation and a site build with local-link/anchor checks. The tutorial test uses temporary local module replacements and does not apply database migrations; the independently pinned showcase is a separate release-consumer check.
+Run `make docs-check` before committing changes. It runs renderer/field-inventory tests, the Go examples/tutorial, JavaScript syntax/search tests and a site build with local-link/anchor checks. The tutorial test uses temporary local module replacements and does not apply database migrations; it runs only in a complete multi-module checkout and explicitly skips inside a packaged Core-only module. The independently pinned showcase is a separate release-consumer check.
 
 Do not claim a capability is complete because its name appears in the generated reference. Keep descriptor-only, compile-only, unit-tested, real-provider and browser/deployment evidence distinct. New product behavior still follows AgentFlow approval; these public docs do not replace that workflow.

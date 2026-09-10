@@ -219,7 +219,7 @@ def settings_page(settings):
             if item["Sensitive"]:
                 constraints.append("Secret; redacted")
             if item["Min"]:
-                constraints.append("Minimum " + str(item["Min"]))
+                constraints.append("Minimum " + str(item["Min"]) + (" ns" if kinds[item["Kind"]] == "duration" else ""))
             if item["Choices"]:
                 constraints.append(", ".join(item["Choices"]))
             lines.append(f"| `{item['Name']}` | {kinds[item['Kind']]} | {default} | {requirements} | {'; '.join(constraints) or '—'} |")
@@ -251,11 +251,14 @@ def navigation(pages, active):
 
 def render_page(page, pages, body, toc, revision):
     on_page = "".join(f'<a class="level-{level}" href="#{identifier}">{html.escape(title)}</a>' for level, title, identifier in toc)
-    position = pages.index(page)
+    # Keep tutorials in tutorial order. Supplemental references should not make
+    # the final introductory guide jump into an unrelated package's notes.
+    sequence = [p for p in pages if p.get("parent") == page.get("parent")] if page.get("parent") else [p for p in pages if not p.get("parent")]
+    position = sequence.index(page)
     adjacent = []
     for offset, label in [(-1, "Previous"), (1, "Next")]:
-        if 0 <= position + offset < len(pages):
-            target = pages[position + offset]
+        if 0 <= position + offset < len(sequence):
+            target = sequence[position + offset]
             adjacent.append(f'<a href="{target["id"]}.html"><span>{label}</span>{html.escape(target["title"])}</a>')
     return f'''<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
