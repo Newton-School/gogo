@@ -1,6 +1,7 @@
 package docs_test
 
 import (
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -45,7 +46,7 @@ func TestFirstProjectTutorial(t *testing.T) {
 	}
 	environment := []string{}
 	for _, value := range os.Environ() {
-		if strings.HasPrefix(value, "GOGO_") || strings.HasPrefix(value, "GOWORK=") {
+		if strings.HasPrefix(value, "GOGO_") || strings.HasPrefix(value, "GOWORK=") || strings.HasPrefix(value, "DOCS_DATABASE_URL=") {
 			continue
 		}
 		environment = append(environment, value)
@@ -67,4 +68,31 @@ func TestFirstProjectTutorial(t *testing.T) {
 	run("run", "manage.go", "generate", "--check")
 	run("run", "manage.go", "makemigrations", "catalog", "--check")
 	run("test", "./...")
+	// Continue the same client through the database-backed API chapter. These
+	// exact files are displayed in the guide, not parallel example implementations.
+	snippets := filepath.Join(root, "docs", "snippets", "storefront")
+	if err := filepath.WalkDir(snippets, func(path string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() || !strings.HasSuffix(path, ".go.txt") {
+			return nil
+		}
+		relative, err := filepath.Rel(snippets, path)
+		if err != nil {
+			return err
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		return os.WriteFile(filepath.Join(client, strings.TrimSuffix(relative, ".txt")), data, 0600)
+	}); err != nil {
+		t.Fatal(err)
+	}
+	run("run", "manage.go", "generate", "--check")
+	run("run", "manage.go", "makemigrations", "catalog", "--check")
+	run("run", "manage.go", "seed", "--help")
+	run("test", "./...")
+	run("build", "-o", filepath.Join(t.TempDir(), "manage"), ".")
 }

@@ -1,5 +1,13 @@
 # Pagination and rate limits
 
+## Parse a bounded page
+
+This executable example needs no database. Run `go test ./docs/examples -run Example_pagination -v` from the framework checkout:
+
+{{code docs/examples/pagination_test.go}}
+
+In a handler, replace the literal query values with `r.URL.Query()`. After parsing, apply the caller's visibility predicate to the ORM query, then its offset and limit. A pagination helper is not a row-authorization layer.
+
 Bound every collection endpoint. Pagination controls work and response size; authorization determines which records can enter the collection at all.
 
 ## Pagination modes

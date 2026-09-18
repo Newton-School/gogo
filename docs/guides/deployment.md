@@ -2,6 +2,30 @@
 
 Build one application and run the processes it explicitly configures. Gogo is a library/framework repository; deployment credentials belong to your client project.
 
+## Build the deployable artifact
+
+From your client project, not the framework checkout:
+
+```sh
+go test -race ./...
+go vet ./...
+go run manage.go generate --check
+go run manage.go makemigrations catalog --check
+go build -trimpath -o bin/manage .
+```
+
+Use your actual app labels for migration checks. Run the resulting binary with environment values supplied by your deployment's secret/configuration mechanism. Do not build credentials into it. For a complete local image and Compose setup, follow [Docker for your project](docker.md).
+
+```sh
+# Separate migration job, with its own configuration and credentials supplied.
+./bin/manage migrate
+
+# Web process, after the migration job succeeds.
+./bin/manage serve
+```
+
+Setting `GOGO_ENV=production` tightens configuration requirements; it does not install TLS certificates, a reverse proxy, or database failover. Prepare those dependencies before changing the environment mode. The local development Compose example intentionally cannot be advertised as a ready production deployment.
+
 ## Same binary, separate processes
 
 | Process | Command after project wiring | Responsibility |

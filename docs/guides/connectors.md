@@ -2,6 +2,19 @@
 
 Core describes the contracts; connectors execute them against external systems. PostgreSQL and Redis are the initial supported external backends. Admin and Async remain independently installable.
 
+## Install the adapters you use
+
+In your client project:
+
+```sh
+go get github.com/Newton-School/gogo/connectors/postgres@v1.0.0-alpha.1
+go get github.com/Newton-School/gogo/connectors/redis@v1.0.0-alpha.1
+```
+
+`startproject` already includes PostgreSQL. Install Redis only if a selected service needs it. Use `async/redis` from the optional Async module for durable task infrastructure, not the Core Redis connector alone.
+
+For complete opening/closing code, use [the showcase's connection factory](async-wiring.md) or the generated client's `config/connections.go`. These factories open the resources selected by the current command and return cleanup functions; they do not share a global pool across processes.
+
 ## PostgreSQL
 
 Construct `postgres.Open(ctx, postgres.Config{...})` in a project-owned resource opener. Configure DSN, alias, search path, pool sizes, connect timeout, maximum connection lifetime and required extensions. Close the backend during the owner's shutdown.

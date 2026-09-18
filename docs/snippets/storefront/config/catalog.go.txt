@@ -1,0 +1,86 @@
+package config
+
+import (
+	"context"
+	"errors"
+	"flag"
+	"fmt"
+	"net/http"
+
+	"example.com/storefront/apps/catalog"
+	"github.com/Newton-School/gogo/core/app"
+	"github.com/Newton-School/gogo/core/conf"
+	"github.com/Newton-School/gogo/core/management"
+	"github.com/Newton-School/gogo/core/models"
+	"github.com/Newton-School/gogo/core/orm"
+	"github.com/Newton-School/gogo/core/security"
+	"github.com/Newton-School/gogo/core/urls"
+)
+
+func (c *Connections) CatalogStore(registry *app.Registry) (*orm.Store, error) {
+	if c.Database == nil {
+		return nil, errors.New("database resource is not open")
+	}
+	modelsRegistry := &models.Registry{}
+	for _, name := range registry.Names("models") {
+		value, _ := registry.Get("models", name)
+		schema, ok := value.(models.Schema)
+		if !ok {
+			return nil, errors.New("invalid model registration")
+		}
+		if err := modelsRegistry.Register(schema); err != nil {
+			return nil, err
+		}
+	}
+	if err := modelsRegistry.Freeze(); err != nil {
+		return nil, err
+	}
+	return orm.New(c.Database, modelsRegistry), nil
+}
+
+func (c *Connections) CatalogHandler(registry *app.Registry, settings conf.Values) (http.Handler, error) {
+	store, err := c.CatalogStore(registry)
+	if err != nil {
+		return nil, err
+	}
+	products, err := catalog.ProductRoutes(store)
+	if err != nil {
+		return nil, err
+	}
+	routes := append(Routes(registry), urls.Include("api/", "api", products...))
+	router, err := urls.New(routes...)
+	if err != nil {
+		return nil, err
+	}
+	headers, err := security.Headers(security.HeadersConfig{AllowedHosts: settings.List("GOGO_ALLOWED_HOSTS")})
+	if err != nil {
+		return nil, err
+	}
+	return headers(http.TimeoutHandler(router, settings.Duration("GOGO_DB_QUERY_TIMEOUT"), "Request timed out")), nil
+}
+
+func (c *Connections) SeedCommand() management.Command {
+	return management.Command{
+		Name: "seed", Help: "Insert missing tutorial products without replacing existing records",
+		Resources: []string{"database"}, OpenResources: true,
+		Validate: func(args []string) error {
+			if len(args) != 0 {
+				return errors.New("seed takes no arguments")
+			}
+			return nil
+		},
+		Configure: func(*flag.FlagSet) management.Runner {
+			return func(ctx context.Context, i *management.Invocation, _ []string) error {
+				store, err := c.CatalogStore(i.Application.Registry)
+				if err != nil {
+					return err
+				}
+				if err := catalog.Seed(ctx, store); err != nil {
+					return err
+				}
+				_, err = fmt.Fprintln(i.Stdout, "Tutorial products are ready.")
+				return err
+			}
+		},
+	}
+}

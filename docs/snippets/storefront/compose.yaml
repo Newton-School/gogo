@@ -1,0 +1,47 @@
+name: gogo-storefront
+
+x-app: &app
+  build: .
+  image: gogo-storefront:local
+  environment:
+    GOGO_ENV: development
+    GOGO_DATABASE_URL: postgres://storefront:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@db:5432/storefront?sslmode=disable
+    GOGO_HTTP_ADDR: 0.0.0.0:8000
+    GOGO_ALLOWED_HOSTS: localhost,127.0.0.1
+  depends_on:
+    db:
+      condition: service_healthy
+
+services:
+  db:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: storefront
+      POSTGRES_DB: storefront
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - database:/var/lib/postgresql
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U storefront -d storefront"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+  migrate:
+    <<: *app
+    command: [migrate]
+    restart: "no"
+  web:
+    <<: *app
+    command: [serve]
+    ports:
+      - "127.0.0.1:8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+volumes:
+  database:

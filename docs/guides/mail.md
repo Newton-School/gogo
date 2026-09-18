@@ -4,6 +4,12 @@
 
 ## Compose and send
 
+Run this complete example with `go test ./docs/examples -run Example_mail -v` from the framework checkout. In a client test, put it in a `_test.go` file. It verifies message construction without sending actual email:
+
+{{code docs/examples/mail_test.go}}
+
+For real delivery, replace the test outbox with your configured SMTP backend. Keep the same explicit error/receipt handling. Do not use `NewMemory` as a production mail queue.
+
 Use `mail.Message` for sender, recipients, subject, content, alternatives and attachments. Validate with the package's limits and send through `SendMail`, `SendMassMail` or a configured `Service`.
 
 Do not concatenate untrusted header lines. Header validation rejects injection; Bcc recipients belong in the SMTP envelope rather than visible message headers. Keep attachment count, bytes, recipient count and total message size bounded.

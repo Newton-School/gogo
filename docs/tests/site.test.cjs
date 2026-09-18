@@ -27,8 +27,8 @@ test('every generated guide, note, and API document is built', () => {
   }
 });
 
-test('navigation uses four bounded reading paths, not one flat package list', () => {
-  assert.deepEqual(Object.keys(sidebars), ['guideSidebar', 'adminSidebar', 'asyncSidebar', 'referenceSidebar']);
+test('navigation separates the first-project journey from feature guides and reference', () => {
+  assert.deepEqual(Object.keys(sidebars), ['startSidebar', 'guideSidebar', 'adminSidebar', 'asyncSidebar', 'referenceSidebar']);
   for (const [name, items] of Object.entries(sidebars)) {
     assert.ok(items.length <= 15, `${name} has too many root entries`);
     function walk(nodes, depth) {
@@ -49,7 +49,7 @@ test('navigation uses four bounded reading paths, not one flat package list', ()
 
 test('home page offers distinct tutorial, feature, and lookup entry points', () => {
   const html = read('build/index.html');
-  for (const destination of ['quickstart', 'showcase', 'admin', 'async', 'settings', 'packages']) {
+  for (const destination of ['quickstart', 'showcase', 'installation', 'features', 'admin-wiring', 'async-wiring', 'running', 'docker', 'settings', 'packages']) {
     assert.match(html, new RegExp(`href="/docs/${destination}/"`));
   }
   assert.match(html, /1.0.0-alpha.1/);

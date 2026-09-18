@@ -50,6 +50,21 @@ Field options include initial values, labels/help text, length/value/decimal bou
 
 ## Widgets
 
+Configure a field and widget together. Inside your form factory:
+
+```go
+name := forms.NewField("name", forms.Char)
+name.Label = "Product name"
+name.MaxLength = 120
+name.Widget = forms.InputWidget{Type: "text"}
+
+price := forms.NewField("price", forms.Decimal)
+price.MaxDigits, price.DecimalPlaces = 12, 2
+price.Widget = forms.InputWidget{Type: "number"}
+```
+
+Pass these fields into the form definition as in the binding example above. Browser control types do not replace server-side bounds; invalid input still needs a field error. Use the showcase's [forms page](http://localhost:8000/forms/) after [starting it](showcase.md) to submit valid and invalid values and inspect the controls.
+
 `forms.InputWidget{Type: ...}` supports:
 
 | Family | Type strings |

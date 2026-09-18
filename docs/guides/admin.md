@@ -4,6 +4,8 @@ Admin is an optional module that turns explicitly registered models into staff-f
 
 ## Install and wire
 
+Follow [Set up a working Admin](admin-wiring.md) for the full schema/account/session/router integration. This page is the option reference; it is not a replacement for that setup. Then use [Customize your Admin](admin-customization.md) to change one working model at a time.
+
 ```sh
 go get github.com/Newton-School/gogo/admin@v1.0.0-alpha.1
 ```

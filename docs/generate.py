@@ -89,7 +89,14 @@ def expand(source, revision, page_sources, page_ids):
         path = match[2]
         content = safe_file(path).read_text()
         if match[1] == "code":
-            language = "go" if path.endswith(".go") else "text"
+            if path.endswith((".go", ".go.txt")):
+                language = "go"
+            elif path.endswith((".yaml", ".yml")):
+                language = "yaml"
+            elif Path(path).name == "Dockerfile":
+                language = "dockerfile"
+            else:
+                language = "text"
             # Pick a fence longer than any backtick run in the source.
             width = max([2] + [len(m[0]) for m in re.finditer(r"`+", content)]) + 1
             fence = "`" * width

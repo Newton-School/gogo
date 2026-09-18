@@ -1,0 +1,75 @@
+package config
+
+import (
+	"context"
+	"net/http/httptest"
+	"os"
+	"strings"
+	"testing"
+	"time"
+
+	"example.com/storefront/apps/catalog"
+	"github.com/Newton-School/gogo/connectors/postgres"
+	"github.com/Newton-School/gogo/core/app"
+	"github.com/Newton-School/gogo/core/orm"
+)
+
+// The repository integration harness supplies an owned, migrated, seeded
+// PostgreSQL schema. Without it this test explicitly skips; compilation alone
+// is not a database integration result. This test never creates or drops data.
+func TestCatalogHTTP(t *testing.T) {
+	dsn := os.Getenv("DOCS_DATABASE_URL")
+	if dsn == "" {
+		t.Skip("run through the documentation integration harness")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	backend, err := postgres.Open(ctx, postgres.Config{DSN: dsn})
+	if err != nil {
+		t.Fatal("open tutorial database")
+	}
+	defer backend.Close()
+	application, err := app.Prepare(InstalledApps(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	settings, err := Settings().Load(map[string]string{"GOGO_DATABASE_URL": dsn})
+	if err != nil {
+		t.Fatal(err)
+	}
+	connections := &Connections{Database: backend}
+	handler, err := connections.CatalogHandler(application.Registry, settings)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		method, path string
+		status       int
+		contains     string
+	}{
+		{"GET", "/", 200, "gogo"},
+		{"GET", "/catalog/", 200, "catalog"},
+		{"GET", "/api/products/", 200, "Notebook"},
+		{"GET", "/api/products/1/", 200, "19.95"},
+		{"GET", "/api/products/2/", 404, ""},
+		{"GET", "/api/products/999999/", 404, ""},
+		{"POST", "/api/products/", 405, ""},
+	} {
+		response := httptest.NewRecorder()
+		handler.ServeHTTP(response, httptest.NewRequest(tc.method, "http://localhost"+tc.path, nil).WithContext(ctx))
+		if response.Code != tc.status || !strings.Contains(response.Body.String(), tc.contains) {
+			t.Errorf("%s %s: status %d, expected %d and %q", tc.method, tc.path, response.Code, tc.status, tc.contains)
+		}
+		if strings.Contains(response.Body.String(), "Draft product") {
+			t.Error("public response exposed the unpublished product")
+		}
+	}
+	store, err := connections.CatalogStore(application.Registry)
+	if err != nil {
+		t.Fatal(err)
+	}
+	count, err := orm.For(store, func() *catalog.Product { return &catalog.Product{} }).Count(ctx)
+	if err != nil || count != 2 {
+		t.Fatal("running seed twice must retain exactly two tutorial products")
+	}
+}

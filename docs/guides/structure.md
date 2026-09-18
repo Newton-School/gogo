@@ -36,6 +36,23 @@ storefront/
 
 ## Project wiring
 
+The generated `manage.go` stays small. For the tutorial's `example.com/storefront` module, it is:
+
+```go
+package main
+
+import (
+    "example.com/storefront/config"
+    "github.com/Newton-School/gogo"
+)
+
+func main() {
+    gogo.Main(config.Project())
+}
+```
+
+Keep database openers, routes and command registration in `config`, not in this entrypoint. See the [complete tutorial Project factory](tutorial-api.md) for those files.
+
 `management.Project` combines `Schema`, `Apps`, `Commands`, `Handler`, `RuntimeResources` and `ResourceFactory`. `gogo.Main(config.Project())` dispatches the selected command. The resource factory receives only the resources that command requests.
 
 Use `app.Config.Requires` to declare app dependencies. `Register` contributes descriptors to the registry. `Ready` performs startup work after resources open. `Shutdown` participates in cleanup. Keep registration free of external I/O; do not launch a worker as an accidental side effect of importing an app.

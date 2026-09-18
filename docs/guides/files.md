@@ -1,5 +1,13 @@
 # Files, uploads and downloads
 
+## Store a private file locally
+
+The complete example below owns a temporary directory, saves content under an opaque key, and confirms that private storage does not invent a public URL:
+
+{{code examples/showcase/recipes/storage/example_test.go}}
+
+Run `GOWORK=off go test -v ./recipes/storage` from `examples/showcase`. In your client, supply a configured private directory instead of the temporary one and close the provider at shutdown. Only remove temporary directories your code created; do not apply this test cleanup to user uploads.
+
 Model `FileField` and `ImageField` values describe storage keys. Actual upload validation, file persistence, metadata and authorized delivery are separate services.
 
 ## Choose the right layer

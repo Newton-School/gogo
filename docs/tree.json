@@ -1,15 +1,24 @@
 {
-  "guideSidebar": [
+  "startSidebar": [
     {
       "label": "Start here",
       "id": "start",
-      "description": "Understand Gogo, create your first app, or run the complete Docker showcase.",
+      "description": "Know what Gogo is, try a complete example, and install the tools you need.",
       "items": [
         "index",
-        "quickstart",
-        "showcase"
+        "showcase",
+        "installation"
       ]
     },
+    {
+      "label": "Build your first backend",
+      "id": "first-backend",
+      "description": "Follow one project from its first route to a persistent API and a Docker image.",
+      "items": ["quickstart", "running", "tutorial-api", "docker"]
+    }
+  ],
+  "guideSidebar": [
+    "features",
     {
       "label": "Project fundamentals",
       "id": "fundamentals",
@@ -46,6 +55,7 @@
         "routing",
         "views",
         "api",
+        {"guide": "api-writes", "notes": ["detail-core-api-create", "detail-core-api-update", "detail-core-api-delete", "detail-core-api-idempotency"]},
         "pagination"
       ]
     },
@@ -97,9 +107,11 @@
     }
   ],
   "adminSidebar": [
+    "admin-wiring",
+    "admin-customization",
     {
       "guide": "admin",
-      "label": "Set up Admin",
+      "label": "Options and security",
       "notes": []
     },
     {
@@ -136,6 +148,7 @@
     }
   ],
   "asyncSidebar": [
+    "async-wiring",
     {
       "guide": "async",
       "label": "Tasks and workers",
@@ -152,6 +165,7 @@
         "detail-async-group-forget"
       ]
     },
+    "async-recipes",
     {
       "guide": "scheduling",
       "notes": [

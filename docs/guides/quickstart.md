@@ -1,6 +1,6 @@
 # Your first project
 
-Create a project, add a model, generate a migration, and run the server. Use [the Docker showcase](showcase.md) instead if you want a complete application without installing Go or preparing a database.
+Create a project, add a model, generate a migration, and run the server. This is chapter one of a continuous tutorial: [run and build](running.md) → [database-backed API](tutorial-api.md) → [Docker](docker.md). Use [the Docker showcase](showcase.md) instead if you want a complete application to explore first.
 
 ## Before you start
 
@@ -9,6 +9,8 @@ Create a project, add a model, generate a migration, and run the server. Use [th
 - A terminal with Go's executable directory on `PATH`.
 
 Redis, Admin and Async are not required for this first project.
+
+Use [Install and prepare](installation.md) for CLI/PATH setup and a complete local PostgreSQL Compose file. Commands below assume a shell in your own projects directory; do not create the client inside the Gogo source checkout.
 
 Create client projects outside the framework checkout. Its `go.work` is for framework contributors; if you intentionally work inside that checkout, use `GOWORK=off` for the independent client commands.
 
@@ -25,6 +27,8 @@ go run manage.go startapp catalog
 Pin the alpha explicitly. Do not replace its version with `@latest`: the older stable implementation is a different, incompatible product line.
 
 `startapp` creates `apps/catalog/` and registers the app in `config/apps.go`. Run subsequent commands through `manage.go` so they use your installed apps and settings.
+
+Your checkpoint: `manage.go`, `go.mod`, `config/`, and `apps/catalog/` now exist. `go run manage.go help` lists commands without starting a server. If you use the local database container from the installation guide, create its Compose file in this new `storefront/` directory now.
 
 ## 2. Configure PostgreSQL
 
@@ -89,7 +93,11 @@ go run manage.go makemigrations catalog --check
 go test ./...
 ```
 
-## Next steps
+## Continue this project
+
+The `/catalog/` route proves request routing, not database-backed API behavior. Next, [run and compile the application](running.md), then [connect your Product to a real API](tutorial-api.md). That chapter provides every changed file, writes sample records, and verifies that private drafts are excluded. Finish with [Docker](docker.md).
+
+## Feature guides
 
 - [Query and save Product records](queries.md).
 - [Expose a scoped API](api.md).

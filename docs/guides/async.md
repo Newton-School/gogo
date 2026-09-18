@@ -20,6 +20,8 @@ Names and versions are part of the dispatch contract. Producers and workers must
 
 ## Construct the runtime
 
+Follow [Wire a queue and worker](async-wiring.md) for the complete resource factory, management factories, producer command, and separate terminal commands. Installing Async and declaring a task are not enough to start consumption.
+
 Create a `Client` with explicit registry, broker, results, workflows and allowed queues. Create a `Worker` with its queue selection, identity, concurrency and owned providers. For durable workflows/retries/delays, also configure the matching relay and delayed dispatcher; those services are not implicit goroutines.
 
 `async/management.Commands` registers only the factories you provide. The showcase's [Async wiring](https://github.com/Newton-School/gogo/blob/master/examples/showcase/config/async.go) is a complete example with Redis-backed workers, relay and delayed dispatch.

@@ -1,4 +1,5 @@
 import importlib.util
+import json
 from pathlib import Path
 import re
 import unittest
@@ -19,6 +20,40 @@ class ContentTests(unittest.TestCase):
         self.assertIn(docs.safe_file(path).read_text().rstrip(), result)
         self.assertIn("```go\n", result)
         self.assertIn("/revision/" + path, result)
+
+    def test_tutorial_file_languages_are_preserved(self):
+        for path, language in [
+            ("docs/snippets/storefront/config/catalog.go.txt", "go"),
+            ("docs/snippets/storefront/compose.yaml", "yaml"),
+            ("docs/snippets/storefront/Dockerfile", "dockerfile"),
+            ("docs/snippets/storefront/.dockerignore", "text"),
+        ]:
+            result = docs.expand("{{code " + path + "}}", "revision", {}, {})
+            self.assertIn("```" + language + "\n", result)
+            self.assertIn(docs.safe_file(path).read_text().rstrip(), result)
+
+    def test_every_package_has_a_feature_guide_with_an_example(self):
+        manifest = json.loads(docs.safe_file("docs/navigation.json").read_text())
+        feature_map = docs.safe_file("docs/guides/features.md").read_text()
+        for guide in manifest:
+            if not guide.get("packages"):
+                continue
+            source = docs.safe_file(guide["file"]).read_text()
+            self.assertRegex(source, r"\{\{code |```(?:go|sh|json|yaml)\n", guide["id"])
+            self.assertIn("(" + guide["id"] + ".md", feature_map, guide["id"])
+
+    def test_all_tested_tutorial_files_are_shown_to_readers(self):
+        manifest = json.loads(docs.safe_file("docs/navigation.json").read_text())
+        source = "\n".join(docs.safe_file(guide["file"]).read_text() for guide in manifest)
+        root = docs.safe_file("docs/snippets/storefront/config/catalog.go.txt").parents[2]
+        for snippet in root.rglob("*.go.txt"):
+            relative = snippet.relative_to(docs.ROOT).as_posix()
+            self.assertIn("{{code " + relative + "}}", source)
+
+    def test_first_project_has_an_ordered_beginner_path(self):
+        tree = json.loads(docs.safe_file("docs/tree.json").read_text())
+        self.assertEqual(tree["startSidebar"][0]["items"], ["index", "showcase", "installation"])
+        self.assertEqual(tree["startSidebar"][1]["items"], ["quickstart", "running", "tutorial-api", "docker"])
 
     def test_code_is_not_rewritten(self):
         source = '```go\n// [Example](models.md)\n// {{code missing.go}}\n```\n'

@@ -2,6 +2,31 @@
 
 Gogo declares 40 model kinds. There are 31 named constructors and nine additional kinds created through `models.NewField`. This list describes the vocabulary; the support column prevents a descriptor from being mistaken for a complete CRUD implementation.
 
+## Start with a complete model
+
+Each field belongs in the `Fields` slice returned by your model's `Schema` method. Match the Go field explicitly with `WithStructField`; import types such as `time.Time` in the app when used.
+
+{{code docs/snippets/catalog/models.go}}
+
+After changing a schema, run `go run manage.go generate`, then `go run manage.go makemigrations catalog`, inspect the migration, and apply it with `go run manage.go migrate`. Schema declarations do not change a database merely by compiling.
+
+## Combine options
+
+These expressions go inside the model's `Fields` slice; the corresponding Go fields must also exist:
+
+```go
+models.CharField("name", models.WithStructField("Name"), models.WithMaxLength(120)),
+models.SlugField("slug", models.WithStructField("Slug"), models.UniqueValue),
+models.DecimalField("price", 12, 2, models.WithStructField("Price")),
+models.BooleanField("published", models.WithStructField("Published"), models.WithDefault(false)),
+models.TextField("summary", models.WithStructField("Summary"), models.Optional),
+models.EmailField("contact", models.WithStructField("Contact"), models.Nullable, models.Optional),
+```
+
+Use a nullable Go representation such as `*string` for nullable `Contact`. `Optional` permits blank values; `Nullable` permits database null. Neither supplies an application authorization policy. For uniqueness under concurrency, keep the database constraint, not only a prior existence check.
+
+For all field families in a running UI, [start the showcase](showcase.md) and visit [the field inventory](http://localhost:8000/fields/). Its [field definitions](../../examples/showcase/apps/fieldlab/models.go) distinguish persisted scalars from descriptor-only extension/GIS kinds. Do not enable advanced descriptors just to make a dropdown appear.
+
 ## Numeric and identity fields
 
 | Constructor | Typical Go value | Meaning |

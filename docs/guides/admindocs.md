@@ -4,6 +4,14 @@
 
 ## What it describes
 
+The following complete, compiled registration sketch shows the constructor and route mounting. It receives an already configured site, router, and template engine; it does not create a permissive staff principal:
+
+{{code admin/admindocs/example_test.go}}
+
+Replace the example's `shop.Product`, field selection, and `shop:product` route with **exact registered names** from your app. For the tutorial Product, the field is `name` (lowercase), not the sketch's `Name`. Mount the handler inside the same account/session middleware as Admin. With the default model policy, explicitly provision `admindocs.view_documentation` for the staff who should read it; staff status alone is not enough.
+
+Run `go test ./admin/admindocs/...` from the contributor checkout to run the package's permission and rendering tests. The registration sketch is compile-checked, not a complete standalone web application. Start with [Admin wiring](admin-wiring.md) for the surrounding services.
+
 - Registered model and field metadata.
 - Declared URL/view information.
 - Template tags and filters exposed by description APIs.

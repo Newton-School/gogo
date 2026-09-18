@@ -8,6 +8,16 @@ Keep Go's types, interfaces, `context.Context`, standard HTTP handlers, and conc
 
 ## Start building
 
+**New to Gogo?** Follow one path in the **Get started** tab:
+
+1. [Run the complete example](showcase.md) to see the API, forms, Admin, and worker.
+2. [Install the tools and local database](installation.md).
+3. [Create your own project](quickstart.md), then [run, reload, and compile it](running.md).
+4. [Build a persistent product API](tutorial-api.md) using complete, tested files.
+5. [Package that same application with Docker](docker.md).
+
+After the tutorial, use **Guide → All features** to choose the next capability. **Admin** and **Async** have their own setup and customization paths. **Reference** is for exact signatures, not the first place to learn the framework.
+
 | You want to… | Start here |
 | --- | --- |
 | Create a new Go application | [Your first project](quickstart.md) |
@@ -17,6 +27,8 @@ Keep Go's types, interfaces, `context.Context`, standard HTTP handlers, and conc
 | Add an internal management interface | [Admin](admin.md) |
 | Run work outside HTTP requests | [Tasks and workers](async.md) |
 | Find an exact type, method or option | [Package reference](packages.md) |
+| Browse every feature by parent group | [All features](features.md) |
+| Build and run your own container | [Docker for your project](docker.md) |
 
 ## What is included?
 
@@ -43,10 +55,16 @@ Keep Go's types, interfaces, `context.Context`, standard HTTP handlers, and conc
 | `github.com/Newton-School/gogo/connectors/redis` | Redis connections, caching and sessions |
 | `github.com/Newton-School/gogo/async/redis` | Redis-backed Async broker, results and coordination |
 
-Install every module at `v1.0.0-alpha.1`. Installing a package does not mount routes, create database tables, open connections or start workers. Your project's configuration does that explicitly.
+Install every module at `v1.0.0-alpha.1`. For example, from an existing Go client:
+
+```sh
+go get github.com/Newton-School/gogo@v1.0.0-alpha.1
+```
+
+For a new client, follow [installation](installation.md) and use the project generator instead of wiring an empty directory by hand. Installing a package does not mount routes, create database tables, open connections or start workers. Your project's configuration does that explicitly.
 
 ## Read the docs in layers
 
-Tutorials show the first working path. Feature guides explain what to register, how to call it, and what to handle on failure. Technical guides preserve the detailed contracts for advanced features. The generated Go reference lists the public declarations and links each one to its source.
+Tutorials show the first working path, with filenames, commands, expected results, and next steps. Feature guides explain what to register, how to call it, and what to handle on failure. Technical guides preserve the detailed contracts for advanced features. The generated Go reference lists the public declarations and links each one to its source.
 
 Examples taken from the showcase use its `example.com/gogo-showcase` module and app names. Adapt those imports to your project; the showcase itself is ready to run unchanged. Small examples under `docs/examples/` are tested without external services. Neither set of examples certifies every possible combination of features.

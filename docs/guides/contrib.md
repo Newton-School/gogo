@@ -29,6 +29,16 @@ Stored page content is not automatically trusted HTML. Use explicit rendering an
 
 ## Public feeds and search-engine files
 
+### Create a sitemap
+
+{{code examples/showcase/recipes/sitemaps/example_test.go}}
+
+### Publish a feed
+
+{{code examples/showcase/recipes/syndication/example_test.go}}
+
+Run these from the showcase directory with `GOWORK=off go test -v ./recipes/sitemaps ./recipes/syndication`. The examples use explicit public sources; replace them with properly scoped database reads in a real application, not an unrestricted model scan.
+
 Sitemaps and feeds can expose every URL or title they contain. Select genuinely public records before generating them. Bound entry counts, page sizes, string lengths and work; do not turn an unauthenticated sitemap endpoint into an unrestricted database scan.
 
 The sitemap/syndication packages include conditional-response and structured XML behavior, but do not implement every Django contrib extension vocabulary. Their individual technical guides list exact limits. Runnable recipes exist under `examples/showcase/recipes/sitemaps` and `recipes/syndication`.

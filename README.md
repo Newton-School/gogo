@@ -7,7 +7,10 @@ A Go backend framework under development with structured applications, its own O
 Start with the [developer documentation](docs/index.md), [first-project tutorial](docs/guides/quickstart.md),
 or [documentation build instructions](docs/README.md). Run `make docs-dev` and visit
 [localhost:3000](http://localhost:3000) for the Docusaurus documentation site.
-Guide, Admin, Async, and Reference each have a focused, nested navigation tree.
+Get started, Guide, Admin, Async, and Reference each have a focused, nested navigation tree.
+The getting-started path covers installation, a basic project, running/building,
+a database-backed API, and Docker. The [feature map](docs/guides/features.md)
+links to the setup, examples, and limitations for each feature family.
 To preview the production site with local full-text search, run `make docs` then
 `make docs-serve`. Node.js 20+, npm, Python 3.10+, and Go are documentation-build
 tools only; no Gogo server, PostgreSQL, Redis, or framework `.env` is needed.

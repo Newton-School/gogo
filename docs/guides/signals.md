@@ -4,6 +4,12 @@ Signals notify explicitly connected Go receivers about an in-process event. They
 
 ## Typed receivers
 
+Put the signal and its receiver registrations in an app-owned service. This standalone example shows the exact API and checked output:
+
+{{code docs/examples/signals_test.go}}
+
+Run it with `go test ./docs/examples -run Example_signal -v`. Its receiver prints a demonstration value; real indexing or queue publication needs its own error/idempotency policy.
+
 Declare a typed signal and connect receivers with stable registration identities. Send a typed payload and a context. The package provides stop-on-error and robust delivery behavior; choose intentionally whether one receiver failure prevents later receivers from running.
 
 Receiver order, duplicate registration, disconnect behavior and context cancellation are defined by the signal contract. Configure receivers before concurrent operation and keep callbacks prompt. Do not mutate shared payload state from unsynchronized goroutines.

@@ -1,0 +1,23 @@
+package config
+
+import (
+	"github.com/Newton-School/gogo/core/conf"
+	"github.com/Newton-School/gogo/core/management"
+)
+
+func Settings() conf.Schema { return conf.CoreSchema() }
+
+func Project() management.Project {
+	connections := &Connections{}
+	commands := management.MigrationCommands(
+		func() dbBackend { return connections.Database },
+		func() dbEditor { return connections.Database.SchemaEditor() },
+	)
+	commands = append(commands, management.InspectDBCommand(connections.Inspection), connections.SeedCommand())
+	return management.Project{
+		Name: "storefront", Schema: Settings(), Apps: InstalledApps(),
+		RuntimeResources: []string{"database"},
+		ResourceFactory: connections.Resources,
+		Handler: connections.CatalogHandler, Commands: commands,
+	}
+}

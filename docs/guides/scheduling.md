@@ -25,6 +25,17 @@ Retry state is committed before acknowledging the original delivery. Separate ha
 
 Use explicit timezones with interval or five-field cron rules. Intervals must be at least one millisecond. Cron search and rule size are bounded. Configure misfire behavior rather than allowing unbounded catch-up after downtime.
 
+Run the interval, cron, disable and missed-occurrence examples:
+
+```sh
+cd examples/showcase
+GOWORK=off go test -v ./recipes/async -run 'Example_periodicSchedules|TestPeriodicMisfirePolicies'
+```
+
+The [complete schedule recipe](async-recipes.md) constructs `async.Every(time.Minute)` and `async.Crontab("*/15 * * * *", "UTC")`, persists an explicit schedule, ticks Beat and drains the task path. The interval result is `42`; disabling a schedule prevents new occurrences but preserves an existing result. After ten missed minutes, the bounded test expects zero intents for `skip`, one for `coalesce`, and three for `catchup` with a limit of three.
+
+This is a deterministic simulator example. For deployment you must provide a durable scheduler store and register/run the Beat command factory; calling a calendar constructor alone neither saves a schedule nor starts a process.
+
 Custom calendars must return a strictly later instant, remain side-effect-free and return promptly. The callback has no context argument, so a noncooperative calculation cannot be forcibly stopped by cancellation.
 
 > Redis fences individual schedules. Namespace-wide scheduler leadership is not implemented in this alpha. Do not document Beat as a complete leader-election subsystem.

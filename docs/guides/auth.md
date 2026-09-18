@@ -14,11 +14,21 @@ Register these contributions through your app/project setup, apply migrations ex
 
 ## Users, groups and policies
 
+### Understand password handling
+
+This complete test demonstrates the low-level hashing API without storing or printing a credential. Run `go test ./docs/examples -run Example_password -v` from the framework checkout:
+
+{{code docs/examples/auth_test.go}}
+
+Use the account service's create/change-password methods for actual users so validators, authorization and account security versions are applied. Do not take this low-level example as permission to directly overwrite a user's password column.
+
 The package includes password handling, account services, group/permission grants, current principals, model-action policy, identity edits and session login integration. Account flag/grant changes are security operations, not generic unauthenticated ORM edits.
 
 Use an explicit policy at trusted boundaries. `auth.ModelPolicy` provides model-grant checks; `ConstrainPolicy` preserves token scope ceilings around custom policy. A superuser or permissive custom policy must not widen a restricted token beyond its ceiling.
 
 ## Browser login
+
+For a complete integration, follow [Set up a working Admin](admin-wiring.md): it includes schema/migration registration, `auth.NewAuthenticator`, login/logout/password-change handlers, the account store, Redis sessions, and exact middleware order. The showcase uses that same integration at `/admin/login/`; a fresh `startproject` does not mount it automatically.
 
 `core/auth/views` contains login, logout, self-service password change and password-reset request/confirmation handlers. Mount them explicitly with shared CSRF settings, session middleware, rate limits and safe local redirect destinations.
 

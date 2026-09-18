@@ -48,6 +48,7 @@ module.exports = {
       title: 'gogo',
       logo: {alt: '', src: 'img/gogo.svg'},
       items: [
+        {type: 'docSidebar', sidebarId: 'startSidebar', label: 'Get started', position: 'left'},
         {type: 'docSidebar', sidebarId: 'guideSidebar', label: 'Guide', position: 'left'},
         {type: 'docSidebar', sidebarId: 'adminSidebar', label: 'Admin', position: 'left'},
         {type: 'docSidebar', sidebarId: 'asyncSidebar', label: 'Async', position: 'left'},

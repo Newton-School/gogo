@@ -1,0 +1,42 @@
+package catalog
+
+import (
+	"context"
+
+	"github.com/Newton-School/gogo/core/db"
+	"github.com/Newton-School/gogo/core/models"
+	"github.com/Newton-School/gogo/core/orm"
+)
+
+// Seed is an explicit, single-operator tutorial command, never startup work.
+// Existing products are preserved. This is not concurrent business idempotency.
+func Seed(ctx context.Context, store *orm.Store) error {
+	products := []Product{
+		{Name: "Notebook", Price: "19.95", Published: true},
+		{Name: "Draft product", Price: "29.95", Published: false},
+	}
+	return db.Atomic(ctx, store.Backend, db.AtomicOptions{}, func(txctx context.Context) error {
+		for i := range products {
+			product := &products[i]
+			exists, err := orm.For(store, func() *Product { return &Product{} }).
+				Filter(orm.Q("name", product.Name)).Exists(txctx)
+			if err != nil {
+				return err
+			}
+			if exists {
+				continue
+			}
+			record, err := models.Bind(product)
+			if err != nil {
+				return err
+			}
+			if err := models.FullClean(txctx, record, models.CleanOptions{Exclude: []string{"id"}}, store); err != nil {
+				return err
+			}
+			if err := store.Save(txctx, product, orm.SaveOptions{ForceInsert: true}); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}

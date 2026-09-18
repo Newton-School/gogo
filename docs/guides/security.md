@@ -1,5 +1,13 @@
 # CSRF, signing and HTTP security
 
+## Sign and verify a purpose-bound value
+
+This complete test shows the signing API, expiry bound, and tamper rejection. Run `go test ./docs/examples -run Example_signing -v` from the framework checkout:
+
+{{code docs/examples/security_test.go}}
+
+Use a persistent private key from client settings in a real application. Generating a new key on every request/restart invalidates earlier values. A signature proves integrity, not authorization or confidentiality; still scope the referenced object for the current caller.
+
 Gogo supplies explicit security primitives. Your project must configure and mount them around the routes that need them.
 
 ## Host and proxy validation

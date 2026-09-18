@@ -1,5 +1,45 @@
 [
   {
+    "id": "installation", "title": "Install and prepare", "section": "Start here",
+    "file": "docs/guides/installation.md", "description": "Install the CLI, prepare a private local database, and choose a native or Docker path."
+  },
+  {
+    "id": "running", "title": "Run, reload, and build", "section": "Start here",
+    "file": "docs/guides/running.md", "description": "Start your app, reload source edits, compile a binary, and select its process role."
+  },
+  {
+    "id": "tutorial-api", "title": "Build a database-backed API", "section": "Start here",
+    "file": "docs/guides/tutorial-api.md", "description": "Continue the first project with real records, a seed command, scoped routes, and expected responses."
+  },
+  {
+    "id": "docker", "title": "Docker for your project", "section": "Start here",
+    "file": "docs/guides/docker.md", "description": "Copy a complete Dockerfile, Compose file, and ignore rules; build and run your client locally."
+  },
+  {
+    "id": "features", "title": "All features", "section": "Reference",
+    "file": "docs/guides/features.md", "description": "Find every feature family, its implementation guide, examples, and current limitations."
+  },
+  {
+    "id": "api-writes", "title": "Create, update, and delete", "section": "HTTP and APIs",
+    "file": "docs/guides/api-writes.md", "description": "Add explicit authenticated mutation routes, atomic audit, conditions, and retry-safe receipts."
+  },
+  {
+    "id": "admin-wiring", "title": "Set up a working Admin", "section": "Admin",
+    "file": "docs/guides/admin-wiring.md", "description": "Wire schemas, migrations, accounts, sessions, login, permissions, and the staff router."
+  },
+  {
+    "id": "admin-customization", "title": "Customize your Admin", "section": "Admin",
+    "file": "docs/guides/admin-customization.md", "description": "Configure lists, forms, read-only values, relations, and scoped actions using a working product model."
+  },
+  {
+    "id": "async-wiring", "title": "Wire a queue and worker", "section": "Async",
+    "file": "docs/guides/async-wiring.md", "description": "Connect task definitions to Redis, result storage, worker factories, retries, and separate processes."
+  },
+  {
+    "id": "async-recipes", "title": "Workflow and schedule recipes", "section": "Async",
+    "file": "docs/guides/async-recipes.md", "description": "Run checked examples for signatures, chains, groups, chords, maps, chunks, and periodic schedules."
+  },
+  {
     "id": "index",
     "title": "Introduction",
     "section": "Start here",

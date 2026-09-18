@@ -1,0 +1,11 @@
+package catalog
+
+import "github.com/Newton-School/gogo/core/api"
+
+func ProductSerializer() (*api.Serializer, error) {
+	return api.New(api.Definition{Fields: []api.Field{
+		api.IntegerField("id"),
+		api.StringField("name"),
+		api.DecimalField("price", 12, 2),
+	}})
+}

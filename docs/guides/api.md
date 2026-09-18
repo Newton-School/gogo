@@ -42,6 +42,8 @@ This complete test needs no database or server:
 
 ## Create, update and delete
 
+Use [Create, update, and delete](api-writes.md) for the registration example, required policy/audit signatures, status codes, conditional requests, and retry decisions. For a first read API with every project file included, follow the [database-backed tutorial](tutorial-api.md).
+
 `NewResource` does not silently enable writes. Add the explicit create, PUT/PATCH and delete handlers with their required factories, row/graph policy, validation and transactional audit callbacks.
 
 | Operation | Required design decision |

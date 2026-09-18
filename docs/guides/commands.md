@@ -29,6 +29,28 @@ Use `go run manage.go COMMAND --help` for exact flags. Commands requiring factor
 
 ## Write a custom command
 
+For a complete database-backed example, the [product tutorial](tutorial-api.md#4-connect-registered-models-to-the-database-and-router) implements `SeedCommand`: flag setup, positional validation, resource opening, a transaction, and completion output. A minimal non-database command can be appended to `Project.Commands` as follows:
+
+```go
+management.Command{
+    Name: "greet", Help: "Print a greeting",
+    Validate: func(args []string) error {
+        if len(args) != 0 { return errors.New("greet takes no positional arguments") }
+        return nil
+    },
+    Configure: func(flags *flag.FlagSet) management.Runner {
+        name := flags.String("name", "developer", "name to greet")
+        return func(ctx context.Context, i *management.Invocation, _ []string) error {
+            if err := ctx.Err(); err != nil { return err }
+            _, err := fmt.Fprintf(i.Stdout, "Hello, %s!\n", *name)
+            return err
+        }
+    },
+}
+```
+
+Import `context`, `errors`, `flag`, `fmt`, and `core/management` in that configuration file. Run `go run manage.go greet --name Ada`; expected output is `Hello, Ada!`. It opens no external resources. Unknown/extra positional arguments fail instead of being ignored.
+
 Add a `management.Command` to `Project.Commands`. `Configure` declares flags and returns the runner. `Validate` checks positional arguments. `Resources` identifies required configuration, while `OpenResources` requests actual resource startup.
 
 Use `RequiredFlags` when a flag must be explicitly provided even if a default exists. Write to `Invocation.Stdout`/`Stderr`, respect the runner's context, and return errors. Do not call `os.Exit` inside a callback; the lifecycle owner still needs to close resources.

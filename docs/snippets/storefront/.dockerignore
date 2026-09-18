@@ -1,0 +1,17 @@
+# Private configuration and credentials
+.env
+.env.*
+
+# Source-control and editor metadata
+.git
+.DS_Store
+.idea
+.vscode
+
+# Host build output and local caches
+bin
+dist
+coverage
+*.test
+manage
+node_modules
