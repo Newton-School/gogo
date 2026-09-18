@@ -172,6 +172,14 @@ class ConsolidationTests(unittest.TestCase):
         self.assertIn("Contract.", pages["advanced"]["source"])
         self.assertEqual(routes["note"]["page"], "advanced")
 
+    def test_single_source_uses_one_title_and_keeps_anchors(self):
+        pages = {"setup": {"id": "setup", "title": "Setup", "source": "# Setup\n\nIntroduction.\n\n## Install\n\nExample."}}
+        result, routes = docs.consolidate_pages(pages, [{"id": "setup", "title": "Setup", "sources": [["setup", "Setup"]]}], "rev")
+        self.assertTrue(result["setup"]["source"].startswith("# Setup {#setup}\n\nIntroduction."))
+        self.assertIn("## Install {#setup-install}", result["setup"]["source"])
+        self.assertNotIn("## Setup", result["setup"]["source"])
+        self.assertEqual(routes["setup"]["anchors"][""], "setup")
+
 
 if __name__ == "__main__":
     unittest.main()

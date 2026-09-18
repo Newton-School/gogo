@@ -342,6 +342,8 @@ def consolidate_pages(pages, sections, revision):
 
     result = {}
     for identifier, group in groups.items():
+        single_source = group["parts"][0][0] if len(group["parts"]) == 1 else None
+
         def render(source, title, folded=False):
             body = prepared[source]
 
@@ -359,7 +361,9 @@ def consolidate_pages(pages, sections, revision):
             def nest(match):
                 level = len(match[1])
                 if level == 1:
-                    return "" if folded else "## " + title + " {#" + source + "}"
+                    return "" if folded or source == single_source else "## " + title + " {#" + source + "}"
+                if source == single_source and not folded:
+                    return match[0]
                 return "#" * min(6, level + (2 if folded else 1)) + " " + match[2]
 
             body = outside_fences(body, lambda text: heading.sub(nest, text)).strip()
@@ -367,7 +371,7 @@ def consolidate_pages(pages, sections, revision):
                 return '<details>\n<summary>' + html.escape(title) + '</summary>\n\n#### ' + title + ' {#' + source + '}\n\n' + body + '\n\n</details>'
             return body
 
-        body = ["# " + group["title"]]
+        body = ["# " + group["title"] + " {#" + (single_source or "page-" + identifier) + "}"]
         body.extend(render(source, title) for source, title in group["parts"])
         if group["details"]:
             body += ["## Details {#details}", "Expand a feature for its full behavior, constraints and failure cases."]

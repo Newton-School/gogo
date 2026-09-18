@@ -73,7 +73,7 @@
     "sources": [
       [
         "configuration",
-        "Configuration"
+        "Environment"
       ],
       [
         "settings",
@@ -181,7 +181,7 @@
     "sources": [
       [
         "templates",
-        "Templates"
+        "Rendering"
       ],
       [
         "template-vocabulary",
@@ -287,7 +287,7 @@
     "sources": [
       [
         "deployment",
-        "Deployment"
+        "Processes"
       ],
       [
         "observability",
@@ -305,7 +305,7 @@
     "sources": [
       [
         "testing",
-        "Testing"
+        "Tests"
       ],
       [
         "troubleshooting",
@@ -343,7 +343,7 @@
     "sources": [
       [
         "detail-admin-accounts",
-        "Accounts"
+        "Authentication"
       ],
       [
         "admindocs",
@@ -380,7 +380,7 @@
     "sources": [
       [
         "workflows",
-        "Workflows"
+        "Canvas"
       ],
       [
         "async-recipes",
