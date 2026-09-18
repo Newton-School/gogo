@@ -23,7 +23,7 @@ Run the complete checked examples from the framework checkout:
 
 ```sh
 cd examples/showcase
-GOWORK=off go test -v ./recipes/async -run 'Example_(canvas|mapStarMapAndChunks)$'
+go test -v ./recipes/async -run 'Example_(canvas|mapStarMapAndChunks)$'
 ```
 
 The [workflow recipe page](async-recipes.md) shows the exact source and expected outputs: chain `4`, group `[2,5]`, chord `7`, immutable successor `11`, bound parent field `7`, and chunk results `[[1,4],[9,16],[25]]`. It also explains the simulator helpers. For Redis execution, complete [queue and worker wiring](async-wiring.md) first; the simulator does not connect to Redis.

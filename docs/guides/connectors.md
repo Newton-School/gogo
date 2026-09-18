@@ -37,7 +37,37 @@ Open named, role-specific connections with `redis.Open`. Configuration supports 
 
 Development connections require loopback. Production requires authenticated TLS. Durable-role checks include supported Redis version, `noeviction` and the relevant persistence requirements; development relaxations are explicit, not silent fallbacks.
 
-Use a valid unique namespace for each application/environment. A namespace prevents accidental key collisions; Redis credentials/ACLs and application policy still protect trusted adapter access.
+## Redis databases
+
+Only the Redis URL is required in client environment settings:
+
+```env
+GOGO_REDIS_URL=redis://127.0.0.1:6379/1
+```
+
+The `/1` selects database 1; another application can use `/2`. Omitting the database selects 0. Server, worker and scheduler processes that share state must select the same database for that state. Connections with explicit addresses or Sentinel use `redis.Config.Database`; a nonzero value supplied alongside `URL` must agree with the URL. Invalid or conflicting database selections fail instead of falling back.
+
+```go
+connection, err := redis.Open(ctx, redis.Config{
+    URL: settings.Secret("GOGO_REDIS_URL").Reveal(),
+    Role: redis.SessionRole,
+    Development: true, // loopback-only local example; production requires TLS/auth
+})
+if err != nil {
+    return err
+}
+defer connection.Close()
+```
+
+This wiring fragment uses `redis` from `github.com/Newton-School/gogo/connectors/redis`, an existing context and loaded settings. It adds no application namespace. Internal key families remain: `cache:0:<hash>`, `session:{<hash>}`, `queue:{<hash>}:...` and partitioned task/workflow/schedule keys. `Cache.Clear` removes only its cache version in the selected database, not sessions, jobs or another database.
+
+[Redis Cluster supports only database 0](https://redis.io/docs/latest/commands/select/); use a separate cluster for each application/environment. Separate logical databases on standalone Redis share memory, persistence and server policy and are not an authorization boundary.
+
+### Upgrade from prefixed keys
+
+This is an **unreleased, breaking checkout change** after `v1.0.0-alpha.1`. The published alpha still requires its namespace setting; installing that tag does not install this behavior. The checkout showcase uses the checkout modules so its URL-only configuration works before the next release.
+
+Remove `GOGO_REDIS_NAMESPACE`, `redis.Config.Namespace` and calls to `Connection.Namespace()` when upgrading. Existing application-prefixed keys are neither read nor renamed/deleted automatically. Before switching an existing deployment, stop new task submissions, drain workers and resolve retained delayed/periodic/workflow state under the old version; then stop all old processes and deploy all roles together. Do not mix old and new workers. Plan for cold caches and fresh sessions; invalidate client session cookies when resetting session storage. Migrate durable state only with an application-specific, verified migration if draining is not possible. Do not blindly strip prefixes: queues and coordination records contain cross-key references. Old quarantine cursors are invalid after the change; start a new listing. Keep the old data until the cutover is verified. Selecting another database likewise does not move data.
 
 ## Cache/sessions versus Async
 

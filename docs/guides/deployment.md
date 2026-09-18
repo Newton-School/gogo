@@ -60,7 +60,7 @@ Applications can implement their own declared setting and select a handler/comma
 
 Stop admission, drain in-flight HTTP/WebSocket/task work, then close resources. Cancellation requests cooperation; it cannot forcibly stop arbitrary Go callbacks. A healthy HTTP probe does not prove every background goroutine is progressing.
 
-Scale consumers only when task handlers and shared coordination tolerate repeated delivery. Periodic schedule fencing is not namespace-wide leader election. Protect external side effects with business idempotency rather than relying on pod count.
+Scale consumers only when task handlers and shared coordination tolerate repeated delivery. Periodic schedule fencing is not database-wide leader election. Protect external side effects with business idempotency rather than relying on pod count.
 
 ## What is not certified
 

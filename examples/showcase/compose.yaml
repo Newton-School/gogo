@@ -9,7 +9,8 @@ x-app: &app
   pids_limit: 128
   image: ${COMPOSE_PROJECT_NAME:-gogo-showcase}-app:local
   build:
-    context: .
+    context: ../..
+    dockerfile: examples/showcase/Dockerfile
   init: true
   read_only: true
   cap_drop: [ALL]
@@ -22,7 +23,6 @@ x-app: &app
     GOGO_HTTP_ADDR: 0.0.0.0:8000
     GOGO_ALLOWED_HOSTS: localhost,127.0.0.1
     GOGO_REDIS_URL: redis://127.0.0.1:6379/0
-    GOGO_REDIS_NAMESPACE: gogo_showcase
   volumes:
     - credentials:/run/showcase:ro
 

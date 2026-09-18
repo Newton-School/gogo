@@ -48,12 +48,12 @@ func (c *Connections) Resources(settings conf.Values, names []string) ([]app.Res
 		for _, role := range []connector.Role{connector.CacheRole, connector.SessionRole, connector.TaskRole, connector.ResultRole} {
 			resources = append(resources, app.Resource{Name: "redis_" + string(role), Open: func(ctx context.Context) (func(context.Context) error, error) {
 				connection, err := connector.Open(ctx, connector.Config{
-					URL: settings.Secret("GOGO_REDIS_URL").Reveal(), Namespace: settings.String("GOGO_REDIS_NAMESPACE"), Role: role,
+					URL: settings.Secret("GOGO_REDIS_URL").Reveal(), Role: role,
 					Development: settings.String("GOGO_ENV") != "production", Production: settings.String("GOGO_ENV") == "production",
 					Timeout: settings.Duration("GOGO_REDIS_OPERATION_TIMEOUT"),
 				})
 				if err != nil {
-					return nil, errors.New("Redis connection failed; check URL, namespace, version and durability configuration")
+					return nil, errors.New("Redis connection failed; check URL, database, version and durability configuration")
 				}
 				switch role {
 				case connector.CacheRole:

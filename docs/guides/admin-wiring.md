@@ -20,7 +20,7 @@ The last command displays private bootstrap credentials; do not share its output
 go get github.com/Newton-School/gogo/admin@v1.0.0-alpha.1
 ```
 
-For the Redis-session setup shown here, also install `connectors/redis` at that version. Add a private `GOGO_SECRET_KEY` (at least 32 bytes), `GOGO_REDIS_URL`, and `GOGO_REDIS_NAMESPACE` to your client settings in addition to PostgreSQL. Match keys in `.env.example` without copying secrets. A new environment variable alone does not open its service.
+For Redis sessions, also install the matching `connectors/redis` module. Add a private `GOGO_SECRET_KEY` (at least 32 bytes) and `GOGO_REDIS_URL` to your client settings in addition to PostgreSQL. The URL selects a dedicated Redis database, for example `/1`. The URL-only behavior shown in this checkout is not yet published in `v1.0.0-alpha.1`; use the checkout showcase or follow [the Redis upgrade notes](connectors.md#redis-databases). Match keys in `.env.example` without copying secrets. A new environment variable alone does not open its service.
 
 ## Understand each file's job
 

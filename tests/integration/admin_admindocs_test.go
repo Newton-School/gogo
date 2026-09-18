@@ -30,7 +30,7 @@ import (
 	"github.com/Newton-School/gogo/core/urls"
 )
 
-// Each fixture owns its PostgreSQL schema and Redis namespace. Product tables
+// Each fixture owns its PostgreSQL schema and Redis instance. Product tables
 // deliberately do not exist: reference pages must inspect metadata, not rows.
 type documentationNativeFixture struct {
 	t                            *testing.T

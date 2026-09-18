@@ -20,7 +20,7 @@ This complete example constructs sources, performs a dry run, and resolves templ
 
 {{code examples/showcase/recipes/static/example_test.go}}
 
-Run `GOWORK=off go test -v ./recipes/static` from `examples/showcase`. Configure your actual destination and register `management.StaticCommands` before running the collection commands above; they are not automatically available in a fresh project.
+Run `go test -v ./recipes/static` from `examples/showcase`. Configure your actual destination and register `management.StaticCommands` before running the collection commands above; they are not automatically available in a fresh project.
 
 Source precedence is explicit and inspectable. Duplicate logical names are resolved through configured ownership/order, not arbitrary directory traversal. The manifest maps logical names to fingerprinted public URLs.
 

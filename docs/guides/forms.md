@@ -50,7 +50,7 @@ Field options include initial values, labels/help text, length/value/decimal bou
 
 ## Field examples
 
-This is `apps/fieldlab/forms.go` from the example application. `FormCases()` defines every form kind with submitted values and its required options, including decimal precision, choices/coercion, bounded uploads, relation resolution and composite fields. Run `GOWORK=off go test ./apps/fieldlab` from `examples/showcase` to execute its validation tests.
+This is `apps/fieldlab/forms.go` from the example application. `FormCases()` defines every form kind with submitted values and its required options, including decimal precision, choices/coercion, bounded uploads, relation resolution and composite fields. Run `go test ./apps/fieldlab` from `examples/showcase` to execute its validation tests.
 
 <details>
 <summary>All 29 form kinds: definitions and inputs</summary>

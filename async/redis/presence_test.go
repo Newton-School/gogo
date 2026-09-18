@@ -45,7 +45,7 @@ func TestRealRedisWorkerPresencePrecisionExpiryAndInstanceTakeover(t *testing.T)
 	if err := store.ClaimWorker(ctx, other, snapshot, time.Minute); !errors.Is(err, async.ErrConflict) {
 		t.Fatal(err)
 	}
-	// Expire only this namespace-owned fixture's observational lease, not its
+	// Expire only this isolated fixture's observational lease, not its
 	// retained snapshot, to avoid a timing-dependent test or real clock drift.
 	if err := results.Connection.Client().HSet(ctx, key, "expires", p.ObservedAt.UnixMilli()).Err(); err != nil {
 		t.Fatal(err)

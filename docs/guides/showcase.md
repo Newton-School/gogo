@@ -1,6 +1,6 @@
 # Run the showcase
 
-The showcase is the quickest way to explore Gogo: one local application with PostgreSQL models, migrations, Admin, public APIs, forms, field inventories, Redis cache/sessions and a separate Async worker. It consumes the published alpha modules, not workspace replacements.
+The showcase is the quickest way to explore Gogo: one local application with PostgreSQL models, migrations, Admin, public APIs, forms, field inventories, Redis cache/sessions and a separate Async worker. This checkout builds it against the local framework modules, including the unreleased URL-only Redis configuration. The published `v1.0.0-alpha.1` modules retain the old Redis contract; use that tag's sample when evaluating the published release.
 
 ## Start locally
 
@@ -11,7 +11,7 @@ cd examples/showcase
 docker compose up --build -d --wait
 ```
 
-The first build needs network access. Startup generates private random credentials, starts the databases, runs a separate check/migrate/seed job, then starts web and worker processes. No host `.env` editing is required for this Docker path.
+The first build needs network access and the complete repository checkout. Compose supplies a filtered repository-root build context, not host secrets or `.env` files. Startup generates private random credentials, starts the databases, runs a separate check/migrate/seed job, then starts web and worker processes. No host `.env` editing is required for this Docker path.
 
 | URL | What to try |
 | --- | --- |
@@ -45,6 +45,8 @@ The independently running worker consumes these tasks. A submission timeout is n
 ## Stop or rebuild
 
 `docker compose down` stops the sample while preserving its named volumes. Re-run `docker compose up --build -d --wait` to rebuild and start it. Removing volumes destroys sample data and credentials; do not remove only the credential volume while retaining the database.
+
+If these volumes were created by the prefixed-key alpha, read [the Redis cutover notes](connectors.md#upgrade-from-prefixed-keys) first. The update does not migrate or delete their existing Redis keys.
 
 > This is a local development profile, not a production scaling template. The alpha's development Redis checks require loopback, so the services share a container network namespace. Only the local HTTP port is published.
 

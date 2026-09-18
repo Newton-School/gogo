@@ -36,10 +36,15 @@ secrets have no built-in credential defaults. Pin this prerelease explicitly;
 
 ## Runnable showcase
 
-Start with [examples/showcase](examples/showcase/README.md): a standalone client
-pinned to all six published alpha modules, with no workspace replacements.
+Start with [examples/showcase](examples/showcase/README.md): a client using public
+imports and this checkout's modules through `go.work` (also inside Docker).
 It connects PostgreSQL models and migrations, authenticated Admin, a scoped
 public API, forms, Redis cache/sessions and a separate Async worker.
+
+The checkout removes Redis application namespaces: select a dedicated database
+with `GOGO_REDIS_URL`, such as `redis://127.0.0.1:6379/1`. This breaking change is
+not yet part of the published alpha. Existing prefixed Redis state is not
+automatically migrated or deleted; read the [upgrade notes](docs/guides/connectors.md#upgrade-from-prefixed-keys).
 
 Its [coverage map](examples/showcase/COVERAGE.md) groups 40 model kinds, 29 form
 kinds, 21 widget configurations, 23 API serializer field constructors and

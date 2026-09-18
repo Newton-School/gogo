@@ -13,9 +13,6 @@ func Settings() conf.Schema {
 			schema[i].Default = "redis"
 			schema[i].Choices = []string{"redis"}
 		}
-		if schema[i].Name == "GOGO_REDIS_NAMESPACE" {
-			schema[i].Default = "gogo_showcase"
-		}
 	}
 	return append(schema,
 		conf.Definition{Name: "GOGO_SHOWCASE_SCHEMA", Group: "Showcase", Default: "public"},

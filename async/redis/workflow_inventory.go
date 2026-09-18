@@ -35,7 +35,7 @@ func decodeWorkflowCursor(cursor string) (int, string, error) {
 // workflow partition. The inventory and graph are written in the same CAS.
 // It never scans unrelated keys or treats a missing graph as completed. Older
 // development builds without this index require explicit migration/known-ID
-// reconciliation; namespace-wide SCAN is not an implicit recovery fallback.
+// reconciliation; database-wide SCAN is not an implicit recovery fallback.
 func (w *Workflows) ListWorkflows(ctx context.Context, cursor string, limit int) (async.WorkflowInventoryPage, error) {
 	if ctx == nil || w == nil || w.Connection == nil || w.Connection.Role() == connector.CacheRole || limit < 1 || limit > 1000 {
 		return async.WorkflowInventoryPage{}, async.ErrInvalid

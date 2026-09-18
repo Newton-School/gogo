@@ -8,7 +8,7 @@ Keep configuration in your **client project**, not in the Gogo framework reposit
 | --- | --- |
 | Fresh generated PostgreSQL project | `GOGO_DATABASE_URL` |
 | Signing, sessions or authentication resources | Add `GOGO_SECRET_KEY` |
-| Redis resource | Add `GOGO_REDIS_URL` and `GOGO_REDIS_NAMESPACE` |
+| Redis resource | Add `GOGO_REDIS_URL`, including its database number, such as `redis://127.0.0.1:6379/1` |
 | SMTP resource | Add `GOGO_SMTP_HOST` and `GOGO_MAIL_FROM` |
 | Local files or static collection resources | Add `GOGO_STORAGE_ROOT` or `GOGO_STATIC_ROOT`, respectively |
 
@@ -47,6 +47,8 @@ Use `go run manage.go help` to discover the commands your project actually regis
 
 ## Production configuration
 
-Set explicit allowed hosts and trusted proxy networks. Use the connector's required TLS, authentication and durability options. Give Redis namespaces to separate applications or environments; a namespace is not a substitute for authorization. Do not place production credentials in `.env.example`, container images, source code, command-line flags or logs.
+Set explicit allowed hosts and trusted proxy networks. Use the connector's required TLS, authentication and durability options. Assign a dedicated Redis database per application/environment through the URL; all server, worker and scheduler processes sharing state must use the same database. Logical databases prevent key collisions, not unauthorized access or shared-server resource contention. Do not place production credentials in `.env.example`, container images, source code, command-line flags or logs.
+
+Redis configuration has no application namespace or automatic application prefix. See [database selection and the upgrade boundary](connectors.md#redis-databases) before switching an existing application. This change is in the checkout, not the already published `v1.0.0-alpha.1` modules.
 
 The [complete settings reference](settings.md) is generated directly from `conf.CoreSchema()` so defaults and required-resource names stay synchronized.

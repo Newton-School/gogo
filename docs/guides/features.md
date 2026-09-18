@@ -120,7 +120,7 @@ Start with [installation](installation.md) â†’ [first project](quickstart.md) â†
 | --- | --- |
 | Unit/handler tests, race tests, isolated database/Redis checks | [Testing](testing.md) |
 | Runnable, version-pinned example and feature/field coverage | [Showcase](showcase.md) |
-| PostgreSQL, Redis roles, namespace/TLS/persistence rules, extension contracts | [Connectors](connectors.md) |
+| PostgreSQL, Redis roles, database/TLS/persistence rules, extension contracts | [Connectors](connectors.md) |
 | Binary/image build, separate server/worker/migration processes, shutdown | [Deployment](deployment.md) |
 | Liveness, startup/readiness, dependency probes | [Health checks](observability.md) |
 | Explicit telemetry pipeline and safe console export | [Telemetry](observability.md#telemetry-pipeline) |

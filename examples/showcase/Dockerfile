@@ -1,12 +1,22 @@
 # syntax=docker/dockerfile:1
 
-# Build only this public-module consumer, never the framework workspace.
+# Build the sample against this checkout, including unreleased framework changes.
+# Compose supplies the repository root; Dockerfile.dockerignore limits inputs.
 FROM golang:1.26.8-alpine@sha256:ce864e7223ac17b1775e6fd0b4c0db580c2eb50e7953a427916379e4b92a1628 AS build
 WORKDIR /src
-ENV GOWORK=off GOTOOLCHAIN=local GOFLAGS=-p=1 CGO_ENABLED=0
+ENV GOTOOLCHAIN=local GOFLAGS=-p=1 CGO_ENABLED=0
 COPY go.mod go.sum ./
+COPY gogo.go ./
+COPY core ./core
+COPY internal ./internal
+COPY admin ./admin
+COPY async ./async
+COPY connectors ./connectors
+COPY examples/showcase ./examples/showcase
+# An image-owned workspace avoids including host overrides or integration tools.
+RUN go work init . ./admin ./async ./async/redis ./connectors/postgres ./connectors/redis ./examples/showcase
+WORKDIR /src/examples/showcase
 RUN go mod download && go mod verify
-COPY . .
 RUN go test ./... && go vet ./... \
     && go run manage.go generate --check \
     && go run manage.go makemigrations catalog --check \
@@ -19,8 +29,8 @@ RUN addgroup -g 10001 showcase && adduser -D -u 10001 -G showcase showcase
 WORKDIR /app
 COPY --from=build /out/manage /app/manage
 COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
-COPY --chmod=0555 docker/entrypoint.sh docker/setup.sh /app/docker/
-COPY LICENSE /app/LICENSE
+COPY --chmod=0555 examples/showcase/docker/entrypoint.sh examples/showcase/docker/setup.sh /app/docker/
+COPY examples/showcase/LICENSE /app/LICENSE
 USER 10001:10001
 EXPOSE 8000
 ENTRYPOINT ["/app/docker/entrypoint.sh"]

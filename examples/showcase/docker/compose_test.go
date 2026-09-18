@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"os/exec"
+	"path/filepath"
 	"testing"
 	"time"
 )
@@ -26,11 +27,16 @@ func TestComposeResourceBudgets(t *testing.T) {
 	}
 	var config struct {
 		Services map[string]struct {
-			CPUs       float64     `json:"cpus"`
-			Memory     json.Number `json:"mem_limit"`
-			MemorySwap json.Number `json:"memswap_limit"`
-			PIDs       int         `json:"pids_limit"`
-			Tmpfs      []string    `json:"tmpfs"`
+			Build struct {
+				Context    string `json:"context"`
+				Dockerfile string `json:"dockerfile"`
+			} `json:"build"`
+			Environment map[string]string `json:"environment"`
+			CPUs        float64           `json:"cpus"`
+			Memory      json.Number       `json:"mem_limit"`
+			MemorySwap  json.Number       `json:"memswap_limit"`
+			PIDs        int               `json:"pids_limit"`
+			Tmpfs       []string          `json:"tmpfs"`
 		}
 	}
 	if err := json.Unmarshal(output, &config); err != nil {
@@ -68,6 +74,18 @@ func TestComposeResourceBudgets(t *testing.T) {
 			}
 			if budget.app && (len(service.Tmpfs) != 1 || service.Tmpfs[0] != "/tmp:size=32m") {
 				t.Error("application temporary storage must be bounded")
+			}
+			if budget.app {
+				root, err := filepath.Abs("../../..")
+				if err != nil || service.Build.Context != root || service.Build.Dockerfile != "examples/showcase/Dockerfile" {
+					t.Error("sample must build against the checkout modules")
+				}
+				if service.Environment["GOGO_REDIS_URL"] != "redis://127.0.0.1:6379/0" {
+					t.Error("sample must select its dedicated Redis database through the URL")
+				}
+				if _, exists := service.Environment["GOGO_REDIS_NAMESPACE"]; exists {
+					t.Error("removed Redis namespace must not be injected")
+				}
 			}
 		})
 	}

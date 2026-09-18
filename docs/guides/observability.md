@@ -8,7 +8,7 @@ This runnable handler test demonstrates why a database outage affects readiness 
 
 {{code examples/showcase/recipes/health/example_test.go}}
 
-Run `GOWORK=off go test -v ./recipes/health` from `examples/showcase`. In application wiring, replace the deliberately failing probe with the database's `Ping` method. Do not open a new connection on each HTTP probe.
+Run `go test -v ./recipes/health` from `examples/showcase`. In application wiring, replace the deliberately failing probe with the database's `Ping` method. Do not open a new connection on each HTTP probe.
 
 | Probe | Question | Dependency I/O |
 | --- | --- | --- |
@@ -32,7 +32,7 @@ This example constructs a pipeline, records an operation, and flushes the export
 
 {{code examples/showcase/recipes/telemetry/example_test.go}}
 
-Run `GOWORK=off go test -v ./recipes/telemetry` from the showcase directory. Choose a bounded, authorized set of attributes rather than exporting request bodies or database values.
+Run `go test -v ./recipes/telemetry` from the showcase directory. Choose a bounded, authorized set of attributes rather than exporting request bodies or database values.
 
 `core/observability` provides explicit bounded operation/span events, local delivery counters and a `slog`/JSON console exporter. Construct its pipeline, instrument selected operations, and flush/close it as part of owned shutdown.
 

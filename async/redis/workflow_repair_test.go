@@ -113,7 +113,7 @@ func TestRealRedisWorkflowRepairReportsMissingSourceWithoutReexecution(t *testin
 		t.Fatal(err)
 	}
 	id := graph.Children[0].ID
-	// Delete exactly one task record in this test's ephemeral Redis namespace
+	// Delete exactly one task record in this test's ephemeral Redis database
 	// to model missing replicated state; never delete an arbitrary user's key.
 	if err := results.Connection.Client().Del(ctx, results.Connection.PartitionKey("task", id, "state")).Err(); err != nil {
 		t.Fatal(err)

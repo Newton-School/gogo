@@ -1,6 +1,6 @@
 # API serializer recipes
 
-Run from the sample module: `GOWORK=off go test ./recipes/api`.
+Run from the sample module: `go test ./recipes/api`.
 
 Every public field constructor is exercised with real binding/representation:
 

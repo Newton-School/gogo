@@ -6,7 +6,7 @@ The complete example below owns a temporary directory, saves content under an op
 
 {{code examples/showcase/recipes/storage/example_test.go}}
 
-Run `GOWORK=off go test -v ./recipes/storage` from `examples/showcase`. In your client, supply a configured private directory instead of the temporary one and close the provider at shutdown. Only remove temporary directories your code created; do not apply this test cleanup to user uploads.
+Run `go test -v ./recipes/storage` from `examples/showcase`. In your client, supply a configured private directory instead of the temporary one and close the provider at shutdown. Only remove temporary directories your code created; do not apply this test cleanup to user uploads.
 
 Model `FileField` and `ImageField` values describe storage keys. Actual upload validation, file persistence, metadata and authorized delivery are separate services.
 

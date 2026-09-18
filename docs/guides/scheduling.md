@@ -29,7 +29,7 @@ Run the interval, cron, disable and missed-occurrence examples:
 
 ```sh
 cd examples/showcase
-GOWORK=off go test -v ./recipes/async -run 'Example_periodicSchedules|TestPeriodicMisfirePolicies'
+go test -v ./recipes/async -run 'Example_periodicSchedules|TestPeriodicMisfirePolicies'
 ```
 
 The [complete schedule recipe](async-recipes.md) constructs `async.Every(time.Minute)` and `async.Crontab("*/15 * * * *", "UTC")`, persists an explicit schedule, ticks Beat and drains the task path. The interval result is `42`; disabling a schedule prevents new occurrences but preserves an existing result. After ten missed minutes, the bounded test expects zero intents for `skip`, one for `coalesce`, and three for `catchup` with a limit of three.
@@ -38,7 +38,7 @@ This is a deterministic simulator example. For deployment you must provide a dur
 
 Custom calendars must return a strictly later instant, remain side-effect-free and return promptly. The callback has no context argument, so a noncooperative calculation cannot be forcibly stopped by cancellation.
 
-> Redis fences individual schedules. Namespace-wide scheduler leadership is not implemented in this alpha. Do not document Beat as a complete leader-election subsystem.
+> Redis fences individual schedules. Database-wide scheduler leadership is not implemented in this alpha. Do not document Beat as a complete leader-election subsystem.
 
 ## Database outbox
 

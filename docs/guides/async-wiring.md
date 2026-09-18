@@ -10,7 +10,7 @@ go get github.com/Newton-School/gogo/connectors/redis@v1.0.0-alpha.1
 go get github.com/Newton-School/gogo/async/redis@v1.0.0-alpha.1
 ```
 
-Set `GOGO_REDIS_URL` and `GOGO_REDIS_NAMESPACE` in the client. Select the `redis` resource for the commands that use it. Development Redis must be loopback; use [the showcase's verified Docker topology](showcase.md) or run Redis locally. Production roles require authenticated TLS and the documented persistence policy.
+Set `GOGO_REDIS_URL` in the client, including a dedicated database such as `/1`. Select the `redis` resource for the commands that use it. The URL-only behavior below is an unreleased checkout change; the tags above still use the old contract. Run the checkout showcase for this version and read [the Redis upgrade notes](connectors.md#redis-databases) before updating an existing client. Development Redis must be loopback; use [the showcase's Docker topology](showcase.md) or run Redis locally. Production roles require authenticated TLS and the documented persistence policy.
 
 ## Open role-specific connections
 
@@ -42,17 +42,17 @@ The example does **not** register a Beat factory. Add one deliberately when adop
 With the showcase's native configuration, terminal one:
 
 ```sh
-GOWORK=off go run manage.go worker --queues showcase --concurrency 2
+go run manage.go worker --queues showcase --concurrency 2
 ```
 
 Terminal two:
 
 ```sh
-GOWORK=off go run manage.go demoasync task
-GOWORK=off go run manage.go demoasync delayed
-GOWORK=off go run manage.go demoasync group
-GOWORK=off go run manage.go demoasync chain
-GOWORK=off go run manage.go demoasync chord
+go run manage.go demoasync task
+go run manage.go demoasync delayed
+go run manage.go demoasync group
+go run manage.go demoasync chain
+go run manage.go demoasync chord
 ```
 
 For Docker, Compose already starts the worker; run `docker compose run --rm --no-deps web demoasync task`. The simple task accepts input 21 and returns 42. Admission prints an identity before completion prints the result. If the worker is stopped, accepted work does not become a completed result merely because the producer succeeded.

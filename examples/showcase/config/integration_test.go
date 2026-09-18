@@ -81,7 +81,7 @@ func TestNativeShowcaseJourney(t *testing.T) {
 	password := "Showcase-password-" + hex.EncodeToString(random[:])
 	environment := map[string]string{
 		"GOGO_ENV": "test", "GOGO_DATABASE_URL": dsn, "GOGO_SHOWCASE_SCHEMA": schema,
-		"GOGO_REDIS_URL": redis.URL, "GOGO_REDIS_NAMESPACE": schema,
+		"GOGO_REDIS_URL":  redis.URL,
 		"GOGO_SECRET_KEY": password + password, "GOGO_SHOWCASE_ADMIN_IDENTIFIER": "showcase-admin", "GOGO_SHOWCASE_ADMIN_PASSWORD": password,
 	}
 	root := t.TempDir()
@@ -284,7 +284,7 @@ func verifyConfiguredQueryDeadline(t *testing.T, ctx context.Context, connection
 		t.Fatal(err)
 	}
 	// This relation belongs to the random test schema created above. No shared
-	// application table, schema, Redis namespace or production record is locked.
+	// application table, schema, Redis database or production record is locked.
 	if _, err := transaction.Exec(ctx, "LOCK TABLE "+schema+"."+table+" IN ACCESS EXCLUSIVE MODE"); err != nil {
 		t.Fatal(err)
 	}

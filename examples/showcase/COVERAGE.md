@@ -1,7 +1,7 @@
 # Showcase map
 
-The sample consumes **v1.0.0-alpha.1** through public module imports with
-`GOWORK=off`. No local replacement is used. Its demonstrations are not a
+The checkout sample uses public module imports resolved to local framework
+modules by `go.work`, including unreleased Redis changes. Its demonstrations are not a
 certification that the entire approved framework architecture is implemented.
 
 ## Application tree
@@ -63,8 +63,8 @@ kinds, and 21 widget configurations. Each row states its evidence and limits.
 
 ## Executable recipes
 
-Run `GOWORK=off go test -v ./recipes/...`. These examples import the same pinned
-release as the application, not repository-internal test helpers.
+Run `go test -v ./recipes/...`. These examples import the same public packages
+as the application, not repository-internal test helpers.
 
 | Parent | Recipe directory | Demonstration boundary |
 | --- | --- | --- |

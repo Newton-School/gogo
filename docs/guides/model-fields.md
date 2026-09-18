@@ -113,7 +113,7 @@ The following catalog includes every model kind: its constructor, a valid value,
 
 </details>
 
-Run its validation checks from `examples/showcase` with `GOWORK=off go test ./apps/fieldlab`. For application models, place the chosen declarations in the `Schema().Fields` slice as shown above and supply compatible Go fields. Descriptor-only cases intentionally do not claim persistence or Admin editing support.
+Run its validation checks from `examples/showcase` with `go test ./apps/fieldlab`. For application models, place the chosen declarations in the `Schema().Fields` slice as shown above and supply compatible Go fields. Descriptor-only cases intentionally do not claim persistence or Admin editing support.
 
 ## Common options
 

@@ -1,6 +1,6 @@
 # Try tasks, workflows, and schedules
 
-The repository includes executable recipes pinned to the published alpha. Use them to learn input/output behavior before wiring Redis. These tests use an explicit simulator; they do not establish distributed failover behavior.
+The repository includes executable public-API recipes using this checkout's workspace modules. Use them to learn input/output behavior before wiring Redis. These tests use an explicit simulator; they do not establish distributed failover behavior.
 
 ## Run the recipes
 
@@ -8,7 +8,7 @@ From the framework checkout:
 
 ```sh
 cd examples/showcase
-GOWORK=off go test -v ./recipes/async
+go test -v ./recipes/async
 ```
 
 The Go `Example_…` functions have checked `Output` comments. The helper functions and harness live in the same recipe package; copy the package if you want to run a recipe unchanged, not an isolated function that depends on missing helpers.

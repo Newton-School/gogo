@@ -16,7 +16,7 @@ Start with the exact command, selected resource and safe error category. Do not 
 | Admin does not appear | Install/wire Admin, register models, mount its handler and configure accounts/session policy |
 | `worker` or `beat` is unknown | Register the corresponding optional Async factory; installation alone is not activation |
 | Accepted task never completes | Check a worker consumes the selected queue/version and the required relays/dispatcher are running |
-| Redis connection is refused | Verify address, role, namespace, version, TLS/authentication and durability policy |
+| Redis connection is refused | Verify URL/database, role, version, TLS/authentication and durability policy |
 | Development Redis rejects a container hostname | Development requires loopback; use the documented local showcase topology or a correctly secured deployment configuration |
 | API returns 404 for an existing record | Check current row scope and identifier decoding; missing and out-of-scope details are intentionally indistinguishable |
 | API refuses a query parameter | Use only configured filters, ordering and one pagination mode |

@@ -3,10 +3,10 @@
 Run from the showcase root:
 
 ```sh
-GOWORK=off go test -v ./recipes/async
+go test -v ./recipes/async
 ```
 
-These are executable consumer examples using the pinned public Async module.
+These are executable consumer examples using the public Async API from this checkout.
 Every broker, result, workflow and schedule store here is an explicitly chosen
 `async/testing.Memory` simulator. It exists only in `_test.go`; the application
 must configure its Redis adapter separately. No example starts infrastructure,

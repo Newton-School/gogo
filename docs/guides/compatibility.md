@@ -15,7 +15,7 @@ These docs describe **v1.0.0-alpha.1** and source-backed examples. This is not s
 | Sessions | PostgreSQL and Redis stores; signed-cookie/cached-db names in settings are not complete backend implementations |
 | Fixtures | JSON/JSONL scalar exports and non-auto-key insert-only imports; no relation/natural-key/upsert/asset transfer |
 | Async | Repeated delivery is possible; no exactly-once external effects or Python/Celery wire compatibility |
-| Scheduler | Per-schedule fencing; no completed namespace-wide leader lifecycle |
+| Scheduler | Per-schedule fencing; no completed database-wide leader lifecycle |
 | Operations | No bundled Async dashboard or universal production deployment/restore certification |
 | Connectors | PostgreSQL and Redis first; other backends need actual implementations |
 | Files | Explicit local provider/service/downloads; no direct cloud upload ecosystem |

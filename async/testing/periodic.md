@@ -3,7 +3,7 @@
 `testing.NewMemory()` explicitly implements the existing `async.PeriodicStore`
 alongside its test broker, result, delayed-work and intent ports. Production
 configuration never selects it automatically. It is process-local, not durable,
-and does not implement namespace-wide Beat leadership.
+and does not implement database-wide Beat leadership.
 
 Set `memory.Clock` to a test-owned clock, and give the same clock to the Client
 and Worker. Install a `PeriodicSchedule` with revision 1 and expected revision 0;

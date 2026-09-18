@@ -70,11 +70,11 @@ Save this as `config/catalog_test.go` in the tutorial client. The fixture harnes
 
 {{code docs/snippets/storefront/config/catalog_test.go.txt}}
 
-The showcase's pinned public-module recipes are another useful starting point:
+The showcase's public-API recipes run against this checkout's workspace modules:
 
 ```sh
 cd examples/showcase
-GOWORK=off go test ./recipes/...
+go test ./recipes/...
 ```
 
 ## Security and failure cases

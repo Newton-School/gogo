@@ -35,7 +35,7 @@ These are the 23 constructors exercised by the showcase recipes. Configure nulla
 <details>
 <summary>All 23 serializer constructors: inputs, output and validation</summary>
 
-This is the complete recipe file, including field options and expected results. From `examples/showcase`, run `GOWORK=off go test -v ./recipes/api`.
+This is the complete recipe file, including field options and expected results. From `examples/showcase`, run `go test -v ./recipes/api`.
 
 {{code examples/showcase/recipes/api/serializer_test.go}}
 

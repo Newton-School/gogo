@@ -1,7 +1,7 @@
 .PHONY: check test build migrate seed serve worker
 
-# Never use the framework repository's go.work or local replacements.
-export GOWORK := off
+# The checkout sample follows the local framework, including unreleased changes.
+export GOWORK := $(abspath ../../go.work)
 export GOFLAGS := -p=1
 
 check:

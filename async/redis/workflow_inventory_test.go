@@ -28,7 +28,7 @@ func TestRealRedisWorkflowInventoryStrictPagesAndAtomicMembership(t *testing.T) 
 			t.Fatal(err)
 		}
 	}
-	// Unrelated task-family and namespace keys cannot enter this inventory.
+	// Unrelated task-family keys cannot enter this inventory.
 	foreign, _ := results.Connection.PartitionIndex("task", 0, "records-v1")
 	if err := results.Connection.Client().ZAdd(ctx, foreign, redigo.Z{Score: 0, Member: "foreign"}).Err(); err != nil {
 		t.Fatal(err)
@@ -86,7 +86,7 @@ func TestRealRedisWorkflowInventoryWrongKeyTypeNeverPartiallyCommitsGraph(t *tes
 	if _, err := workflows.ReadGraph(ctx, id); !errors.Is(err, async.ErrNotFound) {
 		t.Fatal("graph committed despite index error", err)
 	}
-	// This exact key belongs to this test's ephemeral namespace.
+	// This exact key belongs to this test's ephemeral database.
 	if err := results.Connection.Client().Del(ctx, index).Err(); err != nil {
 		t.Fatal(err)
 	}

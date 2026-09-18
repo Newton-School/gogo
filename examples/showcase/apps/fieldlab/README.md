@@ -66,4 +66,4 @@ The sample's integration tests own the database persistence evidence.
   date/time example is composition, not a dedicated Django-equivalent class.
 - These tests do not assert complete Django or Celery compatibility.
 
-From the sample module: `GOWORK=off go test ./apps/fieldlab/...`.
+From the sample module: `go test ./apps/fieldlab/...`.

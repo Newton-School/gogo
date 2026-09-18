@@ -1,6 +1,10 @@
 # Gogo showcase
 
-A standalone application pinned to **v1.0.0-alpha.1** of all six published Gogo modules. There are no local replacements; use `GOWORK=off`, including when running inside the framework checkout.
+A sample application using public Gogo imports and the local framework modules through the repository's `go.work`. This checkout includes the unreleased URL-only Redis change; the published **v1.0.0-alpha.1** still requires its old namespace contract. Keep the full checkout and leave workspace mode enabled. To evaluate the published alpha independently, use its matching tagged sample instead. No published tag is modified by these checkout changes.
+
+Upgrading an existing sample does not migrate or delete old prefixed Redis data. Read the [Redis cutover notes](../../docs/guides/connectors.md#upgrade-from-prefixed-keys) before changing versions. Expect fresh sessions and cold caches, and drain or explicitly migrate durable work first.
+
+Compose builds from the repository root using `Dockerfile.dockerignore` beside the sample Dockerfile. Its allowlist includes only framework/sample source; private `.env` files and credentials are excluded. For a manual image build, run `docker build -f examples/showcase/Dockerfile .` from the repository root.
 
 This is an alpha showcase, not a statement of Django/Celery feature parity. The field laboratory explicitly distinguishes validation, persistence, presentation and descriptor-only support. Unsupported features remain visible in its inventory.
 
@@ -16,7 +20,7 @@ docker compose up --build -d --wait
 
 Open [the showcase](http://localhost:8000/), [fields](http://localhost:8000/fields/),
 [forms](http://localhost:8000/forms/) or [the API](http://localhost:8000/api/v1/products/).
-The image builds against the published alpha, runs tests and migration-drift
+The image builds against this checkout, runs tests and migration-drift
 checks, and includes the compiled application rather than a Go development server.
 The first build needs internet access to download images and public Go modules.
 
@@ -106,7 +110,7 @@ The web/worker run non-root with a read-only root filesystem. A short setup job
 owns the credential volume; application roles mount it read-only. Anyone with
 Docker-daemon access can read these local credentials. This is a single-user
 development profile, not a production secret manager, scaling topology or TLS
-deployment. It does not weaken the published Redis connector's checks.
+deployment. It does not weaken the Redis connector's checks.
 
 Use `compose run ... web <command>` as shown: it invokes the credential-loading
 entrypoint. A raw `docker compose exec web /app/manage ...` does not inherit the
@@ -116,12 +120,12 @@ credentials exported inside the main process and is not the supported command pa
 
 Prerequisites: Go 1.26.8, a dedicated PostgreSQL database and Redis 7.2+ with `maxmemory-policy noeviction`. Development Redis must be loopback. Production connectors require their TLS/authentication/durability policies; this example is not a deployment recipe.
 
-1. Copy `.env.example` to `.env` if needed. Keep `.env` private. Set `GOGO_DATABASE_URL`, `GOGO_REDIS_URL` and a random `GOGO_SECRET_KEY` of at least 32 bytes. Never use the example database for existing application data. `GOGO_SHOWCASE_SCHEMA` must already exist; it defaults to `public` in your dedicated database. Choose a unique `GOGO_REDIS_NAMESPACE` when sharing a Redis server.
+1. Copy `.env.example` to `.env` if needed. Keep `.env` private. Set `GOGO_DATABASE_URL`, `GOGO_REDIS_URL` and a random `GOGO_SECRET_KEY` of at least 32 bytes. Never use the example database for existing application data. `GOGO_SHOWCASE_SCHEMA` must already exist; it defaults to `public` in your dedicated database. Select a dedicated Redis database in the URL, such as `redis://127.0.0.1:6379/1`. Gogo adds no application namespace prefix. All processes sharing Redis state must select the same database. Redis Cluster supports only database 0 and requires a separate cluster for application isolation.
 2. Set `GOGO_SHOWCASE_ADMIN_IDENTIFIER` and `GOGO_SHOWCASE_ADMIN_PASSWORD` in `.env` for the one-time administrator command. Passwords require at least 12 characters and cannot be entirely numeric. No password is accepted as a command-line argument or printed.
 3. Run these commands from this folder:
 
 ```sh
-export GOWORK=off
+unset GOWORK # use the repository workspace
 go mod download
 go run manage.go check
 go run manage.go migrate --plan
@@ -181,7 +185,7 @@ recipes/                          Executable public-API recipes for other servic
 | Cache | `/cache-demo/` | Timestamp reused for 15 seconds through Core cache + Redis; fail-closed provider errors |
 | Operations | `/health/live/`, `/health/ready/` | Process liveness versus bounded PostgreSQL/session-store readiness |
 | Async | Commands below | Separate durable Redis worker; typed tasks, delayed delivery, group, chain and chord |
-| Other services | `GOWORK=off go test ./recipes/...` | Additional public-API examples with evidence level and explicit boundaries in their source |
+| Other services | `go test ./recipes/...` | Additional public-API examples with evidence level and explicit boundaries in their source |
 
 The Admin authorization example is intentionally single-organization: only active staff superusers may access its records, and persisted account flags/version are checked at each trusted boundary. It does not demonstrate multi-tenancy. Public APIs cannot write or reveal unpublished products. File/image specimen keys are illustrative readonly strings, not existing uploaded objects. Identity/relation-only fieldlab tables are read-only in Admin; the seeded scalar specimen may be edited, not freely created with missing file values.
 
@@ -192,17 +196,17 @@ The Admin authorization example is intentionally single-organization: only activ
 Run a second process from the same folder and environment:
 
 ```sh
-GOWORK=off go run manage.go worker
+go run manage.go worker
 ```
 
 In another terminal:
 
 ```sh
-GOWORK=off go run manage.go demoasync task
-GOWORK=off go run manage.go demoasync delayed
-GOWORK=off go run manage.go demoasync group
-GOWORK=off go run manage.go demoasync chain
-GOWORK=off go run manage.go demoasync chord
+go run manage.go demoasync task
+go run manage.go demoasync delayed
+go run manage.go demoasync group
+go run manage.go demoasync chain
+go run manage.go demoasync chord
 ```
 
 Each command prints the accepted identity before awaiting results, with a 45-second bound. The worker runs both intent recovery and delayed dispatch. `task`/`delayed` return 42; `group` doubles 3 and 5; `chain` doubles 3 and then its output; `chord` sums both doubled values. A timeout does not revoke accepted work. Commands have local operator authority and are not exposed through HTTP. The tasks are pure and safe to deliver again; real external effects need application idempotency. This sample does not claim exactly-once effects, full Celery wire compatibility, periodic beat or every failure/recovery combination.
@@ -210,8 +214,8 @@ Each command prints the accepted identity before awaiting results, with a 45-sec
 ## Verification
 
 ```sh
-GOWORK=off go test -race ./...
-GOWORK=off go vet ./...
+go test -race ./...
+go vet ./...
 ```
 
 The Docker image build also runs the Linux unit tests, vet and descriptor/migration
@@ -219,13 +223,13 @@ checks; it does not claim race or live-service coverage during image constructio
 `docker/http_test.go` provides an opt-in black-box check of the running stack:
 set `SHOWCASE_TEST_HTTP_URL=http://127.0.0.1:8000` and
 `SHOWCASE_TEST_ADMIN_PASSWORD` to the current local Admin password, then run
-`GOWORK=off go test -race ./docker`. It covers public pages, API visibility,
+`go test -race ./docker`. It covers public pages, API visibility,
 CSRF, wrong-password denial and authenticated Admin access without a browser.
 
 Native tests are opt-in: set `GOGO_SHOWCASE_TEST_POSTGRES_DSN` to an explicitly disposable PostgreSQL database, then run:
 
 ```sh
-GOWORK=off GOGO_TEST_REQUIRE_SERVICES=1 go test -race ./config -run TestNativeShowcaseJourney -count=1
+GOGO_TEST_REQUIRE_SERVICES=1 go test -race ./config -run TestNativeShowcaseJourney -count=1
 ```
 
 The native test creates and removes only its own random PostgreSQL schema, starts its own Redis process, and verifies repeated migrations, non-overwriting seed, persisted model values, public visibility, wrong-password denial without gaining Admin access, successful login, forbidden Specimen creation, actual configured query cancellation and real task/canvas processing. It never uses the application `.env` database implicitly. Missing services skip the native test unless strict mode is enabled.
