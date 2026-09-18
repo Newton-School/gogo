@@ -2,6 +2,8 @@
 
 Admin is an optional module that turns explicitly registered models into staff-facing lists and forms. It is not automatically installed with Core and does not make every model editable.
 
+Use the complete [ModelAdmin options](options-admin-modeladmin.md) and [site configuration](options-admin-config.md) references when customizing behavior. Smaller contracts have their own pages: [actions](options-admin-action.md), [display columns](options-admin-displaycolumn.md), [fieldsets](options-admin-fieldset.md) and [inline options](options-admin-inline.md).
+
 ## Install and wire
 
 Follow [Set up a working Admin](admin-wiring.md) for the full schema/account/session/router integration. This page is the option reference; it is not a replacement for that setup. Then use [Customize your Admin](admin-customization.md) to change one working model at a time.

@@ -26,6 +26,10 @@ const module = "github.com/Newton-School/gogo"
 type declaration struct {
 	Name, Kind, Signature, Doc, File string
 	Line                             int
+	Members, Parameters, Results     []member
+}
+type member struct {
+	Name, Type, Doc string
 }
 type pkg struct {
 	Path, Directory, Doc string
@@ -99,7 +103,29 @@ func collect(root string) (catalog, error) {
 					return err
 				}
 				pos := fset.Position(node.Pos())
-				p.Declarations = append(p.Declarations, declaration{name, kind, out.String(), comment, filepath.ToSlash(pos.Filename), pos.Line})
+				d := declaration{Name: name, Kind: kind, Signature: out.String(), Doc: comment, File: filepath.ToSlash(pos.Filename), Line: pos.Line}
+				if function, ok := node.(*ast.FuncDecl); ok {
+					d.Parameters = describeFields(fset, function.Type.Params, false)
+					d.Results = describeFields(fset, function.Type.Results, false)
+				}
+				if declaration, ok := node.(*ast.GenDecl); ok && kind == "type" {
+					for _, specification := range declaration.Specs {
+						typeSpec, ok := specification.(*ast.TypeSpec)
+						if !ok || typeSpec.Name.Name != name {
+							continue
+						}
+						switch t := typeSpec.Type.(type) {
+						case *ast.StructType:
+							d.Members = describeFields(fset, t.Fields, true)
+						case *ast.InterfaceType:
+							d.Members = describeFields(fset, t.Methods, true)
+						case *ast.FuncType:
+							d.Parameters = describeFields(fset, t.Params, false)
+							d.Results = describeFields(fset, t.Results, false)
+						}
+					}
+				}
+				p.Declarations = append(p.Declarations, d)
 				return nil
 			}
 			values := func(items []*doc.Value, kind string) error {
@@ -151,4 +177,30 @@ func collect(root string) (catalog, error) {
 	}
 	sort.Slice(result.Packages, func(i, j int) bool { return result.Packages[i].Path < result.Packages[j].Path })
 	return result, nil
+}
+
+// Split grouped names so every public option has its own documentation row.
+// Do not infer constructor defaults from Go zero values.
+func describeFields(fset *token.FileSet, fields *ast.FieldList, exportedOnly bool) []member {
+	var result []member
+	if fields == nil {
+		return result
+	}
+	for _, field := range fields.List {
+		var out bytes.Buffer
+		if err := format.Node(&out, fset, field.Type); err != nil {
+			continue
+		}
+		comment := strings.TrimSpace(field.Doc.Text() + "\n" + field.Comment.Text())
+		if len(field.Names) == 0 {
+			result = append(result, member{Name: "(embedded or positional)", Type: out.String(), Doc: comment})
+		}
+		for _, name := range field.Names {
+			if exportedOnly && !name.IsExported() {
+				continue
+			}
+			result = append(result, member{Name: name.Name, Type: out.String(), Doc: comment})
+		}
+	}
+	return result
 }

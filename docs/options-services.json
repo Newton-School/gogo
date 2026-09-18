@@ -1,0 +1,230 @@
+{
+  "core/conf.Definition": {
+    "parent": "configuration", "title": "Setting definitions",
+    "intro": "Append project-specific definitions to conf.CoreSchema. Schema.Load validates supplied values before selected resources open; defining an environment variable does not wire its service. Unknown GOGO_ variables are rejected.",
+    "fields": {
+      "Name": "Unique environment name beginning GOGO_. Duplicate or nonprefixed names make the schema invalid.",
+      "Default": "Literal default string used only when the environment key is absent. An explicitly present empty value replaces the default and may fail validation.",
+      "Group": "Documentation/scaffolding group label; it does not create a resource dependency.",
+      "Kind": "String (zero value), Boolean, Integer, Duration, List or URL. Durations use Go syntax; lists split commas, trim spaces and discard empty items.",
+      "Sensitive": "Wraps the raw value in conf.Secret after Choices validation. Typed parsing is bypassed; owning services must validate secret semantics. Reveal only at trusted provider boundaries.",
+      "RequiredFor": "Resource names for which an empty value is a CONFIG_REQUIRED error. Empty means no resource-scoped requirement; type/choice validation still applies.",
+      "Min": "Inclusive integer minimum or duration minimum in nanoseconds. Zero therefore rejects negative integer/duration values; does not constrain strings or secret wrappers.",
+      "Choices": "Exact raw-string allowlist checked before typed parsing. Empty accepts any otherwise valid value. Include all permitted spellings explicitly."
+    }
+  },
+  "core/models.Schema": {
+    "parent": "models", "title": "Schema options",
+    "intro": "Schema defines model identity, storage and metadata. Register complete schemas before freezing the registry. A concrete schema needs a primary key. Schema validation, registry resolution and backend migration capabilities all apply; metadata alone does not implement persistence.",
+    "example": "docs/snippets/catalog/models.go",
+    "fields": {
+      "AppLabel": "Required valid application identifier; combines with Name as the stable app.Model key.",
+      "Name": "Required model identifier; relation targets use AppLabel.Name, not the physical table name.",
+      "Table": "Physical table identifier. Empty derives lower-case AppLabel_Name.",
+      "Fields": "Ordered field declarations with unique logical names and database columns. Unknown kinds or invalid per-field combinations fail validation.",
+      "PrimaryKey": "Optional ordered primary-key field list. Empty derives the key from fields marked PrimaryKey. Names must exist; composite support depends on the operation.",
+      "Indexes": "Explicit index declarations; index names must be valid and unique and field references must exist.",
+      "Constraints": "Explicit unique/check constraints. Invalid fields and unsupported expression/deferral combinations fail rather than silently changing semantics.",
+      "Ordering": "Default ordered field paths, with minus prefixes for descending order; apply a stable tie-breaker where needed.",
+      "Abstract": "Declares reusable schema metadata rather than an ordinary concrete table. Registry inheritance resolves its fields.",
+      "Proxy": "Declares a proxy over a concrete model. Does not create an independent unrestricted storage identity.",
+      "Unmanaged": "Marks schema storage as externally managed. The application remains responsible for compatible tables and migrations.",
+      "Parent": "Parent schema key for declared model inheritance; registry and ORM must resolve the complete inheritance graph.",
+      "ParentLink": "Field connecting a concrete child to its parent; use the inheritance contract rather than inventing an unrelated foreign key.",
+      "Concrete": "Resolved underlying concrete schema identity used by proxy/inheritance handling; not a runtime tenant selector.",
+      "AutoCreatedBy": "Registry provenance for automatically created intermediary schemas; not an application authorization flag.",
+      "AutoCreatedField": "Source relation field that caused automatic intermediary creation; preserve registry ownership of generated metadata.",
+      "Label": "Human-facing singular model label; distinct from the stable model key.",
+      "LabelPlural": "Human-facing plural label, including Admin headings.",
+      "Comment": "Backend/documentation table comment metadata, subject to migration support.",
+      "Tablespace": "Backend-specific table placement metadata; requires a supported database and migration path.",
+      "RequiredCapabilities": "Explicit backend capability requirements. Missing support must fail checks instead of pretending an advanced descriptor works."
+    }
+  },
+  "core/models.Index": {
+    "parent": "models", "title": "Indexes",
+    "intro": "Declare indexes in Schema.Indexes, generate a migration and inspect its SQL. Advanced clauses require compatible dialect capabilities; an index is not an object-permission policy.",
+    "fields": {
+      "Name": "Required valid unique index identifier within the schema.",
+      "Fields": "Ordered indexed field names; every field must exist.",
+      "Unique": "Creates a uniqueness-enforcing index where supported; false creates an ordinary index.",
+      "Method": "Backend index method such as btree or a supported PostgreSQL-specific method. Validate support before relying on it.",
+      "Condition": "Trusted partial-index predicate; never interpolate request input.",
+      "Include": "Covering-index columns; fields must exist and the backend must support inclusion.",
+      "Concurrent": "Requests concurrent index creation. Requires a compatible nontransactional migration operation and recovery plan.",
+      "NullsDistinct": "Optional explicit NULL-distinctness policy. Nil leaves the backend default; unsupported combinations fail capability/SQL validation."
+    }
+  },
+  "core/models.Constraint": {
+    "parent": "models", "title": "Constraints",
+    "intro": "Constraints participate in schema/migration validation and explicit model checks. Database constraints remain the concurrency boundary; an earlier application uniqueness check is insufficient.",
+    "fields": {
+      "Name": "Required valid unique constraint identifier within the schema.",
+      "Kind": "Constraint family, such as unique or check; only implemented kinds/operations are accepted.",
+      "Fields": "Referenced fields. Unique constraints require at least one known field.",
+      "Expression": "Trusted check expression. Expression-based unique constraints require an explicitly supported operation, not this generic shortcut.",
+      "Condition": "Trusted conditional predicate. Cannot be combined with Deferrable; semicolons/NUL are rejected in expressions and conditions.",
+      "Deferrable": "Requests transaction-deferrable enforcement where supported. False keeps ordinary enforcement.",
+      "NullsDistinct": "Optional explicit uniqueness treatment of NULL; nil uses backend defaults. Verify selected operation support."
+    }
+  },
+  "core/api.ModelOptions": {
+    "parent": "api", "title": "Model serializers",
+    "intro": "api.FromModel validates the schema and requires a nonempty field allowlist. It copies metadata but does not persist nested models. Nullable nonunique model fields may be omitted; PATCH still skips absent values and defaults.",
+    "fields": {
+      "Fields": "Required explicit model field allowlist; undeclared model fields remain private.",
+      "Readonly": "Allowlisted fields to expose only in output; model noneditability also makes derived fields readonly.",
+      "Writeonly": "Allowlisted fields accepted only in input; conflicts with readonly directions fail construction.",
+      "Overrides": "Complete per-field serializer overrides. Every key must be in Fields; the public field name is retained.",
+      "Validate": "Whole-object validation passed to the resulting serializer.",
+      "RepresentRelation": "Explicit authorized relation output callback. Stored target identities must not be exposed merely because they exist."
+    }
+  },
+  "admin.Inline": {
+    "parent": "admin", "title": "Inline options",
+    "intro": "An inline owns child rows through one declared foreign key to the current parent. Composite inline foreign-key mappings require an adapter. The parent link is never an editable submitted field.",
+    "example": "examples/showcase/apps/catalog/admin.go",
+    "fields": {
+      "Name": "Required valid inline identifier; used for formset naming.",
+      "Label": "Visible heading. Empty uses the child schema's LabelPlural, then its Name.",
+      "FKName": "Required child ForeignKey field referencing the exact parent schema.",
+      "Schema": "Validated registered child-model schema; not the parent schema.",
+      "Fields": "Editable child field selection. Empty derives editable fields except the parent foreign key.",
+      "Exclude": "Child fields removed from the form selection.",
+      "Readonly": "Child fields excluded from writable binding while shown where supported.",
+      "Extra": "Number of extra empty forms; defaults to zero, cannot be negative or exceed Maximum.",
+      "Minimum": "Minimum retained child forms; defaults to zero and cannot exceed Maximum.",
+      "Maximum": "Allocation/edit bound; zero becomes 1000 and values above 1000 fail registration.",
+      "CanDelete": "Allows the deletion UI subject to parent/child policy and current row ownership.",
+      "FormOverrides": "Explicit child form declarations by model field name; must remain compatible with inline validation.",
+      "ConstraintChecker": "Child uniqueness/constraint validation provider, used inside the authorized save flow.",
+      "ResolveRelation": "Scoped resolution of other child relations; cannot let submitted IDs escape the actor's permitted targets."
+    }
+  },
+  "admin.Action": {
+    "parent": "admin", "title": "Actions",
+    "intro": "Actions operate on a freshly authorized selection through ScopedStore. Confirmation does not freeze permission or row state; both must be checked again at execution.",
+    "example": "examples/showcase/apps/catalog/admin.go",
+    "fields": {
+      "Name": "Stable unique action name used by submitted selections; not arbitrary executable code.",
+      "Description": "Human-facing action label explaining its effect.",
+      "Permission": "Required action permission checked through the site's policy; choose the permission matching the actual mutation.",
+      "Confirm": "Whether to require the framework confirmation step before execution.",
+      "Run": "Execution callback receiving the current context, scoped store and selected objects. Preserve transaction, audit and repeat-delivery safety."
+    }
+  },
+  "admin.Fieldset": {
+    "parent": "admin", "title": "Fieldsets",
+    "intro": "Fieldsets provide ordered form sections. They are mutually exclusive with ModelAdmin.Fields and cannot repeat a field across sections.",
+    "fields": {
+      "Name": "Visible section heading.",
+      "Description": "Escaped section guidance; not executable HTML or validation logic.",
+      "Fields": "Ordered model field names in this section, subject to readonly/exclude policy.",
+      "Classes": "Presentation classes for the section; does not change field validation or authorization."
+    }
+  },
+  "admin.DisplayColumn": {
+    "parent": "admin", "title": "Display columns",
+    "intro": "Add computed columns to ModelAdmin.Columns and reference their names in ListDisplay. Callbacks must not query or reveal records outside the current actor scope.",
+    "fields": {
+      "Name": "Stable display-column identifier referenced by ListDisplay.",
+      "Label": "Visible table-column label.",
+      "Value": "Computes the cell value for the authorized object. Return an error for unavailable data rather than leaking provider details."
+    }
+  },
+  "async.DispatchOptions": {
+    "parent": "async", "title": "Dispatch options",
+    "intro": "These values apply to one task signature or dispatch, not its registered task definition. Dispatch validates the payload, routing, time bounds and scope before acceptance; accepted does not mean executed.",
+    "fields": {
+      "ID": "Optional stable task ID, set with WithID. Empty invokes the client's ID factory; reuse alone does not guarantee exactly-once external effects.",
+      "Queue": "Per-message queue set with OnQueue; must belong to ClientConfig.Queues. Otherwise routing/task defaults choose it.",
+      "Priority": "Priority from 0 through 9, set with WithPriority. Does not preempt already running work or guarantee global ordering.",
+      "ETA": "Absolute execution-admission time, set with WithETA. Cannot be combined with a nonzero Countdown; delayed dispatch must be running.",
+      "Countdown": "Relative nonnegative delay, set with WithCountdown. Cannot be combined with ETA.",
+      "ExpiresAt": "Absolute expiry, set with WithExpiry. Retry/dispatch paths must not schedule work beyond expiry.",
+      "Scope": "Policy scope supplied with WithScope. It is checked by client/worker authorization, not treated as a grant.",
+      "Principal": "Actor identity metadata supplied with scope; trusted policy must establish authority independently.",
+      "IdempotencyKey": "Optional application operation identity carried in the envelope. Your external side-effect logic must enforce idempotency.",
+      "CorrelationID": "Optional trace/correlation identity; do not encode secrets or raw personal data in it.",
+      "Headers": "Only explicitly allowed metadata headers, set with WithHeaders. Credential-like names are forbidden.",
+      "Stamps": "Application metadata set with WithStamps for selection/inspection; respect protocol size bounds and privacy."
+    }
+  },
+  "connectors/postgres.Config": {
+    "parent": "connectors", "title": "PostgreSQL options",
+    "intro": "postgres.Open parses configuration, connects, probes PostgreSQL 16+ and required extensions, then returns a closable backend. These constructor defaults are distinct from environment-schema defaults; explicitly pass the resolved project values.",
+    "fields": {
+      "DSN": "Required PostgreSQL connection string, normally GOGO_DATABASE_URL. Never log the revealed credential-bearing value.",
+      "Alias": "Logical backend/routing name; empty defaults to default.",
+      "SearchPath": "Optional single valid schema identifier; sets PostgreSQL search_path. Arbitrary SQL/list fragments are rejected.",
+      "MaxOpen": "Maximum pool connections per process; zero becomes 20. Negative limits are invalid.",
+      "MaxIdle": "Maximum idle pool connections; zero becomes 5, so zero does not disable idle pooling here. Cannot exceed MaxOpen.",
+      "ConnectTimeout": "Connection and startup-probe timeout; zero becomes five seconds. Negative values are invalid.",
+      "MaxLifetime": "Connection lifetime passed to database/sql. Constructor zero means no lifetime limit; GOGO_DB_MAX_LIFETIME defaults to 30m when your project passes it.",
+      "Production": "Requires verified TLS on the primary connection and every parsed fallback. Does not silently upgrade an insecure DSN.",
+      "RequiredExtensions": "Installed PostgreSQL extension names required at startup. Missing extensions fail; this does not install extensions."
+    }
+  },
+  "connectors/redis.Config": {
+    "parent": "connectors", "title": "Redis options",
+    "intro": "Use URL for an ordinary single Redis connection. Address/Sentinel/cluster topology is explicit advanced configuration. All applications that must share state use the same URL-selected database; different logical databases isolate keys, not security or server resources. No application namespace is appended.",
+    "fields": {
+      "URL": "Redis URL including credentials and database number. Mutually exclusive with Addresses, MasterName and Cluster. URL credentials are used in URL mode.",
+      "Addresses": "Explicit host:port addresses when URL is empty. Required in address mode; multiple nonsentinel addresses select cluster behavior.",
+      "MasterName": "Sentinel master name in address mode; empty leaves direct/cluster selection to the declared topology.",
+      "Username": "Redis ACL username in address mode. In URL mode put the username in URL.",
+      "Password": "Redis password in address mode. Production requires a password; URL mode uses its URL credential.",
+      "SentinelUsername": "Optional Sentinel ACL username, separate from the Redis data-node username.",
+      "SentinelPassword": "Optional Sentinel authentication password, separate from the data-node password.",
+      "Role": "Required CacheRole, SessionRole, TaskRole, ResultRole or SchedulerRole. Durable roles enforce the connector's persistence/noeviction checks.",
+      "TLS": "Optional verified TLS configuration, cloned at construction. InsecureSkipVerify is rejected and minimum TLS is raised to 1.2.",
+      "PoolSize": "Per-connection pool bound; zero becomes 20, negative values fail.",
+      "Timeout": "Dial/read/write timeout; zero becomes two seconds. Must be positive; caller context also bounds work.",
+      "Cluster": "Explicit cluster topology in address mode. Cluster connections require database zero; cannot be combined with URL.",
+      "Production": "Requires TLS and authentication. Cannot be combined with Development; durability checks still depend on Role."
+    }
+  },
+  "core/security.HeadersConfig": {
+    "parent": "security", "title": "HTTP headers",
+    "intro": "Construct the middleware once and wrap the relevant router. Allowlists are copied at construction. HTTP host/proxy/CORS policy, CSRF and object authorization are separate layers.",
+    "example": "docs/examples/security_test.go",
+    "fields": {
+      "AllowedHosts": "Required explicit host allowlist. Empty and wildcard-only hosts are rejected; do not trust an arbitrary Host header.",
+      "TrustedProxies": "CIDR networks allowed to supply forwarded information. Empty trusts no proxy; configure only actual ingress networks.",
+      "HTTPSOrigin": "Optional canonical HTTPS origin for redirects; must contain no credentials, query, fragment or path.",
+      "HSTS": "Strict-Transport-Security lifetime for secure requests. Zero does not enable a positive HSTS lifetime.",
+      "CSP": "Content Security Policy. Empty uses self-only defaults with object-src none, base-uri self and frame-ancestors none. The {nonce} placeholder uses a per-request nonce.",
+      "CSPReportOnly": "Uses the report-only CSP header instead of enforcement. False enforces the configured policy.",
+      "FramePolicy": "X-Frame-Options value; empty defaults to DENY.",
+      "ReferrerPolicy": "Referrer-Policy value; empty defaults to same-origin.",
+      "CORSOrigins": "Explicit permitted browser origins; malformed origins are rejected. Does not grant application-level access.",
+      "CORSMethods": "Allowed CORS methods; empty defaults to GET, HEAD and OPTIONS.",
+      "CORSHeaders": "Allowlisted request headers for CORS preflight handling.",
+      "CORSCredentials": "Whether allowed CORS responses permit credentials. Keep allowed origins narrow and retain CSRF protection for cookie-authenticated writes."
+    }
+  },
+  "core/security.CSRFConfig": {
+    "parent": "security", "title": "CSRF",
+    "intro": "CSRF middleware checks unsafe browser requests using a cookie secret, masked token and origin policy. It is not a replacement for authentication or object permissions. Admin refuses exemptions.",
+    "fields": {
+      "CookieName": "CSRF secret cookie name; empty defaults to gogo_csrf.",
+      "Secure": "Marks the cookie Secure; enable for HTTPS deployments. False exists for explicit local HTTP development.",
+      "TrustedOrigins": "Additional exact origins permitted by origin checks. Does not remove the token requirement; malformed origins fail construction.",
+      "MaxBodyBytes": "Body parsing limit for CSRF processing; zero defaults to 1 MiB, negative/zero-after-default invalid values fail. Also bound other request parsers.",
+      "Exempt": "Optional callback bypassing this middleware for a specific request. Avoid cookie-authenticated mutation exemptions; Admin rejects any non-nil callback."
+    }
+  },
+  "core/sessions.MiddlewareConfig": {
+    "parent": "sessions", "title": "Session middleware",
+    "intro": "Middleware requires a session store and purpose-bound signer. Missing/expired sessions start fresh; provider outages fail with 503. Session writes happen before response commitment, so mutate sessions before starting a stream.",
+    "example": "docs/examples/sessions_test.go",
+    "fields": {
+      "Store": "Required selected session persistence backend. An environment backend name does not instantiate it.",
+      "Signer": "Required signer protecting the browser's session identity; configure stable keys and explicit rotation.",
+      "CookieName": "Browser session cookie name; empty defaults to gogo_session.",
+      "TTL": "Session lifetime; zero defaults to 14 days and negative values are invalid.",
+      "Secure": "Whether the session cookie is HTTPS-only. Cookies are HttpOnly, SameSite=Lax and scoped to /.",
+      "Now": "Clock for expiry and persistence; nil uses time.Now. Use a deterministic clock in tests."
+    }
+  }
+}

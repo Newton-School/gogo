@@ -96,6 +96,34 @@ test('every extracted declaration is represented once, including type methods', 
   assert.equal(count, coverage.declarations);
 });
 
+test('field kinds and reviewed configuration members have focused references', () => {
+  const data = JSON.parse(read('fields.json'));
+  let fieldPages = 0;
+  for (const [family, rows] of Object.entries(data)) {
+    for (const row of rows) {
+      const id = `field-${family}-${row[0].toLowerCase()}`;
+      assert.equal(routes[id].page, id);
+      const html = read(`build/docs/${id}/index.html`);
+      assert.match(html, /Configuration/);
+      assert.match(html, /package/);
+      fieldPages++;
+    }
+  }
+  assert.equal(fieldPages, coverage.fieldPages);
+  let optionPages = 0;
+  for (const file of fs.readdirSync(root).filter(name => /^options.*\.json$/.test(name))) {
+    for (const [name, entry] of Object.entries(JSON.parse(read(file)))) {
+      const id = 'options-' + name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+      const html = read(`build/docs/${id}/index.html`);
+      for (const member of Object.keys(entry.fields)) {
+        assert.ok(html.includes(`id="${id}-${member.toLowerCase()}"`), `${name}.${member} lost its explanation`);
+      }
+      optionPages++;
+    }
+  }
+  assert.equal(optionPages, coverage.optionPages);
+});
+
 test('old document URLs redirect to real consolidated anchors', () => {
   const idSets = new Map();
   for (const [source, route] of Object.entries(routes)) {

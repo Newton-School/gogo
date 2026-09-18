@@ -12,6 +12,7 @@ from pathlib import Path
 import re
 import subprocess
 from urllib.parse import urlsplit
+from field_reference import build_pages as field_pages
 
 ROOT = Path(__file__).resolve().parents[1]
 DOCS = ROOT / "docs"
@@ -107,7 +108,36 @@ def expand(source, revision, page_sources, page_ids):
     return outside_fences(source, lambda prose: re.sub(r"\{\{(code|include) ([A-Za-z0-9_./-]+)\}\}", include, prose))
 
 
-def api_page(package, guide_id, revision):
+def table_text(value):
+    return html.escape(" ".join(value.split())).replace("|", "\\|")
+
+
+def member_contracts(package, declaration, options):
+    key = package["Directory"] + "." + declaration["Name"]
+    override = options.get(key, {}).get("fields", {})
+    return [(member, override.get(member["Name"], member["Doc"])) for member in declaration.get("Members") or []]
+
+
+def declaration_details(package, declaration, options):
+    lines = []
+    key = package["Directory"] + "." + declaration["Name"]
+    if key in options:
+        lines += [f"[Options, defaults and examples](options-{slug(key)}.md)", ""]
+    members = member_contracts(package, declaration, options)
+    if members and any(description for _, description in members):
+        lines += ["| Member | Type | Behavior |", "| --- | --- | --- |"]
+        for member, description in members:
+            lines.append(f"| `{member['Name']}` | `{table_text(member['Type'])}` | {table_text(description) or 'See the declaration and feature contract.'} |")
+        lines.append("")
+    for key, label in [("Parameters", "Input"), ("Results", "Output")]:
+        items = declaration.get(key) or []
+        if items:
+            lines += [f"**{label}:** " + "; ".join(f"`{item['Name']}: {item['Type']}`" for item in items) + ".", ""]
+    return lines
+
+
+def api_page(package, guide_id, revision, options=None):
+    options = options or {}
     title = package["Directory"] if package["Directory"] != "." else "gogo"
     lines = [f"# {title}", "", f"```go\nimport \"{package['Path']}\"\n```", "",
              f"[Read the feature guide]({guide_id}.md)", "", package["Doc"].strip(), "",
@@ -125,9 +155,11 @@ def api_page(package, guide_id, revision):
             # Constants may be one declaration containing dozens of names.
             heading = name.split(", ")[0] + (" and related values" if ", " in name else "")
             lines += [f"### {heading} {{#{slug(name)}}}", "", declaration["Doc"].strip(), "", "```go", declaration["Signature"], "```", "", f"[Source]({source_link(declaration['File'], revision)}#L{declaration['Line']})", ""]
+            lines += declaration_details(package, declaration, options)
             if kind == "type":
                 for method in [d for d in declarations if d["Kind"] == "method" and d["Name"].startswith(name + ".")]:
                     lines += [f"#### {method['Name']} {{#{slug(method['Name'])}}}", "", method["Doc"].strip(), "", "```go", method["Signature"], "```", "", f"[Source]({source_link(method['File'], revision)}#L{method['Line']})", ""]
+                    lines += declaration_details(package, method, options)
     return "\n".join(lines)
 
 
@@ -193,7 +225,17 @@ def compile_tree(tree, pages):
             for note in notes:
                 if note in pages:
                     pages[note]["parent"] = identifier
-            children = [convert(child) for child in item.get("items", [])] + [document(note) for note in notes]
+            children = [convert(child) for child in item.get("items", [])]
+            grouped_notes = {}
+            for note in notes:
+                group = pages[note].get("navGroup")
+                if group:
+                    if group not in grouped_notes:
+                        grouped_notes[group] = {"type": "category", "label": group, "collapsed": True, "items": []}
+                        children.append(grouped_notes[group])
+                    grouped_notes[group]["items"].append(document(note))
+                else:
+                    children.append(document(note))
             references = pages[identifier].get("references", [])
             if references:
                 children.append({"type": "category", "label": "Reference", "collapsed": True,
@@ -220,6 +262,13 @@ def compile_tree(tree, pages):
 
 def collect_pages(manifest, catalog, revision):
     pages, owners = {}, {}
+    options = {}
+    for path in sorted(DOCS.glob("options*.json")):
+        entries = json.loads(path.read_text())
+        if set(entries) & set(options):
+            raise ValueError("Duplicate options reference in " + path.name)
+        options.update(entries)
+    option_keys = set()
 
     def add(page):
         identifier = page["id"]
@@ -263,11 +312,35 @@ def collect_pages(manifest, catalog, revision):
         owner = pages[owners[directory]]
         identifier = "api-" + slug(directory if directory != "." else "gogo")
         title = directory if directory != "." else "gogo"
-        add({"id": identifier, "title": title, "source": api_page(package, owner["id"], revision), "api": True})
+        add({"id": identifier, "title": title, "source": api_page(package, owner["id"], revision, options), "api": True})
+        for declaration in package["Declarations"]:
+            key = directory + "." + declaration["Name"]
+            if key not in options:
+                continue
+            option_keys.add(key)
+            entry = options[key]
+            members = member_contracts(package, declaration, options)
+            names = {member["Name"] for member, _ in members}
+            unknown = set(entry["fields"]) - names
+            missing = {member["Name"] for member, description in members if not description.strip()}
+            if unknown or missing or not members:
+                raise ValueError(f"Option coverage for {key}: unknown {sorted(unknown)}, missing {sorted(missing)}")
+            body = ["# " + entry["title"], "", entry["intro"], "", f"```go\nimport \"{package['Path']}\"\n```", "",
+                    f"[Complete type and methods]({identifier}.md#{slug(declaration['Name'])}) · [Feature guide]({entry['parent']}.md)", ""]
+            if entry.get("example"):
+                body += ["## Example", "", "This complete example is included from tested project source. Adapt its app imports and explicitly supplied services to your project.", "", "{{code " + entry["example"] + "}}", ""]
+            for member, description in members:
+                body += ["## " + member["Name"], "", "```go", member["Name"] + " " + member["Type"], "```", "", description, ""]
+            add({"id": "options-" + slug(key), "title": entry["title"], "parent": entry["parent"], "new": True,
+                 "source": "\n".join(body), "description": entry["intro"], "optionCount": len(members)})
         owner.setdefault("references", []).append(identifier)
         references.setdefault(owner["section"], []).append(identifier)
     if set(owners) != actual:
         raise ValueError("Guide maps nonexistent public packages: " + str(sorted(set(owners) - actual)))
+    if set(options) != option_keys:
+        raise ValueError("Options reference names unknown types: " + str(sorted(set(options) - option_keys)))
+    for page in field_pages(json.loads((DOCS / "fields.json").read_text()), catalog):
+        add(page)
     # Keep reference families in the same learning order as the human guides,
     # not the incidental order in which alphabetical package paths were scanned.
     references = {section: references[section] for section in dict.fromkeys(entry["section"] for entry in manifest) if section in references}
@@ -282,7 +355,7 @@ def collect_pages(manifest, catalog, revision):
     return pages, references
 
 
-def consolidate_pages(pages, sections, revision):
+def consolidate_pages(pages, sections, revision, extra_page_ids=()):
     """Compose feature pages without discarding source contracts or declarations."""
     destinations, groups = {}, {}
     for section in sections:
@@ -328,8 +401,9 @@ def consolidate_pages(pages, sections, revision):
     for source, page in pages.items():
         body = page["source"]
         source_path = page.get("file", "docs/" + source + ".md")
-        body = rewrite_links(body, source_path, page_sources, revision, pages)
-        body = expand(body, revision, page_sources, pages)
+        known_ids = set(pages) | set(extra_page_ids)
+        body = rewrite_links(body, source_path, page_sources, revision, known_ids)
+        body = expand(body, revision, page_sources, known_ids)
         seen, mapping = {}, {}
 
         def stamp(match):
@@ -404,12 +478,12 @@ def consolidate_pages(pages, sections, revision):
 def focused_pages(sources, legacy_sections, revision):
     """Give each guide, contract and package a page; retain historical deep links."""
     original = {key: value for key, value in sources.items() if not value.get("new")}
-    _, previous = consolidate_pages(original, legacy_sections, revision)
+    _, previous = consolidate_pages(original, legacy_sections, revision, sources)
     sections = [{"id": key, "title": page["title"], "sources": [[key, page["title"]]]}
                 for key, page in sources.items()]
     pages, routes = consolidate_pages(sources, sections, revision)
     for key, source in sources.items():
-        pages[key].update({name: source[name] for name in ("parent", "references", "api", "description") if name in source})
+        pages[key].update({name: source[name] for name in ("parent", "references", "api", "description", "navGroup") if name in source})
     for section in legacy_sections:
         for key in section.get("details", []):
             pages[key]["parent"] = section["id"]
@@ -436,7 +510,7 @@ def generate():
     for key, page in source_pages.items():
         if key in labels:
             page["title"] = labels[key]
-        elif page.get("parent"):
+        elif page.get("parent") and page.get("file"):
             page["title"] = Path(page["file"]).stem.replace("_", " ").capitalize()
             if page["title"] == "Readme":
                 page["title"] = "Contracts"
@@ -462,7 +536,10 @@ def generate():
     (OUTPUT / "routes.json").write_text(json.dumps(routes, indent=2) + "\n")
     summary = {"version": VERSION, "sourceRevision": revision, "pages": len(pages), "sourceDocuments": len(source_pages), "featureGuides": len(manifest),
                "technicalGuides": sum("parent" in p for p in source_pages.values()), "publicPackages": len(catalog["Packages"]),
-               "declarations": sum(len(p["Declarations"]) for p in catalog["Packages"]), "settings": len(catalog["Settings"])}
+               "declarations": sum(len(p["Declarations"]) for p in catalog["Packages"]), "settings": len(catalog["Settings"]),
+               "optionPages": sum("optionCount" in p for p in source_pages.values()),
+               "fieldPages": sum("fieldKind" in p for p in source_pages.values()),
+               "explainedOptions": sum(p.get("optionCount", 0) for p in source_pages.values())}
     (OUTPUT / "coverage.json").write_text(json.dumps(summary, indent=2) + "\n")
     print(json.dumps(summary, indent=2))
 

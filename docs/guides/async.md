@@ -12,6 +12,8 @@ go get github.com/Newton-School/gogo/async/redis@v1.0.0-alpha.1
 
 ## Declare typed tasks
 
+The member-by-member references cover [TaskOptions](options-async-taskoptions.md), [RetryPolicy](options-async-retrypolicy.md), [DispatchOptions](options-async-dispatchoptions.md), [ClientConfig](options-async-clientconfig.md) and [Worker](options-async-worker.md). They distinguish task registration defaults from individual dispatch overrides and process-level runtime settings.
+
 The showcase's `Tasks` holder keeps typed task handles alongside the registry. Handlers receive a context, task metadata and typed input; they return typed output or an error.
 
 {{code examples/showcase/apps/catalog/tasks.go}}

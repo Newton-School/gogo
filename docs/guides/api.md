@@ -2,6 +2,8 @@
 
 An API has three independent decisions: which rows a caller may see, which fields may be represented, and which operations may change data. Gogo requires you to make these decisions explicitly.
 
+Each serializer constructor has a focused sidebar page, including [StringField](field-serializers-stringfield.md), [NestedField](field-serializers-nestedfield.md) and [ComputedField](field-serializers-computedfield.md). Configure them with the complete [Field](options-core-api-field.md), [Definition](options-core-api-definition.md), [BindOptions](options-core-api-bindoptions.md) and [ModelOptions](options-core-api-modeloptions.md) references.
+
 ## Define an output serializer
 
 The showcase declares a public product representation without internal notes or account data:

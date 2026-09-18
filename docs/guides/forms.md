@@ -2,6 +2,8 @@
 
 A form binds submitted data to an explicit field definition, cleans values, collects errors and renders controls. A widget controls HTML; it does not replace server-side validation.
 
+Every kind has a focused sidebar page with a declaration and example, such as [Char](field-forms-char.md), [TypedChoice](field-forms-typedchoice.md) and [SplitDateTime](field-forms-splitdatetime.md). Use [Field options](options-core-forms-field.md) for every configurable member, [ModelForm options](options-core-forms-modelformoptions.md) for persistence, [FormSet options](options-core-forms-formsetoptions.md) for collections, and [InputWidget](options-core-forms-inputwidget.md) or [MultiWidget](options-core-forms-multiwidget.md) for rendering.
+
 ## Bind and validate
 
 {{code docs/examples/forms_test.go}}

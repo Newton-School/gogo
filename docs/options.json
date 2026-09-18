@@ -1,0 +1,302 @@
+{
+  "core/models.Field": {
+    "parent": "model-fields", "title": "Field options",
+    "intro": "All model kinds use this declaration. NewField and the named constructors start with Editable=true; a raw Field literal does not. Auto fields become noneditable primary keys, and Generated is noneditable. Options run in order, so a later option replaces an earlier value. Schema metadata is not a guarantee that every backend or UI supports it.",
+    "example": "docs/snippets/catalog/models.go",
+    "fields": {
+      "Name": "Required logical field identifier used by queries, forms and serializers. Must be a valid identifier and unique within the schema.",
+      "StructField": "Go struct member used by record binding; empty uses Name. WithStructField maps a lowercase database name to an exported Go member.",
+      "Column": "Database column name; empty uses Name. WithColumn changes storage naming without changing the public field name.",
+      "Kind": "Required field kind. Use a named constructor, or NewField for advanced kinds. Unknown kinds fail schema validation.",
+      "Null": "False by default. Nullable permits nil and nullable database storage; use a compatible Go representation such as *string.",
+      "Blank": "False by default. Optional permits empty values during validation; it does not also allow database NULL.",
+      "Editable": "True from constructors, false in a raw literal. ReadOnly disables ordinary editing; it is not a confidentiality or authorization rule.",
+      "PrimaryKey": "Marks a primary-key component. Auto constructors enable it. Schema.PrimaryKey can explicitly select an ordered composite key.",
+      "Unique": "Requests database uniqueness and participates in explicit uniqueness validation. A pre-save check cannot replace the database constraint.",
+      "DBIndex": "Requests a database index. False by default except SlugField, which enables it; use WithDBIndex(false) to override.",
+      "AutoNow": "Populate the current time during supported save preparation. Makes the field noneditable; not a database trigger or a promise for bulk/raw operations.",
+      "AutoNowAdd": "Populate creation time during supported insert preparation. Makes the field noneditable; does not replace database-side defaults.",
+      "Label": "Human-facing field label used by presentation adapters. Empty lets the consumer derive a label.",
+      "HelpText": "Human-facing help text; does not add validation. Presentation code must escape untrusted content.",
+      "Comment": "Database/documentation comment metadata. Check the selected migration operation and backend before relying on its persistence.",
+      "Collation": "Database collation metadata for compatible text types and backends; does not normalize Go strings.",
+      "Tablespace": "Backend-specific tablespace metadata. Requires a supported migration path and an existing configured database tablespace.",
+      "MaxLength": "Maximum text length in Unicode code points during cleaning; zero leaves it unbounded at this layer. SlugField defaults to 50.",
+      "MinLength": "Minimum nonempty text length in Unicode code points; zero disables the bound. Cannot exceed a positive MaxLength.",
+      "MaxDigits": "Required positive total precision for Decimal. DecimalField takes it as the digits argument.",
+      "DecimalPlaces": "Decimal fractional precision, from zero through MaxDigits. Excess precision is rejected rather than silently rounded.",
+      "Min": "Optional inclusive lower value bound used by supported scalar cleaning; nil adds no custom bound.",
+      "Max": "Optional inclusive upper value bound used by supported scalar cleaning; nil adds no custom bound.",
+      "Choices": "Allowed value/label pairs. Values constrain cleaned input; labels are presentation metadata. Empty adds no choice restriction.",
+      "Default": "Static application default. WithDefault sets it; do not use a shared mutable value as request-local state.",
+      "DefaultFunc": "Callable application default, set with WithDefaultFunc. Must have a stable DefaultID so schema changes can be identified.",
+      "DefaultID": "Stable identity for DefaultFunc; required when that callback is supplied. It is not executable source stored in a migration.",
+      "DBDefault": "Explicit database-default expression. Distinct from an application default; use only trusted, backend-supported SQL expressions.",
+      "GeneratedExpression": "Trusted expression for a generated field. Requires compatible generated-column type metadata and backend capabilities.",
+      "Validators": "Context-aware validation callbacks added by WithValidators. Called during explicit cleaning; model declaration alone does not invoke them.",
+      "Codec": "Application encode/decode adapter. Does not automatically add an unsupported database type, form widget or serializer.",
+      "Relation": "Target, deletion and reverse/through metadata. Required for ForeignKey, OneToOne and ManyToMany.",
+      "Element": "Element field for Array; required by schema validation. Also supplies generated-column type metadata where the backend supports it.",
+      "RangeType": "Underlying kind for backend range mapping. Type mapping alone does not provide a complete range value codec.",
+      "UniqueForDate": "Date field used for date-scoped uniqueness checks by a compatible ConstraintChecker; empty disables this check.",
+      "UniqueForMonth": "Date field used for month-scoped uniqueness checks; not a standalone concurrency-safe database constraint.",
+      "UniqueForYear": "Date field used for year-scoped uniqueness checks; invoke the configured checker during validation."
+    }
+  },
+  "core/models.Relation": {
+    "parent": "relations", "title": "Relation options",
+    "intro": "A relation targets a registered app.Model schema. Registry resolution, database existence, object authorization and deletion planning are separate checks. Declare relations before freezing the model registry.",
+    "example": "examples/showcase/apps/catalog/models.go",
+    "fields": {
+      "Target": "Required registered schema key, such as catalog.Product. Not a table name or a user-supplied SQL fragment.",
+      "TargetFields": "Target key fields in mapping order; empty uses the target primary key. Composite relations require a supported matching mapping.",
+      "OnDelete": "Deletion policy: CASCADE, PROTECT, RESTRICT, SET_NULL, SET_DEFAULT or DO_NOTHING. Select it explicitly for stored relations; SET_NULL requires a nullable source.",
+      "Through": "Explicit intermediary model for many-to-many relations; empty allows the registry to create its intermediary schema.",
+      "ThroughFields": "Ordered source/target foreign-key fields on an explicit intermediary, resolving ambiguity when it has multiple relations.",
+      "NoConstraint": "Suppresses database foreign-key constraint metadata where supported. Does not authorize missing or out-of-scope relation targets."
+    }
+  },
+  "core/forms.Field": {
+    "parent": "forms", "title": "Field options",
+    "intro": "NewField(name, kind) creates a required field. A raw Field literal leaves Required=false. Binding, validation and rendering are distinct: unbound forms are not submitted data, and widgets never replace server-side cleaning. Callbacks must honor context and current actor scope.",
+    "example": "docs/examples/forms_test.go",
+    "fields": {
+      "Name": "Field name before a form prefix is applied; names must be unique within a form.",
+      "Kind": "Selects one of the 29 typed cleaners. Unknown kinds fail rather than using an arbitrary conversion.",
+      "Required": "True from NewField. Rejects empty cleaned input; for Boolean it requires an affirmative value. Set false for an ordinary optional checkbox.",
+      "Disabled": "Uses trusted initial data rather than accepting the submitted value, and renders a disabled control. Still apply write authorization.",
+      "Initial": "Value shown before submission and used for disabled fields. It is not a replacement for missing data in an enabled bound field.",
+      "Label": "Visible label. Empty derives a label from Name with underscores replaced by spaces.",
+      "HelpText": "Escaped guidance associated with the rendered input; adds no validation by itself.",
+      "MinLength": "Minimum nonempty string length in Unicode code points; zero disables this bound.",
+      "MaxLength": "Maximum nonempty string length in Unicode code points; zero disables this bound.",
+      "MinValue": "Optional inclusive numeric lower bound. Use a pointer to distinguish zero from no bound.",
+      "MaxValue": "Optional inclusive numeric upper bound; nil disables it.",
+      "MaxDigits": "Total decimal precision. Configure it for Decimal fields; cleaned decimals remain exact strings.",
+      "DecimalPlaces": "Allowed fractional decimal digits; excess precision is a validation error, not implicit rounding.",
+      "Choices": "Allowed choice values and display labels. Multiple-choice input is validated against this list.",
+      "Validators": "Additional validators run after conversion and built-in bounds for nonempty values; their failures become field errors.",
+      "Clean": "Optional final field callback that can normalize the cleaned value or return an error. Runs after built-in checks.",
+      "Coerce": "String-to-value conversion for typed choice kinds, after membership validation. It does not authorize relation IDs.",
+      "Pattern": "Regular expression for Regex fields. Supply a compiled expression and anchor it when the whole value must match.",
+      "InputFormats": "Accepted Go time layouts for date/time input. Empty uses the kind's built-in layouts; timezone conversion uses the form context.",
+      "Widget": "Rendering implementation. Nil chooses a kind-appropriate InputWidget or MultiWidget; does not change the cleaner.",
+      "ErrorMessages": "Map from validation code to replacement text, such as required or invalid. Does not suppress validation or change error codes.",
+      "Fields": "Component declarations for MultiValue/Combo; SplitDateTime has date/time defaults when absent.",
+      "Compress": "Combines cleaned composite components into one value; return an error when their combination is invalid.",
+      "MaxBytes": "Upload byte limit for File/Image fields. Also bound HTTP multipart parsing; validation alone does not persist a file."
+    }
+  },
+  "core/forms.ModelFormOptions": {
+    "parent": "forms", "title": "Model forms",
+    "intro": "NewModelForm requires a non-nil context, bound record and explicit nonempty Fields allowlist. Validation does not persist data. Saving requires a ModelPersistence implementation that keeps parent and relation writes in the same real transaction.",
+    "fields": {
+      "Fields": "Required ordered allowlist of model field names. Unknown or duplicate names fail construction.",
+      "Exclude": "Removes names from Fields; does not expand the allowlist.",
+      "Readonly": "Removes fields from writable form binding, in addition to noneditable model fields.",
+      "Overrides": "Replaces derived declarations by field name, including kinds without a default mapping. The model field name is retained.",
+      "ResolveRelation": "Resolves and authorizes submitted IDs against current scope. Missing resolution fails relation validation closed.",
+      "Checker": "Uniqueness/constraint checker used during model validation. Keep database constraints for concurrent writes.",
+      "Persistence": "Atomic parent-and-relations persistence implementation. Must pass the transaction context into its save callbacks."
+    }
+  },
+  "core/forms.FormSetOptions": {
+    "parent": "forms", "title": "Formsets",
+    "intro": "BindFormSet validates TOTAL_FORMS and INITIAL_FORMS before allocating rows. Submitted identities cannot expand the trusted ExistingIDs set. Formset validity is not write authorization or persistence.",
+    "fields": {
+      "Prefix": "Management and row prefix; empty defaults to form, producing form-TOTAL_FORMS and form-0-field.",
+      "Minimum": "Minimum retained row count; defaults to zero and must not exceed Maximum.",
+      "Maximum": "Maximum retained row count; zero uses AbsoluteMaximum. Must not exceed the allocation cap.",
+      "AbsoluteMaximum": "Pre-allocation row cap; zero becomes 1000. Valid range is 1 through 1000.",
+      "CanDelete": "Enables submitted row deletion markers. Existing-row deletion still uses CanDeleteRow when configured.",
+      "CanOrder": "Enables submitted ordering and records ordered row indexes; does not save database ordering automatically.",
+      "Initial": "Trusted initial maps for existing rows. Their count must match the submitted INITIAL_FORMS count.",
+      "IdentityField": "Row identity field name; empty defaults to id. New rows cannot submit an existing identity when identity checking is enabled.",
+      "CanDeleteRow": "Authorizes deletion of a particular existing row identity; return an error to deny.",
+      "Clean": "Cross-form validation callback after individual forms have been processed. Return safe validation errors."
+    }
+  },
+  "core/forms.InputWidget": {
+    "parent": "forms", "title": "Input widgets",
+    "intro": "Widgets render escaped HTML; they do not validate or save data. Password widgets do not echo submitted passwords. Labels and error associations come from BoundField.",
+    "example": "examples/showcase/apps/fieldlab/widgets.go",
+    "fields": {
+      "Type": "Empty defaults to text. Supported: text, number, email, url, password, hidden, multiple-hidden, file, textarea, date, datetime-local, time, checkbox, select, select-multiple, radio, checkbox-multiple. Unsupported types return an error.",
+      "Attrs": "Additional permitted HTML attributes. Values are escaped; unsafe attributes are rejected. Configure step explicitly to override numeric/time defaults."
+    }
+  },
+  "core/forms.MultiWidget": {
+    "parent": "forms", "title": "MultiWidget",
+    "intro": "Composite controls use field_0, field_1 and corresponding label/error IDs. The component declarations must agree with the binding field.",
+    "fields": {
+      "Widgets": "Optional widget per component. Empty chooses component defaults; a supplied list must match the number of fields.",
+      "Decompress": "Converts the presentation value to component values. Without it, slices/arrays are split and SplitDateTime accepts time.Time."
+    }
+  },
+  "core/api.Field": {
+    "parent": "api", "title": "Field options",
+    "intro": "Serializer input and output are independent. Constructors set useful defaults; a raw Field literal does not. New freezes declarations. A valid nested value is not permission to write nested database records.",
+    "example": "docs/examples/api_test.go",
+    "fields": {
+      "Name": "Public wire-field name; must be unique in the serializer.",
+      "Source": "Record/value source name; empty uses Name. Input maps to this source and output reads it from ValueReader.",
+      "Label": "Human-facing schema/display label; does not change the wire name.",
+      "HelpText": "Field explanation for schema/presentation metadata.",
+      "Required": "Missing input fails full validation. Partial binding skips absent fields; constructors derive requiredness from model blank/default metadata.",
+      "ReadOnly": "Include only in output; Validate ignores caller input for this declared field. Must not also be WriteOnly or Hidden. Use mutation policies to reject forbidden writes explicitly.",
+      "WriteOnly": "Accept input but omit it from output; use for sensitive input. Does not authorize storing or logging it.",
+      "Hidden": "Ignores caller input and omits output. A trusted Default is required and supplies the internal value during full binding; partial binding skips absent/defaulted values.",
+      "AllowNull": "Permits explicit nil values. Separate from missing input and Required.",
+      "Default": "Context-aware value for absent input during full binding; absent fields in Partial mode skip defaults. Hidden defaults remain server-controlled.",
+      "Model": "Scalar cleaning metadata. Set through a scalar constructor or Scalar(modelField); does not expose the rest of a model.",
+      "Element": "Item declaration for list/dictionary values. Apply child bounds and validation as well as collection limits.",
+      "Nested": "Serializer for a nested object. Does not perform nested database persistence.",
+      "Dictionary": "Treat the collection as a string-keyed dictionary; DictField enables it and supplies Element.",
+      "MinItems": "Minimum collection size; zero imposes no positive minimum.",
+      "MaxItems": "Maximum collection size. ListField/DictField accept it explicitly; zero normalizes to 1000 for fields with Element. Negative values or a positive limit below MinItems fail construction.",
+      "Validate": "Field-level cleaning/validation callback; returns the normalized value or a safe validation error.",
+      "Represent": "Custom output transformation. Supply OutputSchema when the wire type cannot otherwise be determined.",
+      "Compute": "Derives a read-only value from ValueReader. ComputedField enables ReadOnly; do not expose hidden data through this callback."
+    }
+  },
+  "core/api.Definition": {
+    "parent": "api", "title": "Definition",
+    "intro": "Pass Definition to api.New, check its error, then use the immutable Serializer to validate and represent values.",
+    "fields": {
+      "Fields": "Explicit public field allowlist; duplicate names and conflicting write sources fail construction.",
+      "Validate": "Whole-object validation after field cleaning, for rules involving multiple values.",
+      "AllowUnknown": "False rejects undeclared input keys. True ignores them rather than treating them as declared writable fields."
+    }
+  },
+  "core/api.BindOptions": {
+    "parent": "api", "title": "Partial input",
+    "intro": "Validate returns cleaned values and field errors; it does not save a record or grant mutation permission.",
+    "fields": {"Partial": "False validates full input and applies defaults. True skips absent fields, including their defaults; present invalid or forbidden fields still fail. Use for PATCH, not as an authorization bypass."}
+  },
+  "admin.ModelAdmin": {
+    "parent": "admin", "title": "Model options",
+    "intro": "Register ModelAdmin before the site handler freezes registration. Every callback runs inside the site's trusted policy boundary; model-level rules may narrow but never widen global access. Nil, empty and zero are not interchangeable for every option.",
+    "example": "examples/showcase/apps/catalog/admin.go",
+    "fields": {
+      "Schema": "Required model declaration registered with the site's scoped store; validate fields and capabilities before serving.",
+      "Factory": "Optional typed fresh-model constructor for stores that need it. It must return the registered model, never a shared mutable object.",
+      "Fields": "Explicit ordered form-field selection. Cannot be combined with Fieldsets; prefer an allowlist for sensitive models.",
+      "Exclude": "Fields omitted from form construction; does not grant permission for other fields.",
+      "ReadonlyFields": "Displayed without accepting edits. May be extended per request/object by GetReadonlyFields.",
+      "AutocompleteFields": "Relations presented with authorized scoped search. Requires compatible relation declarations and target permissions.",
+      "RawIDFields": "Relations presented as explicit IDs with authorized lookup; cannot overlap AutocompleteFields.",
+      "ListDisplay": "Ordered stored fields or registered display-column names. Controls presentation, not row scope.",
+      "ListDisplayLinks": "Columns that link to the change form. Editable cells cannot also be change links.",
+      "SearchFields": "Allowlisted model search fields; empty disables search. Counts/results remain inside the scoped store.",
+      "ListFilter": "Declared field filters shown on the list. Requests cannot introduce arbitrary query fields.",
+      "Ordering": "Default ordering fields; prefix a field with minus for descending. Independent of the user-sort allowlist.",
+      "ListEditable": "Displayed stored scalar fields editable from the list. Excludes relations, files/images, protected fields and account-domain forms; signed manifests reject stale or tampered submissions.",
+      "ListPerPage": "Rows per normal page; zero defaults to 100. Valid range 1 through 1000.",
+      "ListMaxShowAll": "Bound for show-all mode; zero defaults to 1000. Must be at least ListPerPage and no more than 1000.",
+      "Fieldsets": "Ordered named form sections with fields, descriptions and classes. Alternative to Fields, not an extra allowlist.",
+      "Inlines": "Explicit child-model editors with parent ownership, bounded counts and relation validation.",
+      "Columns": "Computed display columns with callbacks and optional stored-field ordering mappings.",
+      "Actions": "Named bulk operations with permission, confirmation and a scoped Run callback. Recheck current rows on submission.",
+      "SensitiveFields": "Fields excluded from unsafe generic exposure paths. Explicitly review forms, list columns and callbacks for disclosure.",
+      "FormOverrides": "Per-field form declarations for supported custom validation/widgets. Does not permit protected or out-of-scope writes.",
+      "ConstraintChecker": "Database uniqueness/constraint checks for model forms. Provider failures must not be reported as ordinary input errors.",
+      "GetReadonlyFields": "Request/object-specific additional readonly fields. Returned names are validated and cannot restore a globally protected write.",
+      "ResolveRelation": "Resolve and authorize every submitted target ID against current scope. UI choices are not trusted authorization evidence.",
+      "SaveModel": "Custom parent persistence hook using the supplied ScopedStore; preserve the framework's transaction and audit contract.",
+      "SaveRelated": "Custom related-save hook in the authorized save flow. Do not escape to an unrestricted global ORM store."
+    }
+  },
+  "admin.Config": {
+    "parent": "admin-wiring", "title": "Site options",
+    "intro": "NewSite requires Store, Policy and Signer. It installs CSRF protection for staff operations but does not automatically create accounts, session middleware or login routes.",
+    "fields": {
+      "Name": "Site identity; empty defaults to admin. Keep it stable for scoped operations.",
+      "Header": "Header branding; empty defaults to Gogo administration.",
+      "Title": "Browser title branding; empty defaults to Gogo Admin.",
+      "IndexTitle": "Index heading; empty defaults to Site administration.",
+      "Prefix": "Local absolute mount path with trailing slash; defaults to /admin/. Query strings, fragments, backslashes and doubled slashes are rejected.",
+      "SiteURL": "Public-site navigation destination; separate from the Admin mount prefix.",
+      "LoginURL": "Explicit local login route. Setting a URL does not register its handler.",
+      "LogoutURL": "Explicit local logout route. Wire its handler and safe HTTP methods separately.",
+      "PasswordChangeURL": "Local password-change route, mounted with the account service and authentication middleware.",
+      "PasswordResetURL": "Local reset-request route; configure verified delivery and reset-confirmation separately.",
+      "Store": "Required actor/site/model-scoped persistence adapter; not a global unrestricted database handle.",
+      "Policy": "Required authoritative site policy, also constrained by token scope. Model authorization can only narrow it.",
+      "Signer": "Required purpose-bound signer used for protected Admin state. Keys and key rotation are application configuration.",
+      "CSRF": "CSRF cookie/origin/body configuration. Admin refuses an Exempt callback; do not disable protection for staff mutations.",
+      "TemplateLoaders": "Optional trusted template loaders consulted before embedded defaults. Nil uses the embedded UI."
+    }
+  },
+  "async.TaskOptions": {
+    "parent": "async", "title": "Task options",
+    "intro": "These options belong to the registered task definition, shared by compatible producers and workers. They differ from per-message dispatch options. Registration validates limits before freezing the registry.",
+    "example": "examples/showcase/apps/catalog/tasks.go",
+    "fields": {
+      "Queue": "Default task queue; empty becomes default. Per-message routing must still select an allowed client queue.",
+      "Retry": "Execution retry policy. Zero-value policy normalizes to three retries and a 180-second fixed delay; it does not auto-retry every error.",
+      "SoftLimit": "Cooperative execution deadline; zero adds no task-specific soft limit. Handlers must honor context cancellation.",
+      "HardLimit": "Hard execution limit requiring a configured executor. Zero disables it; a nonzero limit must not be shorter than SoftLimit.",
+      "Hooks": "BeforeStart, OnSuccess, OnFailure, OnRetry and AfterReturn callbacks. Keep side effects idempotent across deliveries.",
+      "Authorize": "Worker-side authorization callback using trusted task context. Return an error to deny execution.",
+      "ValidatePayload": "Optional raw JSON validation before typed decoding. Payload schema checks still run afterwards.",
+      "Rate": "Optional task admission rate, explicitly worker-local or distributed. Distributed admission requires Worker.RateLimiter."
+    }
+  },
+  "async.RetryPolicy": {
+    "parent": "scheduling", "title": "Execution retries",
+    "intro": "Execution retries are distinct from publication retries and lease-based redelivery. Retry, RetryAfter and RetryAt request another attempt explicitly; ordinary failures retry only when AutoRetryFor matches. A retry scheduled at or after task expiry is refused.",
+    "fields": {
+      "MaxRetries": "Nil normalizes to 3. A pointer to zero disables retries; negative values are invalid. Counts retries after the initial attempt.",
+      "Unlimited": "False by default. True ignores MaxRetries, but does not ignore task expiry or cancellation.",
+      "Delay": "Fixed delay when Backoff=false; zero normalizes to 180 seconds. Negative durations are invalid.",
+      "Backoff": "False uses fixed Delay. True uses BackoffFactor multiplied by two to the retry count, capped by BackoffMax.",
+      "BackoffFactor": "Base duration for exponential backoff; zero normalizes to one second.",
+      "BackoffMax": "Maximum exponential delay before jitter; zero normalizes to 600 seconds.",
+      "DisableJitter": "False applies a random fraction to exponential backoff. True retains the full computed delay; fixed delays are unaffected.",
+      "AutoRetryFor": "Optional predicate selecting ordinary errors for retry. Nil retries only explicit RetryRequest errors."
+    }
+  },
+  "async.ClientConfig": {
+    "parent": "async-wiring", "title": "Client options",
+    "intro": "NewClient requires Registry, Broker and Results, validates routes and snapshots allowlists. It freezes the registry. Optional coordination providers enable only their corresponding features; they do not start background services.",
+    "fields": {
+      "Registry": "Required task registry; register all producer-visible names and versions before client construction.",
+      "Broker": "Required queue publication/reservation provider. No implicit in-process fallback.",
+      "Results": "Required result-state provider shared with workers and result handles.",
+      "Workflows": "Durable workflow coordination provider for canvas execution/replacement. Requires its relay and matching result store.",
+      "Schedules": "Schedule/delay coordination provider. Configure and run the corresponding dispatcher or scheduler separately.",
+      "Presence": "Worker-presence authority used for scoped inspection; nil leaves that integration unavailable.",
+      "Controls": "Remote-control authority for fixed supported worker commands; not an arbitrary code-execution channel.",
+      "OnEventError": "Optional safe observer for event-publication errors; return promptly and never treat observation as execution authority.",
+      "EventTimeout": "Event observer timeout; zero becomes one second. Valid range is one millisecond through 30 seconds.",
+      "Queues": "Allowed destination queues; empty becomes the single default queue. Unknown/invalid queue names are rejected.",
+      "Routes": "Task-name pattern to queue rules; destination queues must exist in Queues and patterns must be valid.",
+      "AllowedHeaders": "Explicit header-name allowlist. Credential-like names including authorization, cookie, password, secret and token are rejected.",
+      "Authorize": "Operation/scope/identity policy. Without it, nonempty scopes are denied rather than treated as grants.",
+      "Clock": "Optional clock; nil uses time.Now. Supply a deterministic clock for tests, not untrusted input.",
+      "NewID": "Optional task identity factory; nil uses async.NewID. An ID alone does not make external effects idempotent.",
+      "PublishRetry": "Optional bounded publication-retry policy; distinct from task execution retries. See the Publish retries page."
+    }
+  },
+  "async.Worker": {
+    "parent": "async", "title": "Worker options",
+    "intro": "Configure the worker before Run. Delivery is at least once: result fencing prevents stale result writes but cannot undo external side effects. Cancellation is cooperative unless an explicitly configured executor provides hard termination.",
+    "fields": {
+      "Registry": "Required task definitions with handlers; frozen for execution during initialization.",
+      "Broker": "Required reservation/acknowledgement provider compatible with the producer.",
+      "Results": "Required result-state provider shared with the producer and result handles.",
+      "ID": "Worker identity; empty generates one. Do not reuse an identity to impersonate another live worker.",
+      "Queues": "Queues to consume; empty defaults to default. Processes can select different queues from the same product binary.",
+      "Concurrency": "Concurrent reservation/execution cap. Zero uses min(32, CPU count), at least one. Valid range is 1 through 1024.",
+      "Lease": "Reservation lease duration; zero defaults to 60 seconds. Must be greater than Heartbeat.",
+      "Heartbeat": "Lease-renewal interval; zero defaults to 20 seconds. Must be positive and shorter than Lease.",
+      "Clock": "Clock for worker timing; nil uses time.Now.",
+      "Jitter": "Random fraction for retry backoff; nil uses rand.Float64. Deterministic callbacks are useful in tests.",
+      "OnError": "Optional operational error observer; callback panics are isolated. Never log sensitive task payloads.",
+      "Executor": "Optional execution provider. Required by registered hard-limited tasks; subprocess execution is not a hostile-code sandbox.",
+      "Events": "Optional execution-event observer; telemetry is not an authority to change task outcomes.",
+      "Presence": "Optional live worker-presence store for inspection. When Controls is set, it must use that same authority.",
+      "RateLimiter": "Required limiter for distributed task rates. No silent worker-local fallback exists for a distributed declaration."
+    }
+  }
+}

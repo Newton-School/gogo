@@ -2,6 +2,8 @@
 
 Gogo declares 40 model kinds. There are 31 named constructors and nine additional kinds created through `models.NewField`. This list describes the vocabulary; the support column prevents a descriptor from being mistaken for a complete CRUD implementation.
 
+Each kind has its own page in the sidebar, grouped by Identity, Numbers, Text, Time, Data, Relations and Advanced. Start with [CharField](field-models-char.md), [DecimalField](field-models-decimal.md) or [ForeignKeyField](field-models-foreignkey.md). The [Field options](options-core-models-field.md) reference explains every member, including defaults, validation, storage and presentation; [Relation options](options-core-models-relation.md) covers relation metadata.
+
 ## Start with a complete model
 
 Each field belongs in the `Fields` slice returned by your model's `Schema` method. Match the Go field explicitly with `WithStructField`; import types such as `time.Time` in the app when used.

@@ -45,6 +45,8 @@ Sidebar groups organize feature names without adding empty category documents. I
 | `navigation.json` | Source-fragment inventory and public-package ownership |
 | `index.md`, `guides/` | Human-written tutorials and feature explanations |
 | `settings-descriptions.json` | Short descriptions for every Core environment setting; the build rejects missing, stale or empty entries |
+| `options*.json` | Reviewed configuration behavior keyed by package/type/member; every member of a covered type must have a description or source comment |
+| `fields.json`, `field_reference.py` | One focused page per model/form kind and serializer constructor, grouped navigation, formatted standalone examples and exact source-coverage checks |
 | Package-level Markdown | Advanced contracts; included from their original source, not copied by hand |
 | `snippets/`, `examples/` | Tested code included in tutorials |
 | `tools/catalog/` | Go parser/doc extractor for public APIs, settings, and template vocabulary |
@@ -52,7 +54,7 @@ Sidebar groups organize feature names without adding empty category documents. I
 | `docusaurus.config.js`, `src/`, `static/` | Framework configuration, landing page, and light/dark styling |
 | `.generated/`, `.docusaurus/`, `build/` | Ignored generated content, framework cache, and deployable static output |
 
-Add a source guide to `navigation.json`, give it a direct name in `labels.json`, and place it in `tree.json`. Map every public package to exactly one source guide. Technical notes and Go references are automatically nested under that feature; explicitly list a note in the tree to move it elsewhere. Preserve `sections.json` as a compatibility map, not a page-count constraint. The build rejects orphaned sources, duplicate placement, missing packages, broken routes and broken anchors. Do not reduce page count by dropping contracts, examples or declarations.
+Add a source guide to `navigation.json` with `"new": true` if it did not exist in the historical compact layout, give it a direct name in `labels.json`, and place it in `tree.json`. Map every public package to exactly one source guide. Technical notes and Go references are automatically nested under that feature; explicitly list a note in the tree to move it elsewhere. Preserve `sections.json` as a compatibility map, not a page-count constraint. The build rejects orphaned sources, duplicate placement, missing packages, broken routes and broken anchors. Do not reduce page count by dropping contracts, examples or declarations.
 
 Author ordinary Markdown: nested lists, tables, fenced code, links, and headings. Use stable page IDs for guide links, such as `configuration.md`. Package documents keep their original relative source links; links to included documents resolve inside the site. `{{code repository/path.go}}` inserts the exact tested source as a fenced code block. `{{include repository/guide.md}}` embeds a repository document. Includes cannot escape the repository. Never put secrets, private URLs, or local machine paths in examples.
 
@@ -60,7 +62,11 @@ Tutorial files under `snippets/storefront/` use `.go.txt` because their imports 
 
 ## Writing a usable feature guide
 
-Use direct technical feature names. Put the feature's example next to its behavior and options. State prerequisites, the filename/location of each change, imports, complete code where practical, commands, expected output and failure/denial behavior. Label wiring fragments or compile-only examples explicitly. Keep exact signatures and advanced contracts expandable on the same page; do not create another article for each option or method.
+Use direct technical feature names. Put the feature's example next to its behavior and options. State prerequisites, the filename/location of each change, imports, complete code where practical, commands, expected output and failure/denial behavior. Label wiring fragments or compile-only examples explicitly. Give a small independently configurable feature its own page; keep the members of one configuration type together, with individual anchors. Put defaults, nil/empty/zero distinctions, allowed combinations, validation, provider requirements and unsupported behavior next to the option, not only in an introductory paragraph.
+
+`options*.json` overrides are documentation, not runtime defaults. They must match actual constructors and validators. Source comments fill the remaining members of each reviewed type; generation fails if a member is missing or an override names a removed member. Do not invent behavioral descriptions from a name or Go zero value. Every public declaration remains available in the package references, including inputs, outputs and existing source contracts.
+
+In `fields.json`, model rows are `[kind, title, declaration, behavior, validGoValue, invalidGoValue]`; form/serializer rows are `[kindOrConstructor, declaration, behavior, validInput]`. A null input marks a declaration-only example. Form input is literal submitted text; model and serializer values are Go expressions. The tests compile every declaration and execute each supplied validation example. Backend persistence, authorization and browser behavior still need their separate integration checks.
 
 Add a link from **All features** for every package-owning guide. A working public read example must not be described as authenticated CRUD. A constructor-only field catalog must not be described as end-to-end backend support. Distinguish local-source test evidence, pinned published-module recipes, Docker configuration validation, and a real container runtime test.
 

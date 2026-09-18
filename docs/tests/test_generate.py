@@ -2,8 +2,10 @@ import importlib.util
 import json
 from pathlib import Path
 import re
+import sys
 import unittest
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 spec = importlib.util.spec_from_file_location("gogo_docs", Path(__file__).resolve().parents[1] / "generate.py")
 docs = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(docs)
@@ -100,6 +102,16 @@ class ContentTests(unittest.TestCase):
         self.assertLess(source.index("#### Model.Save"), source.index("## Functions"))
         self.assertEqual(source.count("// Model.Save"), 1)
 
+    def test_members_and_function_parameters_are_explained(self):
+        package = {"Directory": "core/example"}
+        declaration = {"Name": "Config", "Members": [{"Name": "Limit", "Type": "int", "Doc": "Zero selects the default."}],
+                       "Parameters": [{"Name": "ctx", "Type": "context.Context", "Doc": ""}],
+                       "Results": [{"Name": "result", "Type": "error", "Doc": ""}]}
+        result = "\n".join(docs.declaration_details(package, declaration, {}))
+        self.assertIn("| `Limit` | `int` | Zero selects the default. |", result)
+        self.assertIn("ctx: context.Context", result)
+        self.assertIn("result: error", result)
+
 
 class SettingsTests(unittest.TestCase):
     def setUp(self):
@@ -136,6 +148,13 @@ class TreeTests(unittest.TestCase):
     def test_explicit_note_placement_wins(self):
         result = docs.compile_tree({"sidebar": ["guide", "note"]}, self.pages)
         self.assertEqual([item["id"] for item in result["sidebar"]], ["guide", "note"])
+
+    def test_field_families_are_nested_under_their_feature(self):
+        self.pages["note"]["navGroup"] = "Text"
+        result = docs.compile_tree({"sidebar": ["guide"]}, self.pages)
+        group = result["sidebar"][0]["items"][0]
+        self.assertEqual(group["label"], "Text")
+        self.assertEqual(group["items"][0]["id"], "note")
 
     def test_orphan_rejected(self):
         with self.assertRaisesRegex(ValueError, "missing"):

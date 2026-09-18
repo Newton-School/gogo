@@ -2,6 +2,8 @@
 
 Core describes the contracts; connectors execute them against external systems. PostgreSQL and Redis are the initial supported external backends. Admin and Async remain independently installable.
 
+The [PostgreSQL configuration](options-connectors-postgres-config.md) and [Redis configuration](options-connectors-redis-config.md) pages explain every connector option, zero-value defaults, incompatible combinations and security requirements. Environment settings only affect these structs when your project wires them into its resource opener.
+
 ## Install the adapters you use
 
 In your client project:

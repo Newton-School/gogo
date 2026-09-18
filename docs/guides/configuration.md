@@ -2,6 +2,8 @@
 
 Keep configuration in your **client project**, not in the Gogo framework repository. Generated applications include `.env` and `.env.example`; the framework itself does not need runnable application credentials.
 
+Use the [environment variable reference](settings.md) for built-in settings and the [Definition reference](options-core-conf-definition.md) for every option available when declaring your own setting. Feature-specific Go configuration belongs to its feature's sidebar, including [PostgreSQL](options-connectors-postgres-config.md), [Redis](options-connectors-redis-config.md), [Admin](options-admin-config.md) and [Async](options-async-clientconfig.md).
+
 ## The minimum
 
 | What your application enables | Required settings | What they do |
