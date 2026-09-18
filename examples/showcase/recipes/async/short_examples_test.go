@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/Newton-School/gogo/async"
+	simulator "github.com/Newton-School/gogo/async/testing"
 )
 
 func Example_smallTask() {
@@ -117,4 +118,56 @@ func Example_retryOptions() {
 	deadline, retry := options.Retry.Next(async.Retry(async.ErrUnavailable), 2, now, time.Time{}, 0.5)
 	fmt.Println(retry, deadline.Sub(now))
 	// Output: true 2s
+}
+
+func Example_clientAndWorkerOptions() {
+	registry := async.NewRegistry()
+	addOne := increment(registry)
+	memory := simulator.NewMemory() // Test-only; use durable providers in production.
+	// docs:begin client-options
+	client, err := async.NewClient(async.ClientConfig{
+		Registry: registry, Broker: memory, Results: memory,
+		Workflows: memory, Schedules: memory,
+		Queues:         []string{"default"},
+		Routes:         []async.Route{{Pattern: "recipes.*", Queue: "default"}},
+		AllowedHeaders: []string{"request-id"},
+	})
+	if err != nil {
+		panic(err)
+	}
+	// docs:end client-options
+	// docs:begin worker-options
+	worker := &async.Worker{
+		Registry: registry, Broker: memory, Results: memory,
+		ID: "example-worker", Queues: []string{"default"}, Concurrency: 4,
+		Lease: 60 * time.Second, Heartbeat: 20 * time.Second,
+	}
+	// In the worker process: return worker.Run(ctx).
+	// This constructor does not start worker goroutines.
+	// docs:end worker-options
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	// docs:begin dispatch-options
+	result, err := addOne.Delay(ctx, client, 41,
+		async.OnQueue("default"), async.WithPriority(3),
+		async.WithHeaders(map[string]string{"request-id": "example-request"}),
+		async.WithStamps(map[string]string{"category": "example"}),
+	)
+	if err != nil {
+		panic(err)
+	}
+	// docs:end dispatch-options
+	delivery, err := memory.Consume(ctx, async.ConsumeOptions{Queues: []string{"default"}, Consumer: worker.ID})
+	if err != nil {
+		panic(err)
+	}
+	if err := worker.Process(ctx, delivery); err != nil {
+		panic(err)
+	}
+	value, err := result.Get(ctx)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println(value)
+	// Output: 42
 }
