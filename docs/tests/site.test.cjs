@@ -7,7 +7,7 @@ const read = name => fs.readFileSync(path.join(root, name), 'utf8');
 const coverage = JSON.parse(read('.generated/coverage.json'));
 const sidebars = JSON.parse(read('.generated/sidebars.json'));
 
-test('unpatched image parsers cannot be reached through Markdown images', () => {
+test('the image guard still rejects Markdown images after dependency upgrades', () => {
   const transform = require('../tools/remark-image-policy.cjs')();
   for (const type of ['image', 'imageReference']) {
     assert.throws(() => transform({type: 'root', children: [{type, url: 'disguised.png'}]}, {fail(message) {throw new Error(message);}}), /images are disabled/);

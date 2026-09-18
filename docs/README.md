@@ -73,9 +73,9 @@ This checks tree coverage, content adaptation, field inventories, executable Go 
 
 `npm --prefix docs audit` checks the documentation dependency graph against the current advisory database. The lockfile pins its resolved versions. `docs/build/` can be deployed as static files; set the public `url` and `baseUrl` in the Docusaurus configuration for the chosen host. No public deployment is configured by default.
 
-### Current build-tool advisory
+### Build-tool security
 
-Docusaurus 3.10.2 pulls in `image-size` 2.0.2. Its [ICNS](https://github.com/advisories/GHSA-w3rx-r6r6-pgpr) and [JXL/HEIF](https://github.com/advisories/GHSA-5p2g-fcmc-qvqq) parsers have no published patch as of September 10, 2026. The docs reject Markdown images, including reference-style images, before Docusaurus invokes that parser. No current guide uses them. The reviewed static SVG logo is served without image-size processing. Keep this guard until a patched dependency is available; an npm audit still reports the upstream dependency and its dependents, so this is a mitigation, not a clean audit. Never run documentation builds on unreviewed executable MDX or configuration. The preview binds only to loopback.
+The lockfile pins `image-size` 2.0.4, replacing the version affected by the [ICNS](https://github.com/advisories/GHSA-w3rx-r6r6-pgpr) and [JXL/HEIF](https://github.com/advisories/GHSA-5p2g-fcmc-qvqq) parser advisories. The dependency audit reported zero vulnerabilities when this update was verified; rerun it because advisories change. Markdown images, including reference-style images, remain disabled before Docusaurus invokes its image parser. No current guide needs them; use reviewed static theme assets such as the SVG logo. Never run documentation builds on unreviewed executable MDX or configuration. The preview binds only to loopback.
 
 The targeted `serialize-javascript`, Express `qs`, and SockJS `uuid` overrides select patched releases. Their consumers' APIs, production build, and development-server startup are checked when updating the lockfile. These overrides belong only to documentation tooling.
 
