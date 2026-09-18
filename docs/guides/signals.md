@@ -20,4 +20,4 @@ A signal fired before commit can observe a change that later rolls back. Use the
 
 Use [Async/outbox](scheduling.md) for durable cross-process work. Do not claim that an ORM hook or signal receiver makes external side effects exactly-once.
 
-The technical signal guide and [services recipe](https://github.com/Newton-School/gogo/tree/master/examples/showcase/recipes/services) show typed stop/robust behavior.
+The technical signal guide and services recipe show typed stop/robust behavior.

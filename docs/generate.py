@@ -17,7 +17,6 @@ from field_reference import build_pages as field_pages
 ROOT = Path(__file__).resolve().parents[1]
 DOCS = ROOT / "docs"
 OUTPUT = DOCS / ".generated"
-REPOSITORY = "https://github.com/Newton-School/gogo/blob/"
 VERSION = "v1.0.0-alpha.1"
 LINK = re.compile(r"\[([^\]]+)\]\(([^)\s]+)\)")
 
@@ -31,10 +30,6 @@ def safe_file(path):
     if not target.is_relative_to(ROOT) or not target.is_file():
         raise ValueError(f"Missing or out-of-repository source: {path}")
     return target
-
-
-def source_link(path, revision):
-    return REPOSITORY + revision + "/" + path
 
 
 def outside_fences(source, transform):
@@ -65,6 +60,15 @@ def rewrite_links(source, source_path, page_sources, revision, page_ids):
         parts = urlsplit(target)
         if parts.scheme not in ("", "https", "http", "mailto") or target.startswith("//"):
             raise ValueError("Unsafe documentation link: " + target)
+        if parts.hostname in ("github.com", "www.github.com", "raw.githubusercontent.com"):
+            repository_path = re.fullmatch(r"/Newton-School/gogo/(?:blob|tree)/[^/]+/(.+)", parts.path)
+            if repository_path and repository_path[1] in page_sources:
+                destination = page_sources[repository_path[1]] + ".md"
+                if parts.fragment:
+                    destination += "#" + parts.fragment
+                return f"[{match[1]}]({destination})"
+            if repository_path or re.search(r"/(?:blob|tree)/", parts.path) or parts.hostname == "raw.githubusercontent.com":
+                return match[1]
         if parts.scheme or target.startswith("#"):
             return match[0]
         # Existing feature guides use stable page IDs; package notes use paths.
@@ -77,7 +81,8 @@ def rewrite_links(source, source_path, page_sources, revision, page_ids):
                 destination = page_sources[normalized] + ".md"
             else:
                 safe_file(normalized) if Path(normalized).suffix else None
-                destination = source_link(normalized, revision)
+                # Keep source-only references as text, never outbound repository links.
+                return match[1]
         if parts.query:
             destination += "?" + parts.query
         if parts.fragment:
@@ -102,7 +107,7 @@ def expand(source, revision, page_sources, page_ids):
             # Pick a fence longer than any backtick run in the source.
             width = max([2] + [len(m[0]) for m in re.finditer(r"`+", content)]) + 1
             fence = "`" * width
-            return f"[Example source]({source_link(path, revision)})\n\n{fence}{language}\n{content.rstrip()}\n{fence}"
+            return f"{fence}{language}\n{content.rstrip()}\n{fence}"
         content = rewrite_links(content, path, page_sources, revision, page_ids)
         return re.sub(r"^(#{1,5}) ", r"#\1 ", content, flags=re.M)
     return outside_fences(source, lambda prose: re.sub(r"\{\{(code|include) ([A-Za-z0-9_./-]+)\}\}", include, prose))
@@ -154,11 +159,11 @@ def api_page(package, guide_id, revision, options=None):
             name = declaration["Name"]
             # Constants may be one declaration containing dozens of names.
             heading = name.split(", ")[0] + (" and related values" if ", " in name else "")
-            lines += [f"### {heading} {{#{slug(name)}}}", "", declaration["Doc"].strip(), "", "```go", declaration["Signature"], "```", "", f"[Source]({source_link(declaration['File'], revision)}#L{declaration['Line']})", ""]
+            lines += [f"### {heading} {{#{slug(name)}}}", "", declaration["Doc"].strip(), "", "```go", declaration["Signature"], "```", ""]
             lines += declaration_details(package, declaration, options)
             if kind == "type":
                 for method in [d for d in declarations if d["Kind"] == "method" and d["Name"].startswith(name + ".")]:
-                    lines += [f"#### {method['Name']} {{#{slug(method['Name'])}}}", "", method["Doc"].strip(), "", "```go", method["Signature"], "```", "", f"[Source]({source_link(method['File'], revision)}#L{method['Line']})", ""]
+                    lines += [f"#### {method['Name']} {{#{slug(method['Name'])}}}", "", method["Doc"].strip(), "", "```go", method["Signature"], "```", ""]
                     lines += declaration_details(package, method, options)
     return "\n".join(lines)
 
@@ -201,6 +206,8 @@ def compile_tree(tree, pages):
             if isinstance(item, str):
                 explicit.add(item)
             else:
+                if "guide" in item or "doc" in item:
+                    explicit.add(item.get("guide", item.get("doc")))
                 explicit.update(item.get("notes", []))
                 collect(item.get("items", []))
     for items in tree.values():
@@ -217,6 +224,10 @@ def compile_tree(tree, pages):
     def convert(item):
         if isinstance(item, str):
             item = {"guide": item}
+        if "doc" in item:
+            leaf = document(item["doc"])
+            leaf["label"] = item.get("label", leaf["label"])
+            return leaf
         if "guide" in item:
             identifier = item["guide"]
             leaf = document(identifier)
@@ -236,13 +247,15 @@ def compile_tree(tree, pages):
                     grouped_notes[group]["items"].append(document(note))
                 else:
                     children.append(document(note))
-            references = pages[identifier].get("references", [])
+            references = [reference for reference in pages[identifier].get("references", []) if reference not in explicit]
             if references:
                 children.append({"type": "category", "label": "Reference", "collapsed": True,
                                  "items": [document(reference) for reference in references]})
             if not children:
                 return leaf
-            return {"type": "category", "label": leaf["label"], "description": pages[identifier].get("description", "Explore " + leaf["label"].lower() + "."), "link": {"type": "doc", "id": identifier}, "collapsed": True, "items": children}
+            label = leaf["label"]
+            leaf["label"] = item.get("leafLabel", "Overview")
+            return {"type": "category", "label": label, "collapsed": True, "items": [leaf, *children]}
         category = item["id"]
         if category in categories:
             raise ValueError("Duplicate category: " + category)
@@ -250,7 +263,7 @@ def compile_tree(tree, pages):
         result = {"type": "category", "label": item["label"], "collapsed": False,
                   "items": [convert(child) for child in item["items"]]}
         if item.get("description"):
-            result.update(description=item["description"], link={"type": "generated-index", "title": item["label"], "description": item["description"], "slug": "/category/" + category})
+            result["description"] = item["description"]
         return result
 
     sidebars = {key: [convert(item) for item in items] for key, items in tree.items()}

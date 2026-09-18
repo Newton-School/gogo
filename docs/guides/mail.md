@@ -36,4 +36,4 @@ Inspect each recipient receipt and the send error. Partial acceptance is possibl
 
 If you queue mail, define an application task and an idempotency/delivery policy. Ordinary task payloads must not contain account-reset secrets. Core's password reset has its own sensitive synchronous path; encrypted durable reset delivery is not included in this release.
 
-The [services recipe](https://github.com/Newton-School/gogo/tree/master/examples/showcase/recipes/services) covers multipart composition, Bcc privacy, header denial and simulated outbox behavior without sending actual mail.
+The services recipe covers multipart composition, Bcc privacy, header denial and simulated outbox behavior without sending actual mail.

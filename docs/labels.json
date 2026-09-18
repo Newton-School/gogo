@@ -16,5 +16,15 @@
   "detail-admin-inline-relations": "Inlines", "detail-admin-relation-select": "Relation widgets", "detail-admin-save-on-top": "Save controls",
   "detail-admin-prepopulate": "Prepopulation", "detail-admin-empty-display": "Empty values", "detail-admin-search-help": "Search help",
   "detail-async-group-result": "Group results", "detail-async-group-forget": "Group cleanup", "detail-async-result": "Results",
-  "detail-async-publish-retry": "Publish retries", "detail-async-testing-periodic": "Periodic tests"
+  "detail-async-publish-retry": "Publish retries", "detail-async-testing-periodic": "Periodic tests",
+  "detail-core-models-slug": "Slug validation", "detail-core-orm-routing": "Database routing",
+  "detail-core-api-readme": "Resource policies", "detail-core-api-create": "Create",
+  "detail-core-api-update": "Update", "detail-core-api-delete": "Delete",
+  "detail-core-api-idempotency": "Idempotency", "detail-core-api-openapi": "OpenAPI",
+  "detail-core-api-output-schema": "Output schemas", "detail-core-tasks-readme": "Core dispatch",
+  "detail-async-readme": "Execution lifecycle",
+  "detail-core-contrib-flatpages-readme": "Flat pages", "detail-core-contrib-redirects-readme": "Redirects",
+  "detail-core-contrib-sitemaps-readme": "Sitemaps", "detail-core-contrib-sites-readme": "Sites",
+  "detail-core-contrib-syndication-readme": "Feeds", "detail-core-contrib-humanize-readme": "Humanize",
+  "detail-core-health-readme": "Health checks", "detail-core-observability-readme": "Telemetry"
 }

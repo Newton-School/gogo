@@ -30,4 +30,4 @@ Register the manifest's template tags so templates resolve the collected URLs. S
 
 Supported CSS URL rewriting is bounded and validated. It is not full Django staticfiles post-processing parity or a general JavaScript build pipeline. Use an external frontend asset build when your application needs one, then register only its intended public output.
 
-Never add a repository root, `.env`, private upload directory or credential volume as a public static source. The [static recipe](https://github.com/Newton-School/gogo/tree/master/examples/showcase/recipes/static) demonstrates dry-run collection and template integration without publishing files.
+Never add a repository root, `.env`, private upload directory or credential volume as a public static source. The static recipe demonstrates dry-run collection and template integration without publishing files.

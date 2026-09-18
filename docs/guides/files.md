@@ -28,7 +28,7 @@ Construct local storage with an explicitly owned root. Saved objects use the sto
 
 Direct public URLs are not supported by the local adapter. Use the authorized file service and download handler. The local adapter is designed for supported Linux/macOS filesystem-confinement behavior; inspect the platform contract before deployment elsewhere.
 
-The [storage recipe](https://github.com/Newton-School/gogo/tree/master/examples/showcase/recipes/storage) saves/deletes a disposable local object and demonstrates the public-URL refusal. It is not a cloud storage example.
+The storage recipe saves/deletes a disposable local object and demonstrates the public-URL refusal. It is not a cloud storage example.
 
 ## Metadata and authorization
 

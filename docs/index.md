@@ -16,7 +16,7 @@ Keep Go's types, interfaces, `context.Context`, standard HTTP handlers, and conc
 
 Start with [Installation](installation.md), then [Quickstart](quickstart.md), [Running](running.md), the [API tutorial](tutorial-api.md), and [Docker](docker.md). Each step has its own page. [Example](showcase.md) runs the complete sample application.
 
-Each sidebar feature expands into focused pages for its smaller behaviors. Use those pages for configuration, constraints and failure cases, and its **Reference** group for exact Go types and functions. The [feature directory](features.md) links to each capability.
+Sidebar folders only expand and collapse; pages are always leaf entries. Open a feature's **Overview** for its introduction, a focused page for configuration and failure cases, or its **Reference** group for exact Go types and functions. Examples and signatures are included directly in these docs. The [feature directory](features.md) links to each capability.
 
 | You want to… | Start here |
 | --- | --- |

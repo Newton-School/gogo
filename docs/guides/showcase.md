@@ -50,6 +50,6 @@ If these volumes were created by the prefixed-key alpha, read [the Redis cutover
 
 > This is a local development profile, not a production scaling template. The alpha's development Redis checks require loopback, so the services share a container network namespace. Only the local HTTP port is published.
 
-## Find the implementation
+## Coverage {#find-the-implementation}
 
-The full [showcase instructions](https://github.com/Newton-School/gogo/blob/master/examples/showcase/README.md) cover native setup, ports, credentials and integration checks. Its [coverage map](https://github.com/Newton-School/gogo/blob/master/examples/showcase/COVERAGE.md) distinguishes real persistence, executable recipes, compile-only examples and descriptor-only fields. Those are different evidence levels, not interchangeable claims of support.
+Use [field references](model-fields.md), [form examples](forms.md), [serializer examples](api.md) and [Async recipes](async-recipes.md) to explore each feature. The example distinguishes real persistence, executable recipes, compile-only examples and descriptor-only fields. Those are different evidence levels, not interchangeable claims of support. Follow [installation](installation.md) and [running](running.md) for the native project workflow.

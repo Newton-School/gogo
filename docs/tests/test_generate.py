@@ -21,7 +21,8 @@ class ContentTests(unittest.TestCase):
         result = docs.expand("{{code " + path + "}}", "revision", {}, {})
         self.assertIn(docs.safe_file(path).read_text().rstrip(), result)
         self.assertIn("```go\n", result)
-        self.assertIn("/revision/" + path, result)
+        self.assertNotIn("Example source", result)
+        self.assertNotIn("https://github.com", result)
 
     def test_tutorial_file_languages_are_preserved(self):
         for path, language in [
@@ -76,6 +77,16 @@ class ContentTests(unittest.TestCase):
         source = "[Field](api-core-models.md#field)"
         self.assertEqual(docs.rewrite_links(source, "docs/guides/models.md", {}, "rev", {"api-core-models"}), source)
 
+    def test_repository_links_use_documentation_or_plain_text(self):
+        sources = {"core/orm/routing.md": "detail-core-orm-routing"}
+        result = docs.rewrite_links(
+            "[Routing](https://github.com/Newton-School/gogo/blob/master/core/orm/routing.md#routing) "
+            "[Example](../../docs/snippets/catalog/models.go) "
+            "[Source](https://github.com/Newton-School/gogo/tree/master/examples) "
+            "[Raw](https://raw.githubusercontent.com/Newton-School/gogo/master/gogo.go) "
+            "[Redis](https://redis.io/docs/)", "docs/guides/models.md", sources, "rev", {})
+        self.assertEqual(result, "[Routing](detail-core-orm-routing.md#routing) Example Source Raw [Redis](https://redis.io/docs/)")
+
     def test_missing_source_link_fails(self):
         with self.assertRaises(ValueError):
             docs.rewrite_links("[Code](missing.go)", "core/api/README.md", {}, "rev", {})
@@ -101,6 +112,8 @@ class ContentTests(unittest.TestCase):
         self.assertLess(source.index("### Model"), source.index("#### Model.Save"))
         self.assertLess(source.index("#### Model.Save"), source.index("## Functions"))
         self.assertEqual(source.count("// Model.Save"), 1)
+        self.assertNotIn("[Source]", source)
+        self.assertNotIn("https://github.com", source)
 
     def test_members_and_function_parameters_are_explained(self):
         package = {"Directory": "core/example"}
@@ -142,8 +155,10 @@ class TreeTests(unittest.TestCase):
 
     def test_feature_owns_nested_notes(self):
         result = docs.compile_tree({"sidebar": ["guide"]}, self.pages)
-        self.assertEqual(result["sidebar"][0]["link"]["id"], "guide")
-        self.assertEqual(result["sidebar"][0]["items"][0]["id"], "note")
+        category = result["sidebar"][0]
+        self.assertNotIn("link", category)
+        self.assertEqual(category["items"][0], {"type": "doc", "id": "guide", "label": "Overview"})
+        self.assertEqual(category["items"][1]["id"], "note")
 
     def test_explicit_note_placement_wins(self):
         result = docs.compile_tree({"sidebar": ["guide", "note"]}, self.pages)
@@ -152,7 +167,7 @@ class TreeTests(unittest.TestCase):
     def test_field_families_are_nested_under_their_feature(self):
         self.pages["note"]["navGroup"] = "Text"
         result = docs.compile_tree({"sidebar": ["guide"]}, self.pages)
-        group = result["sidebar"][0]["items"][0]
+        group = result["sidebar"][0]["items"][1]
         self.assertEqual(group["label"], "Text")
         self.assertEqual(group["items"][0]["id"], "note")
 
@@ -168,11 +183,22 @@ class TreeTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Unknown"):
             docs.compile_tree({"sidebar": ["absent"]}, self.pages)
 
-    def test_category_has_a_descriptive_landing_page(self):
+    def test_categories_never_generate_landing_pages(self):
         result = docs.compile_tree({"sidebar": [{"id": "learn", "label": "Learn", "description": "A clear starting point", "items": ["guide"]}]}, self.pages)
-        link = result["sidebar"][0]["link"]
-        self.assertEqual(link["type"], "generated-index")
-        self.assertEqual(link["description"], "A clear starting point")
+        category = result["sidebar"][0]
+        self.assertNotIn("link", category)
+        self.assertEqual(category["description"], "A clear starting point")
+
+    def test_explicit_reference_placement_wins(self):
+        self.pages["reference"] = {"id": "reference", "title": "Package"}
+        self.pages["guide"]["references"] = ["reference"]
+        result = docs.compile_tree({"sidebar": ["guide", {"doc": "reference", "label": "Types"}]}, self.pages)
+        self.assertEqual(result["sidebar"][1], {"type": "doc", "id": "reference", "label": "Types"})
+        self.assertEqual([item["id"] for item in result["sidebar"][0]["items"]], ["guide", "note"])
+
+    def test_explicit_guide_placement_does_not_duplicate_note(self):
+        result = docs.compile_tree({"sidebar": ["guide", {"guide": "note"}]}, self.pages)
+        self.assertEqual([item["id"] for item in result["sidebar"]], ["guide", "note"])
 
 
 class ConsolidationTests(unittest.TestCase):

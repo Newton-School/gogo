@@ -29,7 +29,7 @@ Register allowed message types and limits before accepting traffic. Check both o
 
 The WebSocket package exposes an explicit shutdown contract. Stop admitting connections, drain/close existing sessions and only then release resources they use. Ordinary HTTP shutdown alone is not proof that upgraded connections are finished.
 
-See the [WebSocket recipe](https://github.com/Newton-School/gogo/tree/master/examples/showcase/recipes/websocket) for typed wiring. Its compile-only example does not claim a browser/socket integration run.
+See the WebSocket recipe for typed wiring. Its compile-only example does not claim a browser/socket integration run.
 
 ## Async versus goroutines
 

@@ -44,4 +44,4 @@ Create a separate client, port code/configuration explicitly, and rehearse any d
 
 The public framework source matched the alpha tag when these docs were authored. The standalone showcase and documentation were added after that immutable release commit. Source links identify the checkout used to build the site; newly generated documentation is not a new module release.
 
-Read the [release notes](https://github.com/Newton-School/gogo/blob/master/releases/v1.0.0-alpha.1.md) before adopting or upgrading the alpha. Architecture approval is not proof that every planned feature exists in code.
+Review the boundaries above and the [Redis upgrade instructions](connectors.md#upgrade-from-prefixed-keys) before adopting or upgrading the alpha. Architecture approval is not proof that every planned feature exists in code.

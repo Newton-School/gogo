@@ -18,8 +18,7 @@
       "label": "Project",
       "items": [
         "structure",
-        "configuration",
-        "settings",
+        {"guide": "configuration", "items": ["settings"]},
         "commands"
       ]
     },
@@ -28,7 +27,7 @@
       "label": "Models",
       "items": [
         "models",
-        "model-fields",
+        {"guide": "model-fields", "items": ["detail-core-models-slug"]},
         "relations"
       ]
     },
@@ -37,7 +36,7 @@
       "label": "Database",
       "items": [
         "queries",
-        "transactions",
+        {"guide": "transactions", "items": ["detail-core-orm-routing"]},
         "migrations",
         "fixtures"
       ]
@@ -56,16 +55,21 @@
       "label": "API",
       "items": [
         "api",
-        "api-writes"
+        {"guide": "api-writes", "items": [
+          "detail-core-api-create", "detail-core-api-update", "detail-core-api-delete", "detail-core-api-idempotency"
+        ]},
+        "detail-core-api-openapi",
+        "detail-core-api-readme"
       ]
     },
     {
       "id": "presentation",
       "label": "Presentation",
       "items": [
-        "forms",
-        "templates",
-        "template-vocabulary",
+        {"guide": "forms", "items": [
+          {"id": "form-widgets", "label": "Widgets", "items": ["options-core-forms-inputwidget", "options-core-forms-multiwidget"]}
+        ]},
+        {"guide": "templates", "items": ["template-vocabulary"]},
         "i18n"
       ]
     },
@@ -75,7 +79,7 @@
       "items": [
         "auth",
         "sessions",
-        "security"
+        {"guide": "security", "label": "HTTP security"}
       ]
     },
     {
@@ -94,7 +98,14 @@
       "id": "operations",
       "label": "Operations",
       "items": [
-        "connectors",
+        {"guide": "connectors", "items": [
+          {"id": "postgres", "label": "PostgreSQL", "items": [
+            "options-connectors-postgres-config", "detail-connectors-postgres-constraints",
+            "detail-connectors-postgres-field-indexes", "detail-connectors-postgres-introspection",
+            "detail-connectors-postgres-named-indexes", "api-connectors-postgres"
+          ]},
+          {"id": "redis", "label": "Redis", "items": ["options-connectors-redis-config", "api-connectors-redis"]}
+        ]},
         "deployment",
         "observability",
         "testing",
@@ -107,22 +118,26 @@
       "label": "Catalogs",
       "items": [
         "features",
-        "packages"
+        "packages",
+        "api-gogo"
       ]
     }
   ],
   "adminSidebar": [
     "admin-wiring",
-    "admin",
-    "admin-customization",
+    {"guide": "admin", "items": ["admin-customization"]},
     "detail-admin-accounts",
     "admindocs"
   ],
   "asyncSidebar": [
     "async-wiring",
-    "async",
+    {"guide": "async", "items": ["detail-core-tasks-readme"]},
+    {"id": "async-workers", "label": "Workers", "items": ["options-async-worker", "api-async-management"]},
     "workflows",
+    {"id": "async-results", "label": "Results", "items": ["detail-async-result", "detail-async-group-result", "detail-async-group-forget"]},
+    {"id": "async-retries", "label": "Retries", "items": ["options-async-retrypolicy", "detail-async-publish-retry"]},
+    "scheduling",
     "async-recipes",
-    "scheduling"
+    {"id": "async-testing", "label": "Testing", "items": ["api-async-testing", "detail-async-testing-periodic"]}
   ]
 }

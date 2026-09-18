@@ -26,7 +26,7 @@ Follow [Wire a queue and worker](async-wiring.md) for the complete resource fact
 
 Create a `Client` with explicit registry, broker, results, workflows and allowed queues. Create a `Worker` with its queue selection, identity, concurrency and owned providers. For durable workflows/retries/delays, also configure the matching relay and delayed dispatcher; those services are not implicit goroutines.
 
-`async/management.Commands` registers only the factories you provide. The showcase's [Async wiring](https://github.com/Newton-School/gogo/blob/master/examples/showcase/config/async.go) is a complete example with Redis-backed workers, relay and delayed dispatch.
+`async/management.Commands` registers only the factories you provide. The [Async setup](async-wiring.md) includes complete wiring for Redis-backed workers, relay and delayed dispatch.
 
 ```sh
 go run manage.go worker --concurrency 4 --queues showcase

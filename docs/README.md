@@ -33,7 +33,7 @@ Content is prepared from source before startup. After changing a guide, package 
 - **Admin**: Setup, Models, Accounts.
 - **Async**: Setup, Tasks, Workflows, Schedules.
 
-Sidebar groups organize feature names without adding empty category documents. Installation, Quickstart, Running, the API tutorial and Docker are separate steps. Small features such as Admin ordering, inline forms, API idempotency and Async result cleanup have their own pages. Each feature's Reference group contains its packages. Search and historical links reach the exact page and heading, including links made when the site used consolidated articles.
+Sidebar categories only expand or collapse: they never open a document or generated landing page. Every document appears exactly once as a leaf. A feature's introductory content is its first **Overview** leaf when that feature has children; its original URL stays valid. Installation, Quickstart, Running, the API tutorial and Docker are separate steps. Small features such as Admin ordering, inline forms, API idempotency and Async result cleanup have their own pages. Each feature's Reference group contains its packages. Search and historical links reach the exact page and heading, including links made when the site used consolidated articles.
 
 ## Where to edit
 
@@ -56,7 +56,11 @@ Sidebar groups organize feature names without adding empty category documents. I
 
 Add a source guide to `navigation.json` with `"new": true` if it did not exist in the historical compact layout, give it a direct name in `labels.json`, and place it in `tree.json`. Map every public package to exactly one source guide. Technical notes and Go references are automatically nested under that feature; explicitly list a note in the tree to move it elsewhere. Preserve `sections.json` as a compatibility map, not a page-count constraint. The build rejects orphaned sources, duplicate placement, missing packages, broken routes and broken anchors. Do not reduce page count by dropping contracts, examples or declarations.
 
+Use `{"id": "...", "label": "...", "items": [...]}` for an expand-only category, `{"guide": "...", "items": [...]}` to place a guide's related leaves, and `{"doc": "..."}` for an explicit leaf. A guide with children automatically becomes a category with an Overview leaf; `leafLabel` can name that introductory leaf more precisely. Explicit placement overrides inferred ownership for both technical notes and package references. Keep environment variables under Configuration, mutations separate from serializers, backend-specific configuration under its connector, and Async workers, results, retries and testing in their own groups.
+
 Author ordinary Markdown: nested lists, tables, fenced code, links, and headings. Use stable page IDs for guide links, such as `configuration.md`. Package documents keep their original relative source links; links to included documents resolve inside the site. `{{code repository/path.go}}` inserts the exact tested source as a fenced code block. `{{include repository/guide.md}}` embeds a repository document. Includes cannot escape the repository. Never put secrets, private URLs, or local machine paths in examples.
+
+Keep examples and signatures in the documentation; do not add GitHub source links or source buttons. Repository links to a documented page resolve locally; source-only links render as plain text. Code fences retain required Go module import paths. Generation still checks source coverage internally, without publishing per-symbol source links.
 
 Tutorial files under `snippets/storefront/` use `.go.txt` because their imports belong to a generated client module, not the framework workspace. They render as Go and are copied into that client by the tutorial tests. Dockerfile/YAML includes retain their language highlighting. Do not hand-copy a second implementation into prose.
 

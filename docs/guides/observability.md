@@ -38,4 +38,4 @@ Run `go test -v ./recipes/telemetry` from the showcase directory. Choose a bound
 
 Use stable operation names and safe identifiers. Do not attach passwords, tokens, raw SQL parameters, task payloads or unrestricted request bodies. Telemetry failure must not rewrite an already confirmed business result.
 
-There is no automatic whole-stack tracing merely from importing the package. Network exporters and complete instrumentation coverage are not implied. The [health](https://github.com/Newton-School/gogo/tree/master/examples/showcase/recipes/health) and [telemetry](https://github.com/Newton-School/gogo/tree/master/examples/showcase/recipes/telemetry) recipes show explicit wiring.
+There is no automatic whole-stack tracing merely from importing the package. Network exporters and complete instrumentation coverage are not implied. The health and telemetry recipes show explicit wiring.

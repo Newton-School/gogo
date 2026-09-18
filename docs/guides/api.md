@@ -72,4 +72,4 @@ Parsers and renderers have explicit content-type, size and acceptance contracts.
 
 OpenAPI comes from declared route/schema metadata, not unrestricted reflection of every model. The read-route helper used above and the explicit schema/command factories generate that document. OpenAPI availability is not a claim of an interactive browsable API or metadata for every custom action.
 
-The [API recipes](https://github.com/Newton-School/gogo/tree/master/examples/showcase/recipes/api) demonstrate field binding, representation, input denial and transport behavior against the pinned release. They are not a database-backed nested-write tutorial.
+The API recipes demonstrate field binding, representation, input denial and transport behavior against the pinned release. They are not a database-backed nested-write tutorial.

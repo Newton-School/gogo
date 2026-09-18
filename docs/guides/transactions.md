@@ -31,4 +31,4 @@ For durable database-to-queue coupling, use Async's explicit transactional outbo
 
 Routing must enforce both reads and writes, relation targets, transactions and migration ownership. It must not allow a read-only route to become a write path through a raw executor. Failover, replication and cross-database atomicity are infrastructure concerns, not promises made by the routing API.
 
-The technical routing guide and [ORM routing recipe](https://github.com/Newton-School/gogo/tree/master/examples/showcase/recipes/orm_routing) show the exact composition. That sample recipe is compile-only, not a running replication demonstration.
+The technical routing guide and ORM routing recipe show the exact composition. That sample recipe is compile-only, not a running replication demonstration.

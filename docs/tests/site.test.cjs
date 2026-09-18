@@ -41,7 +41,8 @@ test('only Docs Admin and Async exist with direct technical page names', () => {
       assert.ok(depth <= 4, `${name} is too deeply nested`);
       for (const node of nodes) {
         if (node.type === 'category') {
-          if (node.link) assert.equal(node.link.type, 'doc');
+          assert.equal(node.link, undefined, `${node.label} must expand without opening a page`);
+          assert.ok(node.items.length > 0, `${node.label} is an empty category`);
           walk(node.items, depth + 1);
         }
         assert.ok(node.label.split(/\s+/).length <= 4, `Use a direct feature name: ${node.label}`);
@@ -49,6 +50,40 @@ test('only Docs Admin and Async exist with direct technical page names', () => {
     }
     walk(items, 1);
   }
+});
+
+test('all documents are leaf nodes exactly once in the correct feature hierarchy', () => {
+  const locations = new Map();
+  function walk(items, parents) {
+    for (const item of items) {
+      if (item.type === 'category') walk(item.items, [...parents, item.label]);
+      else {
+        assert.equal(item.type, 'doc');
+        assert.equal(item.items, undefined);
+        assert.ok(!locations.has(item.id), `Duplicate navigation entry: ${item.id}`);
+        locations.set(item.id, parents);
+      }
+    }
+  }
+  for (const [name, items] of Object.entries(sidebars)) walk(items, [name]);
+  assert.equal(locations.size, coverage.pages);
+  for (const page of Object.keys(routes)) assert.ok(locations.has(page), `Missing leaf: ${page}`);
+  const expected = {
+    index: ['docsSidebar'],
+    settings: ['docsSidebar', 'Project', 'Configuration'],
+    'detail-core-api-idempotency': ['docsSidebar', 'API', 'Mutations'],
+    'detail-core-api-openapi': ['docsSidebar', 'API'],
+    'detail-core-orm-routing': ['docsSidebar', 'Database', 'Transactions'],
+    'template-vocabulary': ['docsSidebar', 'Presentation', 'Templates'],
+    'options-connectors-postgres-config': ['docsSidebar', 'Operations', 'Connectors', 'PostgreSQL'],
+    'options-connectors-redis-config': ['docsSidebar', 'Operations', 'Connectors', 'Redis'],
+    'detail-async-result': ['asyncSidebar', 'Results'],
+    'options-async-retrypolicy': ['asyncSidebar', 'Retries'],
+    'api-async-testing': ['asyncSidebar', 'Testing'],
+    'options-async-worker': ['asyncSidebar', 'Workers'],
+  };
+  for (const [id, parents] of Object.entries(expected)) assert.deepEqual(locations.get(id), parents, id);
+  assert.ok(!fs.existsSync(path.join(root, 'build/docs/category')), 'No category landing pages should be generated');
 });
 
 test('the home URL opens technical documentation instead of a marketing page', () => {
@@ -91,8 +126,8 @@ test('every configuration setting has a description in the built reference', () 
 
 test('every extracted declaration is represented once, including type methods', () => {
   const count = fs.readdirSync(path.join(root, '.generated/content'))
-    .filter(name => name.endsWith('.md'))
-    .reduce((total, name) => total + (read('.generated/content/' + name).match(/^\[Source\]/gm) || []).length, 0);
+    .filter(name => name.startsWith('api-') && name !== 'api-writes.md' && name.endsWith('.md'))
+    .reduce((total, name) => total + (read('.generated/content/' + name).match(/^#{3,4} .+ \{#api-/gm) || []).length, 0);
   assert.equal(count, coverage.declarations);
 });
 
@@ -173,4 +208,16 @@ test('public output contains no source include directives or machine paths', () 
     const source = read('.generated/content/' + name);
     assert.doesNotMatch(source, /\/Users\/|\/home\/[A-Za-z]|file:\/\//);
   }
+});
+
+test('documentation keeps examples and API signatures without GitHub source links', () => {
+  for (const id of Object.keys(routes)) {
+    const html = read(`build/docs/${id}/index.html`);
+    assert.doesNotMatch(html, /href="https?:\/\/(?:www\.)?github\.com\/[^"\s]+\/(?:blob|tree)\//, id);
+    assert.doesNotMatch(html, /href="https?:\/\/raw\.githubusercontent\.com\//, id);
+    assert.doesNotMatch(html, />Example source</, id);
+    assert.doesNotMatch(read(`.generated/content/${id}.md`), /^\[(?:Source|Example source)\]/m, id);
+  }
+  assert.match(read('.generated/content/api-core-models.md'), /type Field struct/);
+  assert.match(read('.generated/content/field-models-slug.md'), /package main/);
 });
