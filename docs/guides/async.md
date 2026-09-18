@@ -12,11 +12,22 @@ go get github.com/Newton-School/gogo/async/redis@v1.0.0-alpha.1
 
 ## Declare typed tasks
 
-The member-by-member references cover [TaskOptions](options-async-taskoptions.md), [RetryPolicy](options-async-retrypolicy.md), [DispatchOptions](options-async-dispatchoptions.md), [ClientConfig](options-async-clientconfig.md) and [Worker](options-async-worker.md). They distinguish task registration defaults from individual dispatch overrides and process-level runtime settings.
+**1. Set queue and execution limits.** This pure demo rejects tenant-scoped work. Real tenant tasks need current producer and worker authorization.
 
-The showcase's `Tasks` holder keeps typed task handles alongside the registry. Handlers receive a context, task metadata and typed input; they return typed output or an error.
+{{snippet examples/showcase/recipes/async/short_examples_test.go task-options}}
+
+**2. Register a typed handler.** Both producer and worker must register the same name, version and payload types.
+
+{{snippet examples/showcase/recipes/async/short_examples_test.go task-register}}
+
+[Task options](options-async-taskoptions.md) · [Retries](options-async-retrypolicy.md) · [Dispatch options](options-async-dispatchoptions.md) · [Client](options-async-clientconfig.md) · [Worker](options-async-worker.md)
+
+<details>
+<summary>Complete showcase task file with group, chain and chord construction</summary>
 
 {{code examples/showcase/apps/catalog/tasks.go}}
+
+</details>
 
 Names and versions are part of the dispatch contract. Producers and workers must agree on payload schemas and task identities. Register definitions before the registry freezes. Do not send executable code or credentials as task payloads.
 
@@ -37,6 +48,14 @@ This works in a project that registers that worker factory and queue. Changing a
 ## Submit and await
 
 Call `Task.Delay(ctx, client, input, options...)`. A nil error confirms admission, not execution. The result handle's `Get(ctx)` waits for the result with the supplied context. Restore a handle by ID when you need to inspect later, subject to scope and retention.
+
+Using `double` above, a [wired client and worker](async-wiring.md), and a deadline-bound `ctx`:
+
+{{snippet examples/showcase/recipes/async/short_examples_test.go task-delay}}
+
+Wait from the producer side after a worker starts consuming the `default` queue:
+
+{{snippet examples/showcase/recipes/async/short_examples_test.go task-result}}
 
 Options include queue, stable ID, priority, ETA/countdown, expiry, scope, headers and stamps. Keep allowed routes and queues explicit. A scope string is an input to policy, not a grant.
 

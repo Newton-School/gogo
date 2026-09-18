@@ -19,6 +19,12 @@ Wire only the components your application needs, but do not omit the relay that 
 
 `MaxRetries = 3` permits three retries after the initial attempt. Ordinary errors do not automatically retry unless `AutoRetryFor` selects them. Explicit retry defaults to a 180-second delay; exponential backoff is opt-in.
 
+**Set a bounded backoff policy before registering the task:**
+
+{{snippet examples/showcase/recipes/async/short_examples_test.go task-retry}}
+
+Pass `options` to `async.Register`. Inside the handler, return `async.Retry(err)` for an explicit retry; workers still need the configured retry relay.
+
 Retry state is committed before acknowledging the original delivery. Separate handler retry from producer publication retry: after uncertain admission, preserve the original acceptance identity/envelope and use the documented retry path. Reconstructing new arguments with a fresh ID can duplicate work.
 
 ## Periodic schedules

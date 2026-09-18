@@ -18,7 +18,22 @@ Register these contributions through your app/project setup, apply migrations ex
 
 This complete test demonstrates the low-level hashing API without storing or printing a credential. Run `go test ./docs/examples -run Example_password -v` from the framework checkout:
 
+**Hash a password**
+
+{{snippet docs/examples/auth_test.go password-hash}}
+
+**Verify submitted input**
+
+{{snippet docs/examples/auth_test.go password-verify}}
+
+Result: correct password `true`, wrong password `false`. `password` is the submitted value; never log it.
+
+<details>
+<summary>Complete runnable example, including imports</summary>
+
 {{code docs/examples/auth_test.go}}
+
+</details>
 
 Use the account service's create/change-password methods for actual users so validators, authorization and account security versions are applied. Do not take this low-level example as permission to directly overwrite a user's password column.
 

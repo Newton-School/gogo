@@ -6,7 +6,22 @@
 
 Run this complete example with `go test ./docs/examples -run Example_mail -v` from the framework checkout. In a client test, put it in a `_test.go` file. It verifies message construction without sending actual email:
 
+**Create a test outbox**
+
+{{snippet docs/examples/mail_test.go mail-outbox}}
+
+**Send a message**
+
+{{snippet docs/examples/mail_test.go mail-send}}
+
+Result: `simulated: true`, `messages: 1`. This does not send network email.
+
+<details>
+<summary>Complete runnable example, including imports</summary>
+
 {{code docs/examples/mail_test.go}}
+
+</details>
 
 For real delivery, replace the test outbox with your configured SMTP backend. Keep the same explicit error/receipt handling. Do not use `NewMemory` as a production mail queue.
 

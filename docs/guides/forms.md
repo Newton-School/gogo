@@ -1,20 +1,45 @@
 # Forms and widgets
 
-A form binds submitted data to an explicit field definition, cleans values, collects errors and renders controls. A widget controls HTML; it does not replace server-side validation.
-
-Every kind has a focused sidebar page with a declaration and example, such as [Char](field-forms-char.md), [TypedChoice](field-forms-typedchoice.md) and [SplitDateTime](field-forms-splitdatetime.md). Use [Field options](options-core-forms-field.md) for every configurable member, [ModelForm options](options-core-forms-modelformoptions.md) for persistence, [FormSet options](options-core-forms-formsetoptions.md) for collections, and [InputWidget](options-core-forms-inputwidget.md) or [MultiWidget](options-core-forms-multiwidget.md) for rendering.
+Define fields, bind input, then validate. Widgets control HTML, not server-side validation.
 
 ## Bind and validate
 
+**Declare the fields**
+
+{{snippet docs/examples/forms_test.go form-fields}}
+
+**Bind submitted values and validate**
+
+{{snippet docs/examples/forms_test.go form-bind}}
+
+**Read cleaned values**
+
+{{snippet docs/examples/forms_test.go form-output}}
+
+Result: `Notebook` and `19.95`. Do not save raw submitted values.
+
+[Field options](options-core-forms-field.md) · [Model forms](options-core-forms-modelformoptions.md) · [Formsets](options-core-forms-formsetoptions.md) · [InputWidget](options-core-forms-inputwidget.md) · [MultiWidget](options-core-forms-multiwidget.md)
+
+<details>
+<summary>Complete runnable example, including imports</summary>
+
 {{code docs/examples/forms_test.go}}
+
+</details>
 
 `forms.NewField` is required by default. A raw `forms.Field{}` is not. Set `Required = false` intentionally for optional fields. An unbound form is for display; `IsValid()` requires bound input.
 
-Use `WithContext`, `WithData`, `WithFiles`, `WithInitial`, `WithPrefix` and `WithClean` when constructing a form. Read `Errors`, `CleanedData`, `ChangedData` and `HasChanged` after validation. Do not persist raw request values when you meant to persist cleaned values.
+Use `WithContext`, `WithData`, `WithFiles`, `WithInitial`, `WithPrefix` and `WithClean` when constructing a form. Read `Errors`, `CleanedData`, `ChangedData` and `HasChanged` after validation.
+
+**Invalid input**
+
+{{snippet docs/examples/options_test.go form-errors}}
 
 ## All 29 form kinds
 
 Create each with `forms.NewField(name, forms.Kind)`:
+
+Each kind has its own sidebar page with a declaration and validation example: [Char](field-forms-char.md), [TypedChoice](field-forms-typedchoice.md), [SplitDateTime](field-forms-splitdatetime.md).
 
 | Kind | Input and behavior |
 | --- | --- |

@@ -8,7 +8,22 @@ Sessions store per-browser application state. Flash messages are small, consume-
 
 This standalone example shows the context and state API:
 
+**Set a session value**
+
+{{snippet docs/examples/sessions_test.go session-write}}
+
+**Read a session value**
+
+{{snippet docs/examples/sessions_test.go session-read}}
+
+Result: `true dark true`. `ctx` must come from session middleware; persistence requires its configured store.
+
+<details>
+<summary>Complete runnable example, including imports</summary>
+
 {{code docs/examples/sessions_test.go}}
+
+</details>
 
 Run `go test ./docs/examples -run Example_session -v` from the framework checkout. In a handler use `r.Context()` instead of creating a new session. Treat a missing session as a wiring/error condition, not an authenticated empty session.
 

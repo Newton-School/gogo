@@ -6,7 +6,26 @@ Declare URL patterns in each app's `urls.go`, then combine them in the project U
 
 Use `urls.Path` for converter-based paths, `urls.RePath` for regular-expression paths, and `urls.Include` for a prefix plus namespace. Supply method names explicitly when a route should be restricted.
 
+**Read a path parameter**
+
+{{snippet docs/examples/routing_test.go route-handler}}
+
+**Register a named route**
+
+{{snippet docs/examples/routing_test.go route-register}}
+
+**Reverse the route name**
+
+{{snippet docs/examples/routing_test.go route-reverse}}
+
+Result: `/api/products/42/`. The `<int:id>` converter rejects non-integer IDs.
+
+<details>
+<summary>Complete runnable example, including imports</summary>
+
 {{code docs/examples/routing_test.go}}
+
+</details>
 
 This complete test demonstrates an app namespace, a typed URL parameter, reverse routing and a real in-process HTTP request. Run it with the other [documentation examples](testing.md).
 

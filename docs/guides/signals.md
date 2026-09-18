@@ -6,7 +6,22 @@ Signals notify explicitly connected Go receivers about an in-process event. They
 
 Put the signal and its receiver registrations in an app-owned service. This standalone example shows the exact API and checked output:
 
+**Connect a receiver**
+
+{{snippet docs/examples/signals_test.go signal-connect}}
+
+**Send an event**
+
+{{snippet docs/examples/signals_test.go signal-send}}
+
+Result: `published product: 42`, `receivers called: 1`. This is synchronous, in-process work.
+
+<details>
+<summary>Complete runnable example, including imports</summary>
+
 {{code docs/examples/signals_test.go}}
+
+</details>
 
 Run it with `go test ./docs/examples -run Example_signal -v`. Its receiver prints a demonstration value; real indexing or queue publication needs its own error/idempotency policy.
 

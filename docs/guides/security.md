@@ -4,7 +4,26 @@
 
 This complete test shows the signing API, expiry bound, and tamper rejection. Run `go test ./docs/examples -run Example_signing -v` from the framework checkout:
 
+**Create a purpose-bound signer**
+
+{{snippet docs/examples/security_test.go signing-config}}
+
+**Sign a value**
+
+{{snippet docs/examples/security_test.go signing-token}}
+
+**Verify and reject tampering**
+
+{{snippet docs/examples/security_test.go signing-verify}}
+
+Result: `product:42`, `tampering rejected: true`. Load `key` from private settings; do not generate a new signing key for each request.
+
+<details>
+<summary>Complete runnable example, including imports</summary>
+
 {{code docs/examples/security_test.go}}
+
+</details>
 
 Use a persistent private key from client settings in a real application. Generating a new key on every request/restart invalidates earlier values. A signature proves integrity, not authorization or confidentiality; still scope the referenced object for the current caller.
 

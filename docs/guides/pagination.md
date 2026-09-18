@@ -4,7 +4,22 @@
 
 This executable example needs no database. Run `go test ./docs/examples -run Example_pagination -v` from the framework checkout:
 
+**Set page limits**
+
+{{snippet docs/examples/pagination_test.go pagination-config}}
+
+**Parse a page request**
+
+{{snippet docs/examples/pagination_test.go pagination-parse}}
+
+Result: offset `10`, size `10`. Apply authorization scope before counting or paging.
+
+<details>
+<summary>Complete runnable example, including imports</summary>
+
 {{code docs/examples/pagination_test.go}}
+
+</details>
 
 In a handler, replace the literal query values with `r.URL.Query()`. After parsing, apply the caller's visibility predicate to the ORM query, then its offset and limit. A pagination helper is not a row-authorization layer.
 

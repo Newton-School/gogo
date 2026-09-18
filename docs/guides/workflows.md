@@ -17,6 +17,20 @@ Workflows combine registered task signatures. They coordinate durable task state
 
 ## Submit a canvas
 
+These snippets use a registered `addOne` task (`n + 1`), a [wired workflow client](async-wiring.md), and a deadline-bound `ctx`. The executable test uses a process-local simulator, not Redis.
+
+**Prepare inputs — no dispatch yet**
+
+{{snippet examples/showcase/recipes/async/short_examples_test.go task-signature}}
+
+**Chain — pass the first result to the next task**
+
+{{snippet examples/showcase/recipes/async/short_examples_test.go task-chain}}
+
+**Group — run independent inputs**
+
+{{snippet examples/showcase/recipes/async/short_examples_test.go task-group}}
+
 The [task declaration example](async.md) contains a complete `Tasks.Canvas` method for group, chain and chord. Submit its result with `client.ApplyCanvas(ctx, canvas)`, then retain the returned workflow identity.
 
 Run the complete checked examples from the framework checkout:

@@ -4,9 +4,20 @@ Prerequisite: a [working, authenticated Admin site](admin-wiring.md) and registe
 
 ## Complete product registration
 
-This is the showcase's working Product/ProductNote registration. It is included from tested application source:
+Configure one concern at a time before calling `site.Register`. These snippets use the showcase's `catalog.Product` schema:
+
+{{snippet examples/showcase/recipes/documentation/admin_test.go admin-list}}
+
+{{snippet examples/showcase/recipes/documentation/admin_test.go admin-search}}
+
+{{snippet examples/showcase/recipes/documentation/admin_test.go admin-form}}
+
+<details>
+<summary>Complete Product and ProductNote registration</summary>
 
 {{code examples/showcase/apps/catalog/admin.go}}
+
+</details>
 
 ## What each part changes
 

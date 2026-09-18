@@ -49,6 +49,7 @@ Sidebar categories only expand or collapse: they never open a document or genera
 | `fields.json`, `field_reference.py` | One focused page per model/form kind and serializer constructor, grouped navigation, formatted standalone examples and exact source-coverage checks |
 | Package-level Markdown | Advanced contracts; included from their original source, not copied by hand |
 | `snippets/`, `examples/` | Tested code included in tutorials |
+| `code-examples.json`, `code_examples.py` | Named, tested 1–20-line usage excerpts mapped to API symbols and configuration members |
 | `tools/catalog/` | Go parser/doc extractor for public APIs, settings, and template vocabulary |
 | `reference.py` | API reference presentation: symbol indexes, type/method sections, member descriptions, parameter/return tables and expandable declarations |
 | `generate.py` | Content adapter, ownership checks, and sidebar generation; not an HTML renderer |
@@ -60,6 +61,10 @@ Add a source guide to `navigation.json` with `"new": true` if it did not exist i
 Use `{"id": "...", "label": "...", "items": [...]}` for an expand-only category, `{"guide": "...", "items": [...]}` to place a guide's related leaves, and `{"doc": "..."}` for an explicit leaf. A guide with children automatically becomes a category with an Overview leaf; `leafLabel` can name that introductory leaf more precisely. Explicit placement overrides inferred ownership for both technical notes and package references. Keep environment variables under Configuration, mutations separate from serializers, backend-specific configuration under its connector, and Async workers, results, retries and testing in their own groups.
 
 Author ordinary Markdown: nested lists, tables, fenced code, links, and headings. Use stable page IDs for guide links, such as `configuration.md`. Package documents keep their original relative source links; links to included documents resolve inside the site. `{{code repository/path.go}}` inserts the exact tested source as a fenced code block. `{{include repository/guide.md}}` embeds a repository document. Includes cannot escape the repository. Never put secrets, private URLs, or local machine paths in examples.
+
+Prefer one short explanation, a small usage block, and its expected result or caveat. Mark an excerpt in compiled Go with matching `// docs:begin example-name` and `// docs:end example-name` comments, then insert it with `{{snippet repository/path_test.go example-name}}`. Excerpts must contain 1–20 lines; missing, duplicate, nested and mismatched markers fail the build. Markers are omitted from full-file displays. Keep imports and the complete runnable file in an expandable section after the short examples. Explain fragment prerequisites immediately beside the code. Do not hide essential authorization, validation or persistence warnings in the expandable file.
+
+Map excerpts to API symbols and option members in `code-examples.json`; the build rejects stale mappings. Field constructors reuse the same tested declarations as their individual field pages. Do not invent placeholder callbacks or zero-value assignments to make an option look documented. Core examples run with `go test ./docs/...`; optional-module excerpts run with `go test ./examples/showcase/recipes/documentation ./examples/showcase/recipes/async`.
 
 Keep examples and signatures in the documentation; do not add GitHub source links or source buttons. Repository links to a documented page resolve locally; source-only links render as plain text. Code fences retain required Go module import paths. Generation still checks source coverage internally, without publishing per-symbol source links.
 

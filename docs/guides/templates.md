@@ -4,7 +4,22 @@ Gogo's template engine provides Django-like template syntax with explicit Go loa
 
 ## Render a template
 
+**Load a template**
+
+{{snippet docs/examples/templates_test.go template-loader}}
+
+**Render values**
+
+{{snippet docs/examples/templates_test.go template-render}}
+
+Result: `<h1>NOTEBOOK</h1><p>&lt;b&gt;Plain text&lt;/b&gt;</p>`. Untrusted text is escaped.
+
+<details>
+<summary>Complete runnable example, including imports</summary>
+
 {{code docs/examples/templates_test.go}}
+
+</details>
 
 Use `MapLoader` for small tests and `FSLoader` with an application-owned `fs.FS` for real template files. Configure loaders, filters, tags and context processors before concurrent use.
 

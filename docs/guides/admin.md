@@ -18,9 +18,32 @@ The default prefix is `/admin/`. Site name, header, title, index title, site URL
 
 ## Register a model
 
-This is the showcase's complete registration file. It receives a configured site and ORM store; its `Product` and `ProductNote` models are in the same app.
+Start with the showcase's `catalog.Product` schema. `site` below must already have the store, policy, signer and CSRF wiring from [Admin setup](admin-wiring.md).
+
+**List columns and editing**
+
+{{snippet examples/showcase/recipes/documentation/admin_test.go admin-list}}
+
+**Search, filters and sorting**
+
+{{snippet examples/showcase/recipes/documentation/admin_test.go admin-search}}
+
+**Form fields and readonly values**
+
+{{snippet examples/showcase/recipes/documentation/admin_test.go admin-form}}
+
+**Register before creating the site handler**
+
+{{snippet examples/showcase/recipes/documentation/admin_test.go admin-register}}
+
+Readonly fields remain visible. Slug prepopulation suggests browser values; it is not a server default. Global and object policies still authorize every operation.
+
+<details>
+<summary>Complete registration with fieldsets, inlines and a scoped action</summary>
 
 {{code examples/showcase/apps/catalog/admin.go}}
+
+</details>
 
 Use the [showcase](showcase.md) to run this unchanged. To adapt it, replace its fields, relation policy and action with your own domain's rules. Its relation lookup relies on the surrounding single-organization staff policy; add tenant predicates for a multi-tenant application.
 

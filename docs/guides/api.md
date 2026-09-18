@@ -1,26 +1,42 @@
 # REST APIs and serializers
 
-An API has three independent decisions: which rows a caller may see, which fields may be represented, and which operations may change data. Gogo requires you to make these decisions explicitly.
-
-Each serializer constructor has a focused sidebar page, including [StringField](field-serializers-stringfield.md), [NestedField](field-serializers-nestedfield.md) and [ComputedField](field-serializers-computedfield.md). Configure them with the complete [Field](options-core-api-field.md), [Definition](options-core-api-definition.md), [BindOptions](options-core-api-bindoptions.md) and [ModelOptions](options-core-api-modeloptions.md) references.
+Declare public fields explicitly. Authorize rows and writes separately; a serializer does neither.
 
 ## Define an output serializer
 
-The showcase declares a public product representation without internal notes or account data:
+Start with two public fields:
+
+{{snippet docs/examples/api_test.go serializer-fields}}
+
+<details>
+<summary>Complete product serializer, including imports</summary>
 
 {{code examples/showcase/apps/catalog/serializers.go}}
 
+</details>
+
 `api.FromModel` is available when you want to derive fields from a schema, but it still requires a field allowlist. A readonly field is still readable; omit a secret or use the correct write-only/hidden behavior.
+
+{{snippet docs/examples/options_test.go serializer-directions}}
+
+[Field options](options-core-api-field.md) · [Definition](options-core-api-definition.md) · [Partial input](options-core-api-bindoptions.md) · [Model options](options-core-api-modeloptions.md)
 
 ## Expose scoped read routes
 
+<details>
+<summary>Complete scoped product routes, including imports</summary>
+
 {{code examples/showcase/apps/catalog/urls.go}}
+
+</details>
 
 This complete app file receives an initialized store from project configuration. Its `Policy` permits only viewing, while its `Scope` restricts rows to published products. Include the returned routes under your chosen project prefix. The showcase uses `/api/v1/`.
 
 Scope applies before filtering, counts, pagination and related-data loading. Object checks add protection but cannot repair an earlier unscoped count.
 
 ## Serializer field catalog
+
+Each constructor has a sidebar page with its own example: [StringField](field-serializers-stringfield.md), [NestedField](field-serializers-nestedfield.md), [ComputedField](field-serializers-computedfield.md).
 
 | Family | Constructors |
 | --- | --- |
@@ -47,9 +63,28 @@ Call `Serializer.Validate(ctx, input, api.BindOptions{...})` to obtain cleaned v
 
 ## Validate and represent a value
 
-This complete test needs no database or server:
+This example needs no database or server:
+
+**Declare accepted fields**
+
+{{snippet docs/examples/api_test.go serializer-fields}}
+
+**Validate input**
+
+{{snippet docs/examples/api_test.go serializer-validate}}
+
+**Build the output**
+
+{{snippet docs/examples/api_test.go serializer-output}}
+
+Result: `Notebook 19.95`. Validation and representation do not save a model.
+
+<details>
+<summary>Complete runnable example, including imports</summary>
 
 {{code docs/examples/api_test.go}}
+
+</details>
 
 ## Create, update and delete
 
