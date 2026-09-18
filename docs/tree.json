@@ -1,22 +1,43 @@
 {
   "docsSidebar": [
     "index",
-    "quickstart",
-    "showcase",
+    {
+      "id": "start",
+      "label": "Start",
+      "items": [
+        "installation",
+        "quickstart",
+        "running",
+        "tutorial-api",
+        "docker",
+        "showcase"
+      ]
+    },
     {
       "id": "project",
       "label": "Project",
       "items": [
         "structure",
-        "configuration"
+        "configuration",
+        "settings",
+        "commands"
+      ]
+    },
+    {
+      "id": "models-group",
+      "label": "Models",
+      "items": [
+        "models",
+        "model-fields",
+        "relations"
       ]
     },
     {
       "id": "data",
-      "label": "Data",
+      "label": "Database",
       "items": [
-        "models",
         "queries",
+        "transactions",
         "migrations",
         "fixtures"
       ]
@@ -26,7 +47,16 @@
       "label": "HTTP",
       "items": [
         "routing",
-        "api"
+        "views",
+        "pagination"
+      ]
+    },
+    {
+      "id": "api",
+      "label": "API",
+      "items": [
+        "api",
+        "api-writes"
       ]
     },
     {
@@ -35,15 +65,25 @@
       "items": [
         "forms",
         "templates",
+        "template-vocabulary",
         "i18n"
       ]
     },
-    "auth",
+    {
+      "id": "security",
+      "label": "Security",
+      "items": [
+        "auth",
+        "sessions",
+        "security"
+      ]
+    },
     {
       "id": "services",
       "label": "Services",
       "items": [
         "files",
+        "static",
         "cache",
         "mail",
         "signals",
@@ -56,19 +96,33 @@
       "items": [
         "connectors",
         "deployment",
-        "testing"
+        "observability",
+        "testing",
+        "troubleshooting",
+        "compatibility"
+      ]
+    },
+    {
+      "id": "catalogs",
+      "label": "Catalogs",
+      "items": [
+        "features",
+        "packages"
       ]
     }
   ],
   "adminSidebar": [
     "admin-wiring",
     "admin",
+    "admin-customization",
+    "detail-admin-accounts",
     "admindocs"
   ],
   "asyncSidebar": [
     "async-wiring",
     "async",
     "workflows",
+    "async-recipes",
     "scheduling"
   ]
 }

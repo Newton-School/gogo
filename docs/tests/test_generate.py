@@ -53,10 +53,8 @@ class ContentTests(unittest.TestCase):
     def test_first_project_has_an_ordered_beginner_path(self):
         tree = json.loads(docs.safe_file("docs/tree.json").read_text())
         self.assertEqual(list(tree), ["docsSidebar", "adminSidebar", "asyncSidebar"])
-        self.assertEqual(tree["docsSidebar"][:3], ["index", "quickstart", "showcase"])
-        sections = json.loads(docs.safe_file("docs/sections.json").read_text())
-        quickstart = next(s for s in sections if s["id"] == "quickstart")
-        self.assertEqual([s[0] for s in quickstart["sources"]], ["installation", "quickstart", "running", "tutorial-api", "docker"])
+        self.assertEqual(tree["docsSidebar"][0], "index")
+        self.assertEqual(tree["docsSidebar"][1]["items"], ["installation", "quickstart", "running", "tutorial-api", "docker", "showcase"])
 
     def test_code_is_not_rewritten(self):
         source = '```go\n// [Example](models.md)\n// {{code missing.go}}\n```\n'
@@ -194,6 +192,14 @@ class ConsolidationTests(unittest.TestCase):
         self.assertNotIn("Contract.", pages["models"]["source"])
         self.assertIn("Contract.", pages["advanced"]["source"])
         self.assertEqual(routes["note"]["page"], "advanced")
+
+    def test_focused_pages_keep_sources_and_legacy_cross_page_links(self):
+        pages, routes = docs.focused_pages(self.pages, self.sections, "rev")
+        self.assertEqual(set(pages), set(self.pages))
+        self.assertIn("### Field {#api-models-field}", pages["api-models"]["source"])
+        self.assertNotIn("Contract.", pages["models"]["source"])
+        self.assertEqual(pages["note"]["parent"], "models")
+        self.assertEqual(routes["models"]["legacyAnchors"]["api-models-field"], {"page": "api-models", "anchor": "api-models-field"})
 
     def test_single_source_uses_one_title_and_keeps_anchors(self):
         pages = {"setup": {"id": "setup", "title": "Setup", "source": "# Setup\n\nIntroduction.\n\n## Install\n\nExample."}}

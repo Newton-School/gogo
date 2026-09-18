@@ -1,6 +1,6 @@
 # Gogo documentation
 
-The public documentation uses [Docusaurus](https://docusaurus.io/) with exactly three tabs: **Docs**, **Admin**, and **Async**. Thirty feature pages combine the previously separate guides, technical notes and Go references. The home URL opens the documentation directly, without a marketing landing page.
+The public documentation uses [Docusaurus](https://docusaurus.io/) with exactly three top-level tabs: **Docs**, **Admin**, and **Async**. Focused guides, feature contracts and Go references have separate sidebar entries under their feature. The home URL opens the documentation directly, without a marketing landing page.
 
 ## Open the docs locally
 
@@ -33,14 +33,15 @@ Content is prepared from source before startup. After changing a guide, package 
 - **Admin**: Setup, Models, Accounts.
 - **Async**: Setup, Tasks, Workflows, Schedules.
 
-Sidebar groups organize feature names without adding category documents. Quickstart keeps installation through Docker in one page. Each feature keeps examples visible, then expandable detailed contracts and package declarations on the same page. Search and deep links open the containing disclosure automatically. Old document URLs redirect to their exact consolidated section in production builds; original source fragments remain separate for maintainability, not as extra reader-facing pages.
+Sidebar groups organize feature names without adding empty category documents. Installation, Quickstart, Running, the API tutorial and Docker are separate steps. Small features such as Admin ordering, inline forms, API idempotency and Async result cleanup have their own pages. Each feature's Reference group contains its packages. Search and historical links reach the exact page and heading, including links made when the site used consolidated articles.
 
 ## Where to edit
 
 | Source | Purpose |
 | --- | --- |
 | `tree.json` | Three sidebar trees with direct feature names and no extra category pages |
-| `sections.json` | Reader-facing page titles, ordered source sections and explicit detail/API ownership overrides |
+| `labels.json` | Short, direct page names for the sidebar |
+| `sections.json` | Historical consolidated-page layout, retained only for deep-link compatibility and ownership overrides |
 | `navigation.json` | Source-fragment inventory and public-package ownership |
 | `index.md`, `guides/` | Human-written tutorials and feature explanations |
 | `settings-descriptions.json` | Short descriptions for every Core environment setting; the build rejects missing, stale or empty entries |
@@ -51,7 +52,7 @@ Sidebar groups organize feature names without adding category documents. Quickst
 | `docusaurus.config.js`, `src/`, `static/` | Framework configuration, landing page, and light/dark styling |
 | `.generated/`, `.docusaurus/`, `build/` | Ignored generated content, framework cache, and deployable static output |
 
-Add a source guide to `navigation.json` and compose it into an existing page in `sections.json` before adding another document. Map every public package to exactly one source guide. Technical notes and Go declarations follow that guide into the consolidated page; explicit `details` and `references` overrides handle features such as Async results and schedules. Add to `tree.json` only when a new reader-facing page is justified. The build rejects orphaned sources, duplicate placement, missing packages, broken routes and broken anchors. Do not reduce page count by dropping contracts, examples or declarations.
+Add a source guide to `navigation.json`, give it a direct name in `labels.json`, and place it in `tree.json`. Map every public package to exactly one source guide. Technical notes and Go references are automatically nested under that feature; explicitly list a note in the tree to move it elsewhere. Preserve `sections.json` as a compatibility map, not a page-count constraint. The build rejects orphaned sources, duplicate placement, missing packages, broken routes and broken anchors. Do not reduce page count by dropping contracts, examples or declarations.
 
 Author ordinary Markdown: nested lists, tables, fenced code, links, and headings. Use stable page IDs for guide links, such as `configuration.md`. Package documents keep their original relative source links; links to included documents resolve inside the site. `{{code repository/path.go}}` inserts the exact tested source as a fenced code block. `{{include repository/guide.md}}` embeds a repository document. Includes cannot escape the repository. Never put secrets, private URLs, or local machine paths in examples.
 

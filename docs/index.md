@@ -14,9 +14,9 @@ Keep Go's types, interfaces, `context.Context`, standard HTTP handlers, and conc
 | **Admin** | Setup, model configuration, accounts and staff documentation |
 | **Async** | Setup, tasks, workflows and schedules |
 
-Start with [Quickstart](installation.md): installation, a new project, running, a database-backed API, and Docker are sections of one page. [Example](showcase.md) runs the complete sample application.
+Start with [Installation](installation.md), then [Quickstart](quickstart.md), [Running](running.md), the [API tutorial](tutorial-api.md), and [Docker](docker.md). Each step has its own page. [Example](showcase.md) runs the complete sample application.
 
-Feature pages contain examples, options, detailed behavior and Go declarations together. Expand **Details** or **API reference** for exact contracts without leaving the page. The feature directory below links to each capability.
+Each sidebar feature expands into focused pages for its smaller behaviors. Use those pages for configuration, constraints and failure cases, and its **Reference** group for exact Go types and functions. The [feature directory](features.md) links to each capability.
 
 | You want to… | Start here |
 | --- | --- |
@@ -67,6 +67,6 @@ Use the complete checkout and its showcase to try the unreleased Redis configura
 
 ## Examples
 
-Quickstart contains complete files, commands and expected results for one application. Feature examples are followed by their options and limits. Detailed contracts and generated Go declarations stay on their owning feature page, rather than separate reference documents.
+The getting-started pages contain complete files, commands and expected results for one application. Feature examples are followed by their options and limits. Focused contract and package-reference pages sit under the feature that owns them.
 
 Examples taken from the showcase use its `example.com/gogo-showcase` module and app names. Adapt those imports to your project; the showcase itself is ready to run unchanged. Small examples under `docs/examples/` are tested without external services. Neither set of examples certifies every possible combination of features.

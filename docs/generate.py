@@ -194,6 +194,10 @@ def compile_tree(tree, pages):
                 if note in pages:
                     pages[note]["parent"] = identifier
             children = [convert(child) for child in item.get("items", [])] + [document(note) for note in notes]
+            references = pages[identifier].get("references", [])
+            if references:
+                children.append({"type": "category", "label": "Reference", "collapsed": True,
+                                 "items": [document(reference) for reference in references]})
             if not children:
                 return leaf
             return {"type": "category", "label": leaf["label"], "description": pages[identifier].get("description", "Explore " + leaf["label"].lower() + "."), "link": {"type": "doc", "id": identifier}, "collapsed": True, "items": children}
@@ -397,13 +401,47 @@ def consolidate_pages(pages, sections, revision):
     return result, routes
 
 
+def focused_pages(sources, legacy_sections, revision):
+    """Give each guide, contract and package a page; retain historical deep links."""
+    original = {key: value for key, value in sources.items() if not value.get("new")}
+    _, previous = consolidate_pages(original, legacy_sections, revision)
+    sections = [{"id": key, "title": page["title"], "sources": [[key, page["title"]]]}
+                for key, page in sources.items()]
+    pages, routes = consolidate_pages(sources, sections, revision)
+    for key, source in sources.items():
+        pages[key].update({name: source[name] for name in ("parent", "references", "api", "description") if name in source})
+    for section in legacy_sections:
+        for key in section.get("details", []):
+            pages[key]["parent"] = section["id"]
+        for reference in section.get("references", []):
+            for page in pages.values():
+                if reference in page.get("references", []):
+                    page["references"] = [r for r in page["references"] if r != reference]
+            pages[section["id"]].setdefault("references", []).append(reference)
+    for source, old in previous.items():
+        aliases = routes[old["page"]].setdefault("legacyAnchors", {})
+        for anchor in old["anchors"].values():
+            if anchor not in ("details", "api-reference"):
+                aliases[anchor] = {"page": source, "anchor": anchor}
+        aliases["page-" + old["page"]] = {"page": old["page"], "anchor": old["page"]}
+    return pages, routes
+
+
 def generate():
     manifest = json.loads((DOCS / "navigation.json").read_text())
     catalog = json.loads(subprocess.check_output(["go", "run", "./docs/tools/catalog"], cwd=ROOT, text=True))
     revision = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
     source_pages, _ = collect_pages(manifest, catalog, revision)
+    labels = json.loads((DOCS / "labels.json").read_text())
+    for key, page in source_pages.items():
+        if key in labels:
+            page["title"] = labels[key]
+        elif page.get("parent"):
+            page["title"] = Path(page["file"]).stem.replace("_", " ").capitalize()
+            if page["title"] == "Readme":
+                page["title"] = "Contracts"
     sections = json.loads((DOCS / "sections.json").read_text())
-    pages, routes = consolidate_pages(source_pages, sections, revision)
+    pages, routes = focused_pages(source_pages, sections, revision)
     tree = json.loads((DOCS / "tree.json").read_text())
     sidebars = compile_tree(tree, pages)
     content = OUTPUT / "content"

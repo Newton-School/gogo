@@ -1,0 +1,20 @@
+{
+  "index": "Introduction", "installation": "Installation", "quickstart": "Quickstart",
+  "running": "Running", "tutorial-api": "API tutorial", "docker": "Docker", "showcase": "Example",
+  "structure": "Projects", "configuration": "Configuration", "settings": "Environment variables", "commands": "Commands",
+  "models": "Schemas", "model-fields": "Fields", "relations": "Relations", "queries": "Queries", "transactions": "Transactions",
+  "migrations": "Migrations", "fixtures": "Fixtures", "routing": "Routing", "views": "Views", "pagination": "Pagination",
+  "api": "Serializers", "api-writes": "Mutations", "forms": "Forms", "templates": "Templates", "template-vocabulary": "Tags and filters",
+  "i18n": "I18n", "auth": "Authentication", "sessions": "Sessions", "security": "Security", "files": "Files", "static": "Static",
+  "cache": "Cache", "mail": "Mail", "signals": "Signals", "contrib": "Contrib", "connectors": "Connectors",
+  "deployment": "Deployment", "observability": "Observability", "testing": "Testing", "troubleshooting": "Troubleshooting",
+  "compatibility": "Compatibility", "features": "Features", "packages": "Packages",
+  "admin-wiring": "Setup", "admin": "ModelAdmin", "admin-customization": "Customization", "admindocs": "Staff docs",
+  "detail-admin-accounts": "Accounts", "async-wiring": "Setup", "async": "Tasks", "workflows": "Workflows",
+  "async-recipes": "Recipes", "scheduling": "Schedules",
+  "detail-admin-list-edit": "List editing", "detail-admin-list-ordering": "Ordering", "detail-admin-list-pagination": "Pagination",
+  "detail-admin-inline-relations": "Inlines", "detail-admin-relation-select": "Relation widgets", "detail-admin-save-on-top": "Save controls",
+  "detail-admin-prepopulate": "Prepopulation", "detail-admin-empty-display": "Empty values", "detail-admin-search-help": "Search help",
+  "detail-async-group-result": "Group results", "detail-async-group-forget": "Group cleanup", "detail-async-result": "Results",
+  "detail-async-publish-retry": "Publish retries", "detail-async-testing-periodic": "Periodic tests"
+}

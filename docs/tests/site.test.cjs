@@ -17,10 +17,10 @@ test('the image guard still rejects Markdown images after dependency upgrades', 
   transform({type: 'root', children: [{type: 'code', value: '![example](image.png)'}]}, {fail() {assert.fail('Code is not an image');}});
 });
 
-test('all source documents survive in thirty feature pages', () => {
+test('every source has a focused page instead of a hidden section', () => {
   const sources = fs.readdirSync(path.join(root, '.generated/content')).filter(name => name.endsWith('.md'));
   assert.equal(sources.length, coverage.pages);
-  assert.equal(coverage.pages, 30);
+  assert.equal(coverage.pages, coverage.sourceDocuments);
   assert.equal(coverage.sourceDocuments, coverage.featureGuides + coverage.technicalGuides + coverage.publicPackages + 3);
   assert.equal(Object.keys(routes).length, coverage.sourceDocuments);
   for (const source of sources) {
@@ -38,15 +38,13 @@ test('only Docs Admin and Async exist with direct technical page names', () => {
   for (const [name, items] of Object.entries(sidebars)) {
     assert.ok(items.length <= 15, `${name} has too many root entries`);
     function walk(nodes, depth) {
-      assert.ok(depth <= 2, `${name} is too deeply nested`);
+      assert.ok(depth <= 4, `${name} is too deeply nested`);
       for (const node of nodes) {
         if (node.type === 'category') {
-          assert.equal(node.collapsed, false);
-          assert.equal(node.link, undefined, 'Grouping must not add another document');
+          if (node.link) assert.equal(node.link.type, 'doc');
           walk(node.items, depth + 1);
         }
-        assert.ok(node.label.split(/\s+/).length <= 2, `Use a direct feature name: ${node.label}`);
-        if (node.type === 'doc') assert.ok(!node.id.startsWith('api-') && !node.id.startsWith('detail-'));
+        assert.ok(node.label.split(/\s+/).length <= 4, `Use a direct feature name: ${node.label}`);
       }
     }
     walk(items, 1);
@@ -72,19 +70,18 @@ test('search indexes are generated locally and include features and symbols', ()
   assert.match(index, /GOGO_DATABASE_URL/);
 });
 
-test('signatures and detailed contracts are on the owning feature page', () => {
-  const html = read('build/docs/models/index.html');
+test('signatures and detailed contracts have their own discoverable pages', () => {
+  const html = read('build/docs/api-core-models/index.html');
   assert.match(html, /id="api-core-models-field"/);
   assert.match(html, /id="api-core-models-schema"/);
-  assert.match(html, /<details/);
-  assert.match(read('.generated/content/admin.md'), /\{#api-admin-modeladmin\}/);
-  assert.equal(routes['detail-async-group-result'].page, 'workflows');
-  assert.equal(routes['detail-async-testing-periodic'].page, 'scheduling');
+  assert.match(read('.generated/content/api-admin.md'), /\{#api-admin-modeladmin\}/);
+  assert.equal(routes['detail-async-group-result'].page, 'detail-async-group-result');
+  assert.equal(routes['detail-async-testing-periodic'].page, 'detail-async-testing-periodic');
 });
 
 test('every configuration setting has a description in the built reference', () => {
   const descriptions = JSON.parse(read('settings-descriptions.json'));
-  const html = read('build/docs/configuration/index.html');
+  const html = read('build/docs/settings/index.html');
   const rows = [...html.matchAll(/<tr>([\s\S]*?)<\/tr>/g)].map(match => match[1]);
   for (const [name, description] of Object.entries(descriptions)) {
     const escaped = description.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#x27;');
@@ -113,10 +110,12 @@ test('old document URLs redirect to real consolidated anchors', () => {
     }
     if (source !== route.page) assert.match(read(`build/docs/${source}/index.html`), /name="robots" content="noindex"/);
   }
-  const redirect = read('build/docs/api-core-models/index.html').match(/<script>([\s\S]*?)<\/script>/)[1];
-  let destination;
-  vm.runInNewContext(redirect, {location: {hash: '#field', replace(value) { destination = value; }}});
-  assert.equal(destination, '/docs/models/#api-core-models-field');
+  assert.deepEqual(routes.models.legacyAnchors['api-core-models-field'], {page: 'api-core-models', anchor: 'api-core-models-field'});
+  for (const route of Object.values(routes)) {
+    for (const target of Object.values(route.legacyAnchors || {})) {
+      assert.ok(idSets.get(target.page).has(target.anchor), `Lost legacy target ${target.page}#${target.anchor}`);
+    }
+  }
 });
 
 test('hash navigation expands the referenced contract or declaration', () => {
@@ -131,6 +130,14 @@ test('hash navigation expands the referenced contract or declaration', () => {
   vm.runInContext(source + '\nonRouteDidUpdate({location: {pathname: "/docs/models/", hash: "#models-definition"}});', context);
   assert.equal(details.open, true);
   assert.equal(scrolled, true);
+});
+
+test('old feature anchors navigate to focused pages', () => {
+  const source = read('src/feature-links.js').replace(/^import .+;\n/m, '').replace('export function', 'function');
+  let destination;
+  const context = {routes, requestAnimationFrame(callback) {callback();}, document: {getElementById() {return null;}}, window: {location: {replace(value) {destination = value;}}}};
+  vm.runInNewContext(source + '\nonRouteDidUpdate({location: {pathname: "/docs/models/", hash: "#api-core-models-field"}});', context);
+  assert.equal(destination, '/docs/api-core-models/#api-core-models-field');
 });
 
 test('public output contains no source include directives or machine paths', () => {
