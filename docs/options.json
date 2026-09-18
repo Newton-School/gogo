@@ -1,6 +1,7 @@
 {
   "core/models.Field": {
-    "parent": "model-fields", "title": "Field options",
+    "parent": "model-fields",
+    "title": "Field options",
     "intro": "All model kinds use this declaration. NewField and the named constructors start with Editable=true; a raw Field literal does not. Auto fields become noneditable primary keys, and Generated is noneditable. Options run in order, so a later option replaces an earlier value. Schema metadata is not a guarantee that every backend or UI supports it.",
     "example": "docs/snippets/catalog/models.go",
     "fields": {
@@ -41,10 +42,29 @@
       "UniqueForDate": "Date field used for date-scoped uniqueness checks by a compatible ConstraintChecker; empty disables this check.",
       "UniqueForMonth": "Date field used for month-scoped uniqueness checks; not a standalone concurrency-safe database constraint.",
       "UniqueForYear": "Date field used for year-scoped uniqueness checks; invoke the configured checker during validation."
-    }
+    },
+    "usage": [
+      {
+        "example": "model-text-options",
+        "title": "Declare a field"
+      },
+      {
+        "example": "model-clean",
+        "title": "Clean a value"
+      },
+      {
+        "example": "model-null-blank",
+        "title": "Allow null and blank"
+      },
+      {
+        "example": "model-choices",
+        "title": "Limit choices"
+      }
+    ]
   },
   "core/models.Relation": {
-    "parent": "relations", "title": "Relation options",
+    "parent": "relations",
+    "title": "Relation options",
     "intro": "A relation targets a registered app.Model schema. Registry resolution, database existence, object authorization and deletion planning are separate checks. Declare relations before freezing the model registry.",
     "example": "examples/showcase/apps/catalog/models.go",
     "fields": {
@@ -54,10 +74,17 @@
       "Through": "Explicit intermediary model for many-to-many relations; empty allows the registry to create its intermediary schema.",
       "ThroughFields": "Ordered source/target foreign-key fields on an explicit intermediary, resolving ambiguity when it has multiple relations.",
       "NoConstraint": "Suppresses database foreign-key constraint metadata where supported. Does not authorize missing or out-of-scope relation targets."
-    }
+    },
+    "usage": [
+      {
+        "example": "relation-options",
+        "title": "Declare a foreign key"
+      }
+    ]
   },
   "core/forms.Field": {
-    "parent": "forms", "title": "Field options",
+    "parent": "forms",
+    "title": "Field options",
     "intro": "NewField(name, kind) creates a required field. A raw Field literal leaves Required=false. Binding, validation and rendering are distinct: unbound forms are not submitted data, and widgets never replace server-side cleaning. Callbacks must honor context and current actor scope.",
     "example": "docs/examples/forms_test.go",
     "fields": {
@@ -85,10 +112,21 @@
       "Fields": "Component declarations for MultiValue/Combo; SplitDateTime has date/time defaults when absent.",
       "Compress": "Combines cleaned composite components into one value; return an error when their combination is invalid.",
       "MaxBytes": "Upload byte limit for File/Image fields. Also bound HTTP multipart parsing; validation alone does not persist a file."
-    }
+    },
+    "usage": [
+      {
+        "example": "form-options",
+        "title": "Configure a field"
+      },
+      {
+        "example": "form-errors",
+        "title": "Validate input"
+      }
+    ]
   },
   "core/forms.ModelFormOptions": {
-    "parent": "forms", "title": "Model forms",
+    "parent": "forms",
+    "title": "Model forms",
     "intro": "NewModelForm requires a non-nil context, bound record and explicit nonempty Fields allowlist. Validation does not persist data. Saving requires a ModelPersistence implementation that keeps parent and relation writes in the same real transaction.",
     "fields": {
       "Fields": "Required ordered allowlist of model field names. Unknown or duplicate names fail construction.",
@@ -98,10 +136,21 @@
       "ResolveRelation": "Resolves and authorizes submitted IDs against current scope. Missing resolution fails relation validation closed.",
       "Checker": "Uniqueness/constraint checker used during model validation. Keep database constraints for concurrent writes.",
       "Persistence": "Atomic parent-and-relations persistence implementation. Must pass the transaction context into its save callbacks."
-    }
+    },
+    "usage": [
+      {
+        "example": "model-form-record",
+        "title": "Bind a model"
+      },
+      {
+        "example": "model-form-options",
+        "title": "Bind the form"
+      }
+    ]
   },
   "core/forms.FormSetOptions": {
-    "parent": "forms", "title": "Formsets",
+    "parent": "forms",
+    "title": "Formsets",
     "intro": "BindFormSet validates TOTAL_FORMS and INITIAL_FORMS before allocating rows. Submitted identities cannot expand the trusted ExistingIDs set. Formset validity is not write authorization or persistence.",
     "fields": {
       "Prefix": "Management and row prefix; empty defaults to form, producing form-TOTAL_FORMS and form-0-field.",
@@ -114,27 +163,48 @@
       "IdentityField": "Row identity field name; empty defaults to id. New rows cannot submit an existing identity when identity checking is enabled.",
       "CanDeleteRow": "Authorizes deletion of a particular existing row identity; return an error to deny.",
       "Clean": "Cross-form validation callback after individual forms have been processed. Return safe validation errors."
-    }
+    },
+    "usage": [
+      {
+        "example": "formset-options",
+        "title": "Bind bounded rows"
+      }
+    ]
   },
   "core/forms.InputWidget": {
-    "parent": "forms", "title": "Input widgets",
+    "parent": "forms",
+    "title": "Input widgets",
     "intro": "Widgets render escaped HTML; they do not validate or save data. Password widgets do not echo submitted passwords. Labels and error associations come from BoundField.",
     "example": "examples/showcase/apps/fieldlab/widgets.go",
     "fields": {
       "Type": "Empty defaults to text. Supported: text, number, email, url, password, hidden, multiple-hidden, file, textarea, date, datetime-local, time, checkbox, select, select-multiple, radio, checkbox-multiple. Unsupported types return an error.",
       "Attrs": "Additional permitted HTML attributes. Values are escaped; unsafe attributes are rejected. Configure step explicitly to override numeric/time defaults."
-    }
+    },
+    "usage": [
+      {
+        "example": "input-widget",
+        "title": "Render a decimal input"
+      }
+    ]
   },
   "core/forms.MultiWidget": {
-    "parent": "forms", "title": "MultiWidget",
+    "parent": "forms",
+    "title": "MultiWidget",
     "intro": "Composite controls use field_0, field_1 and corresponding label/error IDs. The component declarations must agree with the binding field.",
     "fields": {
       "Widgets": "Optional widget per component. Empty chooses component defaults; a supplied list must match the number of fields.",
       "Decompress": "Converts the presentation value to component values. Without it, slices/arrays are split and SplitDateTime accepts time.Time."
-    }
+    },
+    "usage": [
+      {
+        "example": "multi-widget",
+        "title": "Render date and time"
+      }
+    ]
   },
   "core/api.Field": {
-    "parent": "api", "title": "Field options",
+    "parent": "api",
+    "title": "Field options",
     "intro": "Serializer input and output are independent. Constructors set useful defaults; a raw Field literal does not. New freezes declarations. A valid nested value is not permission to write nested database records.",
     "example": "docs/examples/api_test.go",
     "fields": {
@@ -157,24 +227,55 @@
       "Validate": "Field-level cleaning/validation callback; returns the normalized value or a safe validation error.",
       "Represent": "Custom output transformation. Supply OutputSchema when the wire type cannot otherwise be determined.",
       "Compute": "Derives a read-only value from ValueReader. ComputedField enables ReadOnly; do not expose hidden data through this callback."
-    }
+    },
+    "usage": [
+      {
+        "example": "serializer-directions",
+        "title": "Control input and output"
+      }
+    ]
   },
   "core/api.Definition": {
-    "parent": "api", "title": "Definition",
+    "parent": "api",
+    "title": "Definition",
     "intro": "Pass Definition to api.New, check its error, then use the immutable Serializer to validate and represent values.",
     "fields": {
       "Fields": "Explicit public field allowlist; duplicate names and conflicting write sources fail construction.",
       "Validate": "Whole-object validation after field cleaning, for rules involving multiple values.",
       "AllowUnknown": "False rejects undeclared input keys. True ignores them rather than treating them as declared writable fields."
-    }
+    },
+    "usage": [
+      {
+        "example": "serializer-fields",
+        "title": "Declare a serializer"
+      },
+      {
+        "example": "serializer-validate",
+        "title": "Validate input"
+      }
+    ]
   },
   "core/api.BindOptions": {
-    "parent": "api", "title": "Partial input",
+    "parent": "api",
+    "title": "Partial input",
     "intro": "Validate returns cleaned values and field errors; it does not save a record or grant mutation permission.",
-    "fields": {"Partial": "False validates full input and applies defaults. True skips absent fields, including their defaults; present invalid or forbidden fields still fail. Use for PATCH, not as an authorization bypass."}
+    "fields": {
+      "Partial": "False validates full input and applies defaults. True skips absent fields, including their defaults; present invalid or forbidden fields still fail. Use for PATCH, not as an authorization bypass."
+    },
+    "usage": [
+      {
+        "example": "serializer-fields",
+        "title": "Declare required fields"
+      },
+      {
+        "example": "serializer-partial",
+        "title": "Validate a partial update"
+      }
+    ]
   },
   "admin.ModelAdmin": {
-    "parent": "admin", "title": "Model options",
+    "parent": "admin",
+    "title": "Model options",
     "intro": "Register ModelAdmin before the site handler freezes registration. Every callback runs inside the site's trusted policy boundary; model-level rules may narrow but never widen global access. Nil, empty and zero are not interchangeable for every option.",
     "example": "examples/showcase/apps/catalog/admin.go",
     "fields": {
@@ -204,10 +305,29 @@
       "ResolveRelation": "Resolve and authorize every submitted target ID against current scope. UI choices are not trusted authorization evidence.",
       "SaveModel": "Custom parent persistence hook using the supplied ScopedStore; preserve the framework's transaction and audit contract.",
       "SaveRelated": "Custom related-save hook in the authorized save flow. Do not escape to an unrestricted global ORM store."
-    }
+    },
+    "usage": [
+      {
+        "example": "admin-list",
+        "title": "Choose list columns"
+      },
+      {
+        "example": "admin-search",
+        "title": "Search and filter"
+      },
+      {
+        "example": "admin-form",
+        "title": "Choose form fields"
+      },
+      {
+        "example": "admin-register",
+        "title": "Register the model"
+      }
+    ]
   },
   "admin.Config": {
-    "parent": "admin-wiring", "title": "Site options",
+    "parent": "admin-wiring",
+    "title": "Site options",
     "intro": "NewSite requires Store, Policy and Signer. It installs CSRF protection for staff operations but does not automatically create accounts, session middleware or login routes.",
     "fields": {
       "Name": "Site identity; empty defaults to admin. Keep it stable for scoped operations.",
@@ -225,10 +345,17 @@
       "Signer": "Required purpose-bound signer used for protected Admin state. Keys and key rotation are application configuration.",
       "CSRF": "CSRF cookie/origin/body configuration. Admin refuses an Exempt callback; do not disable protection for staff mutations.",
       "TemplateLoaders": "Optional trusted template loaders consulted before embedded defaults. Nil uses the embedded UI."
-    }
+    },
+    "usage": [
+      {
+        "example": "admin-site-options",
+        "title": "Create a site"
+      }
+    ]
   },
   "async.TaskOptions": {
-    "parent": "async", "title": "Task options",
+    "parent": "async",
+    "title": "Task options",
     "intro": "These options belong to the registered task definition, shared by compatible producers and workers. They differ from per-message dispatch options. Registration validates limits before freezing the registry.",
     "example": "examples/showcase/apps/catalog/tasks.go",
     "fields": {
@@ -240,10 +367,21 @@
       "Authorize": "Worker-side authorization callback using trusted task context. Return an error to deny execution.",
       "ValidatePayload": "Optional raw JSON validation before typed decoding. Payload schema checks still run afterwards.",
       "Rate": "Optional task admission rate, explicitly worker-local or distributed. Distributed admission requires Worker.RateLimiter."
-    }
+    },
+    "usage": [
+      {
+        "example": "task-options",
+        "title": "Set task limits"
+      },
+      {
+        "example": "task-register",
+        "title": "Register the task"
+      }
+    ]
   },
   "async.RetryPolicy": {
-    "parent": "scheduling", "title": "Execution retries",
+    "parent": "scheduling",
+    "title": "Execution retries",
     "intro": "Execution retries are distinct from publication retries and lease-based redelivery. Retry, RetryAfter and RetryAt request another attempt explicitly; ordinary failures retry only when AutoRetryFor matches. A retry scheduled at or after task expiry is refused.",
     "fields": {
       "MaxRetries": "Nil normalizes to 3. A pointer to zero disables retries; negative values are invalid. Counts retries after the initial attempt.",
@@ -254,10 +392,17 @@
       "BackoffMax": "Maximum exponential delay before jitter; zero normalizes to 600 seconds.",
       "DisableJitter": "False applies a random fraction to exponential backoff. True retains the full computed delay; fixed delays are unaffected.",
       "AutoRetryFor": "Optional predicate selecting ordinary errors for retry. Nil retries only explicit RetryRequest errors."
-    }
+    },
+    "usage": [
+      {
+        "example": "task-retry",
+        "title": "Configure backoff"
+      }
+    ]
   },
   "async.ClientConfig": {
-    "parent": "async-wiring", "title": "Client options",
+    "parent": "async-wiring",
+    "title": "Client options",
     "intro": "NewClient requires Registry, Broker and Results, validates routes and snapshots allowlists. It freezes the registry. Optional coordination providers enable only their corresponding features; they do not start background services.",
     "fields": {
       "Registry": "Required task registry; register all producer-visible names and versions before client construction.",
@@ -276,10 +421,17 @@
       "Clock": "Optional clock; nil uses time.Now. Supply a deterministic clock for tests, not untrusted input.",
       "NewID": "Optional task identity factory; nil uses async.NewID. An ID alone does not make external effects idempotent.",
       "PublishRetry": "Optional bounded publication-retry policy; distinct from task execution retries. See the Publish retries page."
-    }
+    },
+    "usage": [
+      {
+        "example": "client-options",
+        "title": "Create a client"
+      }
+    ]
   },
   "async.Worker": {
-    "parent": "async", "title": "Worker options",
+    "parent": "async",
+    "title": "Worker options",
     "intro": "Configure the worker before Run. Delivery is at least once: result fencing prevents stale result writes but cannot undo external side effects. Cancellation is cooperative unless an explicitly configured executor provides hard termination.",
     "fields": {
       "Registry": "Required task definitions with handlers; frozen for execution during initialization.",
@@ -297,6 +449,12 @@
       "Events": "Optional execution-event observer; telemetry is not an authority to change task outcomes.",
       "Presence": "Optional live worker-presence store for inspection. When Controls is set, it must use that same authority.",
       "RateLimiter": "Required limiter for distributed task rates. No silent worker-local fallback exists for a distributed declaration."
-    }
+    },
+    "usage": [
+      {
+        "example": "worker-options",
+        "title": "Configure a worker"
+      }
+    ]
   }
 }

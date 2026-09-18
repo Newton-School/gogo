@@ -98,3 +98,42 @@ class CodeExampleTests(unittest.TestCase):
         self.assertIn("Never saves data.", output)
         self.assertLess(output.index("value := New()"), output.index("Go declaration"))
         self.assertEqual(output.count("func New() Value"), 1)
+
+    def test_every_configuration_page_requires_usage_examples(self):
+        entries = json.loads((generate.DOCS / "code-examples.json").read_text())
+        count = 0
+        for path in generate.DOCS.glob("options*.json"):
+            for key, entry in json.loads(path.read_text()).items():
+                with self.subTest(type=key):
+                    output = "\n".join(code_examples.usage(entry, entries, generate.safe_file))
+                    self.assertIn("## Usage", output)
+                    self.assertIn("```go\n", output)
+                    self.assertRegex(output, r":=|return [a-z]+\.")
+                    count += 1
+        self.assertEqual(count, 31)
+
+    def test_missing_usage_and_unknown_examples_fail(self):
+        with self.assertRaisesRegex(ValueError, "Missing configuration usage"):
+            code_examples.usage({"title": "New options"}, {}, generate.safe_file)
+        with self.assertRaisesRegex(ValueError, "Unknown example"):
+            code_examples.usage({"title": "New options", "usage": [
+                {"example": "missing", "title": "Create"}]}, {}, generate.safe_file)
+        entries = json.loads((generate.DOCS / "code-examples.json").read_text())
+        with self.assertRaisesRegex(ValueError, "duplicate usage heading"):
+            code_examples.usage({"title": "Constraints", "usage": [
+                {"example": "constraint-unique", "title": "Create"},
+                {"example": "constraint-check", "title": "Create"},
+            ]}, entries, generate.safe_file)
+
+    def test_every_constraint_option_has_a_small_usage_example(self):
+        entries = json.loads((generate.DOCS / "code-examples.json").read_text())
+        covered = set()
+        for name, entry in entries.items():
+            fields = entry.get("options", {}).get("core/models.Constraint", [])
+            if fields:
+                code = code_examples.extract(generate.safe_file(entry["file"]).read_text(), name)
+                self.assertIn("models.Constraint{", code)
+                self.assertLessEqual(len(code.splitlines()), 20)
+                covered.update(fields)
+        options = json.loads((generate.DOCS / "options-services.json").read_text())
+        self.assertEqual(covered, set(options["core/models.Constraint"]["fields"]))

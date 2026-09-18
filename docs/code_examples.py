@@ -39,14 +39,35 @@ def without_markers(source):
     return re.sub(r"^[ \t]*// docs:(?:begin|end) [a-z0-9-]+\s*\n", "", source, flags=re.M)
 
 
+def render(name, entry, safe_file):
+    source = extract(safe_file(entry["file"]).read_text(), name)
+    return entry["intro"] + "\n\n" + block(source)
+
+
+def usage(entry, examples, safe_file):
+    """Every configuration page must teach usage, not just repeat Go types."""
+    if not entry.get("usage"):
+        raise ValueError("Missing configuration usage examples: " + entry["title"])
+    lines = ["## Usage", ""]
+    seen = set()
+    for item in entry["usage"]:
+        name, title = item["example"], item["title"]
+        if name not in examples or not title.strip() or title in seen:
+            raise ValueError("Unknown example or duplicate usage heading: " + name)
+        seen.add(title)
+        lines += ["### " + title, "", render(name, examples[name], safe_file), ""]
+    if entry.get("usageNotes"):
+        lines += [entry["usageNotes"], ""]
+    return lines
+
+
 def load(entries, catalog, safe_file):
     """Reject stale symbol/member mappings and oversized or missing excerpts."""
     declarations = {p["Directory"] + "." + d["Name"]: d
                     for p in catalog["Packages"] for d in p["Declarations"]}
     symbols, members = {}, {}
     for name, entry in entries.items():
-        source = extract(safe_file(entry["file"]).read_text(), name)
-        rendered = entry["intro"] + "\n\n" + block(source)
+        rendered = render(name, entry, safe_file)
         for key in entry.get("symbols", []):
             if key not in declarations or key in symbols:
                 raise ValueError("Unknown or duplicate example symbol: " + key)

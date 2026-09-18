@@ -468,5 +468,492 @@
         "Retry"
       ]
     }
+  },
+  "schema-options": {
+    "file": "docs/examples/schema_options_test.go",
+    "intro": "Inside your model's `Schema()` method, start with this declaration. The Go model needs compatible exported members: `ID int64`, `SKU *string`, `Stock int64`, and `Active bool`. Return `schema` after adding indexes or constraints.",
+    "symbols": [
+      "core/models.Schema"
+    ],
+    "options": {
+      "core/models.Schema": [
+        "AppLabel",
+        "Name",
+        "Table",
+        "Label",
+        "LabelPlural",
+        "Ordering",
+        "Fields"
+      ]
+    }
+  },
+  "constraint-unique": {
+    "file": "docs/examples/schema_options_test.go",
+    "intro": "One SKU may appear in at most one row. `Fields` uses logical model names; add more names for a composite unique key.",
+    "symbols": [
+      "core/models.Constraint"
+    ],
+    "options": {
+      "core/models.Constraint": [
+        "Name",
+        "Kind",
+        "Fields"
+      ]
+    }
+  },
+  "constraint-check": {
+    "file": "docs/examples/schema_options_test.go",
+    "intro": "Reject negative stock in the database. `Expression` uses database column names and trusted SQL, never interpolated request input.",
+    "symbols": [],
+    "options": {
+      "core/models.Constraint": [
+        "Expression"
+      ]
+    }
+  },
+  "constraint-attach": {
+    "file": "docs/examples/schema_options_test.go",
+    "intro": "Add both constraints to the schema above. Return this schema from the model, register the app, then generate and apply its migration.",
+    "symbols": [],
+    "options": {
+      "core/models.Schema": [
+        "Constraints"
+      ]
+    }
+  },
+  "constraint-condition": {
+    "file": "docs/examples/schema_options_test.go",
+    "intro": "Alternative to unconditional SKU uniqueness: only active rows must be unique. PostgreSQL implements this as a partial unique index. Do not combine it with `Deferrable`.",
+    "symbols": [],
+    "options": {
+      "core/models.Constraint": [
+        "Condition"
+      ]
+    }
+  },
+  "constraint-deferred": {
+    "file": "docs/examples/schema_options_test.go",
+    "intro": "Alternative unique constraint: PostgreSQL checks it at transaction commit (`DEFERRABLE INITIALLY DEFERRED`). This is not valid for check constraints or conditional uniqueness.",
+    "symbols": [],
+    "options": {
+      "core/models.Constraint": [
+        "Deferrable"
+      ]
+    }
+  },
+  "constraint-nulls": {
+    "file": "docs/examples/schema_options_test.go",
+    "intro": "Alternative unique constraint on the nullable `sku` field: PostgreSQL treats NULLs as equal, allowing at most one NULL. Other fields in a composite key still participate.",
+    "symbols": [],
+    "options": {
+      "core/models.Constraint": [
+        "NullsDistinct"
+      ]
+    }
+  },
+  "constraint-migration": {
+    "file": "docs/examples/schema_options_test.go",
+    "intro": "For an explicitly authored migration, `schema` is the inventory schema and `constraint` is the desired declaration. Use the actual previous migration key from your app.",
+    "symbols": [
+      "core/migrations.AddConstraint"
+    ],
+    "options": {}
+  },
+  "index-options": {
+    "file": "docs/examples/schema_options_test.go",
+    "intro": "Using the inventory schema above, index active SKUs and include stock for covering reads. This checks metadata only; generate and apply a migration to create the index.",
+    "symbols": [
+      "core/models.Index"
+    ],
+    "options": {
+      "core/models.Index": [
+        "Name",
+        "Fields",
+        "Method",
+        "Condition",
+        "Include"
+      ],
+      "core/models.Schema": [
+        "Indexes"
+      ]
+    }
+  },
+  "index-unique": {
+    "file": "docs/examples/schema_options_test.go",
+    "intro": "Alternative index: enforce SKU uniqueness and treat NULL as equal. Add this to `schema.Indexes` and migrate; do not also declare an equivalent unique constraint.",
+    "symbols": [],
+    "options": {
+      "core/models.Index": [
+        "Unique",
+        "NullsDistinct"
+      ]
+    }
+  },
+  "index-concurrent": {
+    "file": "docs/examples/schema_options_test.go",
+    "intro": "Create the index outside a transaction with a non-atomic migration. Use your actual dependency. Review the concurrent-index recovery contract before applying this to a live database.",
+    "symbols": [],
+    "options": {
+      "core/models.Index": [
+        "Concurrent"
+      ]
+    }
+  },
+  "setting-definition": {
+    "file": "docs/examples/configuration_usage_test.go",
+    "intro": "Declare an integer setting, then load and read a supplied value. An absent key uses 25; a supplied 50 is accepted.",
+    "symbols": [
+      "core/conf.Definition"
+    ],
+    "options": {
+      "core/conf.Definition": [
+        "Name",
+        "Group",
+        "Kind",
+        "Default",
+        "Min",
+        "Choices"
+      ]
+    }
+  },
+  "setting-secret": {
+    "file": "docs/examples/configuration_usage_test.go",
+    "intro": "Selecting the delivery resource makes this secret required. Missing input fails without opening any service; never print a revealed secret.",
+    "symbols": [],
+    "options": {
+      "core/conf.Definition": [
+        "Sensitive",
+        "RequiredFor"
+      ]
+    }
+  },
+  "relation-options": {
+    "file": "docs/examples/configuration_usage_test.go",
+    "intro": "Declare a foreign key on Product. Category must have a compatible primary key, and the product struct must have a compatible member. `Protect` rejects deleting a category that still has products.",
+    "symbols": [
+      "core/models.Relation"
+    ],
+    "options": {
+      "core/models.Relation": [
+        "Target",
+        "TargetFields",
+        "OnDelete",
+        "RelatedName",
+        "RelatedQueryName"
+      ],
+      "core/models.Field": [
+        "Relation"
+      ]
+    }
+  },
+  "model-form-record": {
+    "file": "docs/examples/configuration_usage_test.go",
+    "intro": "Bind the tutorial's Product model to a record; `catalog` is the app package from the Models guide.",
+    "symbols": [],
+    "options": {}
+  },
+  "model-form-options": {
+    "file": "docs/examples/configuration_usage_test.go",
+    "intro": "Using the bound `record` above, allow only name and price input. Add a real constraint checker for constrained models and transactional persistence before calling Save.",
+    "symbols": [
+      "core/forms.ModelFormOptions"
+    ],
+    "options": {
+      "core/forms.ModelFormOptions": [
+        "Fields"
+      ]
+    }
+  },
+  "formset-options": {
+    "file": "docs/examples/configuration_usage_test.go",
+    "intro": "A create-only formset with one submitted row. Existing-row editing must supply the complete authorized IDs and matching initial values.",
+    "symbols": [
+      "core/forms.FormSetOptions"
+    ],
+    "options": {
+      "core/forms.FormSetOptions": [
+        "Prefix",
+        "Minimum",
+        "Maximum",
+        "AbsoluteMaximum",
+        "ExistingIDs",
+        "CanDelete",
+        "CanOrder"
+      ]
+    }
+  },
+  "input-widget": {
+    "file": "docs/examples/configuration_usage_test.go",
+    "intro": "Render a decimal input with a step attribute. HTML is returned in `html`; browser attributes do not replace field validation.",
+    "symbols": [
+      "core/forms.InputWidget"
+    ],
+    "options": {
+      "core/forms.InputWidget": [
+        "Type",
+        "Attrs"
+      ]
+    }
+  },
+  "multi-widget": {
+    "file": "docs/examples/configuration_usage_test.go",
+    "intro": "Render date and time controls as starts_at_0 and starts_at_1. Bind them through a SplitDateTime field; this is rendering, not persistence.",
+    "symbols": [
+      "core/forms.MultiWidget"
+    ],
+    "options": {
+      "core/forms.MultiWidget": [
+        "Widgets"
+      ]
+    }
+  },
+  "model-serializer-options": {
+    "file": "docs/examples/configuration_usage_test.go",
+    "intro": "Here `schema` is the tutorial Product schema. Only the allowlisted fields are public; id is output-only.",
+    "symbols": [
+      "core/api.ModelOptions"
+    ],
+    "options": {
+      "core/api.ModelOptions": [
+        "Fields",
+        "Readonly"
+      ]
+    }
+  },
+  "headers-config": {
+    "file": "docs/examples/configuration_usage_test.go",
+    "intro": "Local-development host/CORS policy. Replace hosts and origins for your deployment. Serve `app`, not the unwrapped handler; authorization and CSRF are separate.",
+    "symbols": [
+      "core/security.HeadersConfig"
+    ],
+    "options": {
+      "core/security.HeadersConfig": [
+        "AllowedHosts",
+        "FramePolicy",
+        "ReferrerPolicy",
+        "CORSOrigins",
+        "CORSMethods",
+        "CORSHeaders"
+      ]
+    }
+  },
+  "csrf-config": {
+    "file": "docs/examples/configuration_usage_test.go",
+    "intro": "Local HTTP example: a GET issues a masked token; a POST without it returns 403. Send the token with unsafe requests and keep the cookie. Use Secure=true in HTTPS deployments.",
+    "symbols": [
+      "core/security.CSRFConfig"
+    ],
+    "options": {
+      "core/security.CSRFConfig": [
+        "CookieName",
+        "Secure",
+        "TrustedOrigins",
+        "MaxBodyBytes"
+      ]
+    }
+  },
+  "session-middleware": {
+    "file": "docs/examples/configuration_usage_test.go",
+    "intro": "Wiring function: supply a real session store, a stable purpose-bound signer, and your router as `next`. This HTTPS cookie configuration needs Secure=false only for explicit local HTTP development.",
+    "symbols": [
+      "core/sessions.MiddlewareConfig"
+    ],
+    "options": {
+      "core/sessions.MiddlewareConfig": [
+        "Store",
+        "Signer",
+        "CookieName",
+        "TTL",
+        "Secure"
+      ]
+    }
+  },
+  "admin-site-options": {
+    "file": "examples/showcase/recipes/documentation/admin_test.go",
+    "intro": "Supply the scoped store and stable purpose-bound signer from Admin setup. Mount the site's handler at /admin/ and wire sessions/login routes separately. This configuration uses HTTPS cookies.",
+    "symbols": [
+      "admin.Config"
+    ],
+    "options": {
+      "admin.Config": [
+        "Name",
+        "Header",
+        "Title",
+        "IndexTitle",
+        "Prefix",
+        "SiteURL",
+        "Store",
+        "Policy",
+        "Signer",
+        "CSRF"
+      ]
+    }
+  },
+  "admin-fieldsets": {
+    "file": "examples/showcase/recipes/documentation/admin_test.go",
+    "intro": "Continue with a Product ModelAdmin named `config`. Fieldsets replace Fields, rather than adding a second allowlist. Register config after customization.",
+    "symbols": [
+      "admin.Fieldset"
+    ],
+    "options": {
+      "admin.Fieldset": [
+        "Name",
+        "Description",
+        "Fields",
+        "Classes"
+      ],
+      "admin.ModelAdmin": [
+        "Fieldsets"
+      ]
+    }
+  },
+  "admin-inline": {
+    "file": "examples/showcase/recipes/documentation/admin_test.go",
+    "intro": "Continue with `config`. ProductNote is the showcase child model whose product foreign key owns the relationship. The framework binds that parent link; it is not a submitted child field.",
+    "symbols": [
+      "admin.Inline"
+    ],
+    "options": {
+      "admin.Inline": [
+        "Name",
+        "Label",
+        "FKName",
+        "Schema",
+        "Fields",
+        "Extra",
+        "Minimum",
+        "Maximum",
+        "CanDelete"
+      ],
+      "admin.ModelAdmin": [
+        "Inlines"
+      ]
+    }
+  },
+  "admin-column": {
+    "file": "examples/showcase/recipes/documentation/admin_test.go",
+    "intro": "Continue with `config`. Compute a label from the already-authorized object's price; sorting uses the stored price field, not formatted text.",
+    "symbols": [
+      "admin.DisplayColumn"
+    ],
+    "options": {
+      "admin.DisplayColumn": [
+        "Name",
+        "Label",
+        "Value",
+        "Ordering"
+      ],
+      "admin.ModelAdmin": [
+        "Columns"
+      ]
+    }
+  },
+  "admin-action": {
+    "file": "examples/showcase/recipes/documentation/admin_test.go",
+    "intro": "Continue with `config`. The callback uses only its supplied scoped store. The site rechecks change permission; confirmation does not freeze authorization. This example's repeatable set-to-true operation is not a recipe for non-idempotent external effects.",
+    "symbols": [
+      "admin.Action"
+    ],
+    "options": {
+      "admin.Action": [
+        "Name",
+        "Description",
+        "Permission",
+        "Confirm",
+        "Run"
+      ],
+      "admin.ModelAdmin": [
+        "Actions"
+      ]
+    }
+  },
+  "postgres-options": {
+    "file": "examples/showcase/recipes/documentation/connectors_test.go",
+    "intro": "Wiring function: pass validated project settings and a deadline-bound context. Open connects to PostgreSQL; handle its error and close the returned backend during shutdown. The example is compiled and missing settings are tested; no live server is started.",
+    "symbols": [
+      "connectors/postgres.Config"
+    ],
+    "options": {
+      "connectors/postgres.Config": [
+        "DSN",
+        "Alias",
+        "SearchPath",
+        "MaxOpen",
+        "MaxIdle",
+        "MaxLifetime",
+        "ConnectTimeout",
+        "Production"
+      ]
+    }
+  },
+  "redis-options": {
+    "file": "examples/showcase/recipes/documentation/connectors_test.go",
+    "intro": "Wiring function: pass validated settings with GOGO_REDIS_URL, for example redis://localhost:6379/1 for local development. Handle Open's error and close the connection at shutdown. This opens a cache-role connection, not a task broker; live Redis is not exercised by this snippet's test.",
+    "symbols": [
+      "connectors/redis.Config"
+    ],
+    "options": {
+      "connectors/redis.Config": [
+        "URL",
+        "Role",
+        "PoolSize",
+        "Timeout",
+        "Development",
+        "Production"
+      ]
+    }
+  },
+  "client-options": {
+    "file": "examples/showcase/recipes/async/short_examples_test.go",
+    "intro": "Test setup: `registry` contains recipes.increment; `memory := simulator.NewMemory()` supplies process-local test providers. Production must use durable providers. Creating a client starts no worker, scheduler or relay.",
+    "symbols": [
+      "async.ClientConfig"
+    ],
+    "options": {
+      "async.ClientConfig": [
+        "Registry",
+        "Broker",
+        "Results",
+        "Workflows",
+        "Schedules",
+        "Queues",
+        "Routes",
+        "AllowedHeaders"
+      ]
+    }
+  },
+  "worker-options": {
+    "file": "examples/showcase/recipes/async/short_examples_test.go",
+    "intro": "Use the same registered tasks and providers as the producer. `memory` here is the test simulator; choose the real broker/result stores in a worker process.",
+    "symbols": [
+      "async.Worker"
+    ],
+    "options": {
+      "async.Worker": [
+        "Registry",
+        "Broker",
+        "Results",
+        "ID",
+        "Queues",
+        "Concurrency",
+        "Lease",
+        "Heartbeat"
+      ]
+    }
+  },
+  "dispatch-options": {
+    "file": "examples/showcase/recipes/async/short_examples_test.go",
+    "intro": "Using registered task `addOne`, the client above, and a deadline-bound `ctx`, submit one message with allowlisted metadata. Acceptance is not execution; a worker still must consume it.",
+    "symbols": [
+      "async.DispatchOptions"
+    ],
+    "options": {
+      "async.DispatchOptions": [
+        "Queue",
+        "Priority",
+        "Headers",
+        "Stamps"
+      ]
+    }
   }
 }

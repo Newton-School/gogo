@@ -13,8 +13,8 @@ import re
 import subprocess
 from urllib.parse import urlsplit
 from field_reference import build_pages as field_pages, constructor_examples
-from reference import api_page, declaration_details, member_contracts
-from code_examples import extract as extract_example, block as example_block, load as load_examples, without_markers
+from reference import api_page, code_span, declaration_details, member_contracts
+from code_examples import extract as extract_example, block as example_block, load as load_examples, without_markers, usage
 
 ROOT = Path(__file__).resolve().parents[1]
 DOCS = ROOT / "docs"
@@ -235,7 +235,8 @@ def compile_tree(tree, pages):
 
 def collect_pages(manifest, catalog, revision):
     pages, owners = {}, {}
-    examples, member_examples = load_examples(json.loads((DOCS / "code-examples.json").read_text()), catalog, safe_file)
+    named_examples = json.loads((DOCS / "code-examples.json").read_text())
+    examples, member_examples = load_examples(named_examples, catalog, safe_file)
     examples = constructor_examples(json.loads((DOCS / "fields.json").read_text())) | examples
     options = {}
     for path in sorted(DOCS.glob("options*.json")):
@@ -302,16 +303,15 @@ def collect_pages(manifest, catalog, revision):
                 raise ValueError(f"Option coverage for {key}: unknown {sorted(unknown)}, missing {sorted(missing)}")
             body = ["# " + entry["title"], "", entry["intro"], "", f"```go\nimport \"{package['Path']}\"\n```", "",
                     f"[Complete type and methods]({identifier}.md#{slug(declaration['Name'])}) · [Feature guide]({entry['parent']}.md)", ""]
+            body += usage(entry, named_examples, safe_file)
             if entry.get("example"):
                 body += ["<details>", "<summary>Complete feature example</summary>", "", "This example provides feature context; individual option examples follow below. Adapt its app imports and explicitly supplied services to your project.", "", "{{code " + entry["example"] + "}}", "", "</details>", ""]
             for member, description in members:
                 body += ["## " + member["Name"], "", description, ""]
                 example = member_examples.get(key + "." + member["Name"])
                 if example:
-                    body += [example, "", "<details>", "<summary>Go type</summary>", ""]
-                body += ["```go", member["Name"] + " " + member["Type"], "```", ""]
-                if example:
-                    body += ["</details>", ""]
+                    body += [example, ""]
+                body += ["**Type:** " + code_span(member["Type"]), ""]
             add({"id": "options-" + slug(key), "title": entry["title"], "parent": entry["parent"], "new": True,
                  "source": "\n".join(body), "description": entry["intro"], "optionCount": len(members)})
         owner.setdefault("references", []).append(identifier)

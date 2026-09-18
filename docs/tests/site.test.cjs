@@ -194,6 +194,25 @@ test('curated API examples render before declarations without losing anchors', (
   }
 });
 
+test('configuration references show usage before member types', () => {
+  for (const file of fs.readdirSync(root).filter(name => /^options.*\.json$/.test(name))) {
+    for (const [key, entry] of Object.entries(JSON.parse(read(file)))) {
+      const id = 'options-' + key.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+      const source = read(`.generated/content/${id}.md`);
+      const usageStart = source.indexOf('## Usage');
+      const memberStart = source.indexOf('## ' + Object.keys(entry.fields)[0] + ' ');
+      assert.ok(usageStart > 0 && usageStart < memberStart, `${key} needs usage before reference metadata`);
+      assert.match(source.slice(usageStart, memberStart), /```go\n[\s\S]*?(?::=|return [a-z]+\.)/);
+      assert.doesNotMatch(source, /```go\n[A-Z][a-zA-Z]+ (?:string|bool|int|\[\]string|\*bool)\n```/,
+        `${key} presents a type-only declaration as an example`);
+    }
+  }
+  const constraint = read('.generated/content/options-core-models-constraint.md');
+  for (const behavior of ['unique', 'check', 'stock >= 0', 'Deferrable: true', 'NullsDistinct: &distinct', 'Condition:', 'makemigrations catalog']) {
+    assert.ok(constraint.includes(behavior), `Constraint usage missing ${behavior}`);
+  }
+});
+
 test('old document URLs redirect to real consolidated anchors', () => {
   const idSets = new Map();
   for (const [source, route] of Object.entries(routes)) {
