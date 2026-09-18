@@ -8,6 +8,7 @@ import (
 )
 
 func Example_signal() {
+	// docs:begin signal-connect
 	type Published struct{ ProductID int64 }
 	var published signals.Signal[Published]
 	err := published.Connect("search-index", 10, func(ctx context.Context, event Published) error {
@@ -20,11 +21,14 @@ func Example_signal() {
 	if err != nil {
 		panic(err)
 	}
+	// docs:end signal-connect
+	// docs:begin signal-send
 	results, err := published.Send(context.Background(), Published{ProductID: 42})
 	if err != nil {
 		panic(err)
 	}
 	fmt.Println("receivers called:", len(results))
+	// docs:end signal-send
 	// Output:
 	// published product: 42
 	// receivers called: 1

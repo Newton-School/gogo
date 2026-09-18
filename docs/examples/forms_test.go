@@ -9,10 +9,13 @@ import (
 )
 
 func Example_form() {
+	// docs:begin form-fields
 	name := forms.NewField("name", forms.Char)
 	name.MaxLength = 120
 	price := forms.NewField("price", forms.Decimal)
 	price.MaxDigits, price.DecimalPlaces = 12, 2
+	// docs:end form-fields
+	// docs:begin form-bind
 	form, err := forms.New([]forms.Field{name, price},
 		forms.WithContext(context.Background()),
 		forms.WithData(url.Values{"name": {"  Notebook  "}, "price": {"19.95"}}),
@@ -23,8 +26,11 @@ func Example_form() {
 	if !form.IsValid() {
 		panic("example input failed validation")
 	}
+	// docs:end form-bind
+	// docs:begin form-output
 	fmt.Println(form.CleanedData()["name"])
 	fmt.Println(form.CleanedData()["price"])
+	// docs:end form-output
 	// Output:
 	// Notebook
 	// 19.95

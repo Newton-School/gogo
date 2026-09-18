@@ -3,6 +3,7 @@
 import json
 import re
 import subprocess
+from code_examples import block
 
 GROUPS = {
     "models": {
@@ -82,6 +83,28 @@ def complete_example(family, row):
     return subprocess.check_output(["gofmt"], input=source, text=True, timeout=10).rstrip()
 
 
+def format_fragment(source):
+    wrapped = "package main\nfunc main() {\n" + source + "\n}\n"
+    formatted = subprocess.check_output(["gofmt"], input=wrapped, text=True, timeout=10)
+    return "\n".join(line.removeprefix("\t") for line in formatted.splitlines()[3:-1])
+
+
+def constructor_examples(data):
+    """Reuse the executable field examples in constructor references, not just signatures."""
+    examples = {}
+    for family in ("models", "serializers"):
+        for row in data[family]:
+            expression = row[2] if family == "models" else row[1]
+            match = re.match(r"(models|api)\.([A-Za-z]+)\(", expression)
+            if not match or match[2] == "NewField":
+                continue
+            key = "core/" + match[1] + "." + match[2]
+            field_id = "field-" + family + "-" + row[0].lower()
+            examples[key] = block(format_fragment("field := " + expression)) + "\n\n"
+            examples[key] += f"[Validation example and configuration]({field_id}.md). This declaration alone does not save data."
+    return examples
+
+
 def build_pages(data, catalog):
     pages = []
     for family, rows in data.items():
@@ -102,44 +125,40 @@ def build_pages(data, catalog):
             kind = row[0]
             title, behavior = (row[1], row[3]) if family == "models" else (kind, row[2])
             identifier = "field-" + family + "-" + kind.lower()
-            body = ["# " + title, "", behavior, "", "## Example", "",
-                    "This standalone example compiles against the checkout. Validation examples run in the documentation tests; descriptor-only declarations do not claim persistence or UI support.", "",
-                    "```go", complete_example(family, row), "```", "", "## Configuration", ""]
+            expression = row[2] if family == "models" else row[1]
+            declaration = "field := " + expression
+            validation = example_body(family, row)[len(declaration):].strip()
+            notes = re.split(r"(?<=[.!?])\s+", behavior)
+            body = ["# " + title, "", notes[0], "", "## Example", "",
+                    "**1. Declare the field**", "", block(format_fragment(declaration)), ""]
+            if not validation.startswith("_ = field"):
+                body += ["**2. Validate the value**", "", block(format_fragment(validation)), ""]
+            else:
+                body += ["> Declaration only. Wire the required provider before validation or persistence.", ""]
+            if len(notes) > 1:
+                body += ["\n".join("- " + note for note in notes[1:]), ""]
+            body += ["<details>", "<summary>Complete runnable example, including imports</summary>", "",
+                     block(complete_example(family, row)), "", "</details>", "", "## Configuration", ""]
             if family == "models":
-                body += ["Use named constructors or `models.NewField`; options run in order. Constructors set `Editable=true` except identities and generated fields. Add `WithStructField` when mapping to a Go struct, then include the declaration in `Schema().Fields`.", "",
-                         "| Configure | Options |", "| --- | --- |",
-                         "| Missing/empty input | `Nullable`, `Optional`; they are independent |",
-                         "| Application default | `WithDefault`, `WithDefaultFunc` with stable `DefaultID` |",
-                         "| Storage and identity | `WithColumn`, `Primary`, `UniqueValue`, `WithDBIndex` |",
-                         "| Validation | `WithBounds`, `WithMinLength`, `WithMaxLength`, `WithChoices`, `WithValidators`; applicability depends on this kind |",
-                         "| Presentation | `ReadOnly`, `WithLabel`, `WithHelpText`; not authorization |", "",
+                body += ["Map the field to a Go struct member, then add it to `Schema().Fields`:", "",
+                         block('field.StructField = "Value"\n// Your model must declare a compatible exported Value member.'), "",
                          "[Every Field member and its behavior](options-core-models-field.md) · [Relation configuration](options-core-models-relation.md)", "",
                          "## Validation and persistence", "",
-                         "`Field.Clean` validates one value. `Schema.Validate` checks the declaration. `FullClean` adds model/uniqueness/constraint checks through explicit providers. None of these saves a row. Register the schema, review migrations and use the ORM for persistence. File storage and relation authorization remain separate.", "",
+                         "- `Field.Clean` validates a value; it does **not** save a row.\n- `FullClean` adds model and configured constraint checks.\n- Save through the ORM after authorization; file storage and relation checks are separate.", "",
                          "[Models](models.md) · [Migrations](migrations.md) · [Forms](forms.md) · [Serializers](api.md)"]
             elif family == "forms":
-                body += ["`NewField` sets `Required=true`; a raw `forms.Field` literal does not. Configure the field before `forms.New`. Without `WithData` the form is unbound; supplying even empty data binds it.", "",
-                         "| Configure | Options |", "| --- | --- |",
-                         "| Presence | `Required`, `Disabled`, `Initial` |",
-                         "| Constraints | `MinLength`, `MaxLength`, `MinValue`, `MaxValue`, `MaxDigits`, `DecimalPlaces`; apply only to compatible kinds |",
-                         "| Custom cleaning | `Validators`, `Clean`, `ErrorMessages` |",
-                         "| Presentation | `Label`, `HelpText`, `Widget` |",
-                         "| Kind-specific behavior | `Choices`, `Coerce`, `Resolve`, `Pattern`, `InputFormats`, `Fields`, `Compress`, `MaxBytes`, `Strip`, `AllowUnicode` |", "",
+                body += ["Set options before calling `forms.New`:", "",
+                         block('field.Required = false // NewField defaults to true.\nfield.Label = "Value"\nfield.HelpText = "Enter a value."'), "",
                          "[Every Field member and its behavior](options-core-forms-field.md) · [Widgets](options-core-forms-inputwidget.md)", "",
                          "## Errors and saving", "",
-                         "Check `IsValid()` before reading `CleanedData()`. Field errors are available through `Errors()`; provider failures must not be disguised as ordinary user mistakes. A plain form does not save data. Use an explicitly authorized service, or configure ModelForm persistence for atomic model/relation saves.", "",
+                         "- Check `IsValid()` before reading `CleanedData()`; inspect `Errors()` on failure.\n- A form without `WithData` is unbound, not submitted.\n- Validation does not save data or grant write permission.", "",
                          "[Complete multipart, relation and composite examples](forms.md#field-examples) · [Model forms](options-core-forms-modelformoptions.md) · [Formsets](options-core-forms-formsetoptions.md)"]
             else:
-                body += ["Set the returned `api.Field` before `api.New`. Scalar constructors derive requiredness and nullability from their model metadata; lists/nested objects are required by default, and uploads are write-only. Computed fields are read-only.", "",
-                         "| Configure | Options |", "| --- | --- |",
-                         "| Wire name and source | `Name`, `Source`, `Label`, `HelpText` |",
-                         "| Input presence | `Required`, `AllowNull`, `Default`; partial input skips absent fields and defaults |",
-                         "| Direction | `ReadOnly`, `WriteOnly`, `Hidden`; hidden fields require a trusted default |",
-                         "| Collections and nested objects | `Element`, `Nested`, `Dictionary`, `MinItems`, `MaxItems` |",
-                         "| Custom behavior | `Validate`, `Represent`, `Compute`, `OutputSchema` |", "",
+                body += ["Set metadata before `api.New` freezes the declaration:", "",
+                         block('field.Label = "Value"\nfield.HelpText = "The value returned by this API."'), "",
                          "[Every api.Field option](options-core-api-field.md) · [Definition](options-core-api-definition.md) · [Partial input](options-core-api-bindoptions.md)", "",
                          "## Validation and persistence", "",
-                         "`Validate` returns only declared writable sources; `Representation` omits write-only/hidden fields. Declared read-only input is ignored, not accepted as an update. Unknown input is rejected unless Definition.AllowUnknown is enabled. Neither operation saves a record. Configure an explicit authorized persistence/mutation policy.", "",
+                         "- `Validate` cleans input; `Representation` produces output. Neither saves a row.\n- Read-only input is ignored; write-only and hidden fields are omitted from output.\n- Unknown input is rejected unless `AllowUnknown` is enabled.\n- Persistence requires an explicit, authorized mutation policy.", "",
                          "[Mutation routes and policies](api-writes.md) · [OpenAPI](detail-core-api-openapi.md) · [Output schemas](detail-core-api-output-schema.md)"]
             pages.append({"id": identifier, "title": title, "parent": parent, "new": True,
                           "source": "\n".join(body), "description": behavior, "fieldKind": kind,

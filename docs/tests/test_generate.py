@@ -19,7 +19,7 @@ class ContentTests(unittest.TestCase):
     def test_examples_include_exact_source(self):
         path = "docs/snippets/catalog/models.go"
         result = docs.expand("{{code " + path + "}}", "revision", {}, {})
-        self.assertIn(docs.safe_file(path).read_text().rstrip(), result)
+        self.assertIn(docs.without_markers(docs.safe_file(path).read_text()).rstrip(), result)
         self.assertIn("```go\n", result)
         self.assertNotIn("Example source", result)
         self.assertNotIn("https://github.com", result)
@@ -170,8 +170,10 @@ class SettingsTests(unittest.TestCase):
 
     def test_description_is_next_to_generated_setting_metadata(self):
         page = docs.settings_page(self.settings, {"GOGO_EXAMPLE": "Limits operation duration."})
-        self.assertIn("| Variable | Description | Default | Required for | Type and constraints |", page)
-        self.assertIn("| `GOGO_EXAMPLE` | Limits operation duration. | `5s` | example | duration; Secret; redacted; Minimum 1 ns |", page)
+        self.assertIn("### GOGO_EXAMPLE\n\nLimits operation duration.", page)
+        self.assertIn("```dotenv\nGOGO_EXAMPLE=5s\n```", page)
+        self.assertIn("**Default:** `5s` · **Required for:** example", page)
+        self.assertIn("**Type:** duration; Secret; redacted; Minimum 1 ns", page)
         self.assertIn("declaring a variable does not register a service", page)
 
     def test_missing_unknown_and_empty_descriptions_fail(self):
@@ -180,9 +182,15 @@ class SettingsTests(unittest.TestCase):
             with self.subTest(descriptions=descriptions), self.assertRaises(ValueError):
                 docs.settings_page(self.settings, descriptions)
 
-    def test_descriptions_cannot_split_table_rows_or_cells(self):
+    def test_descriptions_normalize_whitespace_without_table_escaping(self):
         page = docs.settings_page(self.settings, {"GOGO_EXAMPLE": "One | two\nthree."})
-        self.assertIn("| One \\| two three. |", page)
+        self.assertIn("One | two three.", page)
+
+    def test_empty_setting_stays_unset_and_does_not_invent_a_secret(self):
+        self.settings[0]["Default"] = ""
+        page = docs.settings_page(self.settings, {"GOGO_EXAMPLE": "Required private value."})
+        self.assertIn("```dotenv\nGOGO_EXAMPLE=\n```", page)
+        self.assertIn("**Default:** **unset**", page)
 
 
 class TreeTests(unittest.TestCase):

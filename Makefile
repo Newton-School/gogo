@@ -51,6 +51,7 @@ docs-serve:
 
 docs-check: docs-install
 	go test ./docs/...
+	go test ./examples/showcase/recipes/documentation ./examples/showcase/recipes/async
 	npm --prefix docs run check
 
 # Contributor workspace checks; public modules are independently tested below.

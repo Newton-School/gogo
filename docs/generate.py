@@ -12,8 +12,9 @@ from pathlib import Path
 import re
 import subprocess
 from urllib.parse import urlsplit
-from field_reference import build_pages as field_pages
+from field_reference import build_pages as field_pages, constructor_examples
 from reference import api_page, declaration_details, member_contracts
+from code_examples import extract as extract_example, block as example_block, load as load_examples, without_markers
 
 ROOT = Path(__file__).resolve().parents[1]
 DOCS = ROOT / "docs"
@@ -94,9 +95,12 @@ def rewrite_links(source, source_path, page_sources, revision, page_ids):
 
 def expand(source, revision, page_sources, page_ids):
     def include(match):
+        if match[3]:
+            return example_block(extract_example(safe_file(match[3]).read_text(), match[4]))
         path = match[2]
         content = safe_file(path).read_text()
         if match[1] == "code":
+            content = without_markers(content)
             if path.endswith((".go", ".go.txt")):
                 language = "go"
             elif path.endswith((".yaml", ".yml")):
@@ -111,7 +115,9 @@ def expand(source, revision, page_sources, page_ids):
             return f"{fence}{language}\n{content.rstrip()}\n{fence}"
         content = rewrite_links(content, path, page_sources, revision, page_ids)
         return re.sub(r"^(#{1,5}) ", r"#\1 ", content, flags=re.M)
-    return outside_fences(source, lambda prose: re.sub(r"\{\{(code|include) ([A-Za-z0-9_./-]+)\}\}", include, prose))
+    def expand_prose(prose):
+        return re.sub(r"\{\{(?:(code|include) ([A-Za-z0-9_./-]+)|snippet ([A-Za-z0-9_./-]+) ([a-z0-9-]+))\}\}", include, prose)
+    return outside_fences(source, expand_prose)
 
 
 
@@ -130,16 +136,22 @@ def settings_page(settings, descriptions=None):
              "**Wiring matters:** declaring a variable does not register a service or automatically apply it to every constructor. Pass the resolved value to the corresponding service or middleware in your project. Reserved settings and built-in limitations are identified below. See [Configuration](configuration.md).", ""]
     kinds = ["string", "boolean", "integer", "duration", "list", "URL"]
     for group in dict.fromkeys(item["Group"] for item in settings):
-        lines += ["## " + group, "", "| Variable | Description | Default | Required for | Type and constraints |", "| --- | --- | --- | --- | --- |"]
+        lines += ["## " + group, ""]
         for item in [s for s in settings if s["Group"] == group]:
             default = "**unset**" if not item["Default"] else "`" + item["Default"] + "`"
             constraints = ["Secret; redacted"] if item["Sensitive"] else []
             if item["Min"]:
                 constraints.append("Minimum " + str(item["Min"]) + (" ns" if kinds[item["Kind"]] == "duration" else ""))
             constraints.extend(item["Choices"] or [])
-            description = " ".join(descriptions[item["Name"]].split()).replace("|", "\\|")
+            description = " ".join(descriptions[item["Name"]].split())
             details = "; ".join([kinds[item["Kind"]]] + constraints)
-            lines.append(f"| `{item['Name']}` | {description} | {default} | {', '.join(item['RequiredFor'] or []) or 'Optional'} | {details} |")
+            value = item["Default"]
+            if value and not re.fullmatch(r"[a-zA-Z0-9_.,:/-]+", value):
+                value = json.dumps(value)
+            lines += ['<section className="settings-entry">', "", "### " + item["Name"], "", description, "",
+                      "```dotenv", item["Name"] + "=" + value, "```", "",
+                      f"**Default:** {default} · **Required for:** {', '.join(item['RequiredFor'] or []) or 'Optional'}", "",
+                      "**Type:** " + details, "", "</section>", ""]
         lines.append("")
     return "\n".join(lines)
 
@@ -223,6 +235,8 @@ def compile_tree(tree, pages):
 
 def collect_pages(manifest, catalog, revision):
     pages, owners = {}, {}
+    examples, member_examples = load_examples(json.loads((DOCS / "code-examples.json").read_text()), catalog, safe_file)
+    examples = constructor_examples(json.loads((DOCS / "fields.json").read_text())) | examples
     options = {}
     for path in sorted(DOCS.glob("options*.json")):
         entries = json.loads(path.read_text())
@@ -273,7 +287,7 @@ def collect_pages(manifest, catalog, revision):
         owner = pages[owners[directory]]
         identifier = "api-" + slug(directory if directory != "." else "gogo")
         title = directory if directory != "." else "gogo"
-        add({"id": identifier, "title": title, "source": api_page(package, owner["id"], revision, options), "api": True})
+        add({"id": identifier, "title": title, "source": api_page(package, owner["id"], revision, options, examples), "api": True})
         for declaration in package["Declarations"]:
             key = directory + "." + declaration["Name"]
             if key not in options:
@@ -289,9 +303,15 @@ def collect_pages(manifest, catalog, revision):
             body = ["# " + entry["title"], "", entry["intro"], "", f"```go\nimport \"{package['Path']}\"\n```", "",
                     f"[Complete type and methods]({identifier}.md#{slug(declaration['Name'])}) · [Feature guide]({entry['parent']}.md)", ""]
             if entry.get("example"):
-                body += ["## Example", "", "This complete example is included from tested project source. Adapt its app imports and explicitly supplied services to your project.", "", "{{code " + entry["example"] + "}}", ""]
+                body += ["<details>", "<summary>Complete feature example</summary>", "", "This example provides feature context; individual option examples follow below. Adapt its app imports and explicitly supplied services to your project.", "", "{{code " + entry["example"] + "}}", "", "</details>", ""]
             for member, description in members:
-                body += ["## " + member["Name"], "", "```go", member["Name"] + " " + member["Type"], "```", "", description, ""]
+                body += ["## " + member["Name"], "", description, ""]
+                example = member_examples.get(key + "." + member["Name"])
+                if example:
+                    body += [example, "", "<details>", "<summary>Go type</summary>", ""]
+                body += ["```go", member["Name"] + " " + member["Type"], "```", ""]
+                if example:
+                    body += ["</details>", ""]
             add({"id": "options-" + slug(key), "title": entry["title"], "parent": entry["parent"], "new": True,
                  "source": "\n".join(body), "description": entry["intro"], "optionCount": len(members)})
         owner.setdefault("references", []).append(identifier)

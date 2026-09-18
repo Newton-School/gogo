@@ -1,6 +1,7 @@
 """Readable API reference layout; all contracts come from source or reviewed options."""
 
 import re
+from code_examples import brief_contract
 
 
 def slug(text):
@@ -71,16 +72,18 @@ def symbol_index(declarations, label):
     return lines
 
 
-def symbol(package, declaration, options, level=3):
+def symbol(package, declaration, options, level=3, examples=None):
     name = declaration["Name"]
     heading = name.split(", ")[0] + (" and related values" if ", " in name else "")
     signature = declaration["Signature"]
     lines = ["#" * level + f" {heading} {{#{slug(name)}}}", "",
              '<p className="reference-kind">' + declaration["Kind"].capitalize() + "</p>", ""]
-    if declaration["Doc"].strip():
-        lines += [declaration["Doc"].strip(), ""]
+    lines += brief_contract(declaration["Doc"])
+    example = (examples or {}).get(package["Directory"] + "." + name)
+    if example:
+        lines += ["**Example**", "", example, ""]
     # Full declarations remain available, but long structs should not bury usage.
-    folded = declaration["Kind"] == "type" and (len(signature.splitlines()) > 8 or bool(declaration.get("Members")))
+    folded = bool(example) or declaration["Kind"] == "type" and (len(signature.splitlines()) > 8 or bool(declaration.get("Members")))
     if folded:
         lines += ['<details className="reference-declaration">', "<summary>Go declaration</summary>", ""]
     lines += ["```go", signature, "```", ""]
@@ -90,7 +93,7 @@ def symbol(package, declaration, options, level=3):
     return lines
 
 
-def api_page(package, guide_id, revision, options=None):
+def api_page(package, guide_id, revision, options=None, examples=None):
     options = options or {}
     title = package["Directory"] if package["Directory"] != "." else "gogo"
     lines = [f"# {title}", "", package["Doc"].strip(), "",
@@ -106,11 +109,11 @@ def api_page(package, guide_id, revision, options=None):
         if kind in ("type", "function"):
             lines += symbol_index(selected, label)
         for declaration in selected:
-            lines += ['<section className="reference-entry">', "", *symbol(package, declaration, options)]
+            lines += ['<section className="reference-entry">', "", *symbol(package, declaration, options, examples=examples)]
             methods = [d for d in declarations if d["Kind"] == "method" and d["Name"].startswith(declaration["Name"] + ".")] if kind == "type" else []
             if methods:
                 lines += ["**Methods**", "", *symbol_index(methods, "methods")]
             for method in methods:
-                lines += ['<section className="reference-method">', "", *symbol(package, method, options, 4), "</section>", ""]
+                lines += ['<section className="reference-method">', "", *symbol(package, method, options, 4, examples), "</section>", ""]
             lines += ["</section>", ""]
     return "\n".join(lines)

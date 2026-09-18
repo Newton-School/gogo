@@ -26,7 +26,8 @@ test('every source has a focused page instead of a hidden section', () => {
   for (const source of sources) {
     const html = read(`build/docs/${source.slice(0, -3)}/index.html`);
     assert.match(html, /<main/);
-    assert.doesNotMatch(html, /\{\{(?:code|include) /);
+    assert.doesNotMatch(html, /\{\{(?:code|include|snippet) /);
+    assert.doesNotMatch(html, /docs:(?:begin|end) /);
     assert.match(html, /theme-doc-breadcrumbs/);
   }
 });
@@ -117,10 +118,10 @@ test('signatures and detailed contracts have their own discoverable pages', () =
 test('every configuration setting has a description in the built reference', () => {
   const descriptions = JSON.parse(read('settings-descriptions.json'));
   const html = read('build/docs/settings/index.html');
-  const rows = [...html.matchAll(/<tr>([\s\S]*?)<\/tr>/g)].map(match => match[1]);
+  const entries = [...html.matchAll(/<section class="settings-entry">([\s\S]*?)<\/section>/g)].map(match => match[1]);
   for (const [name, description] of Object.entries(descriptions)) {
     const escaped = description.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#x27;');
-    assert.ok(rows.some(row => row.includes(`<code>${name}</code>`) && row.includes(escaped)), `${name} has no adjacent description`);
+    assert.ok(entries.some(entry => entry.includes(name) && entry.includes(escaped) && entry.includes('language-dotenv')), `${name} has no code example and adjacent description`);
   }
 });
 
@@ -157,6 +158,40 @@ test('field kinds and reviewed configuration members have focused references', (
     }
   }
   assert.equal(optionPages, coverage.optionPages);
+});
+
+test('small field examples come before expandable complete programs', () => {
+  const data = JSON.parse(read('fields.json'));
+  for (const [family, rows] of Object.entries(data)) {
+    for (const [kind] of rows) {
+      const source = read(`.generated/content/field-${family}-${kind.toLowerCase()}.md`);
+      assert.ok(source.indexOf('**1. Declare the field**') < source.indexOf('<details>'));
+      const complete = source.slice(source.indexOf('<details>'), source.indexOf('</details>'));
+      assert.match(complete, /Complete runnable example, including imports/);
+      assert.match(complete, /package main/);
+      const visible = source.replace(/<details[^>]*>[\s\S]*?<\/details>/g, '');
+      for (const match of visible.matchAll(/```go\n([\s\S]*?)\n```/g)) {
+        assert.ok(match[1].split('\n').length <= 20, `${family}.${kind} has an oversized visible example`);
+      }
+    }
+  }
+});
+
+test('curated API examples render before declarations without losing anchors', () => {
+  const entries = JSON.parse(read('code-examples.json'));
+  for (const entry of Object.values(entries)) {
+    for (const key of entry.symbols) {
+      const dot = key.indexOf('.');
+      const page = 'api-' + key.slice(0, dot).replaceAll('/', '-');
+      const anchor = key.slice(dot + 1).toLowerCase().replaceAll('.', '-');
+      const source = read(`.generated/content/${page}.md`);
+      const start = source.indexOf(`{#${page}-${anchor}}`);
+      assert.ok(start >= 0, `Missing ${key}`);
+      const symbol = source.slice(start, source.indexOf('</section>', start));
+      assert.ok(symbol.indexOf('**Example**') >= 0, `Missing example for ${key}`);
+      assert.ok(symbol.indexOf('**Example**') < symbol.indexOf('Go declaration'), key);
+    }
+  }
 });
 
 test('old document URLs redirect to real consolidated anchors', () => {

@@ -1,0 +1,472 @@
+{
+  "form-fields": {
+    "file": "docs/examples/forms_test.go",
+    "intro": "Declare fields before binding input.",
+    "symbols": [
+      "core/forms.NewField",
+      "core/forms.Field"
+    ],
+    "options": {}
+  },
+  "form-bind": {
+    "file": "docs/examples/forms_test.go",
+    "intro": "Continue with the name and price fields declared above; this binds and validates input.",
+    "symbols": [
+      "core/forms.New",
+      "core/forms.WithData",
+      "core/forms.Form.IsValid"
+    ],
+    "options": {}
+  },
+  "form-output": {
+    "file": "docs/examples/forms_test.go",
+    "intro": "After successful validation, use form.CleanedData(), not raw input.",
+    "symbols": [
+      "core/forms.Form.CleanedData"
+    ],
+    "options": {}
+  },
+  "form-options": {
+    "file": "docs/examples/options_test.go",
+    "intro": "Configure the field before passing it to forms.New.",
+    "symbols": [],
+    "options": {
+      "core/forms.Field": [
+        "Name",
+        "Kind",
+        "Required",
+        "Label",
+        "HelpText",
+        "MinLength",
+        "MaxLength",
+        "Widget"
+      ]
+    }
+  },
+  "form-errors": {
+    "file": "docs/examples/options_test.go",
+    "intro": "Invalid input returns field errors without saving anything.",
+    "symbols": [
+      "core/forms.Form.Errors"
+    ],
+    "options": {}
+  },
+  "model-text-options": {
+    "file": "docs/examples/options_test.go",
+    "intro": "The model must declare an exported Name member; the stored column is display_name.",
+    "symbols": [
+      "core/models.Field",
+      "core/models.WithStructField",
+      "core/models.WithColumn",
+      "core/models.WithMaxLength",
+      "core/models.WithMinLength",
+      "core/models.WithLabel",
+      "core/models.WithHelpText"
+    ],
+    "options": {
+      "core/models.Field": [
+        "Name",
+        "Kind",
+        "StructField",
+        "Column",
+        "MinLength",
+        "MaxLength",
+        "Label",
+        "HelpText"
+      ]
+    }
+  },
+  "model-clean": {
+    "file": "docs/examples/options_test.go",
+    "intro": "Using the name field declared above, clean one value without a database write.",
+    "symbols": [
+      "core/models.Field.Clean"
+    ],
+    "options": {}
+  },
+  "model-null-blank": {
+    "file": "docs/examples/options_test.go",
+    "intro": "Nullable permits nil. Optional permits empty input. Neither saves data.",
+    "symbols": [
+      "core/models.Nullable",
+      "core/models.Optional"
+    ],
+    "options": {
+      "core/models.Field": [
+        "Null",
+        "Blank"
+      ]
+    }
+  },
+  "model-choices": {
+    "file": "docs/examples/options_test.go",
+    "intro": "Clean rejects values outside Choices. Default describes absent values; it does not make an unknown choice valid.",
+    "symbols": [
+      "core/models.WithChoices",
+      "core/models.WithDefault"
+    ],
+    "options": {
+      "core/models.Field": [
+        "Choices",
+        "Default"
+      ]
+    }
+  },
+  "model-bounds": {
+    "file": "docs/examples/options_test.go",
+    "intro": "Set both numeric bounds, then reject an out-of-range input.",
+    "symbols": [
+      "core/models.WithBounds"
+    ],
+    "options": {
+      "core/models.Field": [
+        "Min",
+        "Max"
+      ]
+    }
+  },
+  "model-validator": {
+    "file": "docs/examples/options_test.go",
+    "intro": "Return a safe field error from a context-aware validator.",
+    "symbols": [
+      "core/models.WithValidators"
+    ],
+    "options": {
+      "core/models.Field": [
+        "Validators"
+      ]
+    }
+  },
+  "serializer-fields": {
+    "file": "docs/examples/api_test.go",
+    "intro": "Only explicitly declared fields are accepted.",
+    "symbols": [
+      "core/api.New",
+      "core/api.Definition"
+    ],
+    "options": {
+      "core/api.Definition": [
+        "Fields"
+      ]
+    }
+  },
+  "serializer-validate": {
+    "file": "docs/examples/api_test.go",
+    "intro": "Using the serializer declared above, validate input without saving it.",
+    "symbols": [
+      "core/api.Serializer.Validate"
+    ],
+    "options": {}
+  },
+  "serializer-output": {
+    "file": "docs/examples/api_test.go",
+    "intro": "Use cleaned values from the preceding validation. Representation does not save data.",
+    "symbols": [
+      "core/api.Serializer.Representation"
+    ],
+    "options": {}
+  },
+  "serializer-directions": {
+    "file": "docs/examples/options_test.go",
+    "intro": "Input id is ignored; note is omitted from output. Row authorization is still required.",
+    "symbols": [
+      "core/api.Field"
+    ],
+    "options": {
+      "core/api.Field": [
+        "ReadOnly",
+        "WriteOnly"
+      ]
+    }
+  },
+  "serializer-partial": {
+    "file": "docs/examples/options_test.go",
+    "intro": "Here serializer declares required name and price fields. Partial input skips absent price; it does not authorize a write.",
+    "symbols": [
+      "core/api.BindOptions"
+    ],
+    "options": {
+      "core/api.BindOptions": [
+        "Partial"
+      ]
+    }
+  },
+  "route-handler": {
+    "file": "docs/examples/routing_test.go",
+    "intro": "Inside an HTTP handler, read the matched id parameter.",
+    "symbols": [
+      "core/urls.Param"
+    ],
+    "options": {}
+  },
+  "route-register": {
+    "file": "docs/examples/routing_test.go",
+    "intro": "handler is an http.Handler. Include gives the route a catalog namespace.",
+    "symbols": [
+      "core/urls.New",
+      "core/urls.Include",
+      "core/urls.Path"
+    ],
+    "options": {}
+  },
+  "route-reverse": {
+    "file": "docs/examples/routing_test.go",
+    "intro": "router contains catalog:detail as defined above. Result: /api/products/42/.",
+    "symbols": [
+      "core/urls.Router.Reverse"
+    ],
+    "options": {}
+  },
+  "template-loader": {
+    "file": "docs/examples/templates_test.go",
+    "intro": "Use an in-memory loader for this standalone example.",
+    "symbols": [
+      "core/templates.New",
+      "core/templates.MapLoader"
+    ],
+    "options": {}
+  },
+  "template-render": {
+    "file": "docs/examples/templates_test.go",
+    "intro": "engine contains product.html from the loader example. Untrusted description text is escaped.",
+    "symbols": [
+      "core/templates.Engine.Render"
+    ],
+    "options": {}
+  },
+  "pagination-config": {
+    "file": "docs/examples/pagination_test.go",
+    "intro": "Accept pages of at most 50 rows.",
+    "symbols": [
+      "core/pagination.New"
+    ],
+    "options": {}
+  },
+  "pagination-parse": {
+    "file": "docs/examples/pagination_test.go",
+    "intro": "pager is configured for page-number pagination. Authorization must be applied before the query.",
+    "symbols": [
+      "core/pagination.Paginator.Parse"
+    ],
+    "options": {}
+  },
+  "mail-outbox": {
+    "file": "docs/examples/mail_test.go",
+    "intro": "This bounded test outbox sends no network email.",
+    "symbols": [
+      "core/mail.NewMemory"
+    ],
+    "options": {}
+  },
+  "mail-send": {
+    "file": "docs/examples/mail_test.go",
+    "intro": "box is the in-memory outbox above. Result: one simulated message.",
+    "symbols": [],
+    "options": {}
+  },
+  "signing-config": {
+    "file": "docs/examples/security_test.go",
+    "intro": "key must contain a stable, private signing key loaded from settings, not a per-request random key.",
+    "symbols": [
+      "core/security.NewSigner"
+    ],
+    "options": {}
+  },
+  "signing-token": {
+    "file": "docs/examples/security_test.go",
+    "intro": "signer is configured for the catalog-link purpose above.",
+    "symbols": [
+      "core/security.Signer.Sign"
+    ],
+    "options": {}
+  },
+  "signing-verify": {
+    "file": "docs/examples/security_test.go",
+    "intro": "Verify a token using the same purpose-bound signer. Tampering is rejected.",
+    "symbols": [
+      "core/security.Signer.Verify"
+    ],
+    "options": {}
+  },
+  "password-hash": {
+    "file": "docs/examples/auth_test.go",
+    "intro": "password is submitted input. Never log it; persist only the encoded hash.",
+    "symbols": [
+      "core/auth.HashPassword"
+    ],
+    "options": {}
+  },
+  "password-verify": {
+    "file": "docs/examples/auth_test.go",
+    "intro": "password and encoded come from the hash example. Verification is not a complete login flow.",
+    "symbols": [
+      "core/auth.VerifyPassword"
+    ],
+    "options": {}
+  },
+  "session-write": {
+    "file": "docs/examples/sessions_test.go",
+    "intro": "ctx is the HTTP request context after session middleware. A store is required for persistence.",
+    "symbols": [
+      "core/sessions.FromContext",
+      "core/sessions.Session.Set"
+    ],
+    "options": {}
+  },
+  "session-read": {
+    "file": "docs/examples/sessions_test.go",
+    "intro": "session is the value loaded above. Read a typed value and check whether it exists.",
+    "symbols": [
+      "core/sessions.Session.Get"
+    ],
+    "options": {}
+  },
+  "signal-connect": {
+    "file": "docs/examples/signals_test.go",
+    "intro": "Connect a synchronous, in-process receiver.",
+    "symbols": [
+      "core/signals.Signal.Connect"
+    ],
+    "options": {}
+  },
+  "signal-send": {
+    "file": "docs/examples/signals_test.go",
+    "intro": "published is the signal declared above. Send invokes connected receivers synchronously.",
+    "symbols": [
+      "core/signals.Signal.Send"
+    ],
+    "options": {}
+  },
+  "admin-list": {
+    "file": "examples/showcase/recipes/documentation/admin_test.go",
+    "intro": "catalog.Product is the showcase model. Configure a site only after completing Admin setup.",
+    "symbols": [
+      "admin.ModelAdmin"
+    ],
+    "options": {
+      "admin.ModelAdmin": [
+        "Schema",
+        "ListDisplay",
+        "ListDisplayLinks",
+        "ListEditable",
+        "ListPerPage"
+      ]
+    }
+  },
+  "admin-search": {
+    "file": "examples/showcase/recipes/documentation/admin_test.go",
+    "intro": "Continue with the same config. Search, filters and sorting never replace row authorization.",
+    "symbols": [],
+    "options": {
+      "admin.ModelAdmin": [
+        "SearchFields",
+        "SearchHelpText",
+        "ListFilter",
+        "Ordering",
+        "SortableBy"
+      ]
+    }
+  },
+  "admin-form": {
+    "file": "examples/showcase/recipes/documentation/admin_test.go",
+    "intro": "Continue with the same config. Readonly values remain visible; slug suggestions are not server defaults.",
+    "symbols": [],
+    "options": {
+      "admin.ModelAdmin": [
+        "Fields",
+        "ReadonlyFields",
+        "SaveOnTop",
+        "PrepopulatedFields"
+      ]
+    }
+  },
+  "admin-register": {
+    "file": "examples/showcase/recipes/documentation/admin_test.go",
+    "intro": "site must already have a scoped store, policy, signer and CSRF settings. config is configured in the preceding examples.",
+    "symbols": [
+      "admin.Site.Register"
+    ],
+    "options": {}
+  },
+  "task-options": {
+    "file": "examples/showcase/recipes/async/short_examples_test.go",
+    "intro": "A pure demo task with no tenant scope. Real tenant work requires current authorization on both producer and worker.",
+    "symbols": [
+      "async.TaskOptions"
+    ],
+    "options": {
+      "async.TaskOptions": [
+        "Queue",
+        "SoftLimit",
+        "PerWorkerConcurrency",
+        "Authorize"
+      ]
+    }
+  },
+  "task-register": {
+    "file": "examples/showcase/recipes/async/short_examples_test.go",
+    "intro": "Use registry and options from the task-options example. The handler honors cancellation and bounds input.",
+    "symbols": [
+      "async.Register"
+    ],
+    "options": {}
+  },
+  "task-delay": {
+    "file": "examples/showcase/recipes/async/short_examples_test.go",
+    "intro": "double is registered above. client must be fully wired; ctx must have a deadline.",
+    "symbols": [
+      "async.Task.Delay"
+    ],
+    "options": {}
+  },
+  "task-result": {
+    "file": "examples/showcase/recipes/async/short_examples_test.go",
+    "intro": "result is the handle returned by Delay. Wait only on the producer side, never inside a worker.",
+    "symbols": [
+      "async.Result.Get"
+    ],
+    "options": {}
+  },
+  "task-signature": {
+    "file": "examples/showcase/recipes/async/short_examples_test.go",
+    "intro": "addOne is a registered task that returns input + 1. A signature does not dispatch work.",
+    "symbols": [
+      "async.Task.Signature"
+    ],
+    "options": {}
+  },
+  "task-chain": {
+    "file": "examples/showcase/recipes/async/short_examples_test.go",
+    "intro": "first and next are the signatures above; client is wired with workflow storage and relay.",
+    "symbols": [
+      "async.Chain"
+    ],
+    "options": {}
+  },
+  "task-group": {
+    "file": "examples/showcase/recipes/async/short_examples_test.go",
+    "intro": "first and next are the signatures above; client is wired with workflow storage and relay.",
+    "symbols": [
+      "async.Group"
+    ],
+    "options": {}
+  },
+  "task-retry": {
+    "file": "examples/showcase/recipes/async/short_examples_test.go",
+    "intro": "Pass options to Register. Explicit Retry requests use this policy; automatic retries require AutoRetryFor.",
+    "symbols": [
+      "async.RetryPolicy"
+    ],
+    "options": {
+      "async.RetryPolicy": [
+        "MaxRetries",
+        "Backoff",
+        "BackoffFactor",
+        "BackoffMax"
+      ],
+      "async.TaskOptions": [
+        "Retry"
+      ]
+    }
+  }
+}

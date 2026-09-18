@@ -2,6 +2,7 @@ package catalog
 
 import "github.com/Newton-School/gogo/core/models"
 
+// docs:begin model-struct
 type Product struct {
 	models.Base
 	ID        int64
@@ -10,6 +11,9 @@ type Product struct {
 	Published bool
 }
 
+// docs:end model-struct
+
+// docs:begin model-schema
 func (*Product) Schema() models.Schema {
 	return models.Schema{
 		AppLabel: "catalog",
@@ -23,3 +27,5 @@ func (*Product) Schema() models.Schema {
 		},
 	}
 }
+
+// docs:end model-schema

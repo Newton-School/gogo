@@ -10,10 +10,13 @@ import (
 func Example_password() {
 	// Test-only input. Never print or persist the submitted plaintext password.
 	password := rand.Text()
+	// docs:begin password-hash
 	encoded, err := auth.HashPassword(password)
 	if err != nil {
 		panic(err)
 	}
+	// docs:end password-hash
+	// docs:begin password-verify
 	valid, _, err := auth.VerifyPassword(password, encoded)
 	if err != nil {
 		panic(err)
@@ -24,6 +27,7 @@ func Example_password() {
 		panic(err)
 	}
 	fmt.Println("wrong password:", valid)
+	// docs:end password-verify
 	// Output:
 	// correct password: true
 	// wrong password: false
