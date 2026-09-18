@@ -6,9 +6,42 @@ SHELL := /bin/bash
 -include .agentflow/agentflow.mk
 
 .PHONY: help test test-js test-modules test-integration audit-dependencies vet build
-help: agentflow-help
-	@echo 'Product: make test | test-js | test-modules | test-integration | audit-dependencies | vet | build'
-	@echo 'Documentation: make docs-dev | docs | docs-serve | docs-check'
+help:
+	@printf '%s\n' \
+		'Gogo contributor commands' \
+		'' \
+		'Usage: make <command> [VARIABLE=value]' \
+		'Run make without a command to show this help.'
+	@printf '\n%s\n' 'Build and quality:'
+	@printf '  %-22s %s\n' \
+		'build' 'Compile all workspace modules' \
+		'vet' 'Run Go static analysis across workspace modules' \
+		'audit-dependencies' 'Scan Go dependencies for vulnerabilities (requires network)'
+	@printf '\n%s\n' 'Tests:'
+	@printf '  %-22s %s\n' \
+		'test' 'Run Admin JavaScript tests and Go tests with the race detector' \
+		'test-js' 'Run Admin JavaScript tests only' \
+		'test-modules' 'Check isolated module packaging and generated-client compatibility' \
+		'test-integration' 'Run integration tests with required PostgreSQL and Redis services'
+	@printf '\n%s\n' 'Documentation:'
+	@printf '  %-22s %s\n' \
+		'docs-dev' 'Install dependencies and start docs at http://127.0.0.1:3000' \
+		'docs' 'Install dependencies and build the documentation site' \
+		'docs-serve' 'Preview built docs at http://127.0.0.1:3000 (run make docs first)' \
+		'docs-check' 'Install dependencies; test docs and Go examples; build and check links' \
+		'docs-install' 'Install pinned documentation dependencies'
+	@printf '\n%s\n' 'Architecture (AgentFlow):'
+	@printf '  %-22s %s\n' \
+		'agentflow' 'Render architecture documentation (optional PROPOSAL=<proposal-id>)' \
+		'agentflow-help' 'Show AgentFlow command usage'
+	@printf '\n%s\n' 'Help:'
+	@printf '  %-22s %s\n' 'help' 'Show this command reference'
+	@printf '%s\n' \
+		'' \
+		'Examples:' \
+		'  make docs-dev' \
+		'  make test' \
+		'  make agentflow PROPOSAL=proposal-id'
 
 # Documentation tooling is isolated from the Go framework and client apps.
 .PHONY: docs-install docs-dev docs docs-serve docs-check
