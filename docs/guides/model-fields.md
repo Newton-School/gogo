@@ -102,6 +102,19 @@ Use `models.NewField(name, models.Kind, options...)` for these kinds:
 
 These are intentionally marked descriptor/capability-level in the showcase. Do not infer database round trips, migrations, serializers or Admin controls merely from successful schema construction.
 
+## Constructor examples
+
+The following catalog includes every model kind: its constructor, a valid value, an invalid value where validation exists, and the support limitation. It is the actual `apps/fieldlab/models.go` file from the example application, including the schemas used for its persisted scalar records. Each row is a separate field demonstration, not forty fields to copy into one model with multiple primary keys.
+
+<details>
+<summary>All 40 model kinds</summary>
+
+{{code examples/showcase/apps/fieldlab/models.go}}
+
+</details>
+
+Run its validation checks from `examples/showcase` with `GOWORK=off go test ./apps/fieldlab`. For application models, place the chosen declarations in the `Schema().Fields` slice as shown above and supply compatible Go fields. Descriptor-only cases intentionally do not claim persistence or Admin editing support.
+
 ## Common options
 
 | Option | Effect |

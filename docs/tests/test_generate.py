@@ -52,8 +52,11 @@ class ContentTests(unittest.TestCase):
 
     def test_first_project_has_an_ordered_beginner_path(self):
         tree = json.loads(docs.safe_file("docs/tree.json").read_text())
-        self.assertEqual(tree["startSidebar"][0]["items"], ["index", "showcase", "installation"])
-        self.assertEqual(tree["startSidebar"][1]["items"], ["quickstart", "running", "tutorial-api", "docker"])
+        self.assertEqual(list(tree), ["docsSidebar", "adminSidebar", "asyncSidebar"])
+        self.assertEqual(tree["docsSidebar"][:3], ["index", "quickstart", "showcase"])
+        sections = json.loads(docs.safe_file("docs/sections.json").read_text())
+        quickstart = next(s for s in sections if s["id"] == "quickstart")
+        self.assertEqual([s[0] for s in quickstart["sources"]], ["installation", "quickstart", "running", "tutorial-api", "docker"])
 
     def test_code_is_not_rewritten(self):
         source = '```go\n// [Example](models.md)\n// {{code missing.go}}\n```\n'
@@ -130,6 +133,44 @@ class TreeTests(unittest.TestCase):
         link = result["sidebar"][0]["link"]
         self.assertEqual(link["type"], "generated-index")
         self.assertEqual(link["description"], "A clear starting point")
+
+
+class ConsolidationTests(unittest.TestCase):
+    def setUp(self):
+        self.pages = {
+            "models": {"id": "models", "title": "Models", "source": "# Models\n\n## Example\n\n[Field](api-models.md#field)\n\n```go\n// [Field](api-models.md#field)\n```", "references": ["api-models"]},
+            "fields": {"id": "fields", "title": "Fields", "source": "# Fields\n\n## Example\n\n[Example](#example)"},
+            "note": {"id": "note", "title": "Details", "parent": "models", "source": "# Details\n\nContract."},
+            "api-models": {"id": "api-models", "title": "models", "api": True, "source": "# models\n\n### Field {#field}\n\nDeclaration."},
+        }
+        self.sections = [{"id": "models", "title": "Models", "sources": [["models", "Definition"], ["fields", "Fields"]]}]
+
+    def test_every_source_is_kept_once_with_namespaced_anchors(self):
+        pages, routes = docs.consolidate_pages(self.pages, self.sections, "rev")
+        self.assertEqual(list(pages), ["models"])
+        body = pages["models"]["source"]
+        for anchor in ["models-example", "fields-example", "api-models-field"]:
+            self.assertEqual(body.count("{#" + anchor + "}"), 1)
+        self.assertIn("[Example](models.md#fields-example)", body)
+        self.assertIn("[Field](models.md#api-models-field)", body)
+        self.assertIn("// [Field](api-models.md#field)", body)
+        self.assertEqual(body.count("Contract."), 1)
+        self.assertEqual(body.count("Declaration."), 1)
+        self.assertEqual(body.count("<details>"), 2)
+        self.assertEqual(routes["api-models"]["anchors"]["field"], "api-models-field")
+
+    def test_orphans_and_duplicate_placement_fail(self):
+        with self.assertRaisesRegex(ValueError, "Unmapped"):
+            docs.consolidate_pages(self.pages, [{"id": "models", "title": "Models", "sources": [["models", "Definition"]]}], "rev")
+        with self.assertRaisesRegex(ValueError, "duplicate"):
+            docs.consolidate_pages(self.pages, self.sections + [{"id": "another", "title": "Another", "sources": [["models", "Definition"]]}], "rev")
+
+    def test_explicit_detail_owner_wins(self):
+        sections = self.sections + [{"id": "advanced", "title": "Advanced", "sources": [], "details": ["note"]}]
+        pages, routes = docs.consolidate_pages(self.pages, sections, "rev")
+        self.assertNotIn("Contract.", pages["models"]["source"])
+        self.assertIn("Contract.", pages["advanced"]["source"])
+        self.assertEqual(routes["note"]["page"], "advanced")
 
 
 if __name__ == "__main__":

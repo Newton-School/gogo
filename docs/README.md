@@ -1,6 +1,6 @@
 # Gogo documentation
 
-The public documentation uses [Docusaurus](https://docusaurus.io/), with separate navigation trees for **Get started**, **Guide**, **Admin**, **Async**, and **Reference**.
+The public documentation uses [Docusaurus](https://docusaurus.io/) with exactly three tabs: **Docs**, **Admin**, and **Async**. Thirty feature pages combine the previously separate guides, technical notes and Go references. The home URL opens the documentation directly, without a marketing landing page.
 
 ## Open the docs locally
 
@@ -29,20 +29,19 @@ Content is prepared from source before startup. After changing a guide, package 
 
 ## How the page trees work
 
-- **Get started**: overview → runnable example → installation → first project → run/build → persistent API → Docker.
-- **Guide**: complete feature map → project fundamentals → models/databases → HTTP/APIs → forms/templates → security → services → operations.
-- **Admin**: complete auth/session/router setup → customization → options → lists/forms/relationships → accounts/staff tools.
-- **Async**: complete queue/worker wiring → tasks → workflows/results → executable recipes → scheduling/retries.
-- **Reference**: settings, template vocabulary, and public Go packages grouped by feature.
+- **Docs**: Introduction, Quickstart, Example, Projects, Configuration, Models, ORM, Migrations, Fixtures, HTTP, API, Forms, Templates, I18n, Auth, Storage, Cache, Mail, Signals, Contrib, Connectors, Deployment, Testing.
+- **Admin**: Setup, Models, Accounts.
+- **Async**: Setup, Tasks, Workflows, Schedules.
 
-Each category has an overview page; expanding a category collapses its siblings. Feature pages own their deeper guides. Breadcrumbs locate the current page, the right-hand outline locates a section, and previous/next links follow the tree. Generated API declarations are separate from the learning path, with methods grouped under their types.
+Sidebar groups organize feature names without adding category documents. Quickstart keeps installation through Docker in one page. Each feature keeps examples visible, then expandable detailed contracts and package declarations on the same page. Search and deep links open the containing disclosure automatically. Old document URLs redirect to their exact consolidated section in production builds; original source fragments remain separate for maintainability, not as extra reader-facing pages.
 
 ## Where to edit
 
 | Source | Purpose |
 | --- | --- |
-| `tree.json` | Curated sidebar labels, parent categories, order, and deliberate technical-page placement |
-| `navigation.json` | Guide titles, source files, feature families, and public-package ownership |
+| `tree.json` | Three sidebar trees with direct feature names and no extra category pages |
+| `sections.json` | Reader-facing page titles, ordered source sections and explicit detail/API ownership overrides |
+| `navigation.json` | Source-fragment inventory and public-package ownership |
 | `index.md`, `guides/` | Human-written tutorials and feature explanations |
 | Package-level Markdown | Advanced contracts; included from their original source, not copied by hand |
 | `snippets/`, `examples/` | Tested code included in tutorials |
@@ -51,7 +50,7 @@ Each category has an overview page; expanding a category collapses its siblings.
 | `docusaurus.config.js`, `src/`, `static/` | Framework configuration, landing page, and light/dark styling |
 | `.generated/`, `.docusaurus/`, `build/` | Ignored generated content, framework cache, and deployable static output |
 
-Add a guide to `navigation.json` and place it in `tree.json`. Map every public package to exactly one owning guide. Package notes nest under that guide automatically; use `notes` to curate their placement. The build rejects orphaned pages, duplicate placement, missing packages, broken routes, and broken anchors.
+Add a source guide to `navigation.json` and compose it into an existing page in `sections.json` before adding another document. Map every public package to exactly one source guide. Technical notes and Go declarations follow that guide into the consolidated page; explicit `details` and `references` overrides handle features such as Async results and schedules. Add to `tree.json` only when a new reader-facing page is justified. The build rejects orphaned sources, duplicate placement, missing packages, broken routes and broken anchors. Do not reduce page count by dropping contracts, examples or declarations.
 
 Author ordinary Markdown: nested lists, tables, fenced code, links, and headings. Use stable page IDs for guide links, such as `configuration.md`. Package documents keep their original relative source links; links to included documents resolve inside the site. `{{code repository/path.go}}` inserts the exact tested source as a fenced code block. `{{include repository/guide.md}}` embeds a repository document. Includes cannot escape the repository. Never put secrets, private URLs, or local machine paths in examples.
 
@@ -59,7 +58,7 @@ Tutorial files under `snippets/storefront/` use `.go.txt` because their imports 
 
 ## Writing a usable feature guide
 
-Teach an outcome, not just a list of exported types. State prerequisites, the filename/location of each change, required imports and dependencies, complete examples where practical, commands to run, expected output, and failure/denial behavior. Label a wiring fragment or compile-only example explicitly. End with the next useful guide. Keep exact signature catalogs in Reference and advanced contracts underneath the owning feature.
+Use direct technical feature names. Put the feature's example next to its behavior and options. State prerequisites, the filename/location of each change, imports, complete code where practical, commands, expected output and failure/denial behavior. Label wiring fragments or compile-only examples explicitly. Keep exact signatures and advanced contracts expandable on the same page; do not create another article for each option or method.
 
 Add a link from **All features** for every package-owning guide. A working public read example must not be described as authenticated CRUD. A constructor-only field catalog must not be described as end-to-end backend support. Distinguish local-source test evidence, pinned published-module recipes, Docker configuration validation, and a real container runtime test.
 

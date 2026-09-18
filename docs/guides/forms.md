@@ -48,6 +48,19 @@ Create each with `forms.NewField(name, forms.Kind)`:
 
 Field options include initial values, labels/help text, length/value/decimal bounds, choices, validators, coercers, regex patterns, input formats, error messages, component fields, compression, file limits and widgets. The [Field declaration](api-core-forms.md#field) gives their exact Go types.
 
+## Field examples
+
+This is `apps/fieldlab/forms.go` from the example application. `FormCases()` defines every form kind with submitted values and its required options, including decimal precision, choices/coercion, bounded uploads, relation resolution and composite fields. Run `GOWORK=off go test ./apps/fieldlab` from `examples/showcase` to execute its validation tests.
+
+<details>
+<summary>All 29 form kinds: definitions and inputs</summary>
+
+{{code examples/showcase/apps/fieldlab/forms.go}}
+
+</details>
+
+The fixed public relation choices are for demonstration only. Replace that resolver with an authorized lookup in your application's current scope; field validation does not grant access to an arbitrary record ID.
+
 ## Widgets
 
 Configure a field and widget together. Inside your form factory:
@@ -76,6 +89,15 @@ Pass these fields into the form definition as in the binding example above. Brow
 | Upload | `file` |
 
 `MultiWidget` composes child widgets. The showcase covers 21 configurations: the 17 input types above, null-boolean select, multi-value, split datetime and hidden split datetime.
+
+<details>
+<summary>All 21 widget configurations</summary>
+
+This complete example selects each widget, supplies a matching field/value and renders the gallery. It is `apps/fieldlab/widgets.go` in the same tested example application:
+
+{{code examples/showcase/apps/fieldlab/widgets.go}}
+
+</details>
 
 Render a form with `Render("div")`, `"p"`, `"ul"` or `"table"`. Rendering escapes untrusted values, associates labels/errors and does not echo submitted passwords. Unsupported widget types fail explicitly. `ClearableFileInput` and `SelectDateWidget` are not implemented in this release.
 

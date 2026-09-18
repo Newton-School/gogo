@@ -1,0 +1,410 @@
+[
+  {
+    "id": "index",
+    "title": "Introduction",
+    "sources": [
+      [
+        "index",
+        "Overview"
+      ],
+      [
+        "features",
+        "Features"
+      ],
+      [
+        "packages",
+        "Packages"
+      ]
+    ]
+  },
+  {
+    "id": "quickstart",
+    "title": "Quickstart",
+    "sources": [
+      [
+        "installation",
+        "Installation"
+      ],
+      [
+        "quickstart",
+        "Project"
+      ],
+      [
+        "running",
+        "Runtime"
+      ],
+      [
+        "tutorial-api",
+        "API example"
+      ],
+      [
+        "docker",
+        "Docker"
+      ]
+    ]
+  },
+  {
+    "id": "showcase",
+    "title": "Example",
+    "sources": [
+      [
+        "showcase",
+        "Example application"
+      ]
+    ]
+  },
+  {
+    "id": "structure",
+    "title": "Projects",
+    "sources": [
+      [
+        "structure",
+        "Structure"
+      ],
+      [
+        "commands",
+        "Commands"
+      ]
+    ]
+  },
+  {
+    "id": "configuration",
+    "title": "Configuration",
+    "sources": [
+      [
+        "configuration",
+        "Configuration"
+      ],
+      [
+        "settings",
+        "Settings"
+      ]
+    ]
+  },
+  {
+    "id": "models",
+    "title": "Models",
+    "sources": [
+      [
+        "models",
+        "Definition"
+      ],
+      [
+        "model-fields",
+        "Fields"
+      ],
+      [
+        "relations",
+        "Relations"
+      ]
+    ]
+  },
+  {
+    "id": "queries",
+    "title": "ORM",
+    "sources": [
+      [
+        "queries",
+        "Queries"
+      ],
+      [
+        "transactions",
+        "Transactions"
+      ]
+    ]
+  },
+  {
+    "id": "migrations",
+    "title": "Migrations",
+    "sources": [
+      [
+        "migrations",
+        "Migrations"
+      ]
+    ]
+  },
+  {
+    "id": "fixtures",
+    "title": "Fixtures",
+    "sources": [
+      [
+        "fixtures",
+        "Fixtures"
+      ]
+    ]
+  },
+  {
+    "id": "routing",
+    "title": "HTTP",
+    "sources": [
+      [
+        "routing",
+        "Routing"
+      ],
+      [
+        "views",
+        "Views"
+      ],
+      [
+        "pagination",
+        "Pagination"
+      ]
+    ]
+  },
+  {
+    "id": "api",
+    "title": "API",
+    "sources": [
+      [
+        "api",
+        "Serializers and resources"
+      ],
+      [
+        "api-writes",
+        "Mutations"
+      ]
+    ]
+  },
+  {
+    "id": "forms",
+    "title": "Forms",
+    "sources": [
+      [
+        "forms",
+        "Fields and widgets"
+      ]
+    ]
+  },
+  {
+    "id": "templates",
+    "title": "Templates",
+    "sources": [
+      [
+        "templates",
+        "Templates"
+      ],
+      [
+        "template-vocabulary",
+        "Tags and filters"
+      ]
+    ]
+  },
+  {
+    "id": "i18n",
+    "title": "I18n",
+    "sources": [
+      [
+        "i18n",
+        "Localization"
+      ]
+    ]
+  },
+  {
+    "id": "auth",
+    "title": "Auth",
+    "sources": [
+      [
+        "auth",
+        "Authentication"
+      ],
+      [
+        "sessions",
+        "Sessions"
+      ],
+      [
+        "security",
+        "Security"
+      ]
+    ]
+  },
+  {
+    "id": "files",
+    "title": "Storage",
+    "sources": [
+      [
+        "files",
+        "Files"
+      ],
+      [
+        "static",
+        "Static assets"
+      ]
+    ]
+  },
+  {
+    "id": "cache",
+    "title": "Cache",
+    "sources": [
+      [
+        "cache",
+        "Cache"
+      ]
+    ]
+  },
+  {
+    "id": "mail",
+    "title": "Mail",
+    "sources": [
+      [
+        "mail",
+        "Mail"
+      ]
+    ]
+  },
+  {
+    "id": "signals",
+    "title": "Signals",
+    "sources": [
+      [
+        "signals",
+        "Signals"
+      ]
+    ]
+  },
+  {
+    "id": "contrib",
+    "title": "Contrib",
+    "sources": [
+      [
+        "contrib",
+        "Contrib"
+      ]
+    ]
+  },
+  {
+    "id": "connectors",
+    "title": "Connectors",
+    "sources": [
+      [
+        "connectors",
+        "Connectors"
+      ]
+    ]
+  },
+  {
+    "id": "deployment",
+    "title": "Deployment",
+    "sources": [
+      [
+        "deployment",
+        "Deployment"
+      ],
+      [
+        "observability",
+        "Observability"
+      ],
+      [
+        "compatibility",
+        "Compatibility"
+      ]
+    ]
+  },
+  {
+    "id": "testing",
+    "title": "Testing",
+    "sources": [
+      [
+        "testing",
+        "Testing"
+      ],
+      [
+        "troubleshooting",
+        "Troubleshooting"
+      ]
+    ]
+  },
+  {
+    "id": "admin-wiring",
+    "title": "Setup",
+    "sources": [
+      [
+        "admin-wiring",
+        "Setup"
+      ]
+    ]
+  },
+  {
+    "id": "admin",
+    "title": "Models",
+    "sources": [
+      [
+        "admin-customization",
+        "Configuration"
+      ],
+      [
+        "admin",
+        "Options"
+      ]
+    ]
+  },
+  {
+    "id": "admindocs",
+    "title": "Accounts",
+    "sources": [
+      [
+        "detail-admin-accounts",
+        "Accounts"
+      ],
+      [
+        "admindocs",
+        "Staff documentation"
+      ]
+    ]
+  },
+  {
+    "id": "async-wiring",
+    "title": "Setup",
+    "sources": [
+      [
+        "async-wiring",
+        "Setup"
+      ]
+    ],
+    "references": [
+      "api-async-redis"
+    ]
+  },
+  {
+    "id": "async",
+    "title": "Tasks",
+    "sources": [
+      [
+        "async",
+        "Tasks"
+      ]
+    ]
+  },
+  {
+    "id": "workflows",
+    "title": "Workflows",
+    "sources": [
+      [
+        "workflows",
+        "Workflows"
+      ],
+      [
+        "async-recipes",
+        "Examples"
+      ]
+    ],
+    "details": [
+      "detail-async-result",
+      "detail-async-group-result",
+      "detail-async-group-forget"
+    ]
+  },
+  {
+    "id": "scheduling",
+    "title": "Schedules",
+    "sources": [
+      [
+        "scheduling",
+        "Schedules"
+      ]
+    ],
+    "details": [
+      "detail-async-publish-retry",
+      "detail-async-testing-periodic"
+    ]
+  }
+]

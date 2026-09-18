@@ -1,91 +1,49 @@
 {
-  "startSidebar": [
+  "docsSidebar": [
+    "index",
+    "quickstart",
+    "showcase",
     {
-      "label": "Start here",
-      "id": "start",
-      "description": "Know what Gogo is, try a complete example, and install the tools you need.",
-      "items": [
-        "index",
-        "showcase",
-        "installation"
-      ]
-    },
-    {
-      "label": "Build your first backend",
-      "id": "first-backend",
-      "description": "Follow one project from its first route to a persistent API and a Docker image.",
-      "items": ["quickstart", "running", "tutorial-api", "docker"]
-    }
-  ],
-  "guideSidebar": [
-    "features",
-    {
-      "label": "Project fundamentals",
-      "id": "fundamentals",
-      "description": "Learn how apps register, settings load, and manage.go runs commands.",
+      "id": "project",
+      "label": "Project",
       "items": [
         "structure",
-        "configuration",
-        "commands"
+        "configuration"
       ]
     },
     {
-      "label": "Models and databases",
       "id": "data",
-      "description": "Define a model, work with records, and evolve your database safely.",
+      "label": "Data",
       "items": [
-        {
-          "guide": "models",
-          "items": [
-            "model-fields",
-            "relations"
-          ]
-        },
+        "models",
         "queries",
-        "transactions",
         "migrations",
         "fixtures"
       ]
     },
     {
-      "label": "HTTP and REST APIs",
       "id": "http",
-      "description": "Route requests to views, validate input, and expose scoped APIs.",
+      "label": "HTTP",
       "items": [
         "routing",
-        "views",
-        "api",
-        {"guide": "api-writes", "notes": ["detail-core-api-create", "detail-core-api-update", "detail-core-api-delete", "detail-core-api-idempotency"]},
-        "pagination"
+        "api"
       ]
     },
     {
-      "label": "Forms and templates",
       "id": "presentation",
-      "description": "Validate forms, render HTML, and localize the user experience.",
+      "label": "Presentation",
       "items": [
         "forms",
         "templates",
         "i18n"
       ]
     },
+    "auth",
     {
-      "label": "Accounts and security",
-      "id": "security",
-      "description": "Wire authentication, permissions, sessions, and request protection.",
-      "items": [
-        "auth",
-        "sessions",
-        "security"
-      ]
-    },
-    {
-      "label": "Application services",
       "id": "services",
-      "description": "Add file storage, static assets, caching, email, signals, and site features.",
+      "label": "Services",
       "items": [
         "files",
-        "static",
         "cache",
         "mail",
         "signals",
@@ -93,85 +51,24 @@
       ]
     },
     {
-      "label": "Deploy and operate",
       "id": "operations",
-      "description": "Choose connectors, separate processes, test your application, and diagnose failures.",
+      "label": "Operations",
       "items": [
         "connectors",
         "deployment",
-        "observability",
-        "testing",
-        "troubleshooting",
-        "compatibility"
+        "testing"
       ]
     }
   ],
   "adminSidebar": [
     "admin-wiring",
-    "admin-customization",
-    {
-      "guide": "admin",
-      "label": "Options and security",
-      "notes": []
-    },
-    {
-      "label": "Lists, search and display",
-      "id": "admin-lists",
-      "description": "Choose columns, sort and paginate records, and tune search and empty values.",
-      "items": [
-        "detail-admin-list-ordering",
-        "detail-admin-list-pagination",
-        "detail-admin-list-edit",
-        "detail-admin-search-help",
-        "detail-admin-empty-display"
-      ]
-    },
-    {
-      "label": "Forms and relationships",
-      "id": "admin-forms",
-      "description": "Configure editing, child rows, related-object selectors, and form controls.",
-      "items": [
-        "detail-admin-inline-relations",
-        "detail-admin-relation-select",
-        "detail-admin-prepopulate",
-        "detail-admin-save-on-top"
-      ]
-    },
-    {
-      "label": "Accounts and staff tools",
-      "id": "admin-staff",
-      "description": "Use domain-backed account forms and publish authorized staff documentation.",
-      "items": [
-        "detail-admin-accounts",
-        "admindocs"
-      ]
-    }
+    "admin",
+    "admindocs"
   ],
   "asyncSidebar": [
     "async-wiring",
-    {
-      "guide": "async",
-      "label": "Tasks and workers",
-      "notes": [
-        "detail-async-readme",
-        "detail-core-tasks-readme"
-      ]
-    },
-    {
-      "guide": "workflows",
-      "notes": [
-        "detail-async-result",
-        "detail-async-group-result",
-        "detail-async-group-forget"
-      ]
-    },
-    "async-recipes",
-    {
-      "guide": "scheduling",
-      "notes": [
-        "detail-async-publish-retry",
-        "detail-async-testing-periodic"
-      ]
-    }
+    "async",
+    "workflows",
+    "scheduling"
   ]
 }

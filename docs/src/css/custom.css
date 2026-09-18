@@ -59,34 +59,7 @@
 .theme-doc-card-description {color: var(--gogo-muted); font-size: .88rem; line-height: 1.65;}
 .theme-doc-card-heading {font-size: 1.1rem;}
 .footer {border-top: 1px solid var(--gogo-border); font-size: .8rem; color: var(--gogo-muted);}
-/* The landing page is a reading map, not another exhaustive sidebar. */
-.docs-home {max-width: 1180px; padding: 3.75rem 2rem 2.5rem;}
-.home-heading {max-width: 850px;}
-.home-kicker {color: var(--ifm-color-primary); font-size: .73rem; font-weight: 700; letter-spacing: .15em; margin-bottom: 1rem;}
-.home-heading h1 {font-size: clamp(2.5rem, 4.5vw, 3.8rem); letter-spacing: -.055em; margin-bottom: 1.4rem;}
-.home-heading > p {color: var(--gogo-muted); max-width: 700px; font-size: 1.06rem;}
-.home-actions {display: flex; flex-wrap: wrap; gap: .7rem; margin: 1.7rem 0 1.25rem;}
-.home-actions .button {font-size: .9rem; padding: .8rem 1.15rem;}
-.home-heading .alpha-note {font-size: .8rem; max-width: none; margin-bottom: 3rem;}
-.alpha-badge {display: inline-block; font: .7rem var(--ifm-font-family-monospace); border: 1px solid var(--gogo-border); border-radius: 4px; padding: .25rem .4rem; margin-right: .35rem;}
-.section-heading {display: flex; justify-content: space-between; gap: 1rem; align-items: baseline; margin-bottom: 1rem;}
-.section-heading h2, .lookup-section h2 {font-size: 1.25rem; letter-spacing: -.025em; margin-bottom: .6rem;}
-.section-heading a {font-size: .85rem;}
-.path-grid {display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1rem;}
-.path-card {display: flex; flex-direction: column; padding: 1.35rem; border: 1px solid var(--gogo-border); border-radius: 10px; color: var(--ifm-heading-color); transition: border-color .15s, background .15s;}
-.path-card:hover {text-decoration: none; border-color: var(--ifm-color-primary); background: var(--gogo-soft);}
-.path-number {color: var(--ifm-color-primary); font: .78rem var(--ifm-font-family-monospace); margin-bottom: 1.25rem;}
-.path-card h3 {font-size: 1.1rem;}
-.path-card p {color: var(--gogo-muted); font-size: .87rem; line-height: 1.65; flex: 1;}
-.path-action {font-size: .82rem; color: var(--ifm-color-primary); font-weight: 600;}
-.lookup-section {display: grid; grid-template-columns: 1fr 1.3fr; gap: 2rem; margin-top: 2.5rem; padding-top: 2rem; border-top: 1px solid var(--gogo-border);}
-.lookup-section p {color: var(--gogo-muted); font-size: .9rem;}
-.lookup-links {display: grid; grid-template-columns: 1fr 1fr; gap: .6rem 1.3rem; align-content: start; font-size: .88rem;}
-@media (max-width: 996px) {.path-grid {grid-template-columns: repeat(2, minmax(0, 1fr));} .docs-home {padding-top: 2.5rem;}}
-@media (max-width: 600px) {
-  .docs-home {padding: 2rem 1.25rem;}
-  .path-grid, .lookup-section, .lookup-links {grid-template-columns: 1fr;}
-  .section-heading {display: block;}
-  .home-actions {flex-direction: column;}
-  .theme-doc-markdown h1 {font-size: 2rem;}
-}
+.theme-doc-markdown details {background: var(--gogo-soft); border: 1px solid var(--gogo-border); padding: .8rem 1rem; margin: .8rem 0;}
+.theme-doc-markdown summary {font-weight: 600; cursor: pointer; color: var(--ifm-heading-color);}
+.theme-doc-markdown details[open] > summary {margin-bottom: 1rem;}
+@media (max-width: 600px) {.theme-doc-markdown h1 {font-size: 2rem;}}

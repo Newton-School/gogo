@@ -9,6 +9,7 @@ module.exports = {
   baseUrl: '/',
   trailingSlash: true,
   favicon: 'img/gogo.svg',
+  plugins: [require.resolve('./tools/consolidated-pages.cjs')],
   onBrokenLinks: 'throw',
   onBrokenAnchors: 'throw',
   onDuplicateRoutes: 'throw',
@@ -48,13 +49,9 @@ module.exports = {
       title: 'gogo',
       logo: {alt: '', src: 'img/gogo.svg'},
       items: [
-        {type: 'docSidebar', sidebarId: 'startSidebar', label: 'Get started', position: 'left'},
-        {type: 'docSidebar', sidebarId: 'guideSidebar', label: 'Guide', position: 'left'},
+        {type: 'docSidebar', sidebarId: 'docsSidebar', label: 'Docs', position: 'left'},
         {type: 'docSidebar', sidebarId: 'adminSidebar', label: 'Admin', position: 'left'},
         {type: 'docSidebar', sidebarId: 'asyncSidebar', label: 'Async', position: 'left'},
-        {type: 'docSidebar', sidebarId: 'referenceSidebar', label: 'Reference', position: 'left'},
-        {to: '/docs/compatibility', label: '1.0.0-alpha.1', position: 'right', className: 'release-link'},
-        {href: 'https://github.com/Newton-School/gogo', label: 'GitHub', position: 'right'},
       ],
     },
     footer: {

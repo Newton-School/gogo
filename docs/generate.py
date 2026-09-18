@@ -6,6 +6,7 @@ navigation, accessibility, search integration, and strict route/anchor checks.
 """
 
 import json
+import html
 import os
 from pathlib import Path
 import re
@@ -188,9 +189,11 @@ def compile_tree(tree, pages):
         if category in categories:
             raise ValueError("Duplicate category: " + category)
         categories.add(category)
-        return {"type": "category", "label": item["label"], "description": item["description"], "collapsed": True,
-                "link": {"type": "generated-index", "title": item["label"], "description": item["description"], "slug": "/category/" + category},
-                "items": [convert(child) for child in item["items"]]}
+        result = {"type": "category", "label": item["label"], "collapsed": False,
+                  "items": [convert(child) for child in item["items"]]}
+        if item.get("description"):
+            result.update(description=item["description"], link={"type": "generated-index", "title": item["label"], "description": item["description"], "slug": "/category/" + category})
+        return result
 
     sidebars = {key: [convert(item) for item in items] for key, items in tree.items()}
     missing = set(pages) - used
@@ -263,17 +266,130 @@ def collect_pages(manifest, catalog, revision):
     return pages, references
 
 
+def consolidate_pages(pages, sections, revision):
+    """Compose feature pages without discarding source contracts or declarations."""
+    destinations, groups = {}, {}
+    for section in sections:
+        identifier = section["id"]
+        if identifier in groups or not re.fullmatch(r"[a-z0-9-]+", identifier):
+            raise ValueError("Duplicate or unsafe feature page: " + identifier)
+        groups[identifier] = dict(section, parts=[], details=[], references=[])
+        for source, title in section["sources"]:
+            if source not in pages or source in destinations:
+                raise ValueError("Unknown or duplicate consolidated source: " + source)
+            destinations[source] = identifier
+            groups[identifier]["parts"].append((source, title))
+        for kind in ("details", "references"):
+            for source in section.get(kind, []):
+                if source not in pages or source in destinations:
+                    raise ValueError("Unknown or duplicate consolidated source: " + source)
+                if kind == "references" and not pages[source].get("api") or kind == "details" and not pages[source].get("parent"):
+                    raise ValueError("Invalid consolidated source kind: " + source)
+                destinations[source] = identifier
+                groups[identifier][kind].append((source, pages[source]["title"]))
+    # Explicit placement (for example Admin Accounts) wins over package ownership.
+    for source, page in pages.items():
+        parent = page.get("parent")
+        if parent and source not in destinations:
+            if parent not in destinations:
+                raise ValueError("Missing consolidated parent: " + parent)
+            target = destinations[parent]
+            destinations[source] = target
+            groups[target]["details"].append((source, page["title"]))
+        for reference in page.get("references", []):
+            if reference in destinations:
+                continue
+            if source not in destinations:
+                raise ValueError("Invalid consolidated API owner: " + source)
+            target = destinations[source]
+            destinations[reference] = target
+            groups[target]["references"].append((reference, pages[reference]["title"]))
+    if set(pages) != set(destinations):
+        raise ValueError("Unmapped consolidated sources: " + str(sorted(set(pages) - set(destinations))))
+    page_sources = {p["file"]: p["id"] for p in pages.values() if "file" in p}
+    prepared, anchors = {}, {}
+    heading = re.compile(r"^(#{1,6}) (.+)$", re.M)
+    for source, page in pages.items():
+        body = page["source"]
+        source_path = page.get("file", "docs/" + source + ".md")
+        body = rewrite_links(body, source_path, page_sources, revision, pages)
+        body = expand(body, revision, page_sources, pages)
+        seen, mapping = {}, {}
+
+        def stamp(match):
+            level, title = len(match[1]), match[2]
+            explicit = re.search(r"\s+\{#([^}]+)\}$", title)
+            plain = re.sub(r"\[([^\]]+)\]\([^)]*\)", r"\1", title)
+            natural = slug(re.sub(r"[`*_]", "", plain))
+            original = explicit[1] if explicit else natural
+            count = seen.get(original, 0)
+            seen[original] = count + 1
+            if count:
+                original += "-" + str(count)
+            anchor = source if level == 1 else source + "-" + original
+            mapping[original] = anchor
+            label = title[:explicit.start()] if explicit else title
+            return match[1] + " " + label + " {#" + anchor + "}"
+
+        prepared[source] = outside_fences(body, lambda text: heading.sub(stamp, text))
+        mapping[""] = source
+        mapping["in-this-feature"] = "details" if groups[destinations[source]]["details"] else source
+        mapping["go-api-reference"] = "api-reference" if groups[destinations[source]]["references"] else source
+        anchors[source] = mapping
+
+    def destination(source, fragment=""):
+        return destinations[source] + ".md#" + anchors[source].get(fragment, source + "-" + fragment)
+
+    result = {}
+    for identifier, group in groups.items():
+        def render(source, title, folded=False):
+            body = prepared[source]
+
+            def relink(match):
+                parts = urlsplit(match[2])
+                if parts.scheme or parts.netloc:
+                    return match[0]
+                target = parts.path.removesuffix(".md") if parts.path else source
+                if target not in destinations:
+                    return match[0]
+                return "[" + match[1] + "](" + destination(target, parts.fragment) + ")"
+
+            body = outside_fences(body, lambda text: LINK.sub(relink, text))
+
+            def nest(match):
+                level = len(match[1])
+                if level == 1:
+                    return "" if folded else "## " + title + " {#" + source + "}"
+                return "#" * min(6, level + (2 if folded else 1)) + " " + match[2]
+
+            body = outside_fences(body, lambda text: heading.sub(nest, text)).strip()
+            if folded:
+                return '<details>\n<summary>' + html.escape(title) + '</summary>\n\n#### ' + title + ' {#' + source + '}\n\n' + body + '\n\n</details>'
+            return body
+
+        body = ["# " + group["title"]]
+        body.extend(render(source, title) for source, title in group["parts"])
+        if group["details"]:
+            body += ["## Details {#details}", "Expand a feature for its full behavior, constraints and failure cases."]
+            body.extend(render(source, title, True) for source, title in group["details"])
+        if group["references"]:
+            body += ["## API reference {#api-reference}", "Public Go declarations for this feature. Expand a package or use search to find a symbol."]
+            body.extend(render(source, title, True) for source, title in group["references"])
+        result[identifier] = {"id": identifier, "title": group["title"], "source": "\n\n".join(body),
+                              "description": group["title"] + " features, examples and API reference."}
+    routes = {source: {"page": destinations[source], "anchor": source, "anchors": anchors[source]} for source in pages}
+    return result, routes
+
+
 def generate():
     manifest = json.loads((DOCS / "navigation.json").read_text())
     catalog = json.loads(subprocess.check_output(["go", "run", "./docs/tools/catalog"], cwd=ROOT, text=True))
     revision = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
-    pages, references = collect_pages(manifest, catalog, revision)
+    source_pages, _ = collect_pages(manifest, catalog, revision)
+    sections = json.loads((DOCS / "sections.json").read_text())
+    pages, routes = consolidate_pages(source_pages, sections, revision)
     tree = json.loads((DOCS / "tree.json").read_text())
-    tree["referenceSidebar"] = ["packages", "settings", "template-vocabulary"] + [
-        {"label": section, "id": "reference-" + slug(section), "description": "Public Go API declarations for " + section.lower() + ".", "items": ids}
-        for section, ids in references.items()]
     sidebars = compile_tree(tree, pages)
-    page_sources = {p["file"]: p["id"] for p in pages.values() if "file" in p}
     content = OUTPUT / "content"
     content.mkdir(parents=True, exist_ok=True)
     # Remove only obsolete generated Markdown, never caller-selected directories.
@@ -282,27 +398,16 @@ def generate():
             path.unlink()
     for page in pages.values():
         body = page["source"]
-        if "file" in page:
-            body = rewrite_links(body, page["file"], page_sources, revision, pages)
-        body = expand(body, revision, page_sources, pages)
-        related = [p for p in pages.values() if p.get("parent") == page["id"]]
-        if related:
-            body += "\n\n## In this feature\n\n" + "\n".join(f"- [{p['title']}]({p['id']}.md)" for p in related)
-        if page.get("references"):
-            body += "\n\n## Go API reference\n\n" + "\n".join(f"- [{pages[identifier]['title']}]({identifier}.md)" for identifier in page["references"])
         frontmatter = {"title": page["title"], "slug": "/" + page["id"], "pagination_label": page["title"]}
         if page.get("description"):
             frontmatter["description"] = page["description"]
-        if page.get("api"):
-            frontmatter["toc_max_heading_level"] = 2
-        if page.get("file"):
-            frontmatter["custom_edit_url"] = source_link(page["file"], revision)
         # JSON string values are valid YAML and safely quote metadata.
         header = "\n".join(key + ": " + json.dumps(value) for key, value in frontmatter.items())
         (content / (page["id"] + ".md")).write_text("---\n" + header + "\n---\n\n" + body.rstrip() + "\n")
     (OUTPUT / "sidebars.json").write_text(json.dumps(sidebars, indent=2) + "\n")
-    summary = {"version": VERSION, "sourceRevision": revision, "pages": len(pages), "featureGuides": len(manifest),
-               "technicalGuides": sum("parent" in p for p in pages.values()), "publicPackages": len(catalog["Packages"]),
+    (OUTPUT / "routes.json").write_text(json.dumps(routes, indent=2) + "\n")
+    summary = {"version": VERSION, "sourceRevision": revision, "pages": len(pages), "sourceDocuments": len(source_pages), "featureGuides": len(manifest),
+               "technicalGuides": sum("parent" in p for p in source_pages.values()), "publicPackages": len(catalog["Packages"]),
                "declarations": sum(len(p["Declarations"]) for p in catalog["Packages"]), "settings": len(catalog["Settings"])}
     (OUTPUT / "coverage.json").write_text(json.dumps(summary, indent=2) + "\n")
     print(json.dumps(summary, indent=2))

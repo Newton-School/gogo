@@ -32,6 +32,15 @@ Scope applies before filtering, counts, pagination and related-data loading. Obj
 
 These are the 23 constructors exercised by the showcase recipes. Configure nullability, required input, source mapping, `Hidden`, `ReadOnly`, `WriteOnly`, validators and representation callbacks through the actual `api.Field` definition. There is no Django-style `MethodField` or `HiddenField` constructor; use `ComputedField` or the explicit `Hidden` option.
 
+<details>
+<summary>All 23 serializer constructors: inputs, output and validation</summary>
+
+This is the complete recipe file, including field options and expected results. From `examples/showcase`, run `GOWORK=off go test -v ./recipes/api`.
+
+{{code examples/showcase/recipes/api/serializer_test.go}}
+
+</details>
+
 Call `Serializer.Validate(ctx, input, api.BindOptions{...})` to obtain cleaned values, and `Representation` for output. `Save` takes an explicit persistence policy. Partial input, defaults and hidden fields have defined behavior; partial validation is not permission to ignore authorization. Nested validation is not automatic nested database persistence.
 
 ## Validate and represent a value
