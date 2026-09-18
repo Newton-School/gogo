@@ -62,4 +62,70 @@
 .theme-doc-markdown details {background: var(--gogo-soft); border: 1px solid var(--gogo-border); padding: .8rem 1rem; margin: .8rem 0;}
 .theme-doc-markdown summary {font-weight: 600; cursor: pointer; color: var(--ifm-heading-color);}
 .theme-doc-markdown details[open] > summary {margin-bottom: 1rem;}
+
+/* API references: scannable symbols, not a continuous dump of declarations. */
+.reference-index > ul {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr));
+  gap: .45rem .8rem;
+  list-style: none;
+  padding: 0;
+  margin: .8rem 0 1.5rem;
+}
+.reference-index li {margin: 0; min-width: 0;}
+.reference-index a {
+  display: block;
+  padding: .45rem .65rem;
+  border: 1px solid var(--gogo-border);
+  border-radius: 6px;
+  font: .84rem/1.5 var(--ifm-font-family-monospace);
+  overflow-wrap: anywhere;
+}
+.reference-index a:hover {background: var(--gogo-soft);}
+.reference-index a:focus-visible, .reference-declaration > summary:focus-visible {
+  outline: 2px solid var(--ifm-color-primary);
+  outline-offset: 3px;
+}
+.reference-entry {
+  border: 1px solid var(--gogo-border);
+  border-radius: 10px;
+  margin: 1.5rem 0;
+  padding: 1.3rem 1.4rem;
+  min-width: 0;
+}
+.reference-entry > h3 {font-size: 1.35rem; margin-top: 0; margin-bottom: .5rem; overflow-wrap: anywhere;}
+.reference-kind {
+  display: inline-block;
+  margin: 0 0 1rem;
+  padding: .1rem .5rem;
+  border-radius: 4px;
+  background: var(--gogo-soft);
+  color: var(--gogo-muted);
+  font-size: .72rem;
+  font-weight: 600;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+.reference-method {border-top: 1px solid var(--gogo-border); padding-top: 1.4rem; margin-top: 1.5rem;}
+.reference-method > h4 {font: 600 1.05rem/1.5 var(--ifm-font-family-monospace); margin: 0 0 .5rem; overflow-wrap: anywhere;}
+.reference-guide {border-left: 3px solid var(--ifm-color-primary); padding: .5rem 1rem; margin: 1rem 0;}
+.reference-guide > p {margin: 0;}
+.reference-member {border-bottom: 1px solid var(--gogo-border); padding: .8rem 0;}
+.reference-member:last-child {border-bottom: 0;}
+.reference-member p {margin-bottom: .5rem;}
+.reference-call {display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr)); gap: 1rem; margin: 1rem 0;}
+.reference-io {min-width: 0;}
+.reference-io > p {margin-bottom: .45rem; font-size: .85rem;}
+.reference-io table {display: table; width: 100%; table-layout: fixed; margin-bottom: 0;}
+.reference-io th:first-child, .reference-io td:first-child {width: 32%;}
+.reference-io td, .reference-io th {padding: .5rem .6rem; overflow-wrap: anywhere; vertical-align: top;}
+.reference-io tr {background: transparent;}
+.reference-io thead {background: var(--gogo-soft);}
+.theme-doc-markdown .reference-declaration {background: transparent; padding: .7rem .85rem;}
+.reference-declaration > summary {font-size: .9rem; color: var(--gogo-muted);}
+.reference-declaration pre {margin-bottom: 0;}
+@media (max-width: 600px) {
+  .reference-entry {padding: 1rem;}
+  .reference-call {grid-template-columns: 1fr;}
+}
 @media (max-width: 600px) {.theme-doc-markdown h1 {font-size: 2rem;}}

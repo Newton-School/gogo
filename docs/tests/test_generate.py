@@ -121,9 +121,45 @@ class ContentTests(unittest.TestCase):
                        "Parameters": [{"Name": "ctx", "Type": "context.Context", "Doc": ""}],
                        "Results": [{"Name": "result", "Type": "error", "Doc": ""}]}
         result = "\n".join(docs.declaration_details(package, declaration, {}))
-        self.assertIn("| `Limit` | `int` | Zero selects the default. |", result)
-        self.assertIn("ctx: context.Context", result)
-        self.assertIn("result: error", result)
+        self.assertIn("**Limit** · ` int `", result)
+        self.assertIn("Zero selects the default.", result)
+        self.assertIn("| ` ctx ` | ` context.Context ` |", result)
+        self.assertIn("| ` result ` | ` error ` |", result)
+        self.assertIn('className="reference-call"', result)
+
+    def test_unnamed_returns_use_positions_not_extractor_placeholders(self):
+        declaration = {"Name": "Get", "Results": [
+            {"Name": "(embedded or positional)", "Type": "any", "Doc": ""},
+            {"Name": "(embedded or positional)", "Type": "error", "Doc": ""}]}
+        result = "\n".join(docs.declaration_details({"Directory": "sample"}, declaration, {}))
+        self.assertIn("| 1 | ` any ` |", result)
+        self.assertIn("| 2 | ` error ` |", result)
+        self.assertNotIn("embedded or positional", result)
+
+    def test_reviewed_options_link_to_detail_without_duplicating_member_dump(self):
+        declaration = {"Name": "Config", "Members": [{"Name": "Limit", "Type": "int", "Doc": "Zero selects the default."}]}
+        result = "\n".join(docs.declaration_details({"Directory": "sample"}, declaration, {"sample.Config": {"fields": {}}}))
+        self.assertIn("options-sample-config.md", result)
+        self.assertNotIn('className="reference-members"', result)
+
+    def test_long_types_fold_declaration_but_keep_contract_and_methods_visible(self):
+        signature = "type Config struct {\n" + "\n".join("F" + str(i) + " string" for i in range(10)) + "\n}"
+        package = {"Directory": "sample", "Path": "example.com/sample", "Doc": "Package purpose.", "Declarations": [
+            {"Name": "Config", "Kind": "type", "Signature": signature, "Doc": "The configuration contract."},
+            {"Name": "Config.Check", "Kind": "method", "Signature": "func (c Config) Check() error", "Doc": "Check validates the configuration."}]}
+        result = docs.api_page(package, "models", "rev")
+        self.assertIn('<section className="reference-entry">', result)
+        self.assertIn("- [Config](#config)", result)
+        self.assertIn("- [Config.Check](#config-check)", result)
+        self.assertLess(result.index("The configuration contract."), result.index('<details className="reference-declaration">'))
+        self.assertLess(result.index("</details>"), result.index("#### Config.Check"))
+        self.assertEqual(result.count(signature), 1)
+
+    def test_go_types_are_not_double_html_escaped(self):
+        declaration = {"Name": "Send", "Parameters": [{"Name": "values", "Type": "chan<- string", "Doc": ""}]}
+        result = "\n".join(docs.declaration_details({"Directory": "sample"}, declaration, {}))
+        self.assertIn("` chan<- string `", result)
+        self.assertNotIn("&lt;", result)
 
 
 class SettingsTests(unittest.TestCase):

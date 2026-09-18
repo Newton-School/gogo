@@ -221,3 +221,20 @@ test('documentation keeps examples and API signatures without GitHub source link
   assert.match(read('.generated/content/api-core-models.md'), /type Field struct/);
   assert.match(read('.generated/content/field-models-slug.md'), /package main/);
 });
+
+test('API references use readable symbol sections and structured call contracts', () => {
+  for (const name of fs.readdirSync(path.join(root, '.generated/content')).filter(name => name.startsWith('api-') && name !== 'api-writes.md')) {
+    const source = read('.generated/content/' + name);
+    const html = read(`build/docs/${name.slice(0, -3)}/index.html`);
+    assert.doesNotMatch(source, /embedded or positional|\*\*Input:\*\*|\*\*Output:\*\*/);
+    assert.match(html, /class="reference-entry"/);
+    assert.doesNotMatch(html, /className=/);
+    if (source.includes('className="reference-call"')) assert.match(html, /class="reference-io"/);
+  }
+  const html = read('build/docs/api-core-models/index.html');
+  assert.match(html, /class="reference-index"/);
+  assert.match(html, /class="reference-method"/);
+  assert.match(html, /<details class="reference-declaration">/);
+  assert.match(html, /<summary>Go declaration<\/summary>/);
+  assert.match(html, /id="api-core-models-field"/);
+});

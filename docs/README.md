@@ -50,6 +50,7 @@ Sidebar categories only expand or collapse: they never open a document or genera
 | Package-level Markdown | Advanced contracts; included from their original source, not copied by hand |
 | `snippets/`, `examples/` | Tested code included in tutorials |
 | `tools/catalog/` | Go parser/doc extractor for public APIs, settings, and template vocabulary |
+| `reference.py` | API reference presentation: symbol indexes, type/method sections, member descriptions, parameter/return tables and expandable declarations |
 | `generate.py` | Content adapter, ownership checks, and sidebar generation; not an HTML renderer |
 | `docusaurus.config.js`, `src/`, `static/` | Framework configuration, landing page, and light/dark styling |
 | `.generated/`, `.docusaurus/`, `build/` | Ignored generated content, framework cache, and deployable static output |
@@ -61,6 +62,8 @@ Use `{"id": "...", "label": "...", "items": [...]}` for an expand-only category,
 Author ordinary Markdown: nested lists, tables, fenced code, links, and headings. Use stable page IDs for guide links, such as `configuration.md`. Package documents keep their original relative source links; links to included documents resolve inside the site. `{{code repository/path.go}}` inserts the exact tested source as a fenced code block. `{{include repository/guide.md}}` embeds a repository document. Includes cannot escape the repository. Never put secrets, private URLs, or local machine paths in examples.
 
 Keep examples and signatures in the documentation; do not add GitHub source links or source buttons. Repository links to a documented page resolve locally; source-only links render as plain text. Code fences retain required Go module import paths. Generation still checks source coverage internally, without publishing per-symbol source links.
+
+Package references render each type/function as a distinct section and keep methods inside their owning type. Symbol indexes use a responsive grid; large indexes and long type declarations use native, keyboard-accessible disclosures. Parameters and returns use separate tables that stack on narrow screens. Unnamed return values are numbered in declaration order, never assigned invented names or explanations. Member contracts remain beside their types; reviewed configuration types link to their dedicated option pages rather than duplicating another large table. Preserve the original signatures and stable symbol anchors when changing this layout.
 
 Tutorial files under `snippets/storefront/` use `.go.txt` because their imports belong to a generated client module, not the framework workspace. They render as Go and are copied into that client by the tutorial tests. Dockerfile/YAML includes retain their language highlighting. Do not hand-copy a second implementation into prose.
 

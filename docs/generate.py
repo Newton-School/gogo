@@ -13,6 +13,7 @@ import re
 import subprocess
 from urllib.parse import urlsplit
 from field_reference import build_pages as field_pages
+from reference import api_page, declaration_details, member_contracts
 
 ROOT = Path(__file__).resolve().parents[1]
 DOCS = ROOT / "docs"
@@ -113,59 +114,6 @@ def expand(source, revision, page_sources, page_ids):
     return outside_fences(source, lambda prose: re.sub(r"\{\{(code|include) ([A-Za-z0-9_./-]+)\}\}", include, prose))
 
 
-def table_text(value):
-    return html.escape(" ".join(value.split())).replace("|", "\\|")
-
-
-def member_contracts(package, declaration, options):
-    key = package["Directory"] + "." + declaration["Name"]
-    override = options.get(key, {}).get("fields", {})
-    return [(member, override.get(member["Name"], member["Doc"])) for member in declaration.get("Members") or []]
-
-
-def declaration_details(package, declaration, options):
-    lines = []
-    key = package["Directory"] + "." + declaration["Name"]
-    if key in options:
-        lines += [f"[Options, defaults and examples](options-{slug(key)}.md)", ""]
-    members = member_contracts(package, declaration, options)
-    if members and any(description for _, description in members):
-        lines += ["| Member | Type | Behavior |", "| --- | --- | --- |"]
-        for member, description in members:
-            lines.append(f"| `{member['Name']}` | `{table_text(member['Type'])}` | {table_text(description) or 'See the declaration and feature contract.'} |")
-        lines.append("")
-    for key, label in [("Parameters", "Input"), ("Results", "Output")]:
-        items = declaration.get(key) or []
-        if items:
-            lines += [f"**{label}:** " + "; ".join(f"`{item['Name']}: {item['Type']}`" for item in items) + ".", ""]
-    return lines
-
-
-def api_page(package, guide_id, revision, options=None):
-    options = options or {}
-    title = package["Directory"] if package["Directory"] != "." else "gogo"
-    lines = [f"# {title}", "", f"```go\nimport \"{package['Path']}\"\n```", "",
-             f"[Read the feature guide]({guide_id}.md)", "", package["Doc"].strip(), "",
-             "> Generated from public Go declarations. A symbol's presence does not guarantee support for every backend or feature combination. Read the feature guide and [alpha limits](compatibility.md).", ""]
-    declarations = package["Declarations"]
-    for kind, label in [("type", "Types"), ("function", "Functions"), ("constant", "Constants"), ("variable", "Variables")]:
-        selected = [d for d in declarations if d["Kind"] == kind]
-        if not selected:
-            continue
-        lines += ["## " + label, ""]
-        if kind in ("type", "function"):
-            lines += [" · ".join(f"[{d['Name']}](#{slug(d['Name'])})" for d in selected), ""]
-        for declaration in selected:
-            name = declaration["Name"]
-            # Constants may be one declaration containing dozens of names.
-            heading = name.split(", ")[0] + (" and related values" if ", " in name else "")
-            lines += [f"### {heading} {{#{slug(name)}}}", "", declaration["Doc"].strip(), "", "```go", declaration["Signature"], "```", ""]
-            lines += declaration_details(package, declaration, options)
-            if kind == "type":
-                for method in [d for d in declarations if d["Kind"] == "method" and d["Name"].startswith(name + ".")]:
-                    lines += [f"#### {method['Name']} {{#{slug(method['Name'])}}}", "", method["Doc"].strip(), "", "```go", method["Signature"], "```", ""]
-                    lines += declaration_details(package, method, options)
-    return "\n".join(lines)
 
 
 def settings_page(settings, descriptions=None):
