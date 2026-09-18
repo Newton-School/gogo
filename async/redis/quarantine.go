@@ -12,7 +12,11 @@ import (
 )
 
 func (b *Broker) quarantineCursor(queue, position string) string {
-	return base64.RawURLEncoding.EncodeToString([]byte("q1:" + connector.Digest(b.queuePrefix(queue)) + ":" + position))
+	return base64.RawURLEncoding.EncodeToString([]byte(b.quarantineCursorPrefix(queue) + position))
+}
+
+func (b *Broker) quarantineCursorPrefix(queue string) string {
+	return "q2:" + connector.Digest(strconv.Itoa(b.Connection.Database())+":"+b.queuePrefix(queue)) + ":"
 }
 
 func (b *Broker) quarantinePosition(queue, cursor string) (string, error) {
@@ -23,7 +27,7 @@ func (b *Broker) quarantinePosition(queue, cursor string) (string, error) {
 		return "", async.ErrInvalid
 	}
 	raw, err := base64.RawURLEncoding.DecodeString(cursor)
-	prefix := "q1:" + connector.Digest(b.queuePrefix(queue)) + ":"
+	prefix := b.quarantineCursorPrefix(queue)
 	if err != nil || !strings.HasPrefix(string(raw), prefix) {
 		return "", async.ErrInvalid
 	}
@@ -35,7 +39,7 @@ func (b *Broker) quarantinePosition(queue, cursor string) (string, error) {
 }
 
 // ReadQuarantine is a raw trusted port. Application callers must use
-// Control.InspectQuarantine. The namespace/queue binding prevents accidental
+// Control.InspectQuarantine. The database/queue binding prevents accidental
 // cursor reuse across streams; it is not a credential or a signed grant.
 func (b *Broker) ReadQuarantine(ctx context.Context, queue, after string, limit int) (async.QuarantinePage, error) {
 	if ctx == nil || b == nil || b.valid() != nil || !b.allowed(queue) || limit < 1 || limit > 1000 {

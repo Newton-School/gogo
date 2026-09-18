@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net/url"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -15,9 +17,14 @@ import (
 	redigo "github.com/redis/go-redis/v9"
 )
 
-func quarantineBackend(t *testing.T, namespace string, cfg connector.Config) *adapter.Broker {
+func quarantineBackend(t *testing.T, database int, cfg connector.Config) *adapter.Broker {
 	t.Helper()
-	cfg.Namespace, cfg.Role = namespace, connector.TaskRole
+	address, err := url.Parse(cfg.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	address.Path = "/" + strconv.Itoa(database)
+	cfg.URL, cfg.Role = address.String(), connector.TaskRole
 	conn, err := connector.Open(context.Background(), cfg)
 	if err != nil {
 		t.Fatal(err)
@@ -27,7 +34,7 @@ func quarantineBackend(t *testing.T, namespace string, cfg connector.Config) *ad
 }
 
 func quarantineRedisKey(b *adapter.Broker, queue string) string {
-	return b.Connection.Namespace() + ":queue:{" + connector.Digest(queue) + "}:quarantine"
+	return "queue:{" + connector.Digest(queue) + "}:quarantine"
 }
 
 func seedQuarantine(t *testing.T, b *adapter.Broker) async.Delivery {
@@ -50,10 +57,10 @@ func seedQuarantine(t *testing.T, b *adapter.Broker) async.Delivery {
 	return d
 }
 
-func TestRealRedisQuarantineInspectionIsPayloadFreeBoundedAndNamespaceBound(t *testing.T) {
+func TestRealRedisQuarantineInspectionIsPayloadFreeBoundedAndDatabaseBound(t *testing.T) {
 	ctx := context.Background()
 	cfg := fixture.Start(t)
-	b := quarantineBackend(t, "quarantine-one", cfg)
+	b := quarantineBackend(t, 1, cfg)
 	start := time.Now().Add(-time.Second)
 	for range 3 {
 		seedQuarantine(t, b)
@@ -93,9 +100,9 @@ func TestRealRedisQuarantineInspectionIsPayloadFreeBoundedAndNamespaceBound(t *t
 	if _, err := b.ReadQuarantine(ctx, "other", page.NextCursor, 2); !errors.Is(err, async.ErrInvalid) {
 		t.Fatal("cross-queue cursor accepted", err)
 	}
-	other := quarantineBackend(t, "quarantine-two", cfg)
+	other := quarantineBackend(t, 2, cfg)
 	if _, err := other.ReadQuarantine(ctx, "default", page.NextCursor, 2); !errors.Is(err, async.ErrInvalid) {
-		t.Fatal("cross-namespace cursor accepted", err)
+		t.Fatal("cross-database cursor accepted", err)
 	}
 	stats, err := b.Inspect(ctx, []string{"default"})
 	if err != nil || len(stats) != 1 || stats[0].Quarantined != 3 || stats[0].Pending != 0 || stats[0].Queued != 0 {
@@ -110,7 +117,7 @@ func TestRealRedisQuarantineInspectionIsPayloadFreeBoundedAndNamespaceBound(t *t
 
 func TestRealRedisQuarantineCorruptLaterRecordReturnsNoPartialPage(t *testing.T) {
 	ctx := context.Background()
-	b := quarantineBackend(t, "quarantine-corrupt", fixture.Start(t))
+	b := quarantineBackend(t, 1, fixture.Start(t))
 	seedQuarantine(t, b)
 	key := quarantineRedisKey(b, "default")
 	for _, scenario := range []string{"reason", "digest", "receipt", "priority"} {

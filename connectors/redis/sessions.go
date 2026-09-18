@@ -26,7 +26,7 @@ func validSessionID(id string) bool {
 }
 
 func (s *Sessions) key(id string) string {
-	return s.Connection.namespace + ":session:{" + Digest(id) + "}"
+	return "session:{" + Digest(id) + "}"
 }
 func (s *Sessions) valid() error {
 	if s.Connection == nil || s.Connection.role == CacheRole {

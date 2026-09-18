@@ -20,7 +20,7 @@ type Events struct {
 }
 
 func (e *Events) key(scope string) string {
-	return e.Connection.Namespace() + ":events:{" + connector.Digest(scope) + "}"
+	return "events:{" + connector.Digest(scope) + "}"
 }
 func (e *Events) PublishEvent(ctx context.Context, event async.Event) error {
 	if ctx == nil || e == nil || e.Connection == nil || async.ValidateEvent(event) != nil {

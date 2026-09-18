@@ -19,7 +19,7 @@ import (
 func TestRealRedisQuarantineRemovalIsAtomicExactAndDoesNotTouchLiveState(t *testing.T) {
 	ctx := context.Background()
 	config := fixture.Start(t)
-	b := quarantineBackend(t, "quarantine-remove", config)
+	b := quarantineBackend(t, 1, config)
 	for range 3 {
 		seedQuarantine(t, b)
 	}
@@ -52,9 +52,9 @@ func TestRealRedisQuarantineRemovalIsAtomicExactAndDoesNotTouchLiveState(t *test
 			t.Fatal("mismatched metadata removed quarantine", field, removed, err)
 		}
 	}
-	other := quarantineBackend(t, "quarantine-remove-other", config)
+	other := quarantineBackend(t, 2, config)
 	if removed, err := other.RemoveQuarantine(ctx, entry); removed || !errors.Is(err, async.ErrInvalid) {
-		t.Fatal("cross-namespace removal accepted", removed, err)
+		t.Fatal("cross-database removal accepted", removed, err)
 	}
 	canceled, cancel := context.WithCancel(ctx)
 	cancel()
@@ -126,7 +126,7 @@ func TestRealRedisQuarantineRemovalIsAtomicExactAndDoesNotTouchLiveState(t *test
 
 func TestRealRedisQuarantineRemovalRefusesUnknownOrDuplicateStoredMetadata(t *testing.T) {
 	ctx := context.Background()
-	b := quarantineBackend(t, "quarantine-remove-format", fixture.Start(t))
+	b := quarantineBackend(t, 1, fixture.Start(t))
 	key := quarantineRedisKey(b, "default")
 	for _, scenario := range []string{"priority", "unknown", "duplicate"} {
 		fields := []any{"receipt", "1-0", "code", "rejected", "digest", strings.Repeat("a", 64), "priority", "9"}
@@ -167,7 +167,7 @@ func TestRealRedisQuarantineRemovalRefusesUnknownOrDuplicateStoredMetadata(t *te
 
 func TestRealRedisQuarantineRemovalDoesNotTreatInvalidPriorityAsLegacyAbsence(t *testing.T) {
 	ctx := context.Background()
-	b := quarantineBackend(t, "quarantine-remove-priority", fixture.Start(t))
+	b := quarantineBackend(t, 1, fixture.Start(t))
 	seedQuarantine(t, b)
 	page, err := b.ReadQuarantine(ctx, "default", "", 1)
 	if err != nil || len(page.Entries) != 1 {
@@ -181,7 +181,7 @@ func TestRealRedisQuarantineRemovalDoesNotTreatInvalidPriorityAsLegacyAbsence(t 
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Keep the namespace binding while changing only the position suffix.
+	// Keep the database/queue binding while changing only the position suffix.
 	raw, err := base64.RawURLEncoding.DecodeString(entry.Cursor)
 	if err != nil {
 		t.Fatal(err)

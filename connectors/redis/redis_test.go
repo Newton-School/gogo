@@ -81,7 +81,7 @@ func TestRealCacheAtomicAddIncrementExpiryIsolation(t *testing.T) {
 	if value, err := other.Get(ctx, "kept"); err != nil || string(value) != "value" {
 		t.Fatal(string(value), err)
 	}
-	if _, err := conn.Atomic(ctx, redigo.NewScript(`return 1`), []string{"test:{one}:a", "test:{two}:b"}); !errors.Is(err, connector.ErrInvalid) {
+	if _, err := conn.Atomic(ctx, redigo.NewScript(`return 1`), []string{"{one}:a", "{two}:b"}); !errors.Is(err, connector.ErrInvalid) {
 		t.Fatal(err)
 	}
 }
@@ -100,7 +100,7 @@ func TestRealSessionCASAndLogoutTombstone(t *testing.T) {
 	if err := store.Create(ctx, record); err != nil {
 		t.Fatal(err)
 	}
-	payload, err := conn.Client().HGet(ctx, conn.Namespace()+":session:{"+connector.Digest(id)+"}", "payload").Result()
+	payload, err := conn.Client().HGet(ctx, "session:{"+connector.Digest(id)+"}", "payload").Result()
 	if err != nil || strings.Contains(payload, id) {
 		t.Fatal("session bearer persisted in payload", err)
 	}

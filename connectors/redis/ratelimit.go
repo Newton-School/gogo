@@ -37,7 +37,7 @@ func (l *Limiter) Allow(ctx context.Context, key string, limit ratelimit.Limit, 
 	if uint64(limit.Burst) > 1<<53-1 || math.IsInf(refillMillis, 0) || math.IsNaN(refillMillis) || refillMillis > float64(math.MaxInt64/int64(time.Millisecond))-1 {
 		return ratelimit.Decision{}, ErrInvalid
 	}
-	out, err := l.Connection.Atomic(ctx, limitScript, []string{l.Connection.namespace + ":limit:{" + Digest(key) + "}"}, strconv.FormatFloat(limit.Rate, 'g', -1, 64), limit.Burst, strconv.FormatFloat(periodMillis, 'g', -1, 64), cost)
+	out, err := l.Connection.Atomic(ctx, limitScript, []string{"limit:{" + Digest(key) + "}"}, strconv.FormatFloat(limit.Rate, 'g', -1, 64), limit.Burst, strconv.FormatFloat(periodMillis, 'g', -1, 64), cost)
 	if err != nil {
 		return ratelimit.Decision{}, err
 	}

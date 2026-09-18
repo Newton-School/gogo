@@ -14,7 +14,7 @@ import (
 )
 
 func (s *Schedules) periodicKeys(partition int) []string {
-	prefix := s.Connection.Namespace() + fmt.Sprintf(":schedule:{schedule-p%02d}:", partition)
+	prefix := fmt.Sprintf("schedule:{schedule-p%02d}:", partition)
 	return []string{prefix + "periodic-due", prefix + "periodic-items"}
 }
 

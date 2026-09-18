@@ -30,7 +30,7 @@ type Broker struct {
 }
 
 func (b *Broker) queuePrefix(queue string) string {
-	return b.Connection.Namespace() + ":queue:{" + connector.Digest(queue) + "}"
+	return "queue:{" + connector.Digest(queue) + "}"
 }
 func (b *Broker) stream(queue string, priority int) string {
 	return b.queuePrefix(queue) + ":p" + strconv.Itoa(priority)

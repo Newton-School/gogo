@@ -17,7 +17,7 @@ type Cache struct {
 }
 
 func (c *Cache) key(key string) string {
-	return c.Connection.namespace + ":cache:" + strconv.FormatUint(c.Version, 10) + ":" + Digest(key)
+	return "cache:" + strconv.FormatUint(c.Version, 10) + ":" + Digest(key)
 }
 func (c *Cache) validate(value []byte, ttl time.Duration) error {
 	maxBytes := c.MaxBytes
@@ -45,13 +45,13 @@ func (c *Cache) Get(ctx context.Context, key string) ([]byte, error) {
 	return value, err
 }
 
-// Clear removes only this cache namespace/version. It never flushes a server or
-// deletes sessions, queue messages or keys belonging to another application.
+// Clear removes only this cache version in the selected database. It never
+// flushes a database/server or deletes sessions, queue messages or other DBs.
 func (c *Cache) Clear(ctx context.Context) error {
 	if c.Connection == nil {
 		return ErrInvalid
 	}
-	prefix := c.Connection.namespace + ":cache:" + strconv.FormatUint(c.Version, 10) + ":*"
+	prefix := "cache:" + strconv.FormatUint(c.Version, 10) + ":*"
 	clear := func(ctx context.Context, client *redigo.Client) error {
 		var cursor uint64
 		for {

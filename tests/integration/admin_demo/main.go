@@ -277,7 +277,7 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	connection, err := connector.Open(ctx, connector.Config{URL: redisURL, Namespace: schema, Role: connector.SessionRole, Development: true})
+	connection, err := connector.Open(ctx, connector.Config{URL: redisURL, Role: connector.SessionRole, Development: true})
 	if err != nil {
 		return err
 	}

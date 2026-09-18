@@ -31,7 +31,7 @@ const (
 var ErrInvalid = errors.New("redis: invalid configuration")
 var ErrUnavailable = errors.New("redis: unavailable")
 var ErrDurability = errors.New("redis: durable role requires noeviction and persistence")
-var namespacePattern = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9_-]{0,63}$`)
+var keyFamilyPattern = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9_-]{0,63}$`)
 
 type Config struct {
 	URL              string
@@ -41,13 +41,14 @@ type Config struct {
 	Password         string
 	SentinelUsername string
 	SentinelPassword string
-	Database         int
-	Namespace        string
-	Role             Role
-	TLS              *tls.Config
-	PoolSize         int
-	Timeout          time.Duration
-	Cluster          bool
+	// Database selects the database for address/Sentinel connections. With URL,
+	// the URL selects the database; a nonzero Database must agree with it.
+	Database int
+	Role     Role
+	TLS      *tls.Config
+	PoolSize int
+	Timeout  time.Duration
+	Cluster  bool
 	// Development permits nonpersistent loopback Redis for tests/development.
 	// It does not bypass version or noeviction validation for durable roles.
 	Development bool
@@ -55,13 +56,13 @@ type Config struct {
 }
 
 type Connection struct {
-	client    redigo.UniversalClient
-	namespace string
-	role      Role
+	client   redigo.UniversalClient
+	database int
+	role     Role
 }
 
 func Open(ctx context.Context, c Config) (*Connection, error) {
-	if !namespacePattern.MatchString(c.Namespace) || c.Database < 0 {
+	if c.Database < 0 {
 		return nil, ErrInvalid
 	}
 	if c.Development && c.Production {
@@ -94,14 +95,16 @@ func Open(ctx context.Context, c Config) (*Connection, error) {
 		}
 	}
 	var client redigo.UniversalClient
+	database := c.Database
 	if c.URL != "" {
 		if len(c.Addresses) > 0 || c.MasterName != "" || c.Cluster {
 			return nil, ErrInvalid
 		}
 		opts, err := redigo.ParseURL(c.URL)
-		if err != nil {
+		if err != nil || opts.DB < 0 || (c.Database != 0 && c.Database != opts.DB) {
 			return nil, ErrInvalid
 		}
+		database = opts.DB
 		opts.DialTimeout = c.Timeout
 		opts.ReadTimeout = c.Timeout
 		opts.WriteTimeout = c.Timeout
@@ -135,12 +138,12 @@ func Open(ctx context.Context, c Config) (*Connection, error) {
 				}
 			}
 		}
-		if c.Cluster && c.Database != 0 {
+		if (c.Cluster || len(c.Addresses) > 1 && c.MasterName == "") && c.Database != 0 {
 			return nil, ErrInvalid
 		}
 		client = redigo.NewUniversalClient(&redigo.UniversalOptions{Addrs: append([]string(nil), c.Addresses...), MasterName: c.MasterName, Username: c.Username, Password: c.Password, SentinelUsername: c.SentinelUsername, SentinelPassword: c.SentinelPassword, DB: c.Database, TLSConfig: c.TLS, PoolSize: c.PoolSize, DialTimeout: c.Timeout, ReadTimeout: c.Timeout, WriteTimeout: c.Timeout, MaxRetries: -1, ContextTimeoutEnabled: true, IsClusterMode: c.Cluster})
 	}
-	connection := &Connection{client: client, namespace: c.Namespace, role: c.Role}
+	connection := &Connection{client: client, database: database, role: c.Role}
 	if err := connection.check(ctx, c.Development); err != nil {
 		_ = client.Close()
 		return nil, err
@@ -199,8 +202,10 @@ func loopbackAddress(address string) bool {
 	return host == "localhost" || net.ParseIP(host).IsLoopback()
 }
 func (c *Connection) Client() redigo.UniversalClient { return c.client }
-func (c *Connection) Namespace() string              { return c.namespace }
-func (c *Connection) Role() Role                     { return c.role }
+
+// Database returns the selected Redis database, including a database from URL.
+func (c *Connection) Database() int { return c.database }
+func (c *Connection) Role() Role    { return c.role }
 func (c *Connection) Ping(ctx context.Context) error {
 	if err := c.client.Ping(ctx).Err(); err != nil {
 		return ErrUnavailable
@@ -215,13 +220,13 @@ func Digest(value string) string {
 }
 func Partition(id string) int { sum := sha256.Sum256([]byte(id)); return int(sum[0]) % 64 }
 func (c *Connection) PartitionKey(family, id, suffix string) string {
-	return c.namespace + ":" + fmt.Sprintf("{%s-p%02d}", family, Partition(id)) + ":" + id + ":" + suffix
+	return fmt.Sprintf("{%s-p%02d}", family, Partition(id)) + ":" + id + ":" + suffix
 }
 func (c *Connection) PartitionIndex(family string, partition int, suffix string) (string, error) {
-	if partition < 0 || partition >= 64 || !namespacePattern.MatchString(family) {
+	if partition < 0 || partition >= 64 || !keyFamilyPattern.MatchString(family) {
 		return "", ErrInvalid
 	}
-	return c.namespace + ":" + fmt.Sprintf("{%s-p%02d}", family, partition) + ":" + suffix, nil
+	return fmt.Sprintf("{%s-p%02d}", family, partition) + ":" + suffix, nil
 }
 
 func hashTag(key string) string {
@@ -245,7 +250,7 @@ func (c *Connection) Atomic(ctx context.Context, script *redigo.Script, keys []s
 	}
 	tag := hashTag(keys[0])
 	for _, key := range keys {
-		if !strings.HasPrefix(key, c.namespace+":") || hashTag(key) != tag {
+		if key == "" || hashTag(key) != tag {
 			return nil, ErrInvalid
 		}
 	}

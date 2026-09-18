@@ -46,7 +46,7 @@ func TestRealRedisConditionalSessionDeleteExactVersionAndTombstone(t *testing.T)
 			if err := store.Create(ctx, record); err != nil {
 				t.Fatal(err)
 			}
-			key := connection.Namespace() + ":session:{" + connector.Digest(record.ID) + "}"
+			key := "session:{" + connector.Digest(record.ID) + "}"
 			before, err := connection.Client().HGetAll(ctx, key).Result()
 			if err != nil {
 				t.Fatal(err)
@@ -95,7 +95,7 @@ func TestRealRedisConditionalSessionDeleteRejectsMissingExpiredAndInvalidID(t *t
 	if err := store.DeleteIfVersion(ctx, record.ID, 1); !errors.Is(err, sessions.ErrConflict) {
 		t.Fatal(err)
 	}
-	key := connection.Namespace() + ":session:{" + connector.Digest(record.ID) + "}"
+	key := "session:{" + connector.Digest(record.ID) + "}"
 	if connection.Client().Exists(ctx, key).Val() != 0 {
 		t.Fatal("missing deletion created tombstone")
 	}

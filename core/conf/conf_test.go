@@ -42,3 +42,19 @@ func TestEnvLiteralAndDuplicate(t *testing.T) {
 		t.Fatal("duplicate accepted")
 	}
 }
+
+func TestRedisRequiresOnlyURL(t *testing.T) {
+	schema := CoreSchema()
+	if _, err := schema.Load(nil, "redis"); err == nil {
+		t.Fatal("missing Redis URL accepted")
+	}
+	values, err := schema.Load(map[string]string{"GOGO_REDIS_URL": "redis://127.0.0.1:6379/2"}, "redis")
+	if err != nil || values.Secret("GOGO_REDIS_URL").Reveal() != "redis://127.0.0.1:6379/2" {
+		t.Fatal("Redis URL alone must configure the resource", err)
+	}
+	for _, definition := range schema {
+		if definition.Name == "GOGO_REDIS_NAMESPACE" {
+			t.Fatal("removed Redis namespace setting remains in schema")
+		}
+	}
+}

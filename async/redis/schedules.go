@@ -24,7 +24,7 @@ func (s *Schedules) valid() bool {
 }
 
 func (s *Schedules) keys(partition int) []string {
-	prefix := s.Connection.Namespace() + fmt.Sprintf(":schedule:{schedule-p%02d}:", partition)
+	prefix := fmt.Sprintf("schedule:{schedule-p%02d}:", partition)
 	return []string{prefix + "due", prefix + "items"}
 }
 func delayedID(e async.Envelope) string { return e.ID + ":" + strconv.Itoa(e.Retries) }

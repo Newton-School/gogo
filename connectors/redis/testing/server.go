@@ -48,7 +48,7 @@ func Start(t testing.TB) connector.Config {
 			t.Error("owned Redis test process did not exit")
 		}
 	})
-	cfg := connector.Config{URL: "redis://127.0.0.1:" + strconv.Itoa(port), Namespace: "test", Role: connector.CacheRole, Development: true}
+	cfg := connector.Config{URL: "redis://127.0.0.1:" + strconv.Itoa(port), Role: connector.CacheRole, Development: true}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	for {

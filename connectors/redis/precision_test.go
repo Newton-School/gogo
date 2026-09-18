@@ -83,7 +83,7 @@ func TestRealRedisSessionPreservesOpaqueDataAndVersion(t *testing.T) {
 		if err != nil || loaded.ID != id || loaded.Version != r.Version || !bytes.Equal(loaded.Data["identity"], data) {
 			t.Fatal(loaded, err)
 		}
-		key := c.Namespace() + ":session:{" + connector.Digest(id) + "}"
+		key := "session:{" + connector.Digest(id) + "}"
 		raw, err := c.Client().HGet(ctx, key, "payload").Bytes()
 		if err != nil || bytes.Contains(raw, []byte(id)) || !bytes.Contains(raw, data) {
 			t.Fatal(string(raw), err)

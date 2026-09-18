@@ -21,7 +21,6 @@ func CoreSchema() Schema {
 		{Name: "GOGO_DB_MAX_LIFETIME", Default: "30m", Group: "Database", Kind: Duration, Min: 1},
 		{Name: "GOGO_DB_QUERY_TIMEOUT", Default: "5s", Group: "Database", Kind: Duration, Min: 1},
 		{Name: "GOGO_REDIS_URL", Group: "Redis", Sensitive: true, RequiredFor: []string{"redis"}},
-		{Name: "GOGO_REDIS_NAMESPACE", Group: "Redis", RequiredFor: []string{"redis"}},
 		{Name: "GOGO_REDIS_OPERATION_TIMEOUT", Default: "2s", Group: "Redis", Kind: Duration, Min: 1},
 		{Name: "GOGO_SESSION_BACKEND", Default: "postgres", Group: "Sessions", Choices: []string{"postgres", "redis", "cached-db", "signed-cookie"}},
 		{Name: "GOGO_SESSION_TTL", Default: "336h", Group: "Sessions", Kind: Duration, Min: 1},
