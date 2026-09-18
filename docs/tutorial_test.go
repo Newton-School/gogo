@@ -16,6 +16,20 @@ import (
 // an applied PostgreSQL migration. Published-module installation has a separate
 // repository gate and the showcase remains pinned without local replacements.
 func TestFirstProjectTutorial(t *testing.T) {
+	testFirstProjectTutorial(t, false)
+}
+
+// Opt in when network/module-proxy access is available. No local replacements
+// are added, so a passing source-checkout test cannot hide release incompatibility.
+func TestFirstProjectTutorialPublished(t *testing.T) {
+	if os.Getenv("GOGO_TEST_DOCS_PUBLISHED") != "1" {
+		t.Skip("set GOGO_TEST_DOCS_PUBLISHED=1 to verify the pinned public modules")
+	}
+	testFirstProjectTutorial(t, true)
+}
+
+func testFirstProjectTutorial(t *testing.T, published bool) {
+	t.Helper()
 	if testing.Short() {
 		t.Skip("temporary client compilation")
 	}
@@ -60,8 +74,10 @@ func TestFirstProjectTutorial(t *testing.T) {
 			t.Fatalf("go %v: %v\n%s", args, err, output)
 		}
 	}
-	run("mod", "edit", "-replace=github.com/Newton-School/gogo="+root,
-		"-replace=github.com/Newton-School/gogo/connectors/postgres="+filepath.Join(root, "connectors", "postgres"))
+	if !published {
+		run("mod", "edit", "-replace=github.com/Newton-School/gogo="+root,
+			"-replace=github.com/Newton-School/gogo/connectors/postgres="+filepath.Join(root, "connectors", "postgres"))
+	}
 	run("mod", "tidy")
 	run("run", "manage.go", "generate")
 	run("run", "manage.go", "makemigrations", "catalog")

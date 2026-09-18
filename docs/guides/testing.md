@@ -48,6 +48,14 @@ This checks the docs builder, compiles/runs documentation examples, validates th
 
 The scaffold tutorial has a dedicated test that creates an owned temporary client, copies the documented files from both tutorial chapters, generates descriptors/migration source and compiles the result. This test does not connect to PostgreSQL or apply a migration.
 
+To verify that the same tutorial works with the pinned **published** Core/PostgreSQL modules, without local source replacements:
+
+```sh
+GOGO_TEST_DOCS_PUBLISHED=1 go test -count=1 ./docs -run TestFirstProjectTutorialPublished -v
+```
+
+This opt-in check requires access to the module proxy or cached release dependencies. It still does not start a database or build a container.
+
 The separate database-backed check starts an owned PostgreSQL fixture, applies the generated migration, runs the documented seed twice, and verifies the real API's publication scope, persisted records, missing records and method denial:
 
 ```sh
