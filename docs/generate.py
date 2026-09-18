@@ -131,18 +131,30 @@ def api_page(package, guide_id, revision):
     return "\n".join(lines)
 
 
-def settings_page(settings):
-    lines = ["# Settings reference", "", "Generated from `conf.CoreSchema()`. Empty defaults are **unset**. Required means required when that resource is selected, not for every application. A variable does not register its service. See [Configuration](configuration.md).", ""]
+def settings_page(settings, descriptions=None):
+    if descriptions is None:
+        descriptions = json.loads((DOCS / "settings-descriptions.json").read_text())
+    names = {item["Name"] for item in settings}
+    missing, unknown = names - descriptions.keys(), descriptions.keys() - names
+    if missing or unknown:
+        raise ValueError(f"Settings description coverage: missing {sorted(missing)}; unknown {sorted(unknown)}")
+    for name, description in descriptions.items():
+        if not isinstance(description, str) or not description.strip():
+            raise ValueError("Empty or invalid settings description: " + name)
+    lines = ["# Settings reference", "", "Defaults, types and requirements are generated from `conf.CoreSchema()`; each setting's purpose is described below. Empty defaults are **unset**. Required means required when that resource is selected, not for every application.", "",
+             "**Wiring matters:** declaring a variable does not register a service or automatically apply it to every constructor. Pass the resolved value to the corresponding service or middleware in your project. Reserved settings and built-in limitations are identified below. See [Configuration](configuration.md).", ""]
     kinds = ["string", "boolean", "integer", "duration", "list", "URL"]
     for group in dict.fromkeys(item["Group"] for item in settings):
-        lines += ["## " + group, "", "| Variable | Type | Default | Required for | Constraints |", "| --- | --- | --- | --- | --- |"]
+        lines += ["## " + group, "", "| Variable | Description | Default | Required for | Type and constraints |", "| --- | --- | --- | --- | --- |"]
         for item in [s for s in settings if s["Group"] == group]:
             default = "**unset**" if not item["Default"] else "`" + item["Default"] + "`"
             constraints = ["Secret; redacted"] if item["Sensitive"] else []
             if item["Min"]:
                 constraints.append("Minimum " + str(item["Min"]) + (" ns" if kinds[item["Kind"]] == "duration" else ""))
             constraints.extend(item["Choices"] or [])
-            lines.append(f"| `{item['Name']}` | {kinds[item['Kind']]} | {default} | {', '.join(item['RequiredFor'] or []) or 'Optional'} | {'; '.join(constraints) or '—'} |")
+            description = " ".join(descriptions[item["Name"]].split()).replace("|", "\\|")
+            details = "; ".join([kinds[item["Kind"]]] + constraints)
+            lines.append(f"| `{item['Name']}` | {description} | {default} | {', '.join(item['RequiredFor'] or []) or 'Optional'} | {details} |")
         lines.append("")
     return "\n".join(lines)
 

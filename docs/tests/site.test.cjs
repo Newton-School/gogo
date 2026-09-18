@@ -82,6 +82,16 @@ test('signatures and detailed contracts are on the owning feature page', () => {
   assert.equal(routes['detail-async-testing-periodic'].page, 'scheduling');
 });
 
+test('every configuration setting has a description in the built reference', () => {
+  const descriptions = JSON.parse(read('settings-descriptions.json'));
+  const html = read('build/docs/configuration/index.html');
+  const rows = [...html.matchAll(/<tr>([\s\S]*?)<\/tr>/g)].map(match => match[1]);
+  for (const [name, description] of Object.entries(descriptions)) {
+    const escaped = description.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#x27;');
+    assert.ok(rows.some(row => row.includes(`<code>${name}</code>`) && row.includes(escaped)), `${name} has no adjacent description`);
+  }
+});
+
 test('every extracted declaration is represented once, including type methods', () => {
   const count = fs.readdirSync(path.join(root, '.generated/content'))
     .filter(name => name.endsWith('.md'))

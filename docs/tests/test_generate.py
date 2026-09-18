@@ -103,6 +103,29 @@ class ContentTests(unittest.TestCase):
         self.assertEqual(source.count("// Model.Save"), 1)
 
 
+class SettingsTests(unittest.TestCase):
+    def setUp(self):
+        self.settings = [{"Name": "GOGO_EXAMPLE", "Group": "Example", "Kind": 3,
+                          "Default": "5s", "Sensitive": True, "Min": 1,
+                          "Choices": [], "RequiredFor": ["example"]}]
+
+    def test_description_is_next_to_generated_setting_metadata(self):
+        page = docs.settings_page(self.settings, {"GOGO_EXAMPLE": "Limits operation duration."})
+        self.assertIn("| Variable | Description | Default | Required for | Type and constraints |", page)
+        self.assertIn("| `GOGO_EXAMPLE` | Limits operation duration. | `5s` | example | duration; Secret; redacted; Minimum 1 ns |", page)
+        self.assertIn("declaring a variable does not register a service", page)
+
+    def test_missing_unknown_and_empty_descriptions_fail(self):
+        for descriptions in [{}, {"GOGO_EXAMPLE": "Purpose.", "GOGO_REMOVED": "Old."},
+                             {"GOGO_EXAMPLE": " "}, {"GOGO_EXAMPLE": None}]:
+            with self.subTest(descriptions=descriptions), self.assertRaises(ValueError):
+                docs.settings_page(self.settings, descriptions)
+
+    def test_descriptions_cannot_split_table_rows_or_cells(self):
+        page = docs.settings_page(self.settings, {"GOGO_EXAMPLE": "One | two\nthree."})
+        self.assertIn("| One \\| two three. |", page)
+
+
 class TreeTests(unittest.TestCase):
     def setUp(self):
         self.pages = {"guide": {"id": "guide", "title": "Guide"}, "note": {"id": "note", "title": "Details", "parent": "guide"}}

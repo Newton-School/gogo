@@ -43,6 +43,7 @@ Sidebar groups organize feature names without adding category documents. Quickst
 | `sections.json` | Reader-facing page titles, ordered source sections and explicit detail/API ownership overrides |
 | `navigation.json` | Source-fragment inventory and public-package ownership |
 | `index.md`, `guides/` | Human-written tutorials and feature explanations |
+| `settings-descriptions.json` | Short descriptions for every Core environment setting; the build rejects missing, stale or empty entries |
 | Package-level Markdown | Advanced contracts; included from their original source, not copied by hand |
 | `snippets/`, `examples/` | Tested code included in tutorials |
 | `tools/catalog/` | Go parser/doc extractor for public APIs, settings, and template vocabulary |

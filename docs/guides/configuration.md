@@ -4,13 +4,15 @@ Keep configuration in your **client project**, not in the Gogo framework reposit
 
 ## The minimum
 
-| What your application enables | Required settings |
-| --- | --- |
-| Fresh generated PostgreSQL project | `GOGO_DATABASE_URL` |
-| Signing, sessions or authentication resources | Add `GOGO_SECRET_KEY` |
-| Redis resource | Add `GOGO_REDIS_URL`, including its database number, such as `redis://127.0.0.1:6379/1` |
-| SMTP resource | Add `GOGO_SMTP_HOST` and `GOGO_MAIL_FROM` |
-| Local files or static collection resources | Add `GOGO_STORAGE_ROOT` or `GOGO_STATIC_ROOT`, respectively |
+| What your application enables | Required settings | What they do |
+| --- | --- | --- |
+| Fresh generated PostgreSQL project | `GOGO_DATABASE_URL` | Connects to your PostgreSQL server and database. |
+| Signing, sessions or authentication resources | Add `GOGO_SECRET_KEY` | Signs application data and session cookies; use a secret of at least 32 bytes. |
+| Redis resource | Add `GOGO_REDIS_URL`, such as `redis://127.0.0.1:6379/1` | Connects to Redis and selects the application's database through the URL. |
+| SMTP resource | Add `GOGO_SMTP_HOST` and `GOGO_MAIL_FROM` | Selects the email server and outgoing sender address. |
+| Local files resource | Add `GOGO_STORAGE_ROOT` | Locates the private directory where uploaded files are stored. |
+| Static collection resource | Add `GOGO_STATIC_ROOT` | Selects the output directory for collected static assets. |
+| Project-provided reset-delivery resource | Add `GOGO_RESET_DELIVERY_KEY_REF` | Identifies its encryption key; this reserved setting does not enable a delivery service by itself. |
 
 These requirements are resource-scoped. A custom project that selects no external resources can have no required environment values. Secret strength, connection security and other semantic checks also happen at the owning service's construction boundary.
 
