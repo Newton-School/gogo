@@ -42,20 +42,6 @@ kinds, 21 widget configurations, 23 API serializer field constructors and
 additional executable recipes by feature. It labels descriptor-only support,
 compile-only examples and remaining gaps explicitly.
 
-## Architecture review
-
-Architecture is maintained only through AgentFlow. Architecture version 2 is approved; implementation is in progress under the registered `gogo-framework-end-to-end` plan. Approval does not mean the framework is implemented or ready for production.
-
-The review contains 128 feature flowcharts and 24 structured catalogs under Core, Admin, Async, Connectors, and Developer Tools and Operations. Start with **Review map → Developer journey**, then explore the owning feature trees. Nodes expose technical details; catalogs enumerate fields, options, interfaces, settings, and verification requirements.
-
-The local review entrypoint is `.agentflow/index.html`. Regenerate it with:
-
-```sh
-make agentflow PROPOSAL=gogo-complete-framework-architecture
-```
-
-This renders the review and enables its project-local comment writer without opening a browser. Generated HTML and local runtime credentials are ignored by Git. Changes to architecture go through proposals and explicit review approval before framework implementation.
-
 ## Contributor checks
 
 Go 1.26.8 or newer is required by every module and generated client. Use a

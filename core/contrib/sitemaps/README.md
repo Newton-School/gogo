@@ -98,4 +98,4 @@ The implementation follows the [sitemap protocol](https://www.sitemaps.org/proto
 and [locale alternate guidance](https://developers.google.com/search/docs/specialty/international/localized-versions#sitemap).
 Gzip, search-engine submission, robots.txt mutation and news/image/video
 extension vocabularies are not implemented here. Full contrib conformance
-remains tracked in the AgentFlow implementation ledger.
+is not claimed.

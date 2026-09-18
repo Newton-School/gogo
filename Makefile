@@ -2,9 +2,6 @@ SHELL := /bin/bash
 
 .DEFAULT_GOAL := help
 
-# AgentFlow architecture review
--include .agentflow/agentflow.mk
-
 .PHONY: help test test-js test-modules test-integration audit-dependencies vet build
 help:
 	@printf '%s\n' \
@@ -30,18 +27,13 @@ help:
 		'docs-serve' 'Preview built docs at http://127.0.0.1:3000 (run make docs first)' \
 		'docs-check' 'Install dependencies; test docs and Go examples; build and check links' \
 		'docs-install' 'Install pinned documentation dependencies'
-	@printf '\n%s\n' 'Architecture (AgentFlow):'
-	@printf '  %-22s %s\n' \
-		'agentflow' 'Render architecture documentation (optional PROPOSAL=<proposal-id>)' \
-		'agentflow-help' 'Show AgentFlow command usage'
 	@printf '\n%s\n' 'Help:'
 	@printf '  %-22s %s\n' 'help' 'Show this command reference'
 	@printf '%s\n' \
 		'' \
 		'Examples:' \
 		'  make docs-dev' \
-		'  make test' \
-		'  make agentflow PROPOSAL=proposal-id'
+		'  make test'
 
 # Documentation tooling is isolated from the Go framework and client apps.
 .PHONY: docs-install docs-dev docs docs-serve docs-check

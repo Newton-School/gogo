@@ -70,4 +70,4 @@ Docusaurus 3.10.2 pulls in `image-size` 2.0.2. Its [ICNS](https://github.com/adv
 
 The targeted `serialize-javascript`, Express `qs`, and SockJS `uuid` overrides select patched releases. Their consumers' APIs, production build, and development-server startup are checked when updating the lockfile. These overrides belong only to documentation tooling.
 
-Keep alpha limitations and integration requirements visible. New product behavior still follows AgentFlow; public developer documentation does not replace architecture review or implementation evidence.
+Keep alpha limitations and integration requirements visible. Document new product behavior alongside its implementation and tests; public developer documentation does not replace code review or verification evidence.

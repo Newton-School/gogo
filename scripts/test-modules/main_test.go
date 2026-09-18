@@ -8,6 +8,59 @@ import (
 	"testing"
 )
 
+func TestValidateRepositoryRoot(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		change  string
+		content string
+		remove  bool
+		wantErr bool
+	}{
+		{name: "public modules only"},
+		{name: "missing root module", change: "go.mod", remove: true, wantErr: true},
+		{name: "unrelated root module", change: "go.mod", content: "module example.com/other\n", wantErr: true},
+		{name: "missing module declaration", change: "go.mod", content: "go 1.26.8\n", wantErr: true},
+		{name: "missing optional module checkout", change: "admin/go.mod", remove: true, wantErr: true},
+		{name: "wrong nested module", change: "async/redis/go.mod", content: "module example.com/other\n", wantErr: true},
+		{name: "quoted module with comments", change: "go.mod", content: "// Module declaration\nmodule \"" + modulePath + "\" // root\n"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			repo := t.TempDir()
+			for _, module := range modules {
+				name := modulePath
+				if module != "" {
+					name += "/" + module
+				}
+				dir := filepath.Join(repo, filepath.FromSlash(module))
+				if err := os.MkdirAll(dir, 0755); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module "+name+"\n"), 0644); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if tc.change != "" {
+				path := filepath.Join(repo, filepath.FromSlash(tc.change))
+				var err error
+				if tc.remove {
+					err = os.Remove(path)
+				} else {
+					err = os.WriteFile(path, []byte(tc.content), 0644)
+				}
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err := validateRepositoryRoot(repo); (err != nil) != tc.wantErr {
+				t.Fatalf("validateRepositoryRoot() = %v, want error: %v", err, tc.wantErr)
+			}
+		})
+	}
+	if err := validateRepositoryRoot(t.TempDir()); err == nil {
+		t.Fatal("accepted an empty directory")
+	}
+}
+
 func TestRemoveTestDirectoryHandlesReadOnlyModulesWithoutFollowingLinks(t *testing.T) {
 	root := filepath.Join(t.TempDir(), "owned")
 	module := filepath.Join(root, "module-cache", "example.test", "dependency@v1.0.0", "nested")

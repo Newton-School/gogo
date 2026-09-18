@@ -1,7 +1,0 @@
-{
-  "createdAt": "2026-09-05T12:14:21Z",
-  "description": "Go backend framework with app structure, ORM, admin, async workflows, and PostgreSQL and Redis connectors.",
-  "name": "Gogo",
-  "projectId": "gogo",
-  "schemaVersion": 1
-}

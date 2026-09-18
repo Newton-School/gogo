@@ -182,4 +182,4 @@ Attaching a page to an active site makes it selectable; there is no separate
 draft/publication flag. Inactive sites may retain memberships but cannot serve
 pages. The package has no page cache, login redirect, comments integration,
 automatic Admin form, response-wide 404 middleware or full Django conformance
-claim. Those integrations remain explicit work in the approved AgentFlow plan.
+claim. Those integrations are not implemented by this package.

@@ -150,4 +150,4 @@ context: Go cannot forcibly terminate arbitrary trusted callback code.
 
 No deployment, orchestrator, background monitor, automatic role resource
 discovery or process restart is installed by this package. Those integrations
-remain explicit parts of the approved AgentFlow operations plan.
+must be configured and verified by the application.

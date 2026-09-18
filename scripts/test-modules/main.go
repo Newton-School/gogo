@@ -36,8 +36,8 @@ func run(race bool) (resultErr error) {
 	if err != nil {
 		return err
 	}
-	if _, err = os.Stat(filepath.Join(repo, ".agentflow")); err != nil {
-		return errors.New("run from the Gogo repository root")
+	if err = validateRepositoryRoot(repo); err != nil {
+		return err
 	}
 	temp, err := os.MkdirTemp("", "gogo-module-tests-")
 	if err != nil {
@@ -88,6 +88,32 @@ func run(race bool) (resultErr error) {
 		}
 	}
 	return testConsumer(ctx, temp, proxy)
+}
+
+// Validate the public module layout before creating isolated test artifacts.
+func validateRepositoryRoot(repo string) error {
+	for _, module := range modules {
+		name := modulePath
+		if module != "" {
+			name += "/" + module
+		}
+		data, err := os.ReadFile(filepath.Join(repo, filepath.FromSlash(module), "go.mod"))
+		if err != nil {
+			return errors.New("run from the Gogo repository root with all public modules present")
+		}
+		found := false
+		for _, line := range strings.Split(string(data), "\n") {
+			fields := strings.Fields(line)
+			if len(fields) >= 2 && fields[0] == "module" {
+				found = strings.Trim(fields[1], "\"") == name
+				break
+			}
+		}
+		if !found {
+			return errors.New("run from the Gogo repository root with matching public module declarations")
+		}
+	}
+	return nil
 }
 
 // Downloaded modules contain read-only directories. os.RemoveAll alone cannot

@@ -94,6 +94,6 @@ signed downloads, every Admin customization, and advanced Async outbox,
 reconciliation/control/failover paths. Production restore, load and browser
 accessibility evidence must not be inferred from unit/handler tests.
 
-Consult each owning package's documentation and the AgentFlow implementation
-ledger before using a capability beyond the explicit demonstrations. Remaining
+Consult each owning package's documentation and tests
+before using a capability beyond the explicit demonstrations. Remaining
 framework work is not papered over with placeholder handlers or fake providers.
