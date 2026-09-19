@@ -226,6 +226,8 @@ func (s *Site) render(w http.ResponseWriter, r *http.Request, p auth.Principal, 
 	data["prefix"] = s.config.Prefix
 	data["css_url"] = s.config.Prefix + "assets/admin." + s.cssVersion + ".css"
 	data["js_url"] = s.config.Prefix + "assets/admin." + s.jsVersion + ".js"
+	data["django_url"] = s.djangoAssetURL()
+	data["body_class"] = map[string]string{"index.html": "dashboard", "list.html": "change-list", "form.html": "change-form", "user_credentials.html": "change-form", "delete.html": "delete-confirmation"}[name]
 	data["is_overview"] = r.URL.Path == s.config.Prefix
 	data["navigation"] = s.navigation(r, p)
 	data["app_list"] = groupNavigation(data["navigation"].([]any))

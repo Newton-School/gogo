@@ -15,5 +15,5 @@ func (s *Site) asset(path string) (body []byte, version, contentType string, leg
 			return item.body, item.version, item.contentType, path == stable, true
 		}
 	}
-	return nil, "", "", false, false
+	return s.djangoAsset(path)
 }

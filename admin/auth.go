@@ -88,7 +88,7 @@ func (s *Site) renderLogin(ctx context.Context, page authviews.LoginPage) ([]byt
 		"title": page.Title, "header": s.config.Header, "site_title": s.config.Title,
 		"prefix": s.config.Prefix, "css_url": s.config.Prefix + "assets/admin." + s.cssVersion + ".css",
 		"identifier": page.Identifier, "next": page.Next, "csrf_token": page.CSRFToken, "error": page.Error,
-		"password_reset_url": s.config.PasswordResetURL,
+		"password_reset_url": s.config.PasswordResetURL, "django_url": s.djangoAssetURL(),
 	})
 	return []byte(body), err
 }
@@ -183,7 +183,7 @@ func (s *Site) renderPasswordChange(ctx context.Context, page authviews.Password
 	body, err := s.engine.Render(ctx, "password_change.html", templates.Context{
 		"title": page.Title, "header": s.config.Header, "site_title": s.config.Title, "prefix": s.config.Prefix,
 		"css_url": s.config.Prefix + "assets/admin." + s.cssVersion + ".css", "actor": auth.FromContext(ctx).ID,
-		"csrf_token": page.CSRFToken, "error": page.Error, "logout_url": s.config.LogoutURL,
+		"csrf_token": page.CSRFToken, "error": page.Error, "logout_url": s.config.LogoutURL, "django_url": s.djangoAssetURL(),
 	})
 	return []byte(body), err
 }

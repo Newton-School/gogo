@@ -52,7 +52,7 @@ func (s *Site) recoveryContext(title, csrfToken, problem string) templates.Conte
 	return templates.Context{
 		"title": title, "header": s.config.Header, "site_title": s.config.Title, "prefix": s.config.Prefix,
 		"css_url": s.config.Prefix + "assets/admin." + s.cssVersion + ".css", "login_url": s.config.LoginURL,
-		"csrf_token": csrfToken, "error": problem,
+		"csrf_token": csrfToken, "error": problem, "django_url": s.djangoAssetURL(),
 	}
 }
 
