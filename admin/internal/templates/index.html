@@ -1,1 +1,14 @@
-{% extends "base.html" %}{% block content %}<div class="page-heading"><div><p class="eyebrow">WORKSPACE</p><h1>{{ title }}</h1><p class="muted">Manage the models available to your account.</p></div></div><section class="model-grid" aria-label="Registered models">{% for model in models %}<article class="model-card"><span class="app-label">{{ model.app }}</span><h2><a href="{{ model.url }}">{{ model.label }}</a></h2><div class="card-actions">{% if model.can_view %}<a href="{{ model.url }}">View records →</a>{% endif %}{% if model.can_add %}<a class="button secondary" href="{{ model.add_url }}">+ Add</a>{% endif %}</div></article>{% empty %}<div class="empty-state"><h2>No models available</h2><p>Your account has no model permissions on this site.</p></div>{% endfor %}</section>{% endblock %}
+{% extends "base.html" %}
+{% block content %}
+<h1>{{ title }}</h1>
+<section class="app-list" aria-label="Registered models">
+  {% for app in app_list %}<table class="app-module">
+    <caption>{{ app.label }}</caption>
+    <tbody>{% for model in app.models %}<tr>
+      <th scope="row"><a href="{{ model.url }}">{{ model.label }}</a></th>
+      <td class="model-action">{% if model.can_add %}<a class="add-link" href="{{ model.add_url }}" aria-label="Add {{ model.label }}">Add</a>{% endif %}</td>
+      <td class="model-action">{% if model.can_view %}<a href="{{ model.url }}" aria-label="View {{ model.label }}">View</a>{% endif %}</td>
+    </tr>{% endfor %}</tbody>
+  </table>{% empty %}<p class="empty-state">Your account has no model permissions on this site.</p>{% endfor %}
+</section>
+{% endblock %}

@@ -1,5 +1,5 @@
 {% extends "base.html" %}{% block content %}
-<div class="page-heading"><div><p class="eyebrow">{% if can_change %}EDIT RECORD{% else %}VIEW RECORD{% endif %}</p><h1>{{ title }}</h1></div><div>{% if can_manage_password %}<a href="{{ user_password_url }}">Change password</a> · {% endif %}{% if has_object %}<a href="{{ history_url }}">History</a>{% endif %}</div></div>
+<div class="page-heading"><h1>{{ title }}</h1><div class="object-tools">{% if can_manage_password %}<a href="{{ user_password_url }}">Change password</a>{% endif %}{% if has_object %}<a href="{{ history_url }}">History</a>{% endif %}</div></div>
 <form method="post" enctype="multipart/form-data" class="panel edit-form">
 {% csrf_token %}<input type="hidden" name="_edit_token" value="{{ edit_token }}">
 {% if relation_token %}<input type="hidden" name="_relation_token" value="{{ relation_token }}">{% endif %}

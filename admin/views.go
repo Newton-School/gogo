@@ -228,6 +228,7 @@ func (s *Site) render(w http.ResponseWriter, r *http.Request, p auth.Principal, 
 	data["js_url"] = s.config.Prefix + "assets/admin." + s.jsVersion + ".js"
 	data["is_overview"] = r.URL.Path == s.config.Prefix
 	data["navigation"] = s.navigation(r, p)
+	data["app_list"] = groupNavigation(data["navigation"].([]any))
 	data["actor"] = actor
 	data["csrf_token"] = security.CSRFToken(r)
 	data["site_url"] = s.config.SiteURL
