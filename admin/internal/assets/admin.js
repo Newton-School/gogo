@@ -19,7 +19,8 @@ if (typeof window !== "undefined") {
     // The original controls remain a usable non-JavaScript fallback.
     for (const source of document.querySelectorAll("input[data-relation-url]")) {
       if (!source.form || source.disabled || source.readOnly) continue;
-      const endpoint = new URL(source.dataset.relationUrl, window.location.href);
+      let endpoint;
+      try { endpoint = new URL(source.dataset.relationUrl, window.location.href); } catch (_) { continue; }
       if (endpoint.origin !== window.location.origin) continue;
       const multiple = Boolean(source.dataset.choiceTarget);
       let select = multiple ? document.getElementById(source.dataset.choiceTarget) : null;
@@ -61,8 +62,8 @@ if (typeof window !== "undefined") {
               if (text.length > 1048576) throw new Error("Lookup too large");
               const payload = JSON.parse(text);
               if (!Array.isArray(payload.results) || payload.results.length > 20 || payload.results.some(row => typeof row.id !== "string" || typeof row.text !== "string" || row.id.length > 4096 || row.text.length > 4096)) throw new Error("Invalid lookup");
-              success({results: payload.results, pagination: {more: payload.pagination?.more === true}});
-            }).catch(error => { if (error.name !== "AbortError") failure(); });
+              if (!controller.signal.aborted) success({results: payload.results.map(({id, text}) => ({id, text})), pagination: {more: payload.pagination?.more === true}});
+            }).catch(error => { if (!controller.signal.aborted && error.name !== "AbortError") failure(); });
           return {abort() { controller.abort(); }};
         }}
       });

@@ -16,8 +16,8 @@ original asset directories. Distributors must retain the applicable notices,
 including when distributing a compiled binary or container image. Gogo's own
 code remains under its existing license. Django does not endorse this project.
 
-Only UI dependencies required by the active Gogo page are executed. Shipping an
-upstream asset is not a claim that Gogo implements its corresponding Python
+Gogo initializes the UI dependencies for the controls present on the page. Shipping
+an upstream asset is not a claim that Gogo implements its corresponding Python
 backend feature. No Python runtime or external CDN is required by clients.
 
 To update, copy the static directory from an explicitly reviewed upstream

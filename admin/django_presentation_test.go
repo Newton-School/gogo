@@ -2,7 +2,9 @@ package admin
 
 import (
 	"context"
+	"crypto/sha256"
 	"fmt"
+	"io/fs"
 	"net/http"
 	"regexp"
 	"strings"
@@ -91,6 +93,47 @@ func TestDjangoAssetsArePublicImmutableAndTraversalSafe(t *testing.T) {
 	css, _ := embedded.ReadFile("internal/assets/admin.css")
 	if !strings.Contains(string(css), djangoAssetVersion) {
 		t.Fatal("stylesheet and source version drift")
+	}
+}
+
+func TestPinnedDjangoAssetTreeIsUnmodified(t *testing.T) {
+	var manifest strings.Builder
+	err := fs.WalkDir(embedded, "internal/assets/django", func(path string, entry fs.DirEntry, err error) error {
+		if err != nil || entry.IsDir() {
+			return err
+		}
+		body, err := embedded.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		fmt.Fprintf(&manifest, "%x  %s\n", sha256.Sum256(body), strings.TrimPrefix(path, "internal/assets/django/"))
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	const expected = "24e51c61d399eefab67574825033fed2b482a77f81affb51f0b3271b6ee76d1d"
+	if got := fmt.Sprintf("%x", sha256.Sum256([]byte(manifest.String()))); got != expected {
+		t.Fatal("Django assets changed; review the upstream update, notices and URL version", got)
+	}
+}
+
+func TestDjangoScriptDependencyOrder(t *testing.T) {
+	site, _ := newTestSite(t)
+	page := perform(site, "GET", "/admin/shop/product/add/", principal(), nil, nil)
+	if page.Code != http.StatusOK {
+		t.Fatal(page.Code)
+	}
+	last := -1
+	// jquery.init.js removes the global jQuery with noConflict(true). Plugins
+	// must attach before that move into django.jQuery, just as in Django Media.
+	for _, name := range []string{"js/vendor/jquery/jquery.js", "js/vendor/select2/select2.full.js", "js/jquery.init.js"} {
+		script := `<script src="` + site.djangoAssetURL() + name + `" defer></script>`
+		position := strings.Index(page.Body.String(), script)
+		if position <= last {
+			t.Fatal("missing or misordered deferred Django dependency", name)
+		}
+		last = position
 	}
 }
 

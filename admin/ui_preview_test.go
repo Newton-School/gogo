@@ -15,6 +15,7 @@ import (
 	"github.com/Newton-School/gogo/core/auth"
 	authviews "github.com/Newton-School/gogo/core/auth/views"
 	"github.com/Newton-School/gogo/core/forms"
+	"github.com/Newton-School/gogo/core/models"
 	"github.com/Newton-School/gogo/core/sessions"
 )
 
@@ -45,7 +46,8 @@ func TestAdminUIPreview(t *testing.T) {
 
 func newPresentationTestSite(t *testing.T) *Site {
 	t.Helper()
-	base, _ := newTestSite(t)
+	base, database := newTestSite(t)
+	base.config.Store = relationStore{database}
 	site, err := NewSite(base.config)
 	if err != nil {
 		t.Fatal(err)
@@ -64,6 +66,14 @@ func newPresentationTestSite(t *testing.T) *Site {
 		Run: func(context.Context, ScopedStore, []Object) error { return nil },
 	}}
 	if err := site.Register(options); err != nil {
+		t.Fatal(err)
+	}
+	if err := site.Register(ModelAdmin{Schema: (&relationSource{}).Schema(), Fields: []string{"parent"}, AutocompleteFields: []string{"parent"}, ResolveRelation: func(_ context.Context, _ models.Field, ids []string) ([]any, error) {
+		if len(ids) != 1 || ids[0] != "1" {
+			return nil, auth.ErrPermissionDenied
+		}
+		return []any{int64(1)}, nil
+	}}); err != nil {
 		t.Fatal(err)
 	}
 	return site
