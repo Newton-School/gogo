@@ -16,6 +16,7 @@ import (
 
 	"github.com/Newton-School/gogo/core/auth"
 	"github.com/Newton-School/gogo/core/forms"
+	"github.com/Newton-School/gogo/core/i18n"
 	"github.com/Newton-School/gogo/core/messages"
 	"github.com/Newton-School/gogo/core/models"
 	"github.com/Newton-School/gogo/core/security"
@@ -100,6 +101,20 @@ func (s *Site) serve(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	parts := strings.Split(strings.Trim(rest, "/"), "/")
+	if len(parts) == 1 && (r.Method == "GET" || r.Method == "HEAD") {
+		rows := []any{}
+		for _, item := range s.navigation(r, p) {
+			if item.(templates.Context)["app"] == parts[0] {
+				rows = append(rows, item)
+			}
+		}
+		if len(rows) == 0 {
+			http.NotFound(w, r)
+			return
+		}
+		s.render(w, r, p, "index.html", templates.Context{"title": strings.ReplaceAll(parts[0], "_", " ") + " administration", "models": rows}, http.StatusOK)
+		return
+	}
 	if len(parts) < 2 || len(parts) > 4 {
 		http.NotFound(w, r)
 		return
@@ -211,7 +226,7 @@ func (s *Site) navigation(r *http.Request, p auth.Principal) []any {
 		if !view {
 			link += "add/"
 		}
-		rows = append(rows, templates.Context{"label": name, "app": options.Schema.AppLabel, "url": link, "active": strings.HasPrefix(r.URL.Path, s.modelURL(options)), "add_url": s.modelURL(options) + "add/", "can_add": add, "can_view": view})
+		rows = append(rows, templates.Context{"label": name, "key": strings.ToLower(options.Schema.Name), "app": options.Schema.AppLabel, "app_url": s.config.Prefix + url.PathEscape(options.Schema.AppLabel) + "/", "url": link, "active": strings.HasPrefix(r.URL.Path, s.modelURL(options)), "add_url": s.modelURL(options) + "add/", "can_add": add, "can_view": view, "can_change": view && s.allowed(r.Context(), p, "change", options, Object{}) == nil})
 	}
 	return rows
 }
@@ -227,10 +242,29 @@ func (s *Site) render(w http.ResponseWriter, r *http.Request, p auth.Principal, 
 	data["css_url"] = s.config.Prefix + "assets/admin." + s.cssVersion + ".css"
 	data["js_url"] = s.config.Prefix + "assets/admin." + s.jsVersion + ".js"
 	data["django_url"] = s.djangoAssetURL()
+	locale, _ := i18n.FromContext(r.Context())
+	_, data["utc_offset"] = locale.LocalTime(time.Now()).Zone()
 	data["body_class"] = map[string]string{"index.html": "dashboard", "list.html": "change-list", "form.html": "change-form", "user_credentials.html": "change-form", "delete.html": "delete-confirmation"}[name]
 	data["is_overview"] = r.URL.Path == s.config.Prefix
 	data["navigation"] = s.navigation(r, p)
 	data["app_list"] = groupNavigation(data["navigation"].([]any))
+	if name == "index.html" {
+		rows, ok := data["models"].([]any)
+		if !ok {
+			rows = data["navigation"].([]any)
+		}
+		data["index_apps"] = groupNavigation(rows)
+	}
+	for _, item := range data["navigation"].([]any) {
+		row := item.(templates.Context)
+		if row["active"] == true {
+			data["breadcrumb_app"], data["breadcrumb_app_url"] = row["app"], row["app_url"]
+			if name != "list.html" {
+				data["breadcrumb_model"], data["breadcrumb_model_url"] = row["label"], row["url"]
+			}
+			break
+		}
+	}
 	data["actor"] = actor
 	data["csrf_token"] = security.CSRFToken(r)
 	data["site_url"] = s.config.SiteURL
@@ -381,7 +415,7 @@ func (s *Site) list(w http.ResponseWriter, r *http.Request, p auth.Principal, op
 			if options.ListDisplayLinks == nil && index == 0 || slices.Contains(options.ListDisplayLinks, name) {
 				link = s.modelURL(options) + url.PathEscape(object.ID) + "/change/"
 			}
-			cells = append(cells, templates.Context{"value": s.displayValue(options, name, value), "url": link})
+			cells = append(cells, templates.Context{"value": s.displayValue(options, name, value), "url": link, "boolean_icon": booleanIcon(value)})
 		}
 		rows = append(rows, templates.Context{"id": object.ID, "prefix": "form-" + strconv.Itoa(rowIndex), "url": s.modelURL(options) + url.PathEscape(object.ID) + "/change/", "cells": cells})
 	}
@@ -407,6 +441,15 @@ func (s *Site) list(w http.ResponseWriter, r *http.Request, p auth.Principal, op
 		columns = append(columns, templates.Context{"label": label, "url": sortURL, "direction": direction})
 	}
 	filters := []any{}
+	filterURL := func(name, value string) string {
+		values := r.URL.Query()
+		values.Del("p")
+		values.Del(name)
+		if value != "" {
+			values.Set(name, value)
+		}
+		return "?" + values.Encode()
+	}
 	for _, name := range options.ListFilter {
 		field, _ := options.Schema.Field(name)
 		label := field.Label
@@ -416,14 +459,14 @@ func (s *Site) list(w http.ResponseWriter, r *http.Request, p auth.Principal, op
 		choices := []any{}
 		for _, choice := range field.Choices {
 			value := fmt.Sprint(choice.Value)
-			choices = append(choices, templates.Context{"value": value, "label": choice.Label, "selected": query.Filters[name] == value})
+			choices = append(choices, templates.Context{"value": value, "label": choice.Label, "selected": query.Filters[name] == value, "url": filterURL(name, value)})
 		}
 		if field.Kind == models.Boolean {
 			for _, choice := range []struct{ value, label string }{{"true", "Yes"}, {"false", "No"}} {
-				choices = append(choices, templates.Context{"value": choice.value, "label": choice.label, "selected": query.Filters[name] == choice.value})
+				choices = append(choices, templates.Context{"value": choice.value, "label": choice.label, "selected": query.Filters[name] == choice.value, "url": filterURL(name, choice.value)})
 			}
 		}
-		filters = append(filters, templates.Context{"name": name, "label": label, "value": query.Filters[name], "choices": choices})
+		filters = append(filters, templates.Context{"name": name, "label": label, "value": query.Filters[name], "choices": choices, "all_url": filterURL(name, "")})
 	}
 	actions := []any{}
 	for _, action := range options.Actions {
@@ -860,7 +903,7 @@ func (s *Site) form(w http.ResponseWriter, r *http.Request, p auth.Principal, op
 		if !ok {
 			continue
 		}
-		readonlyValues = append(readonlyValues, templates.Context{"label": name, "value": s.displayValue(options, name, value)})
+		readonlyValues = append(readonlyValues, templates.Context{"label": name, "value": s.displayValue(options, name, value), "boolean_icon": booleanIcon(value)})
 	}
 	title := object.Label
 	if id == "" {

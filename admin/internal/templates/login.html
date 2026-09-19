@@ -1,12 +1,7 @@
-<!doctype html>
-<html lang="en">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>{{ title }} | {{ site_title }}</title><link rel="stylesheet" href="{{ css_url }}"></head>
-<body class="login-page"><a class="skip-link" href="#main">Skip to main content</a>
-<header class="site-header"><a class="brand" href="{{ prefix }}">{{ header }}</a></header>
-<main id="main" tabindex="-1" class="login-main"><section class="panel login-panel" aria-labelledby="login-title">
-<h1 id="login-title" class="visually-hidden">{{ title }}</h1>
-{% if error %}<p class="login-error error-note" role="alert" id="login_error">{{ error }}</p>{% endif %}
-<form method="post"><input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}"><input type="hidden" name="next" value="{{ next }}">
-<div class="form-row"><label for="id_identifier">Identifier</label><input id="id_identifier" name="identifier" autocomplete="username" maxlength="255" required value="{{ identifier }}"{% if error %} aria-describedby="login_error"{% endif %}></div>
-<div class="form-row"><label for="id_password">Password</label><input id="id_password" name="password" type="password" autocomplete="current-password" required{% if error %} aria-describedby="login_error"{% endif %}></div>
-<div class="submit-row"><button type="submit">Sign in</button>{% if password_reset_url %}<a href="{{ password_reset_url }}">Forgot your password?</a>{% endif %}</div></form></section></main></body></html>
+{% extends "account_base.html" %}{% block bodyclass %}login{% endblock %}{% block breadcrumbs %}{% endblock %}{% block heading %}<h1 class="visually-hidden" id="login-title">{{ title }}</h1>{% endblock %}
+{% block content %}{% if error %}<p class="errornote" role="alert" id="login_error">{{ error }}</p>{% endif %}
+<div id="content-main"><form method="post" id="login-form"><input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}"><input type="hidden" name="next" value="{{ next }}">
+<div class="form-row"><label class="required" for="id_identifier">Identifier:</label><input id="id_identifier" name="identifier" autocomplete="username" maxlength="255" required value="{{ identifier }}"{% if error %} aria-describedby="login_error"{% endif %}></div>
+<div class="form-row"><label class="required" for="id_password">Password:</label><input id="id_password" name="password" type="password" autocomplete="current-password" required{% if error %} aria-describedby="login_error"{% endif %}></div>
+{% if password_reset_url %}<div class="password-reset-link"><a href="{{ password_reset_url }}">Forgot your password?</a></div>{% endif %}
+<div class="submit-row"><input type="submit" value="Log in"></div></form></div>{% endblock %}

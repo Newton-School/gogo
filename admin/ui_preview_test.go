@@ -94,6 +94,10 @@ func runPresentationPreview(t *testing.T, site *Site, login http.Handler) {
 		}
 		requests.Lock()
 		defer requests.Unlock()
+		if r.URL.Path == "/preview/widgets/" {
+			renderPresentationGallery(t, site, w, r)
+			return
+		}
 		if r.URL.Path == "/preview/login/" {
 			// Only the credential-error flow is exposed; each request gets a
 			// disposable session and no submitted identity can authenticate.

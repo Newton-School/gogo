@@ -1,10 +1,9 @@
 {% extends "base.html" %}{% block content %}
-<div class="page-heading"><h1>{{ title }}</h1><div class="object-tools">{% if can_manage_password %}<a href="{{ user_password_url }}">Change password</a>{% endif %}{% if has_object %}<a href="{{ history_url }}">History</a>{% endif %}</div></div>
-<form method="post" enctype="multipart/form-data" class="panel edit-form">
+<div id="content-main"><ul class="object-tools">{% if can_manage_password %}<li><a href="{{ user_password_url }}">Change password</a></li>{% endif %}{% if has_object %}<li><a href="{{ history_url }}" class="historylink">History</a></li>{% endif %}</ul>
+<form method="post" enctype="multipart/form-data" class="edit-form" novalidate>
 {% csrf_token %}<input type="hidden" name="_edit_token" value="{{ edit_token }}">
 {% if relation_token %}<input type="hidden" name="_relation_token" value="{{ relation_token }}">{% endif %}
 {% if account_grants_token %}<input type="hidden" name="_account_grants_token" value="{{ account_grants_token }}">{% endif %}
 {% if save_on_top %}{% include "submit_row.html" with can_change=can_change can_add=can_add can_delete=can_delete delete_url=delete_url only %}{% endif %}
-{{ form }}{% for field in readonly %}<div class="form-row readonly"><span class="field-label">{{ field.label }} <small>Read only</small></span><div>{{ field.value }}</div></div>{% endfor %}
-{{ inlines }}{% include "submit_row.html" with can_change=can_change can_add=can_add can_delete=can_delete delete_url=delete_url only %}
-</form>{% endblock %}
+{{ form }}{% if readonly %}<fieldset class="module aligned">{% for field in readonly %}<div class="form-row"><div class="flex-container"><span class="field-label">{{ field.label }}:</span><div class="readonly">{% if field.boolean_icon %}{% include "display_value.html" with value=field.value boolean_icon=field.boolean_icon %}{% else %}{{ field.value }}{% endif %}</div></div></div>{% endfor %}</fieldset>{% endif %}
+{{ inlines }}{% include "submit_row.html" with can_change=can_change can_add=can_add can_delete=can_delete delete_url=delete_url only %}</form></div>{% endblock %}

@@ -14,7 +14,7 @@ import (
 func TestSearchHelpTemplateDescribesTheSearchInput(t *testing.T) {
 	site, _ := newTestSite(t)
 	body, err := site.engine.Render(context.Background(), "list.html", templates.Context{"has_search": true, "search_help_text": "Search product names."})
-	if err != nil || !strings.Contains(body, `aria-describedby="search-help"`) || !strings.Contains(body, `<p id="search-help" class="helptext">Search product names.</p>`) {
+	if err != nil || !strings.Contains(body, `aria-describedby="search-help"`) || !strings.Contains(body, `<p id="search-help" class="help">Search product names.</p>`) {
 		t.Fatal("configured search guidance is not attached to the search input", body, err)
 	}
 }
@@ -86,7 +86,7 @@ func assertSearchHelp(t *testing.T, body, text string, visible bool) {
 	if strings.Count(body, `id="search-help"`) != want || strings.Count(body, `aria-describedby="search-help"`) != want {
 		t.Fatal("missing, duplicate or dangling search description", body)
 	}
-	if visible && !strings.Contains(body, `<p id="search-help" class="helptext">`+html.EscapeString(text)+`</p>`) {
+	if visible && !strings.Contains(body, `<p id="search-help" class="help">`+html.EscapeString(text)+`</p>`) {
 		t.Fatal("search text not escaped or changed", body)
 	}
 	if visible {
@@ -110,7 +110,7 @@ func TestSearchHelpVisibilityEscapingAndExistingQuery(t *testing.T) {
 		site, database := newSearchHelpSite(t, tc.help, tc.searchable, false)
 		page := perform(site, "GET", "/admin/shop/product/"+tc.query, principal(), nil, nil)
 		body := page.Body.String()
-		if page.Code != 200 || strings.Contains(body, `<img`) || strings.Contains(body, "Other tenant") || strings.Contains(body, "caller changed its descriptor") {
+		if page.Code != 200 || strings.Contains(body, `<img src=x`) || strings.Contains(body, "Other tenant") || strings.Contains(body, "caller changed its descriptor") {
 			t.Fatal("help or row scope escaped its boundary", page.Code, body)
 		}
 		assertSearchHelp(t, body, tc.help, tc.help != "" && tc.searchable)

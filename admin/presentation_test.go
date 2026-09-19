@@ -25,10 +25,10 @@ func TestAppIndexGroupsOnlyPermittedModels(t *testing.T) {
 	p.Permissions = []string{"reports.view_viewonly", "reports.add_addonly", "shop.view_product"}
 	response := perform(site, "GET", "/admin/", p, nil, nil)
 	body := response.Body.String()
-	if response.Code != 200 || strings.Count(body, `<table class="app-module">`) != 2 {
+	if response.Code != 200 || strings.Count(body, `class="app-`) != 2 {
 		t.Fatal("index did not group its authorized models", response.Code, body)
 	}
-	for _, want := range []string{`<caption>reports</caption>`, `<caption>shop</caption>`, `href="/admin/reports/addonly/add/"`, `aria-label="View ViewOnly"`} {
+	for _, want := range []string{`>reports</a></caption>`, `>shop</a></caption>`, `href="/admin/reports/addonly/add/"`, `aria-label="View ViewOnly"`} {
 		if !strings.Contains(body, want) {
 			t.Fatal("missing model action", want)
 		}
@@ -86,7 +86,7 @@ func TestChangelistRecordCount(t *testing.T) {
 		label string
 	}{{0, "0 records"}, {1, "1 record"}, {2, "2 records"}} {
 		body, err := site.engine.Render(context.Background(), "list.html", templates.Context{"count": test.count})
-		if err != nil || !strings.Contains(body, `<p class="muted">`+test.label+`</p>`) {
+		if err != nil || !strings.Contains(body, `<span>`+test.label+`</span>`) {
 			t.Fatalf("record count %d: %v: %s", test.count, err, body)
 		}
 	}
@@ -95,7 +95,7 @@ func TestChangelistRecordCount(t *testing.T) {
 func TestSimpleTemplatesPreserveFormAndNavigationControls(t *testing.T) {
 	site, _ := newTestSite(t)
 	page := perform(site, "GET", "/admin/shop/product/1/change/", principal(), nil, nil)
-	for _, control := range []string{`enctype="multipart/form-data"`, `name="csrfmiddlewaretoken"`, `name="_edit_token"`, `name="_save"`, `name="_continue"`, `name="_addanother"`, `href="#main"`, `<summary>Model navigation</summary>`} {
+	for _, control := range []string{`enctype="multipart/form-data"`, `name="csrfmiddlewaretoken"`, `name="_edit_token"`, `name="_save"`, `name="_continue"`, `name="_addanother"`, `href="#content-start"`, `id="toggle-nav-sidebar"`} {
 		if !strings.Contains(page.Body.String(), control) {
 			t.Fatal("form lost control", control)
 		}
@@ -105,7 +105,7 @@ func TestSimpleTemplatesPreserveFormAndNavigationControls(t *testing.T) {
 			w := httptest.NewRecorder()
 			r := httptest.NewRequest("GET", "http://example.test/admin/shop/product/", nil)
 			site.render(w, r, principal(), template, templates.Context{"title": "Review"}, 200)
-			if w.Code != 200 || !strings.Contains(w.Body.String(), `<main id="main"`) {
+			if w.Code != 200 || !strings.Contains(w.Body.String(), `<main id="content-start"`) {
 				t.Fatal("page failed to render", w.Code)
 			}
 		})

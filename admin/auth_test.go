@@ -36,7 +36,7 @@ func TestAdminLoginRendererIsBrandedEscapedAndModelIndependent(t *testing.T) {
 	if err != nil || strings.Contains(string(body), "<script>") || strings.Contains(string(body), "<img") || strings.Contains(string(body), "Product") || strings.Contains(string(body), "Model navigation") {
 		t.Fatal("anonymous page disclosed navigation or failed escaping", string(body), err)
 	}
-	for _, required := range []string{`autocomplete="username"`, `autocomplete="current-password"`, `name="csrfmiddlewaretoken"`, `role="alert"`, `href="#main"`, `aria-describedby="login_error"`, site.cssVersion} {
+	for _, required := range []string{`autocomplete="username"`, `autocomplete="current-password"`, `name="csrfmiddlewaretoken"`, `role="alert"`, `href="#content-start"`, `aria-describedby="login_error"`, site.cssVersion} {
 		if !strings.Contains(string(body), required) {
 			t.Fatal("missing accessible login element", required)
 		}

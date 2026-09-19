@@ -122,7 +122,7 @@ func (s *Site) loadAccountGrantForm(ctx context.Context, p auth.Principal, optio
 		state.before[kind] = slices.Clone(choices.Selected)
 		slices.Sort(state.before[kind])
 		initial[name] = slices.Clone(state.before[kind])
-		fields = append(fields, forms.Field{Name: name, Kind: forms.MultipleChoice, Label: grantFieldLabel(kind), HelpText: grantHelp, Choices: choices.Choices})
+		fields = append(fields, forms.Field{Name: name, Kind: forms.MultipleChoice, Label: grantFieldLabel(kind), HelpText: grantHelp, Choices: choices.Choices, Widget: forms.InputWidget{Type: "select-multiple", Attrs: map[string]string{"class": "selectfilter", "size": "8", "data-field-name": grantFieldLabel(kind), "data-is-stacked": "0"}}})
 	}
 	opts := []forms.Option{forms.WithContext(ctx), forms.WithInitial(initial)}
 	if data != nil {

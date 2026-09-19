@@ -1,16 +1,18 @@
-<!doctype html>
-<html lang="en">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>{{ title }} | {{ site_title }}</title><link rel="stylesheet" href="{{ css_url }}"><script src="{{ js_url }}" defer></script></head>
-<body><a class="skip-link" href="#main">Skip to main content</a>
-<header class="site-header">
-  <a class="brand" href="{{ prefix }}"{% if is_overview %} aria-current="page"{% endif %}>{{ header }}</a>
-  <div class="user-tools"><span>Welcome, <strong>{{ actor }}</strong>.</span>{% if site_url %}<a href="{{ site_url }}">View site</a>{% endif %}{% if password_change_url %}<a href="{{ password_change_url }}">Change password</a>{% endif %}{% if logout_url %}<form method="post" action="{{ logout_url }}"><input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}"><button class="logout-button" type="submit">Sign out</button></form>{% endif %}</div>
-</header>
-{% if not is_overview %}<nav class="breadcrumbs" aria-label="Breadcrumbs"><a href="{{ prefix }}">Home</a><span aria-hidden="true">›</span><span>{{ title }}</span></nav>{% endif %}
-<div class="workspace{% if is_overview %} overview{% endif %}">
-  {% if not is_overview %}<details class="sidebar" open><summary>Model navigation</summary><nav class="sidebar-content" aria-label="Model navigation">
-    <a href="{{ prefix }}">Home</a>
-    {% for app in app_list %}<h2>{{ app.label }}</h2>{% for item in app.models %}<a{% if item.active %} class="is-active" aria-current="location"{% endif %} href="{{ item.url }}">{{ item.label }}</a>{% endfor %}{% empty %}<p>No permitted models.</p>{% endfor %}
-  </nav></details>{% endif %}
-  <main id="main" tabindex="-1">{% if messages %}<ul class="messages" aria-label="Notifications" aria-live="polite">{% for message in messages %}<li class="message {{ message.level }} {{ message.tags }}" role="status">{{ message.text }}</li>{% endfor %}</ul>{% endif %}{% block content %}{% endblock %}</main>
-</div></body></html>
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>{% include "head.html" %}<script src="{{ django_url }}js/nav_sidebar.js" defer></script><script src="{{ js_url }}" defer></script>
+<script src="{{ django_url }}js/vendor/jquery/jquery.js" defer></script><script src="{{ django_url }}js/jquery.init.js" defer></script><script src="{{ django_url }}js/vendor/select2/select2.full.js" defer></script>
+<script src="{{ django_url }}js/core.js" defer></script><script src="{{ django_url }}js/calendar.js" defer></script><script src="{{ django_url }}js/admin/DateTimeShortcuts.js" defer></script>
+<script src="{{ django_url }}js/SelectBox.js" defer></script><script src="{{ django_url }}js/SelectFilter2.js" defer></script><script src="{{ django_url }}js/actions.js" defer></script></head>
+<body class="{{ body_class }}" data-admin-utc-offset="{{ utc_offset }}">
+<a href="#content-start" class="skip-to-content-link">Skip to main content</a>
+<div id="container">
+<header id="header"><div id="branding"><div id="site-name"><a href="{{ prefix }}"{% if is_overview %} aria-current="page"{% endif %}>{{ header }}</a></div></div>
+<div id="user-tools">Welcome, <strong>{{ actor }}</strong>. {% if site_url %}<a href="{{ site_url }}">View site</a> / {% endif %}{% if password_change_url %}<a href="{{ password_change_url }}">Change password</a> / {% endif %}{% if logout_url %}<form id="logout-form" method="post" action="{{ logout_url }}"><input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}"><button type="submit">Log out</button></form>{% endif %}{% include "theme_toggle.html" %}</div></header>
+{% if not is_overview %}<nav aria-label="Breadcrumbs"><div class="breadcrumbs"><a href="{{ prefix }}">Home</a>{% if breadcrumb_app %} › <a href="{{ breadcrumb_app_url }}">{{ breadcrumb_app }}</a>{% endif %}{% if breadcrumb_model %} › <a href="{{ breadcrumb_model_url }}">{{ breadcrumb_model }}</a>{% endif %} › {{ title }}</div></nav>{% endif %}
+<div class="main shifted" id="main">
+{% if not is_overview %}<button class="sticky toggle-nav-sidebar" id="toggle-nav-sidebar" aria-label="Toggle navigation" type="button"></button>
+<nav class="sticky" id="nav-sidebar" aria-label="Sidebar"><input type="search" id="nav-filter" placeholder="Start typing to filter…" aria-label="Filter navigation items">{% include "app_list.html" with apps=app_list show_changelinks=False %}</nav>{% endif %}
+<main id="content-start" class="content" tabindex="-1">{% if messages %}<ul class="messagelist" aria-label="Notifications" aria-live="polite">{% for message in messages %}<li class="{{ message.level }} {{ message.tags }}" role="status">{{ message.text }}</li>{% endfor %}</ul>{% endif %}
+<div id="content" class="colM"><h1>{{ title }}</h1>{% block content %}{% endblock %}<br class="clear"></div></main></div>
+<footer id="footer"></footer></div>{% include "theme_icons.html" %}</body></html>

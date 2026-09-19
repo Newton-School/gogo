@@ -127,7 +127,7 @@ func (s *Site) listEditCell(ctx context.Context, form *forms.ModelForm, object O
 	if !ok {
 		return "", false, nil
 	}
-	widget, err := field.HTML()
+	widget, err := adminWidgetHTML(field)
 	if err != nil {
 		return "", false, err
 	}

@@ -94,7 +94,7 @@ func TestSaveOnTopUsesExistingFormPermissions(t *testing.T) {
 			}
 			page := perform(site, "GET", path, principal(), nil, nil)
 			body := page.Body.String()
-			if page.Code != tc.status || strings.Count(body, `class="submit-row"`) != tc.rows || strings.Count(body, `name="_save"`) != tc.rows || strings.Count(body, `name="_continue"`) != tc.rows || strings.Count(body, `name="_addanother"`) != tc.addButtons || strings.Count(body, `class="danger-link"`) != tc.deleteLinks {
+			if page.Code != tc.status || strings.Count(body, `class="submit-row"`) != tc.rows || strings.Count(body, `name="_save"`) != tc.rows || strings.Count(body, `name="_continue"`) != tc.rows || strings.Count(body, `name="_addanother"`) != tc.addButtons || strings.Count(body, `class="deletelink"`) != tc.deleteLinks {
 				t.Fatal("controls differ from existing permission decisions", page.Code, body)
 			}
 			if tc.status != 200 {

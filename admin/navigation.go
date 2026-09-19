@@ -19,10 +19,13 @@ func groupNavigation(rows []any) []templates.Context {
 			position = len(groups)
 			positions[app] = position
 			groups = append(groups, templates.Context{
-				"label": strings.ReplaceAll(app, "_", " "), "models": []any{},
+				"key": app, "label": strings.ReplaceAll(app, "_", " "), "url": row["app_url"], "models": []any{},
 			})
 		}
 		groups[position]["models"] = append(groups[position]["models"].([]any), row)
+		if row["active"] == true {
+			groups[position]["active"] = true
+		}
 	}
 	return groups
 }

@@ -1,36 +1,29 @@
-{% extends "base.html" %}
-{% block content %}
-<div class="page-heading">
-  <div><h1>{{ title }}</h1><p class="muted">{{ count }} record{% if count != 1 %}s{% endif %}</p></div>
-  {% if can_add %}<a class="button" href="{{ add_url }}">+ Add {{ title }}</a>{% endif %}
-</div>
-<section class="panel">
-  {% if has_search or filters %}
-  <form method="get" class="search-bar">
-    {% if show_all %}<input type="hidden" name="all" value="">{% endif %}
-    {% if order %}<input type="hidden" name="o" value="{{ order }}">{% endif %}
-    {% if has_search %}<label for="search">Search records</label><div class="search-input"><input id="search" type="search" name="q" value="{{ search }}" maxlength="256" placeholder="Search…"{% if search_help_text %} aria-describedby="search-help"{% endif %}><button type="submit">Search</button></div>{% if search_help_text %}<p id="search-help" class="helptext">{{ search_help_text }}</p>{% endif %}{% endif %}
-    {% if filters %}<div class="list-filters">
-      {% for filter in filters %}<div><label for="filter_{{ filter.name }}">{{ filter.label }}</label>
-        {% if filter.choices %}<select id="filter_{{ filter.name }}" name="{{ filter.name }}"><option value="">All</option>{% for choice in filter.choices %}<option value="{{ choice.value }}"{% if choice.selected %} selected{% endif %}>{{ choice.label }}</option>{% endfor %}</select>
-        {% else %}<input id="filter_{{ filter.name }}" name="{{ filter.name }}" value="{{ filter.value }}" maxlength="256">{% endif %}
-      </div>{% endfor %}<button class="secondary" type="submit">Apply filters</button>
-    </div>{% endif %}
-  </form>
-  {% endif %}
-  <form method="post">{% csrf_token %}
-    {% if list_token %}<input type="hidden" name="_list_token" value="{{ list_token }}"><input type="hidden" name="form-TOTAL_FORMS" value="{{ list_form_count }}"><input type="hidden" name="form-INITIAL_FORMS" value="{{ list_form_count }}">{% for row in rows %}<input type="hidden" name="{{ row.prefix }}-_id" value="{{ row.id }}">{% endfor %}{% endif %}
-    {% if list_invalid %}<div class="form-row" role="alert"><p class="error-note">Please correct the errors below. No records were saved.</p>{% for error in list_errors %}<p class="error-note">{{ error.label }}: {{ error.message }}</p>{% endfor %}</div>{% endif %}
-    {% if actions %}<div class="action-bar"><label for="action">Action</label><select id="action" name="action"><option value="">Choose an action</option>{% for action in actions %}<option value="{{ action.name }}">{{ action.label }}</option>{% endfor %}</select><button type="submit">Run on selected</button></div>{% endif %}
-    <div class="table-scroll"><table>
-      <thead><tr>{% if actions %}<th scope="col">Select</th>{% endif %}{% for column in columns %}<th scope="col"{% if column.direction != "none" %} aria-sort="{{ column.direction }}"{% endif %}>{% if column.url %}<a href="{{ column.url }}">{{ column.label }}</a>{% else %}{{ column.label }}{% endif %}</th>{% endfor %}</tr></thead>
-      <tbody>{% for row in rows %}<tr>
-        {% if actions %}<td><input type="checkbox" name="_selected" value="{{ row.id }}" aria-label="Select {{ row.id }}"></td>{% endif %}
-        {% for cell in row.cells %}<td>{% if cell.widget %}{{ cell.widget }}{% elif cell.url %}<a href="{{ cell.url }}">{{ cell.value }}</a>{% else %}{{ cell.value }}{% endif %}</td>{% endfor %}
-      </tr>{% empty %}<tr><td class="empty-state" colspan="100">No matching records.</td></tr>{% endfor %}</tbody>
-    </table></div>
-    {% if list_token %}<div class="submit-row"><button type="submit" name="_save_list" value="1">Save changes</button><span class="muted">Only changed editable rows on this page are saved.</span></div>{% endif %}
-  </form>
-  <nav class="pagination" aria-label="Pagination"><span>{% if show_all %}All matching records{% else %}Page {{ page }}{% endif %}</span><div>{% if has_previous %}<a href="{{ previous }}">← Previous</a>{% endif %}{% if has_next %}<a href="{{ next }}">Next →</a>{% endif %}{% if can_show_all %}<a href="{{ show_all_url }}">Show all</a>{% endif %}{% if show_all %}<a href="{{ paginated_url }}">Return to pagination</a>{% endif %}</div></nav>
-</section>
+{% extends "base.html" %}{% block content %}
+<div id="content-main">{% if can_add %}<ul class="object-tools"><li><a class="addlink" href="{{ add_url }}">Add {{ title }}</a></li></ul>{% endif %}
+<div class="module{% if filters %} filtered{% endif %}" id="changelist"><div class="changelist-form-container">
+{% if has_search %}<div id="toolbar"><form method="get" id="changelist-search">
+{% if show_all %}<input type="hidden" name="all" value="">{% endif %}{% if order %}<input type="hidden" name="o" value="{{ order }}">{% endif %}
+{% for filter in filters %}{% if filter.value %}<input type="hidden" name="{{ filter.name }}" value="{{ filter.value }}">{% endif %}{% endfor %}
+<label for="search"><img src="{{ django_url }}img/search.svg" alt="Search records"></label>
+<input id="search" type="search" name="q" value="{{ search }}" maxlength="256" size="40" placeholder="Search…"{% if search_help_text %} aria-describedby="search-help"{% endif %}><input type="submit" value="Search">
+{% if search_help_text %}<p id="search-help" class="help">{{ search_help_text }}</p>{% endif %}</form></div>{% endif %}
+<form id="changelist-form" method="post" novalidate>{% csrf_token %}
+{% if list_token %}<input type="hidden" name="_list_token" value="{{ list_token }}"><input type="hidden" name="form-TOTAL_FORMS" value="{{ list_form_count }}"><input type="hidden" name="form-INITIAL_FORMS" value="{{ list_form_count }}">{% for row in rows %}<input type="hidden" name="{{ row.prefix }}-_id" value="{{ row.id }}">{% endfor %}{% endif %}
+{% if list_invalid %}<div role="alert"><p class="errornote">Please correct the errors below. No records were saved.</p>{% for error in list_errors %}<p class="errornote">{{ error.label }}: {{ error.message }}</p>{% endfor %}</div>{% endif %}
+{% if actions %}<div class="actions"><label for="action">Action:</label> <select id="action" name="action"><option value="">Choose an action</option>{% for action in actions %}<option value="{{ action.name }}">{{ action.label }}</option>{% endfor %}</select>
+<button type="submit" class="button" name="index" value="0" title="Run the selected action">Go</button><span class="action-counter" data-actions-icnt="{{ rows|length }}">0 of {{ rows|length }} selected</span></div>{% endif %}
+<div class="results table-scroll"><table id="result_list"><thead><tr>{% if actions %}<th scope="col" class="action-checkbox-column"><input type="checkbox" id="action-toggle" aria-label="Select all records on this page"></th>{% endif %}
+{% for column in columns %}<th scope="col" class="{% if column.url %}sortable {% endif %}{% if column.direction != "none" %}sorted {{ column.direction }}{% endif %}"{% if column.direction != "none" %} aria-sort="{{ column.direction }}"{% endif %}>
+{% if column.direction != "none" %}<div class="sortoptions"><a class="toggle {{ column.direction }}" href="{{ column.url }}" title="Toggle sorting"></a></div>{% endif %}
+<div class="text">{% if column.url %}<a href="{{ column.url }}">{{ column.label }}</a>{% else %}<span>{{ column.label }}</span>{% endif %}</div><div class="clear"></div></th>{% endfor %}</tr></thead>
+<tbody>{% for row in rows %}<tr>{% if actions %}<td class="action-checkbox"><input class="action-select" type="checkbox" name="_selected" value="{{ row.id }}" aria-label="Select {{ row.id }}"></td>{% endif %}
+{% for cell in row.cells %}<td>{% if cell.widget %}{{ cell.widget }}{% elif cell.url %}<a href="{{ cell.url }}">{{ cell.value }}</a>{% else %}{% if cell.boolean_icon %}{% include "display_value.html" with value=cell.value boolean_icon=cell.boolean_icon %}{% else %}{{ cell.value }}{% endif %}{% endif %}</td>{% endfor %}</tr>{% empty %}<tr><td colspan="100">No matching records.</td></tr>{% endfor %}</tbody></table></div>
+{% if list_token %}<p class="paginator"><input type="submit" name="_save_list" value="Save changes"><span class="visually-hidden">Only changed editable rows on this page are saved.</span></p>{% endif %}
+</form><nav class="paginator" aria-label="Pagination"><span>{% if show_all %}All matching records{% else %}Page {{ page }}{% endif %}</span>
+{% if has_previous %}<a href="{{ previous }}">Previous</a>{% endif %} {% if has_next %}<a href="{{ next }}">Next</a>{% endif %}
+<span>{{ count }} record{% if count != 1 %}s{% endif %}</span> {% if can_show_all %}<a href="{{ show_all_url }}">Show all</a>{% endif %}{% if show_all %}<a href="{{ paginated_url }}">Return to pagination</a>{% endif %}</nav>
+</div>{% if filters %}<nav id="changelist-filter" aria-labelledby="changelist-filter-header"><h2 id="changelist-filter-header">Filter</h2><form method="get">
+{% if search %}<input type="hidden" name="q" value="{{ search }}">{% endif %}{% if order %}<input type="hidden" name="o" value="{{ order }}">{% endif %}{% if show_all %}<input type="hidden" name="all" value="">{% endif %}
+{% for filter in filters %}<details open><summary>By {{ filter.label }}</summary>{% if not filter.choices %}<label class="visually-hidden" for="filter_{{ filter.name }}">{{ filter.label }}</label>{% endif %}
+{% if filter.choices %}<input type="hidden" name="{{ filter.name }}" value="{{ filter.value }}"><ul><li{% if not filter.value %} class="selected"{% endif %}><a href="{{ filter.all_url }}">All</a></li>{% for choice in filter.choices %}<li{% if choice.selected %} class="selected"{% endif %}><a href="{{ choice.url }}">{{ choice.label }}</a></li>{% endfor %}</ul>{% else %}<input id="filter_{{ filter.name }}" name="{{ filter.name }}" value="{{ filter.value }}" maxlength="256">{% endif %}</details>{% endfor %}<button type="submit" class="button">Apply filters</button></form></nav>{% endif %}</div></div>
 {% endblock %}

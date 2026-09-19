@@ -110,7 +110,7 @@ func TestCredentialInstructionUsesResponsiveFormInset(t *testing.T) {
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest("GET", "http://example.test/admin/", nil)
 	site.render(w, r, principal(), "user_credentials.html", templates.Context{"title": "Create account", "instruction": "Synthetic safety instruction"}, 200)
-	if w.Code != 200 || !strings.Contains(w.Body.String(), `<div class="form-row"><p class="muted">Synthetic safety instruction</p></div>`) {
+	if w.Code != 200 || !strings.Contains(w.Body.String(), `<p>Synthetic safety instruction</p>`) {
 		t.Fatal("credential instruction lost the shared form inset", w.Code)
 	}
 }

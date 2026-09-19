@@ -98,7 +98,7 @@ func TestEmptyDisplayPrecedenceSnapshotsAndEscaping(t *testing.T) {
 			siteText, modelText, columnText = "mutated site", "mutated model", "mutated column"
 			page := perform(site, "GET", "/admin/shop/product/", principal(), nil, nil)
 			body := page.Body.String()
-			if page.Code != 200 || !strings.Contains(body, `href="/admin/shop/product/1/change/">`+html.EscapeString(expected)+`</a>`) || !strings.Contains(body, `<td>0</td><td>false</td>`) {
+			if page.Code != 200 || !strings.Contains(body, `href="/admin/shop/product/1/change/">`+html.EscapeString(expected)+`</a>`) || !strings.Contains(body, `<td>0</td>`) || !strings.Contains(body, `img/icon-no.svg" alt="False"`) {
 				t.Fatal(mode, page.Code, body)
 			}
 			if strings.Contains(body, `<b data-kind=`) || strings.Contains(body, "mutated ") || strings.Contains(body, `aria-label="empty`) {
@@ -130,7 +130,7 @@ func TestEmptyDisplayReadonlyFlatAndFieldsetsNeverCallDisplayValue(t *testing.T)
 		}
 		page := perform(site, "GET", "/admin/shop/product/1/change/", principal(), nil, nil)
 		body := page.Body.String()
-		if page.Code != 200 || !strings.Contains(body, `<div>`+html.EscapeString(text)+`</div>`) || strings.Contains(body, `<img`) || strings.Contains(body, `name="Secret"`) {
+		if page.Code != 200 || !strings.Contains(body, `<div class="readonly">`+html.EscapeString(text)+`</div>`) || strings.Contains(body, `<img`) || strings.Contains(body, `name="Secret"`) {
 			t.Fatal(fieldsets, page.Code, body)
 		}
 	}

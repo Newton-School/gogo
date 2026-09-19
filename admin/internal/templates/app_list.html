@@ -1,0 +1,9 @@
+{% for app in apps %}<div class="app-{{ app.key }} module{% if app.active %} current-app{% endif %}">
+<table><caption><a href="{{ app.url }}" class="section" title="Models in the {{ app.label }} application">{{ app.label }}</a></caption>
+<thead class="visually-hidden"><tr><th scope="col">Model name</th><th scope="col">Add link</th>{% if show_changelinks %}<th scope="col">Change or view list link</th>{% endif %}</tr></thead>
+<tbody>{% for model in app.models %}<tr class="model-{{ model.key }}{% if model.active %} current-model{% endif %}">
+<th scope="row"><a href="{{ model.url }}"{% if model.active %} aria-current="page"{% endif %}>{{ model.label }}</a></th>
+<td>{% if model.can_add %}<a class="addlink" href="{{ model.add_url }}" aria-label="Add {{ model.label }}">Add</a>{% endif %}</td>
+{% if show_changelinks %}<td>{% if model.can_view %}<a class="{% if model.can_change %}changelink{% else %}viewlink{% endif %}" href="{{ model.url }}" aria-label="{% if model.can_change %}Change{% else %}View{% endif %} {{ model.label }}">{% if model.can_change %}Change{% else %}View{% endif %}</a>{% endif %}</td>{% endif %}
+</tr>{% endfor %}</tbody></table></div>{% empty %}<p>Your account has no model permissions on this site.</p>{% endfor %}
+

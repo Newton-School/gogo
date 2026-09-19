@@ -189,7 +189,7 @@ func TestListOrderingAnnouncesOnlyTheSelectedDisplayHeader(t *testing.T) {
 		if page.Code != 200 || count != wantCount {
 			t.Fatal(tc, page.Code, body)
 		}
-		if tc.column != "" && !strings.Contains(body, `aria-sort="`+tc.direction+`"><a href="?o=`) {
+		if tc.column != "" && !strings.Contains(body, `aria-sort="`+tc.direction+`">`+"\n"+`<div class="sortoptions"><a class="toggle `+tc.direction+`" href="?o=`) {
 			t.Fatal(tc, body)
 		}
 		query := mustOrderingQuery(t, tc.query)
@@ -202,7 +202,7 @@ func TestListOrderingAnnouncesOnlyTheSelectedDisplayHeader(t *testing.T) {
 			if (direction != "none") != (name == tc.column) {
 				t.Fatal(tc, name, direction)
 			}
-			if name == tc.column && !strings.Contains(body, `aria-sort="`+direction+`"><a href="`+link+`">`+name+`</a>`) {
+			if name == tc.column && !strings.Contains(body, `aria-sort="`+direction+`">`+"\n"+`<div class="sortoptions"><a class="toggle `+direction+`" href="`+link+`" title="Toggle sorting"></a></div>`+"\n"+`<div class="text"><a href="`+link+`">`+name+`</a>`) {
 				t.Fatal("wrong active header identity", tc, body)
 			}
 		}

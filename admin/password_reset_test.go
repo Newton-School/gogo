@@ -135,14 +135,14 @@ func TestAdminResetRequestUsesSharedResponsiveInsets(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if !strings.Contains(string(body), `<div class="submit-row"><a href="/admin/login/">Back to sign in</a></div>`) {
+		if !strings.Contains(string(body), `<p><a href="/admin/login/">Back to sign in</a></p>`) {
 			t.Fatal("recovery navigation lost the shared inset")
 		}
 		if submitted {
-			if !strings.Contains(string(body), `<div class="form-row"><p class="muted" role="status">`) || strings.Contains(string(body), `name="identifier"`) {
+			if !strings.Contains(string(body), `<p role="status">`) || strings.Contains(string(body), `name="identifier"`) {
 				t.Fatal("recovery acknowledgement layout changed form behavior")
 			}
-		} else if !strings.Contains(string(body), `<div class="form-row"><p class="muted">Enter your account identifier`) {
+		} else if !strings.Contains(string(body), `<p>Enter your account identifier`) {
 			t.Fatal("recovery description lost the shared inset")
 		}
 	}

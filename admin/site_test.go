@@ -294,16 +294,16 @@ func TestNavigationTracksCurrentPageAndDashboardStartsAtTop(t *testing.T) {
 	for _, path := range []string{"/admin/shop/product/", "/admin/shop/product/1/change/"} {
 		response := perform(site, "GET", path, principal(), nil, nil)
 		body := response.Body.String()
-		if response.Code != 200 || strings.Contains(body, `aria-current="page"`) || !strings.Contains(body, `class="is-active" aria-current="location" href="/admin/shop/product/"`) {
+		if response.Code != 200 || !strings.Contains(body, `href="/admin/shop/product/" aria-current="page"`) {
 			t.Fatal(path, response.Code, body)
 		}
 	}
 	response := perform(site, "GET", "/admin/", principal(), nil, nil)
-	if response.Code != 200 || !strings.Contains(response.Body.String(), `class="brand" href="/admin/" aria-current="page"`) || strings.Contains(response.Body.String(), `class="sidebar"`) {
+	if response.Code != 200 || !strings.Contains(response.Body.String(), `href="/admin/" aria-current="page"`) || strings.Contains(response.Body.String(), `id="nav-sidebar"`) {
 		t.Fatal(response.Code, response.Body.String())
 	}
 	css, err := embedded.ReadFile("internal/assets/admin.css")
-	if err != nil || !strings.Contains(string(css), "main { min-width: 0; padding:") || strings.Contains(string(css), "margin: auto") {
+	if err != nil || !strings.Contains(string(css), "#content-start { min-width: 0; }") || strings.Contains(string(css), "margin: auto") {
 		t.Fatal("dashboard must not use vertical auto margins", err)
 	}
 }

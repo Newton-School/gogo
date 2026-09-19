@@ -282,7 +282,7 @@ func accountOutcome(err error) auth.PasswordChangeState {
 }
 
 func (s *Site) renderCredentialForm(w http.ResponseWriter, r *http.Request, p auth.Principal, options ModelAdmin, object Object, form *forms.Form, action, title, label, instruction, back string) {
-	body, err := form.Render("div")
+	body, err := s.renderAdminForm(r.Context(), form)
 	if err != nil {
 		s.failure(w, r, err)
 		return
