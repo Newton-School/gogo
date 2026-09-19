@@ -79,6 +79,19 @@ func TestFlatTemplateNavigationRemainsAvailable(t *testing.T) {
 	}
 }
 
+func TestChangelistRecordCount(t *testing.T) {
+	site, _ := newTestSite(t)
+	for _, test := range []struct {
+		count int
+		label string
+	}{{0, "0 records"}, {1, "1 record"}, {2, "2 records"}} {
+		body, err := site.engine.Render(context.Background(), "list.html", templates.Context{"count": test.count})
+		if err != nil || !strings.Contains(body, `<p class="muted">`+test.label+`</p>`) {
+			t.Fatalf("record count %d: %v: %s", test.count, err, body)
+		}
+	}
+}
+
 func TestSimpleTemplatesPreserveFormAndNavigationControls(t *testing.T) {
 	site, _ := newTestSite(t)
 	page := perform(site, "GET", "/admin/shop/product/1/change/", principal(), nil, nil)

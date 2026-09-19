@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="page-heading">
-  <div><h1>{{ title }}</h1><p class="muted">{{ count }} records</p></div>
+  <div><h1>{{ title }}</h1><p class="muted">{{ count }} record{% if count != 1 %}s{% endif %}</p></div>
   {% if can_add %}<a class="button" href="{{ add_url }}">+ Add {{ title }}</a>{% endif %}
 </div>
 <section class="panel">
