@@ -20,24 +20,24 @@ func (a *Accounts) CreateGroup(ctx context.Context, name string) (*Group, error)
 	if err := a.permit(ctx, change); err != nil {
 		return nil, err
 	}
-	id, err := newAccountID()
+	id, err := a.models.newID()
 	if err != nil {
 		return nil, err
 	}
-	group := &Group{ID: id, Name: name}
+	group := &Group{identity: a.models, ID: id, Name: name}
 	err = db.Atomic(ctx, a.store.Backend, db.AtomicOptions{}, func(ctx context.Context) error {
 		if err := a.permit(ctx, change); err != nil {
 			return err
 		}
-		if err := a.store.Save(ctx, group, orm.SaveOptions{ForceInsert: true, Guard: func(ctx context.Context, _ models.Record) error {
+		if err := a.saveIdentity(ctx, group, orm.SaveOptions{ForceInsert: true, Guard: func(ctx context.Context, _ models.Record) error {
 			if err := a.permit(ctx, change); err != nil {
 				return err
 			}
-			if group.ID != id || group.Name != name {
+			if group.identity != a.models || group.ID != id || group.Name != name {
 				return ErrPermissionDenied
 			}
 			return nil
-		}}); err != nil {
+		}}, &id); err != nil {
 			return err
 		}
 		// A model hook may revoke authority, and authorization may itself run a
@@ -46,10 +46,10 @@ func (a *Accounts) CreateGroup(ctx context.Context, name string) (*Group, error)
 		if err := a.permit(ctx, change); err != nil {
 			return err
 		}
-		if group.ID != id || group.Name != name {
+		if group.identity != a.models || group.ID != id || group.Name != name {
 			return ErrPermissionDenied
 		}
-		persisted, err := orm.For(a.store, func() *Group { return &Group{} }).Filter(orm.Q("id", id)).Get(ctx)
+		persisted, err := orm.For(a.store, a.models.Group).Filter(orm.Q("id", id)).Get(ctx)
 		if errors.Is(err, orm.ErrNotFound) {
 			return ErrPermissionDenied
 		}
@@ -78,14 +78,14 @@ func (a *Accounts) CreateGroup(ctx context.Context, name string) (*Group, error)
 	return group, nil
 }
 
-func groupIDs(values []string) ([]string, error) {
+func (a *Accounts) groupIDs(values []string) ([]string, error) {
 	if len(values) > 1000 {
 		return nil, errors.New("auth: group mutation bound exceeded")
 	}
 	values = slices.Clone(values)
 	slices.Sort(values)
 	for i, value := range values {
-		if !validAccountID(value) || i > 0 && values[i-1] == value {
+		if !a.models.validID(value) || i > 0 && values[i-1] == value {
 			return nil, errors.New("auth: invalid or duplicate group")
 		}
 	}
@@ -112,7 +112,7 @@ func (a *Accounts) removeLinks(ctx context.Context, schema models.Schema, ownerF
 }
 
 func (a *Accounts) SetUserGroups(ctx context.Context, userID string, values []string) error {
-	ids, err := groupIDs(values)
+	ids, err := a.groupIDs(values)
 	if err != nil {
 		return err
 	}
@@ -120,7 +120,7 @@ func (a *Accounts) SetUserGroups(ctx context.Context, userID string, values []st
 		// All supported group-permission writers acquire the group row. Shared
 		// ownership with membership changes prevents unversioned grant races.
 		if len(ids) > 0 {
-			found, err := orm.For(a.store, func() *Group { return &Group{} }).Filter(orm.Q("id__in", ids)).OrderBy("id").SelectForUpdate(false, false).All(ctx)
+			found, err := orm.For(a.store, a.models.Group).Filter(orm.Q("id__in", ids)).OrderBy("id").SelectForUpdate(false, false).All(ctx)
 			if err != nil {
 				return err
 			}
@@ -191,11 +191,11 @@ func (a *Accounts) SetGroupPermissions(ctx context.Context, groupID string, valu
 	if err := a.permit(ctx, change); err != nil {
 		return err
 	}
-	if !validAccountID(groupID) {
+	if !a.models.validID(groupID) {
 		return orm.ErrNotFound
 	}
 	return db.Atomic(ctx, a.store.Backend, db.AtomicOptions{}, func(ctx context.Context) error {
-		if _, err := orm.For(a.store, func() *Group { return &Group{} }).Filter(orm.Q("id", groupID)).SelectForUpdate(false, false).Get(ctx); err != nil {
+		if _, err := orm.For(a.store, a.models.Group).Filter(orm.Q("id", groupID)).SelectForUpdate(false, false).Get(ctx); err != nil {
 			return err
 		}
 		if err := a.permit(ctx, change); err != nil {
@@ -233,7 +233,7 @@ func (a *Accounts) SetGroupPermissions(ctx context.Context, groupID string, valu
 			for i, link := range memberships {
 				userIDs[i] = link.UserID
 			}
-			users, err = orm.For(a.store, func() *User { return &User{} }).Filter(orm.Q("id__in", userIDs)).OrderBy("id").SelectForUpdate(false, false).All(ctx)
+			users, err = orm.For(a.store, a.models.User).Filter(orm.Q("id__in", userIDs)).OrderBy("id").SelectForUpdate(false, false).All(ctx)
 			if err != nil {
 				return err
 			}

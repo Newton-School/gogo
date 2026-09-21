@@ -17,7 +17,7 @@ import (
 func (s *AccountStore) GroupAdmin() ModelAdmin {
 	return ModelAdmin{
 		groupForms:  true,
-		Schema:      (&auth.Group{}).Schema(),
+		Schema:      s.accounts.Models().Group().Schema(),
 		Fields:      []string{"name", "permissions"},
 		ListDisplay: []string{"name"}, ListDisplayLinks: []string{"name"},
 		SearchFields: []string{"name"}, Ordering: []string{"name"},
@@ -32,7 +32,7 @@ func (s *AccountStore) GroupAdmin() ModelAdmin {
 }
 
 func (s *accountScoped) newGroup() (Object, error) {
-	record, err := models.Bind(&auth.Group{})
+	record, err := models.Bind(s.accounts.Models().Group())
 	if err != nil {
 		return Object{}, err
 	}

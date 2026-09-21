@@ -133,7 +133,7 @@ func (t *Tokens) Issue(ctx context.Context, userID string, scopes []string) (Tok
 	if db.InTransaction(ctx, t.accounts.store.Backend.Alias()) {
 		return result, errors.New("auth: token issuance requires an owned commit boundary")
 	}
-	if !validAccountID(userID) {
+	if !t.accounts.models.validID(userID) {
 		return result, ErrUnauthenticated
 	}
 	values, err := tokenScopes(scopes)
@@ -163,7 +163,7 @@ func (t *Tokens) Issue(ctx context.Context, userID string, scopes []string) (Tok
 	record := &APITokenRecord{ID: id, UserID: userID, SecretDigest: digest, Scopes: values, CreatedAt: issued, ExpiresAt: issued.Add(t.ttl)}
 	change.ID, change.ExpiresAt = id, record.ExpiresAt
 	err = db.Atomic(ctx, t.accounts.store.Backend, db.AtomicOptions{}, func(ctx context.Context) error {
-		if _, err := orm.For(t.accounts.store, func() *User { return &User{} }).Filter(orm.Q("id", userID)).SelectForUpdate(false, false).Get(ctx); err != nil {
+		if _, err := orm.For(t.accounts.store, t.accounts.models.User).Filter(orm.Q("id", userID)).SelectForUpdate(false, false).Get(ctx); err != nil {
 			return err
 		}
 		if err := t.permit(ctx, change); err != nil {
@@ -260,7 +260,7 @@ func (t *Tokens) save(ctx context.Context, record *APITokenRecord, options orm.S
 // Revoke is idempotent but always reauthorizes the exact token owner/scopes.
 // It does not alter other credentials or claim any in-flight request stopped.
 func (t *Tokens) Revoke(ctx context.Context, id string) (TokenMutationState, error) {
-	if !validAccountID(id) {
+	if !validUUID(id) {
 		return TokenUnchanged, ErrToken
 	}
 	if db.InTransaction(ctx, t.accounts.store.Backend.Alias()) {

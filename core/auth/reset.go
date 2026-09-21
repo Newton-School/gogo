@@ -157,7 +157,7 @@ func (p *PasswordReset) request(ctx context.Context, identifier string) string {
 		// Lock before issuing; a recipient callback cannot cause a stale account
 		// version to receive a redeemable token. Confirmation always locks token
 		// then account; issuance holds no existing token locks.
-		current, err := orm.For(p.accounts.store, func() *User { return &User{} }).Filter(orm.Q("id", user.ID)).SelectForUpdate(false, false).Get(ctx)
+		current, err := orm.For(p.accounts.store, p.accounts.models.User).Filter(orm.Q("id", user.ID)).SelectForUpdate(false, false).Get(ctx)
 		if err != nil {
 			return err
 		}
@@ -225,7 +225,7 @@ func (p *PasswordReset) Confirm(ctx context.Context, bearer, password string) (P
 		if !resetDigestEqual(token.SecretDigest, digest) || token.UsedAt != nil || !token.ExpiresAt.After(time.Now()) {
 			return ErrResetToken
 		}
-		user, err := orm.For(p.accounts.store, func() *User { return &User{} }).Filter(orm.Q("id", token.UserID)).SelectForUpdate(false, false).Get(ctx)
+		user, err := orm.For(p.accounts.store, p.accounts.models.User).Filter(orm.Q("id", token.UserID)).SelectForUpdate(false, false).Get(ctx)
 		if errors.Is(err, orm.ErrNotFound) {
 			return ErrResetToken
 		}
@@ -256,7 +256,7 @@ func (p *PasswordReset) Confirm(ctx context.Context, bearer, password string) (P
 		}
 		user.PasswordHash = &hash
 		if err := p.accounts.saveUser(ctx, user, orm.SaveOptions{UpdateFields: []string{"password_hash", "auth_version", "updated_at"}, Guard: func(ctx context.Context, _ models.Record) error {
-			current, err := orm.For(p.accounts.store, func() *User { return &User{} }).Filter(orm.Q("id", user.ID)).Get(ctx)
+			current, err := orm.For(p.accounts.store, p.accounts.models.User).Filter(orm.Q("id", user.ID)).Get(ctx)
 			if err != nil {
 				return err
 			}
@@ -309,7 +309,7 @@ func (p *PasswordReset) saveReset(ctx context.Context, record *PasswordResetReco
 		if record.ID != expected.ID || record.UserID != expected.UserID || record.SecretDigest != expected.SecretDigest || record.AuthVersion != expected.AuthVersion || !record.CreatedAt.Equal(expected.CreatedAt) || !record.ExpiresAt.Equal(expected.ExpiresAt) || !sameResetTime(record.UsedAt, expected.UsedAt) {
 			return ErrResetToken
 		}
-		user, err := orm.For(p.accounts.store, func() *User { return &User{} }).Filter(orm.Q("id", expected.UserID)).Get(ctx)
+		user, err := orm.For(p.accounts.store, p.accounts.models.User).Filter(orm.Q("id", expected.UserID)).Get(ctx)
 		if err != nil {
 			return err
 		}
@@ -331,7 +331,7 @@ func (p *PasswordReset) saveReset(ctx context.Context, record *PasswordResetReco
 	if stored.UserID != expected.UserID || stored.AuthVersion != expected.AuthVersion || !resetDigestEqual(stored.SecretDigest, expected.SecretDigest) || !sameResetTime(stored.UsedAt, expected.UsedAt) || !stored.ExpiresAt.Equal(expected.ExpiresAt) || !stored.CreatedAt.Equal(expected.CreatedAt) {
 		return ErrResetToken
 	}
-	user, err := orm.For(p.accounts.store, func() *User { return &User{} }).Filter(orm.Q("id", expected.UserID)).Get(ctx)
+	user, err := orm.For(p.accounts.store, p.accounts.models.User).Filter(orm.Q("id", expected.UserID)).Get(ctx)
 	if err != nil {
 		return err
 	}

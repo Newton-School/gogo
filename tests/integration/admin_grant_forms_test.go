@@ -178,8 +178,14 @@ func TestAdminStockGrantFormsEnforceVisibleTokensReadonlyAndAtomicAudit(t *testi
 	if !strings.Contains(page.Body.String(), `name="groups"`) || !strings.Contains(page.Body.String(), `name="user_permissions"`) || values.Get("_account_grants_token") == "" {
 		t.Fatal("stock selectors or signed visible snapshot missing")
 	}
+	groupSelect := regexp.MustCompile(`(?s)<select\b[^>]*\bname="groups"[^>]*>(.*?)</select>`).FindStringSubmatch(page.Body.String())
+	if len(groupSelect) != 2 {
+		t.Fatal("group selector missing")
+	}
 	for _, hidden := range groups[2:] {
-		if strings.Contains(page.Body.String(), hidden.ID) || strings.Contains(page.Body.String(), hidden.Name) {
+		// Numeric IDs also occur in unrelated fields, script versions and tokens.
+		// Check the actual group options, not a substring of the entire document.
+		if strings.Contains(groupSelect[1], `value="`+hidden.ID+`"`) || strings.Contains(page.Body.String(), hidden.Name) {
 			t.Fatal("hidden group disclosed in form")
 		}
 	}
@@ -226,7 +232,11 @@ func TestAdminStockGrantFormsEnforceVisibleTokensReadonlyAndAtomicAudit(t *testi
 		t.Fatal("visible grant audit missing")
 	}
 	for _, hidden := range groups[2:] {
-		if strings.Contains(string(auditJSON), hidden.ID) || strings.Contains(string(auditJSON), hidden.Name) {
+		groupAudit, err := json.Marshal(logs[0].Changes["groups"])
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(string(groupAudit), `"`+hidden.ID+`"`) || strings.Contains(string(auditJSON), hidden.Name) {
 			t.Fatal("hidden retained grant disclosed in audit")
 		}
 	}

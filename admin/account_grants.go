@@ -66,20 +66,32 @@ type grantDescriptor struct {
 }
 
 func describeGrant(kind AccountGrantKind) (grantDescriptor, error) {
+	return describeGrantModels(kind, auth.AccountModels{})
+}
+
+func (s *accountScoped) describeGrant(kind AccountGrantKind) (grantDescriptor, error) {
+	return describeGrantModels(kind, s.accounts.Models())
+}
+
+func describeGrantModels(kind AccountGrantKind, accountModels auth.AccountModels) (grantDescriptor, error) {
 	switch kind {
 	case UserGroups:
-		return grantDescriptor{(&auth.User{}).Schema(), (&auth.Group{}).Schema(), func() models.Model { return &auth.UserGroup{} }, "user_id", "group_id"}, nil
+		return grantDescriptor{accountModels.User().Schema(), accountModels.Group().Schema(), func() models.Model { return &auth.UserGroup{} }, "user_id", "group_id"}, nil
 	case UserPermissions:
-		return grantDescriptor{(&auth.User{}).Schema(), (&auth.Permission{}).Schema(), func() models.Model { return &auth.UserPermission{} }, "user_id", "permission_id"}, nil
+		return grantDescriptor{accountModels.User().Schema(), (&auth.Permission{}).Schema(), func() models.Model { return &auth.UserPermission{} }, "user_id", "permission_id"}, nil
 	case GroupPermissions:
-		return grantDescriptor{(&auth.Group{}).Schema(), (&auth.Permission{}).Schema(), func() models.Model { return &auth.GroupPermission{} }, "group_id", "permission_id"}, nil
+		return grantDescriptor{accountModels.Group().Schema(), (&auth.Permission{}).Schema(), func() models.Model { return &auth.GroupPermission{} }, "group_id", "permission_id"}, nil
 	default:
 		return grantDescriptor{}, auth.ErrPermissionDenied
 	}
 }
 
 func grantID(schema models.Schema, value any) (string, error) {
-	if schema.Key() == (&auth.Group{}).Schema().Key() {
+	keys := schema.PKFields()
+	if len(keys) != 1 {
+		return "", auth.ErrPermissionDenied
+	}
+	if keys[0].Kind == models.UUID {
 		text, ok := value.(string)
 		if !ok {
 			return "", auth.ErrPermissionDenied
@@ -93,6 +105,9 @@ func grantID(schema models.Schema, value any) (string, error) {
 	text := fmt.Sprint(value)
 	id, err := strconv.ParseInt(text, 10, 64)
 	if err != nil || id < 1 || strconv.FormatInt(id, 10) != text {
+		return "", auth.ErrPermissionDenied
+	}
+	if _, err := keys[0].Clean(context.Background(), id); err != nil {
 		return "", auth.ErrPermissionDenied
 	}
 	return text, nil
@@ -193,7 +208,7 @@ func (s *accountScoped) currentGrantIDs(ctx context.Context, object Object, desc
 }
 
 func (s *accountScoped) GrantChoices(ctx context.Context, object Object, kind AccountGrantKind, authorize AccountGrantAuthorizer) (AccountGrantChoices, error) {
-	descriptor, err := describeGrant(kind)
+	descriptor, err := s.describeGrant(kind)
 	if err != nil || s.schema.Key() != descriptor.source.Key() || authorize == nil {
 		return AccountGrantChoices{}, auth.ErrPermissionDenied
 	}

@@ -75,11 +75,11 @@ func (a *Accounts) withUser(ctx context.Context, change AccountChange, apply fun
 	if err := a.permit(ctx, change); err != nil {
 		return err
 	}
-	if !validAccountID(change.UserID) {
+	if !a.models.validID(change.UserID) {
 		return orm.ErrNotFound
 	}
 	return db.Atomic(ctx, a.store.Backend, db.AtomicOptions{}, func(ctx context.Context) error {
-		user, err := orm.For(a.store, func() *User { return &User{} }).Filter(orm.Q("id", change.UserID)).SelectForUpdate(false, false).Get(ctx)
+		user, err := orm.For(a.store, a.models.User).Filter(orm.Q("id", change.UserID)).SelectForUpdate(false, false).Get(ctx)
 		if err != nil {
 			return err
 		}
@@ -89,7 +89,7 @@ func (a *Accounts) withUser(ctx context.Context, change AccountChange, apply fun
 		// A policy may invoke another account operation inside this same
 		// transaction. Refresh after that extension point rather than applying
 		// the requested change to a stale pre-policy user snapshot.
-		user, err = orm.For(a.store, func() *User { return &User{} }).Filter(orm.Q("id", change.UserID)).Get(ctx)
+		user, err = orm.For(a.store, a.models.User).Filter(orm.Q("id", change.UserID)).Get(ctx)
 		if err != nil {
 			return err
 		}
@@ -257,7 +257,7 @@ func (a *Accounts) saveUser(ctx context.Context, user *User, options orm.SaveOpt
 	var previous *User
 	if !options.ForceInsert {
 		var err error
-		previous, err = orm.For(a.store, func() *User { return &User{} }).Filter(orm.Q("id", id)).Get(ctx)
+		previous, err = orm.For(a.store, a.models.User).Filter(orm.Q("id", id)).Get(ctx)
 		if errors.Is(err, orm.ErrNotFound) {
 			return ErrAccountChanged
 		}
@@ -279,11 +279,11 @@ func (a *Accounts) saveUser(ctx context.Context, user *User, options orm.SaveOpt
 				return err
 			}
 		}
-		if user.ID != id || user.Identifier != identifier || storedHash(user) != encoded || user.AuthVersion != version || user.Active != active || user.Staff != staff || user.Superuser != superuser {
+		if user.identity != a.models || user.ID != id || user.Identifier != identifier || storedHash(user) != encoded || user.AuthVersion != version || user.Active != active || user.Staff != staff || user.Superuser != superuser {
 			return ErrPermissionDenied
 		}
 		if previous != nil {
-			current, err := orm.For(a.store, func() *User { return &User{} }).Filter(orm.Q("id", id)).Get(ctx)
+			current, err := orm.For(a.store, a.models.User).Filter(orm.Q("id", id)).Get(ctx)
 			if errors.Is(err, orm.ErrNotFound) {
 				return ErrAccountChanged
 			}
@@ -296,15 +296,15 @@ func (a *Accounts) saveUser(ctx context.Context, user *User, options orm.SaveOpt
 		}
 		return nil
 	}
-	if err := a.store.Save(ctx, user, options); err != nil {
+	if err := a.saveIdentity(ctx, user, options, &id); err != nil {
 		return err
 	}
-	if user.ID != id || user.Identifier != identifier || storedHash(user) != encoded || user.AuthVersion != version || user.Active != active || user.Staff != staff || user.Superuser != superuser {
+	if user.identity != a.models || user.ID != id || user.Identifier != identifier || storedHash(user) != encoded || user.AuthVersion != version || user.Active != active || user.Staff != staff || user.Superuser != superuser {
 		return ErrPermissionDenied
 	}
 	// An AfterSave hook can restore the in-memory values after BeforeSave
 	// changed the actual INSERT/UPDATE. Check persisted state before commit.
-	persisted, err := orm.For(a.store, func() *User { return &User{} }).Filter(orm.Q("id", id)).Get(ctx)
+	persisted, err := orm.For(a.store, a.models.User).Filter(orm.Q("id", id)).Get(ctx)
 	if errors.Is(err, orm.ErrNotFound) {
 		return ErrPermissionDenied
 	}

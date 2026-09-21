@@ -14,6 +14,7 @@ import (
 // normalized identities, grant authorization and auth-version invalidation.
 type User struct {
 	models.Base
+	identity                 AccountModels
 	ID, Identifier           string
 	PasswordHash             *string `json:"-"`
 	Active, Staff, Superuser bool
@@ -26,9 +27,9 @@ type User struct {
 func (*User) String() string   { return "auth.User{redacted}" }
 func (*User) GoString() string { return "auth.User{redacted}" }
 
-func (*User) Schema() models.Schema {
+func (u *User) Schema() models.Schema {
 	return models.Schema{AppLabel: "gogo_auth", Name: "User", Table: "gogo_users", Fields: []models.Field{
-		models.UUIDField("id", models.WithStructField("ID"), models.Primary, models.ReadOnly),
+		u.identity.idField(),
 		models.CharField("identifier", models.WithStructField("Identifier"), models.WithMaxLength(255)),
 		models.TextField("password_hash", models.WithStructField("PasswordHash"), models.Nullable, models.Optional, models.ReadOnly),
 		models.BooleanField("active", models.WithStructField("Active"), models.WithDefault(true)),
@@ -43,12 +44,13 @@ func (*User) Schema() models.Schema {
 
 type Group struct {
 	models.Base
+	identity AccountModels
 	ID, Name string
 }
 
-func (*Group) Schema() models.Schema {
+func (g *Group) Schema() models.Schema {
 	return models.Schema{AppLabel: "gogo_auth", Name: "Group", Table: "gogo_groups", Fields: []models.Field{
-		models.UUIDField("id", models.WithStructField("ID"), models.Primary, models.ReadOnly),
+		g.identity.idField(),
 		models.CharField("name", models.WithStructField("Name"), models.WithMaxLength(150)),
 	}, Constraints: []models.Constraint{{Name: "gogo_groups_name", Kind: "unique", Fields: []string{"name"}}}, Ordering: []string{"name"}}
 }
@@ -111,14 +113,25 @@ func (*GroupPermission) Schema() models.Schema {
 }
 
 func Schemas() []models.Schema {
-	return []models.Schema{(&User{}).Schema(), (&Group{}).Schema(), (&Permission{}).Schema(), (&UserGroup{}).Schema(), (&UserPermission{}).Schema(), (&GroupPermission{}).Schema()}
+	return (AccountModels{}).Schemas()
+}
+
+// Schemas returns account schemas with the selected User/Group ID type.
+func (m AccountModels) Schemas() []models.Schema {
+	return []models.Schema{m.User().Schema(), m.Group().Schema(), (&Permission{}).Schema(), (&UserGroup{}).Schema(), (&UserPermission{}).Schema(), (&GroupPermission{}).Schema()}
 }
 
 // Migrations requires the separately listed contenttypes.Migrations first.
 // Neither import nor Accounts construction runs these automatically.
 func Migrations() []migrations.Migration {
+	return (AccountModels{}).Migrations()
+}
+
+// Migrations is the initial schema for this ID choice, not an ID conversion.
+// Existing UUID databases must keep NewAccountModels(models.UUID).Migrations().
+func (m AccountModels) Migrations() []migrations.Migration {
 	var operations []migrations.Operation
-	for _, schema := range Schemas() {
+	for _, schema := range m.Schemas() {
 		operations = append(operations, migrations.CreateModel(schema))
 	}
 	return []migrations.Migration{{App: "gogo_auth", Name: "0001_initial", Dependencies: []string{"gogo_contenttypes.0001_initial"}, Operations: operations}}

@@ -56,7 +56,7 @@ func (a *Accounts) permitSavedUser(ctx context.Context, change AccountChange, us
 	if capture(user) != expected {
 		return ErrAccountChanged
 	}
-	persisted, err := orm.For(a.store, func() *User { return &User{} }).Filter(orm.Q("id", expected.id)).Get(ctx)
+	persisted, err := orm.For(a.store, a.models.User).Filter(orm.Q("id", expected.id)).Get(ctx)
 	if errors.Is(err, orm.ErrNotFound) {
 		return ErrAccountChanged
 	}
@@ -83,11 +83,11 @@ func (a *Accounts) RenameGroup(ctx context.Context, groupID, name string) error 
 	if err := a.permit(ctx, change); err != nil {
 		return err
 	}
-	if !validAccountID(groupID) {
+	if !a.models.validID(groupID) {
 		return orm.ErrNotFound
 	}
 	return db.Atomic(ctx, a.store.Backend, db.AtomicOptions{}, func(ctx context.Context) error {
-		group, err := orm.For(a.store, func() *Group { return &Group{} }).Filter(orm.Q("id", groupID)).SelectForUpdate(false, false).Get(ctx)
+		group, err := orm.For(a.store, a.models.Group).Filter(orm.Q("id", groupID)).SelectForUpdate(false, false).Get(ctx)
 		if err != nil {
 			return err
 		}
@@ -96,7 +96,7 @@ func (a *Accounts) RenameGroup(ctx context.Context, groupID, name string) error 
 		}
 		// Authorization is an extension point and may itself perform a nested
 		// domain operation. Read the protected group again after it returns.
-		group, err = orm.For(a.store, func() *Group { return &Group{} }).Filter(orm.Q("id", groupID)).Get(ctx)
+		group, err = orm.For(a.store, a.models.Group).Filter(orm.Q("id", groupID)).Get(ctx)
 		if err != nil {
 			return err
 		}
@@ -110,7 +110,7 @@ func (a *Accounts) RenameGroup(ctx context.Context, groupID, name string) error 
 		}
 		var users []*User
 		if len(members) > 0 {
-			users, err = orm.For(a.store, func() *User { return &User{} }).Filter(orm.Q("id__in", members)).OrderBy("id").SelectForUpdate(false, false).All(ctx)
+			users, err = orm.For(a.store, a.models.User).Filter(orm.Q("id__in", members)).OrderBy("id").SelectForUpdate(false, false).All(ctx)
 			if err != nil {
 				return err
 			}
@@ -123,7 +123,7 @@ func (a *Accounts) RenameGroup(ctx context.Context, groupID, name string) error 
 			if group.ID != groupID || group.Name != name {
 				return ErrPermissionDenied
 			}
-			persisted, err := orm.For(a.store, func() *Group { return &Group{} }).Filter(orm.Q("id", groupID)).Get(ctx)
+			persisted, err := orm.For(a.store, a.models.Group).Filter(orm.Q("id", groupID)).Get(ctx)
 			if errors.Is(err, orm.ErrNotFound) {
 				return ErrAccountChanged
 			}

@@ -107,7 +107,7 @@ func TestAdminAccountGrantChoicesHideScopedAndPolicyHiddenIdentities(t *testing.
 		t.Fatal(err)
 	}
 	for _, hidden := range groups[1:] {
-		if strings.Contains(string(encoded), hidden.ID) || strings.Contains(string(encoded), hidden.Name) {
+		if strings.Contains(string(encoded), `"`+hidden.ID+`"`) || strings.Contains(string(encoded), hidden.Name) {
 			t.Fatal("hidden current grant disclosed")
 		}
 	}

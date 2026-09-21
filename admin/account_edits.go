@@ -53,7 +53,9 @@ func (s *accountScoped) createUser(ctx context.Context, identifier, password str
 	if err != nil {
 		return Object{}, ErrAccountIdentifier
 	}
-	prospective, err := models.Bind(&auth.User{Identifier: normalized, Active: !options.Inactive, Staff: options.Staff, Superuser: options.Superuser})
+	model := s.accounts.Models().User()
+	model.Identifier, model.Active, model.Staff, model.Superuser = normalized, !options.Inactive, options.Staff, options.Superuser
+	prospective, err := models.Bind(model)
 	if err != nil {
 		return Object{}, err
 	}

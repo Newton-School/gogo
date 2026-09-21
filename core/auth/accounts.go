@@ -32,7 +32,10 @@ type AccountChange struct {
 }
 
 type AccountsConfig struct {
-	Store               *orm.Store
+	Store *orm.Store
+	// Models must match schema registration and migrations. The zero value
+	// uses integer User/Group IDs; choose UUID for existing UUID databases.
+	Models              AccountModels
 	NormalizeIdentifier func(string) (string, error)
 	Authorize           func(context.Context, AccountChange) error
 	PasswordValidators  []PasswordValidator
@@ -41,6 +44,7 @@ type AccountsConfig struct {
 
 type Accounts struct {
 	store      *orm.Store
+	models     AccountModels
 	normalize  func(string) (string, error)
 	authorize  func(context.Context, AccountChange) error
 	validators []PasswordValidator
@@ -51,7 +55,7 @@ func NewAccounts(config AccountsConfig) (*Accounts, error) {
 	if config.Store == nil || config.Store.Backend == nil || config.Store.Registry == nil {
 		return nil, errors.New("auth: registered account models and backend required")
 	}
-	for _, required := range append(Schemas(), (&contenttypes.ContentType{}).Schema()) {
+	for _, required := range append(config.Models.Schemas(), (&contenttypes.ContentType{}).Schema()) {
 		actual, ok := config.Store.Registry.Get(required.Key())
 		if !ok {
 			return nil, errors.New("auth: required account model is not registered")
@@ -59,7 +63,7 @@ func NewAccounts(config AccountsConfig) (*Accounts, error) {
 		want, e1 := required.Fingerprint()
 		got, e2 := actual.Fingerprint()
 		if e1 != nil || e2 != nil || want != got {
-			return nil, errors.New("auth: registered account model differs from default contract")
+			return nil, errors.New("auth: registered account model differs from configured contract")
 		}
 	}
 	if config.NormalizeIdentifier == nil {
@@ -74,8 +78,11 @@ func NewAccounts(config AccountsConfig) (*Accounts, error) {
 	if config.PasswordValidators == nil {
 		config.PasswordValidators = []PasswordValidator{MinimumLength(12), NonNumeric}
 	}
-	return &Accounts{store: config.Store, normalize: config.NormalizeIdentifier, authorize: config.Authorize, validators: slices.Clone(config.PasswordValidators), slots: make(chan struct{}, config.MaxPasswordWork)}, nil
+	return &Accounts{store: config.Store, models: config.Models, normalize: config.NormalizeIdentifier, authorize: config.Authorize, validators: slices.Clone(config.PasswordValidators), slots: make(chan struct{}, config.MaxPasswordWork)}, nil
 }
+
+// Models returns the immutable identity choice used by this service.
+func (a *Accounts) Models() AccountModels { return a.models }
 
 // NormalizeIdentifier trims surrounding whitespace and preserves case. A
 // project may replace it before creating identities (for example an email or
@@ -141,7 +148,7 @@ func (a *Accounts) Lookup(ctx context.Context, identifier string) (Principal, st
 }
 
 func (a *Accounts) LoadPrincipal(ctx context.Context, id string) (Principal, error) {
-	if !validAccountID(id) {
+	if !a.models.validID(id) {
 		return Principal{}, ErrUnauthenticated
 	}
 	_, principal, err := a.snapshot(ctx, orm.Q("id", id))
@@ -175,7 +182,7 @@ func storedHash(user *User) string {
 // authorization cache and no implicit transaction isolation escalation.
 func (a *Accounts) snapshot(ctx context.Context, where db.Predicate) (*User, Principal, error) {
 	for range 3 {
-		user, err := orm.For(a.store, func() *User { return &User{} }).Filter(where).Get(ctx)
+		user, err := orm.For(a.store, a.models.User).Filter(where).Get(ctx)
 		if errors.Is(err, orm.ErrNotFound) {
 			return nil, Principal{}, ErrUnauthenticated
 		}
@@ -189,7 +196,7 @@ func (a *Accounts) snapshot(ctx context.Context, where db.Predicate) (*User, Pri
 		if err != nil {
 			return nil, Principal{}, err
 		}
-		current, err := orm.For(a.store, func() *User { return &User{} }).Filter(orm.Q("id", user.ID)).Only("auth_version", "password_hash", "active", "staff", "superuser").Get(ctx)
+		current, err := orm.For(a.store, a.models.User).Filter(orm.Q("id", user.ID)).Only("auth_version", "password_hash", "active", "staff", "superuser").Get(ctx)
 		if errors.Is(err, orm.ErrNotFound) {
 			return nil, Principal{}, ErrUnauthenticated
 		}
@@ -280,7 +287,7 @@ func (a *Accounts) permissions(ctx context.Context, id string) ([]string, error)
 
 func (a *Accounts) UpdateHash(ctx context.Context, id, previous, replacement string) error {
 	return db.Atomic(ctx, a.store.Backend, db.AtomicOptions{}, func(ctx context.Context) error {
-		user, err := orm.For(a.store, func() *User { return &User{} }).Filter(orm.Q("id", id)).SelectForUpdate(false, false).Get(ctx)
+		user, err := orm.For(a.store, a.models.User).Filter(orm.Q("id", id)).SelectForUpdate(false, false).Get(ctx)
 		if err != nil {
 			return err
 		}
@@ -318,7 +325,7 @@ func (a *Accounts) createUser(ctx context.Context, identifier, password string, 
 	if err := a.permit(ctx, change); err != nil {
 		return nil, err
 	}
-	id, err := newAccountID()
+	id, err := a.models.newID()
 	if err != nil {
 		return nil, err
 	}
@@ -331,7 +338,7 @@ func (a *Accounts) createUser(ctx context.Context, identifier, password string, 
 	if err != nil {
 		return nil, err
 	}
-	user := &User{ID: id, Identifier: identifier, PasswordHash: &hash, Active: !options.Inactive, Staff: options.Staff, Superuser: options.Superuser, AuthVersion: 1}
+	user := &User{identity: a.models, ID: id, Identifier: identifier, PasswordHash: &hash, Active: !options.Inactive, Staff: options.Staff, Superuser: options.Superuser, AuthVersion: 1}
 	record, err := models.Bind(user)
 	if err != nil {
 		return nil, err
@@ -389,12 +396,4 @@ func newAccountID() (string, error) {
 	}
 	value[6], value[8] = value[6]&0x0f|0x40, value[8]&0x3f|0x80
 	return fmt.Sprintf("%x-%x-%x-%x-%x", value[0:4], value[4:6], value[6:8], value[8:10], value[10:]), nil
-}
-
-func validAccountID(id string) bool {
-	if len(id) != 36 {
-		return false
-	}
-	_, err := models.UUIDField("id").Clean(context.Background(), id)
-	return err == nil
 }

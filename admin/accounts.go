@@ -44,8 +44,8 @@ func NewAccountStore(config AccountStoreConfig) (*AccountStore, error) {
 	for key, factory := range config.ORM.Factories {
 		factories[key] = factory
 	}
-	factories[(&auth.User{}).Schema().Key()] = func() models.Model { return &auth.User{} }
-	factories[(&auth.Group{}).Schema().Key()] = func() models.Model { return &auth.Group{} }
+	factories[(&auth.User{}).Schema().Key()] = func() models.Model { return accounts.Models().User() }
+	factories[(&auth.Group{}).Schema().Key()] = func() models.Model { return accounts.Models().Group() }
 	factories[(&auth.Permission{}).Schema().Key()] = func() models.Model { return &auth.Permission{} }
 	config.ORM.Factories = factories
 	base, err := NewORMStore(config.ORM)
@@ -66,7 +66,7 @@ func (s *AccountStore) Accounts() *auth.Accounts { return s.accounts }
 // authority independently approves each actual identifier or flag delta.
 func (s *AccountStore) UserAdmin() ModelAdmin {
 	return ModelAdmin{
-		Schema:    (&auth.User{}).Schema(),
+		Schema:    s.accounts.Models().User().Schema(),
 		userForms: true,
 		Fieldsets: []Fieldset{
 			{Name: "Identity", Fields: []string{"identifier"}, Description: "Changing the identifier requires explicit account-management authority and a fresh login for this account."},

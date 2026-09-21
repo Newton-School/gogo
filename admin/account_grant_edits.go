@@ -38,7 +38,7 @@ func accountGrantKinds(object Object) []AccountGrantKind {
 }
 
 func (s *accountScoped) resolveGrant(ctx context.Context, kind AccountGrantKind, id string, authorize AccountGrantAuthorizer) (Object, error) {
-	descriptor, err := describeGrant(kind)
+	descriptor, err := s.describeGrant(kind)
 	if err != nil {
 		return Object{}, err
 	}
@@ -61,7 +61,7 @@ func (s *accountScoped) resolveGrant(ctx context.Context, kind AccountGrantKind,
 }
 
 func (s *accountScoped) recheckGrantTarget(ctx context.Context, kind AccountGrantKind, object Object) (Object, error) {
-	descriptor, err := describeGrant(kind)
+	descriptor, err := s.describeGrant(kind)
 	if err != nil {
 		return Object{}, err
 	}
@@ -85,7 +85,7 @@ func (s *accountScoped) recheckGrantTarget(ctx context.Context, kind AccountGran
 func (s *accountScoped) grantState(ctx context.Context, object Object) (map[AccountGrantKind][]string, error) {
 	state := make(map[AccountGrantKind][]string)
 	for _, kind := range accountGrantKinds(object) {
-		descriptor, _ := describeGrant(kind)
+		descriptor, _ := s.describeGrant(kind)
 		ids, err := s.currentGrantIDs(ctx, object, descriptor)
 		if err != nil {
 			return nil, err

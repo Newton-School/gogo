@@ -43,7 +43,7 @@ func parseAPIToken(bearer string) (id, digest string, err error) {
 		return "", "", ErrToken
 	}
 	id = bearer[5:41]
-	if !validAccountID(id) || id != strings.ToLower(id) {
+	if !validUUID(id) || id != strings.ToLower(id) {
 		return "", "", ErrToken
 	}
 	secret, err := base64.RawURLEncoding.Strict().DecodeString(bearer[42:])

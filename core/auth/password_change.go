@@ -38,7 +38,7 @@ type PasswordChangeResult struct {
 func (a *Accounts) ChangeOwnPassword(ctx context.Context, oldPassword, newPassword string) (PasswordChangeResult, error) {
 	result := PasswordChangeResult{State: PasswordUnchanged}
 	actor := FromContext(ctx)
-	if !actor.Authenticated || !actor.Active || !validAccountID(actor.ID) || actor.AuthVersion == 0 {
+	if !actor.Authenticated || !actor.Active || !a.models.validID(actor.ID) || actor.AuthVersion == 0 {
 		return result, ErrUnauthenticated
 	}
 	if db.InTransaction(ctx, a.store.Backend.Alias()) {
@@ -79,7 +79,7 @@ func (a *Accounts) ChangeOwnPassword(ctx context.Context, oldPassword, newPasswo
 			// nested savepoint. The locked in-memory object then becomes stale.
 			// Recheck persisted proof after validators and all BeforeSave hooks,
 			// immediately before SQL, not only before calling those extensions.
-			persisted, err := orm.For(a.store, func() *User { return &User{} }).Filter(orm.Q("id", actor.ID)).Only("active", "auth_version", "password_hash").Get(ctx)
+			persisted, err := orm.For(a.store, a.models.User).Filter(orm.Q("id", actor.ID)).Only("active", "auth_version", "password_hash").Get(ctx)
 			if errors.Is(err, orm.ErrNotFound) {
 				return ErrAccountChanged
 			}
