@@ -194,7 +194,7 @@ func TestAdminInlineAtomicSaveAndOwnership(t *testing.T) {
 		t.Fatal(list.Body.String())
 	}
 	get := request("GET", link[1], nil, nil)
-	if get.Code != 200 || !strings.Contains(get.Body.String(), "<legend>Details</legend>") {
+	if get.Code != 200 || !strings.Contains(get.Body.String(), `<h2 class="fieldset-heading">Details</h2>`) {
 		t.Fatal(get.Code, get.Body.String())
 	}
 	body := get.Body.String()

@@ -121,7 +121,8 @@ func TestAdminListOrderingUsesScopedSQLAndStablePages(t *testing.T) {
 	}
 	site := build([]string{"caption"})
 	body := assertPage(site, "?o=caption", records[0].ID, records[1].ID)
-	if !strings.Contains(body, `aria-sort="descending"><a href="?o=-caption">Caption</a>`) {
+	header := regexp.MustCompile(`(?s)<th\b[^>]*aria-sort="descending"[^>]*>(.*?)</th>`).FindStringSubmatch(body)
+	if len(header) != 2 || !strings.Contains(header[1], `<a href="?o=-caption">Caption</a>`) {
 		t.Fatal(body)
 	}
 	assertPage(site, "?o=caption&p=2", records[2].ID)

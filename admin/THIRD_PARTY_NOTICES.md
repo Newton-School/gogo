@@ -3,7 +3,7 @@
 Gogo Admin includes Django 5.2.17 Admin static assets, copied without modification
 from `django/contrib/admin/static/admin/` at upstream commit
 `e802ada38b3ecf345915163bb6d7f008be411664`:
-https://github.com/django/django/tree/e802ada38b3ecf345915163bb6d7f008be411664
+`https://github.com/django/django/tree/e802ada38b3ecf345915163bb6d7f008be411664`
 
 The HTML templates in `internal/templates/` adapt Django Admin's template
 structure to Gogo's Go template engine and existing scoped form/URL contracts.

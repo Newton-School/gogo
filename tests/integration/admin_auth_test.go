@@ -227,7 +227,7 @@ func TestAdminPostgresRedisStaffCredentialWorkflow(t *testing.T) {
 	// The branded account route changes only the current identity. The Core
 	// service commits credentials before the explicitly opted-in session refresh.
 	credentialForm := call("GET", "/admin/password-change/", nil)
-	if credentialForm.Code != 200 || !strings.Contains(credentialForm.Body.String(), "Account security") || strings.Contains(credentialForm.Body.String(), "Model navigation") {
+	if credentialForm.Code != 200 || !strings.Contains(credentialForm.Body.String(), `<h1>Change password</h1>`) || strings.Contains(credentialForm.Body.String(), `id="nav-sidebar"`) {
 		t.Fatal("branded password form failed", credentialForm.Code)
 	}
 	if response := call("POST", "/admin/password-change/", nil); response.Code != 403 {

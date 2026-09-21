@@ -81,7 +81,7 @@ func TestAdminListMaxShowAllPostgresScopedNavigationAndEdits(t *testing.T) {
 				return w
 			}
 			page := request("GET", "", nil, nil)
-			if page.Code != 200 || strings.Contains(page.Body.String(), ">Show all</a>") || !strings.Contains(page.Body.String(), "3 records in your scope") {
+			if page.Code != 200 || strings.Contains(page.Body.String(), ">Show all</a>") || !strings.Contains(page.Body.String(), "<span>3 records</span>") {
 				t.Fatal(page.Code, page.Body.String())
 			}
 			if page := request("GET", "?all=", nil, nil); page.Code != 400 || strings.Contains(page.Body.String(), "alpha") {
@@ -94,7 +94,7 @@ func TestAdminListMaxShowAllPostgresScopedNavigationAndEdits(t *testing.T) {
 			query := "?all=&o=score&q=alpha&score=1"
 			page = request("GET", query, nil, nil)
 			body := page.Body.String()
-			if page.Code != 200 || strings.Contains(body, "alpha private") || !strings.Contains(body, "2 records in your scope") || !strings.Contains(body, `href="?o=score&amp;q=alpha&amp;score=1">Return to pagination</a>`) || !strings.Contains(body, `name="form-TOTAL_FORMS" value="2"`) {
+			if page.Code != 200 || strings.Contains(body, "alpha private") || !strings.Contains(body, "<span>2 records</span>") || !strings.Contains(body, `href="?o=score&amp;q=alpha&amp;score=1">Return to pagination</a>`) || !strings.Contains(body, `name="form-TOTAL_FORMS" value="2"`) {
 				t.Fatal(page.Code, body)
 			}
 			hidden := func(name string) string {
