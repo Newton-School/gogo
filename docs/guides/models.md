@@ -21,6 +21,24 @@ A model is a Go struct plus a `Schema()` declaration. ORM, migrations, validatio
 
 Use the model's schema key, `catalog.Product`, when a service requests a model identifier. The default table name is lower-case app plus model, such as `catalog_product`. Set `Schema.Table` to override it.
 
+## Integer IDs
+
+Declare an ID member and its field explicitly; `models.Base` does not inject a primary key. The example above uses a 32-bit database sequence:
+
+```go
+models.AutoField("id", models.WithStructField("ID"))
+```
+
+For a 64-bit database sequence, use an `int64` Go member and choose:
+
+```go
+models.BigAutoField("id", models.WithStructField("ID"))
+```
+
+Both allocate `1`, then `2`, and so on on a fresh PostgreSQL table. Leave `ID` at zero on insert; the ORM reads the generated value back. Failed inserts and deletions can leave gaps. `AutoField` supports up to `2,147,483,647`; `BigAutoField` supports up to `9,223,372,036,854,775,807`. Changing an existing field needs an explicit migration, including dependent foreign keys.
+
+Built-in User/Group models use integer IDs by default and support a shared [account ID configuration](auth.md#user-and-group-ids).
+
 ## Register and generate
 
 ```sh

@@ -67,7 +67,7 @@ func (c *Connections) Commands() []management.Command {
 				}
 				// This capability exists only in this explicit local management
 				// invocation. It is never installed in the HTTP account service.
-				accounts, err := auth.NewAccounts(auth.AccountsConfig{Store: c.Store, Authorize: func(ctx context.Context, change auth.AccountChange) error {
+				accounts, err := auth.NewAccounts(auth.AccountsConfig{Store: c.Store, Models: AccountModels(), Authorize: func(ctx context.Context, change auth.AccountChange) error {
 					if err := ctx.Err(); err != nil {
 						return err
 					}

@@ -12,6 +12,36 @@ Authentication establishes who is calling. Permission policy decides what they c
 
 Register these contributions through your app/project setup, apply migrations explicitly, then construct the account services with an ORM store and the required authorizers. Importing `core/auth` does none of these steps automatically.
 
+## User and Group IDs
+
+New User and Group tables use database-generated integer IDs starting at `1`, independently for each table. Leave the ID unset when creating an account. Sequences can have gaps after failed inserts or deletions; IDs are not row counts or access credentials.
+
+{{snippet docs/examples/account_models_test.go account-integer-ids}}
+
+The ordinary `auth.Schemas()` and `auth.Migrations()` helpers use this same default. For larger ranges, choose 64-bit integers **before the first migration**:
+
+{{snippet docs/examples/account_models_test.go account-long-ids}}
+
+Register `identity.Schemas()` and apply `identity.Migrations()` instead of the default auth helpers. Keep content-type, password-reset and token registrations as shown above. Pass the same choice to the account service (or `admin.AccountStoreConfig.Accounts`):
+
+{{snippet docs/examples/account_models_test.go account-service-ids}}
+
+Direct ORM reads also need that choice. Use these factories instead of constructing a default `&auth.User{}` or `&auth.Group{}`:
+
+{{snippet docs/examples/account_models_test.go account-query-ids}}
+
+Use `identity.Group` for groups. Public auth IDs remain Go `string` values for compatibility: an integer account's `user.ID` is `"1"`, while its database column is an integer. Sessions, reset secrets and API credentials remain random.
+
+This is the User/Group configuration, not a global rewrite of every model. Application models choose `AutoField`, `BigAutoField` or another explicit primary-key field in their schema; other contributed models retain their declared ID types.
+
+### Existing UUID databases
+
+Earlier Gogo versions used UUID User/Group IDs. Retain their exact schema and migration checksum by explicitly selecting UUIDs everywhere above:
+
+{{snippet docs/examples/account_models_test.go account-uuid-ids}}
+
+Do not apply the new default initial migration over an existing UUID database, clear migration history, or delete data to bypass a checksum error. Choosing another ID type does not convert existing tables or foreign keys. A deliberate data migration is a separate application operation. No extra environment variable is needed.
+
 ## Users, groups and policies
 
 ### Understand password handling

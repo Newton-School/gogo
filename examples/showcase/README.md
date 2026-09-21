@@ -10,6 +10,30 @@ This is an alpha showcase, not a statement of Django/Celery feature parity. The 
 
 Use the [coverage map](COVERAGE.md) to navigate features and their evidence levels.
 
+## Account IDs and existing databases
+
+Fresh User/Group tables now use integer IDs starting at `1`. The single
+`AccountModels()` function in `config/accounts.go` controls schema registration,
+migrations, Admin and direct account queries. It defaults to `auth.AccountModels{}`.
+For 64-bit IDs, select `models.BigAuto` there before the first migration.
+
+**If your sample already has UUID users/groups**, preserve its database and set
+that function to the following before running the updated checkout:
+
+```go
+func AccountModels() auth.AccountModels {
+    identity, err := auth.NewAccountModels(models.UUID)
+    if err != nil {
+        panic(err)
+    }
+    return identity
+}
+```
+
+This retains the original auth migration checksum; it does not convert any data.
+Do not clear migration history or delete Docker volumes to resolve an ID-type
+mismatch. Catalog/field-laboratory IDs remain their explicitly declared integers.
+
 ## Run locally with Docker
 
 Only Docker with Docker Compose v2.17+ is required. From this directory:

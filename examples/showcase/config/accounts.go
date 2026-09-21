@@ -11,6 +11,11 @@ import (
 	"github.com/Newton-School/gogo/core/orm"
 )
 
+// AccountModels is shared by schema registration, migrations, Admin and queries.
+// The zero value allocates integer User/Group IDs starting at 1 on fresh tables.
+// Choose BigAuto or UUID here before the first migration, never on existing data.
+func AccountModels() auth.AccountModels { return auth.AccountModels{} }
+
 // This showcase is a single-organization application: only verified, active
 // staff superusers administer all records. It is NOT a tenant isolation example.
 // Every boundary rechecks persisted auth_version; posted account IDs and flags
@@ -19,7 +24,7 @@ func (c *Connections) authorizeStaff(ctx context.Context, p auth.Principal) erro
 	if !p.Authenticated || !p.Active || !p.Staff || !p.Superuser || p.AuthVersion == 0 {
 		return auth.ErrPermissionDenied
 	}
-	user, err := orm.For(c.Store, func() *auth.User { return &auth.User{} }).Filter(orm.Q("id", p.ID)).Get(ctx)
+	user, err := orm.For(c.Store, AccountModels().User).Filter(orm.Q("id", p.ID)).Get(ctx)
 	if err != nil {
 		return auth.ErrPermissionDenied
 	}
@@ -44,7 +49,7 @@ func (c *Connections) accountStore() (*admin.AccountStore, error) {
 			},
 			ValidateWrite: func(ctx context.Context, p auth.Principal, _ models.Record) error { return c.authorizeStaff(ctx, p) },
 		},
-		Accounts: auth.AccountsConfig{Authorize: func(ctx context.Context, _ auth.AccountChange) error {
+		Accounts: auth.AccountsConfig{Models: AccountModels(), Authorize: func(ctx context.Context, _ auth.AccountChange) error {
 			return c.authorizeStaff(ctx, auth.FromContext(ctx))
 		}},
 	})

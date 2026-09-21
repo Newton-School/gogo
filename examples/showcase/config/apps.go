@@ -6,7 +6,6 @@ import (
 	fieldmigrations "example.com/gogo-showcase/apps/fieldlab/migrations"
 	"github.com/Newton-School/gogo/admin"
 	"github.com/Newton-School/gogo/core/app"
-	"github.com/Newton-School/gogo/core/auth"
 	"github.com/Newton-School/gogo/core/contrib/contenttypes"
 	"github.com/Newton-School/gogo/core/migrations"
 	"github.com/Newton-School/gogo/core/models"
@@ -26,14 +25,14 @@ func InstalledApps() []app.Config {
 				return err
 			}
 		}
-		all := append(contenttypes.Migrations(), auth.Migrations()...)
+		all := append(contenttypes.Migrations(), AccountModels().Migrations()...)
 		all = append(all, admin.Migrations()...)
 		return r.Register("migrations", "accounts", []migrations.Migration(all))
 	}}}
 }
 
 func builtinSchemas() []models.Schema {
-	return append(auth.Schemas(), (&contenttypes.ContentType{}).Schema(), admin.LogSchema())
+	return append(AccountModels().Schemas(), (&contenttypes.ContentType{}).Schema(), admin.LogSchema())
 }
 
 func ModelRegistry() (*models.Registry, error) {

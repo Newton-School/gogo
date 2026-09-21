@@ -1,4 +1,22 @@
 {
+  "account-long-ids": {
+    "file": "docs/examples/account_models_test.go",
+    "intro": "Choose before migration; use identity.Schemas(), identity.Migrations() and AccountsConfig.Models together.",
+    "symbols": ["core/auth.NewAccountModels", "core/auth.AccountModels"],
+    "options": {}
+  },
+  "account-service-ids": {
+    "file": "docs/examples/account_models_test.go",
+    "intro": "store has the chosen account schemas and content types; authorizeAccountChange enforces current trusted actor authority.",
+    "symbols": ["core/auth.AccountsConfig"],
+    "options": {}
+  },
+  "account-query-ids": {
+    "file": "docs/examples/account_models_test.go",
+    "intro": "Use the same identity choice as registration and migrations. userID is a string, including for numeric accounts.",
+    "symbols": ["core/auth.AccountModels.User", "core/auth.AccountModels.Group"],
+    "options": {}
+  },
   "form-fields": {
     "file": "docs/examples/forms_test.go",
     "intro": "Declare fields before binding input.",

@@ -9,6 +9,34 @@ connections, creates no tables, registers no routes and starts no background wor
 | Password reset | Add `auth.PasswordResetSchemas()` | Add `auth.PasswordResetMigrations()` |
 | Opaque API tokens | Add `auth.TokenSchemas()` | Add `auth.TokenMigrations()` |
 
+## Account IDs
+
+New User and Group tables use database-generated 32-bit integers starting at 1.
+The zero-value `auth.AccountModels{}` is used by `auth.Schemas()`,
+`auth.Migrations()` and `auth.AccountsConfig.Models`. Sequences may have gaps.
+The public `User.ID`, `Group.ID` and `Principal.ID` remain strings such as `"1"`;
+only their database storage and allocation change. Credential IDs stay random.
+
+Choose 64-bit IDs before creating the database:
+
+```go
+identity, err := auth.NewAccountModels(models.BigAuto)
+// Handle err; register identity.Schemas() and apply identity.Migrations().
+accounts, err := auth.NewAccounts(auth.AccountsConfig{
+    Store: store,
+    Models: identity,
+    Authorize: authorizeAccountChange,
+})
+```
+
+Direct ORM queries must use `identity.User` / `identity.Group` factories, and
+Admin must receive the same configuration in `AccountStoreConfig.Accounts`.
+
+**Existing UUID databases:** choose `auth.NewAccountModels(models.UUID)` in
+all those places. This preserves the previous initial migration checksum and
+foreign-key types. The new integer default is not an in-place conversion. Never
+clear migration history or renumber existing users to bypass a checksum mismatch.
+
 ## API tokens
 
 `auth.NewTokens` takes the existing `Accounts` service, an explicit mutation
