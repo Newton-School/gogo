@@ -217,6 +217,10 @@ type Beat struct {
 	Lease     time.Duration
 	BatchSize int
 	Calendars map[string]Calendar
+	// Monitor is optional observational telemetry; outages do not alter ticks.
+	Monitor BeatMonitor
+	// OnMonitorError receives safe monitoring failures, never task arguments.
+	OnMonitorError func(error)
 }
 
 func validScheduleInstant(value time.Time) bool {
@@ -263,10 +267,21 @@ func (b *Beat) next(ctx context.Context, rule ScheduleRule, after time.Time) (ne
 	}
 	return checkedOccurrence(after, next)
 }
-func (b *Beat) Tick(ctx context.Context) error {
+func (b *Beat) Tick(ctx context.Context) (result error) {
 	if ctx == nil || b == nil || b.Client == nil || b.Store == nil || b.ID == "" {
 		return ErrInvalid
 	}
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			b.observe(ctx, "error")
+			panic(recovered)
+		}
+		status := "online"
+		if result != nil {
+			status = "error"
+		}
+		b.observe(ctx, status)
+	}()
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -359,7 +374,12 @@ func (b *Beat) Tick(ctx context.Context) error {
 	}
 	return nil
 }
-func (b *Beat) Run(ctx context.Context) error {
+func (b *Beat) Run(ctx context.Context) (result error) {
+	defer func() {
+		if ctx.Err() != nil {
+			b.observe(ctx, "offline")
+		}
+	}()
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 	for {

@@ -19,11 +19,12 @@ func (s *Schedules) periodicKeys(partition int) []string {
 }
 
 var periodicUpsert = redigo.NewScript(scheduleMetadataLua + `
-validateScheduleKeys({'zset','hash'})
+validateScheduleKeys({'zset','hash','zset'})
 local raw=redis.call('HGET',KEYS[2],ARGV[1]);local revision='0';if raw then local old=readSchedule(raw,ARGV[1],true);revision=old.revision end
 if revision~=ARGV[2] then return 0 end
 readSchedule(ARGV[3],ARGV[1],true);local due=scheduleMillis(ARGV[4])
-redis.call('HSET',KEYS[2],ARGV[1],ARGV[3]);if ARGV[5]=='1' then redis.call('ZADD',KEYS[1],due,ARGV[1]) else redis.call('ZREM',KEYS[1],ARGV[1]) end;return 1
+redis.call('HSET',KEYS[2],ARGV[1],ARGV[3]);if ARGV[5]=='1' then redis.call('ZADD',KEYS[1],due,ARGV[1]) else redis.call('ZREM',KEYS[1],ARGV[1]) end
+redis.call('ZADD',KEYS[3],0,ARGV[1]);return 1
 `)
 
 func (s *Schedules) UpsertSchedule(ctx context.Context, p async.PeriodicSchedule, expected uint64) error {
@@ -50,7 +51,9 @@ func (s *Schedules) UpsertSchedule(ctx context.Context, p async.PeriodicSchedule
 	if p.Enabled {
 		enabled = "1"
 	}
-	out, err := s.Connection.Atomic(ctx, periodicUpsert, s.periodicKeys(connector.Partition(p.ID)), p.ID, strconv.FormatUint(expected, 10), b, p.NextDue.UnixMilli(), enabled)
+	index, _ := s.Connection.PartitionIndex("schedule", connector.Partition(p.ID), "dashboard-v1")
+	keys := append(s.periodicKeys(connector.Partition(p.ID)), index)
+	out, err := s.Connection.Atomic(ctx, periodicUpsert, keys, p.ID, strconv.FormatUint(expected, 10), b, p.NextDue.UnixMilli(), enabled)
 	if err != nil {
 		return err
 	}
@@ -101,7 +104,7 @@ func (s *Schedules) LeaseSchedules(ctx context.Context, owner string, limit int,
 }
 
 var periodicCommit = redigo.NewScript(scheduleMetadataLua + `
-validateScheduleKeys({'zset','hash','hash','zset'})
+validateScheduleKeys({'zset','hash','hash','zset','zset'})
 local raw=redis.call('HGET',KEYS[2],ARGV[1]);if not raw then return 'MISSING' end
 local old=readSchedule(raw,ARGV[1],true);local tm=redis.call('TIME');local now=tonumber(tm[1])*1000+math.floor(tonumber(tm[2])/1000)
 if old.revision~=ARGV[2] or old.fence~=ARGV[3] or old.owner~=ARGV[4] or old.lease_millis<=now then return 'LEASE' end
@@ -113,6 +116,7 @@ for _,intent in ipairs(intents) do
  seen[intent.id]=true;table.insert(staged,{id=intent.id,raw=cjson.encode(intent),index=intent.source_id..':'..intent.id})
 end
 redis.call('HSET',KEYS[2],ARGV[1],ARGV[5]);if ARGV[8]=='1' then redis.call('ZADD',KEYS[1],due,ARGV[1]) else redis.call('ZREM',KEYS[1],ARGV[1]) end
+redis.call('ZADD',KEYS[5],0,ARGV[1])
 for _,intent in ipairs(staged) do
  if redis.call('HEXISTS',KEYS[3],intent.id)==0 then redis.call('HSET',KEYS[3],intent.id,intent.raw);redis.call('ZADD',KEYS[4],now,intent.index) end
 end;return 'OK'
@@ -155,6 +159,8 @@ func (s *Schedules) CommitOccurrence(ctx context.Context, p async.PeriodicSchedu
 	keys := s.periodicKeys(connector.Partition(p.ID))
 	index, _ := s.Connection.PartitionIndex("schedule", connector.Partition(p.ID), "pending-intents")
 	keys = append(keys, s.Connection.PartitionKey("schedule", p.ID, "intents"), index)
+	inventory, _ := s.Connection.PartitionIndex("schedule", connector.Partition(p.ID), "dashboard-v1")
+	keys = append(keys, inventory)
 	enabled := "0"
 	if p.Enabled {
 		enabled = "1"

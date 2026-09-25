@@ -16,6 +16,7 @@ import (
 type Workers struct{ Connection *connector.Connection }
 
 var workerWrite = redigo.NewScript(`
+for i,key in ipairs(KEYS) do local k=redis.call('TYPE',key).ok;local wanted='hash';if i==2 then wanted='zset' end;if k~='none' and k~=wanted then return redis.error_reply('invalid worker monitor key') end end
 local clock=redis.call('TIME');local now=tonumber(clock[1])*1000+math.floor(tonumber(clock[2])/1000)
 local owner=redis.call('HGET',KEYS[1],'owner')
 local status=redis.call('HGET',KEYS[1],'status');local expires=redis.call('HGET',KEYS[1],'expires')
@@ -28,6 +29,8 @@ if owner and owner~=ARGV[2] and ARGV[5]~='' and redis.call('HGET',KEYS[1],'insta
 local state='online';local untilAt=now+tonumber(ARGV[4]);if ARGV[1]=='release' then state='offline';untilAt=now end
 redis.call('HSET',KEYS[1],'owner',ARGV[2],'instance',ARGV[5],'snapshot',ARGV[3],'status',state,'observed',string.format('%.0f',now),'expires',string.format('%.0f',untilAt))
 redis.call('PEXPIRE',KEYS[1],86400000)
+redis.call('ZREMRANGEBYSCORE',KEYS[2],'-inf',now)
+redis.call('ZADD',KEYS[2],now+86400000,ARGV[6]);redis.call('PEXPIRE',KEYS[2],86400000)
 return 'OK'
 `)
 
@@ -53,7 +56,8 @@ func (w *Workers) write(ctx context.Context, operation string, lease async.Worke
 	if err != nil {
 		return async.ErrInvalid
 	}
-	result, err := w.Connection.Atomic(ctx, workerWrite, []string{w.key(lease.WorkerID)}, operation, connector.Digest(lease.Token), data, ttl.Milliseconds(), snapshot.InstanceID)
+	index, _ := w.Connection.PartitionIndex("worker", connector.Partition(lease.WorkerID), "dashboard-v1")
+	result, err := w.Connection.Atomic(ctx, workerWrite, []string{w.key(lease.WorkerID), index}, operation, connector.Digest(lease.Token), data, ttl.Milliseconds(), snapshot.InstanceID, lease.WorkerID)
 	if err != nil {
 		return err
 	}

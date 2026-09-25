@@ -30,6 +30,7 @@ type Memory struct {
 	delayed             map[string]async.DelayedItem
 	periodic            map[string]async.PeriodicSchedule
 	workers             map[string]workerPresence
+	beats               map[string]async.BeatObservation
 	controls            map[string]map[string]workerControl
 	queue               []async.Delivery
 	pending             map[string]reserved

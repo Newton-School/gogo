@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{.Title}} · {{.Brand}}</title>
+  <link rel="stylesheet" href="{{.Base}}style.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="topbar"><a class="brand" href="{{.Base}}"><span class="mark" aria-hidden="true">g</span>{{.Brand}}</a><span class="mode">Read-only monitoring</span></header>
+<div class="layout">
+  <aside><nav aria-label="Async dashboard"><span class="nav-label">WORKSPACE</span>{{range .Nav}}<a href="{{.Path}}" {{if .Active}}aria-current="page"{{end}}>{{.Name}}</a>{{end}}</nav><p class="sidebar-note">Background work.<br>Clearly in view.</p></aside>
+  <main id="main" tabindex="-1">
+    <div class="page-heading"><div><p class="eyebrow">ASYNC / MONITOR</p><h1>{{.Title}}</h1></div><a class="button" href="{{.Refresh}}">Refresh</a></div>
+    <p class="description">{{.Description}}</p>
+    <p class="observed">Observed at {{.Observed}} · Refresh to update</p>
+    {{if .Error}}
+    <section class="notice error" role="alert"><h2>{{.Title}}</h2><p>{{.Error}}</p><a href="{{.Base}}">Back to overview</a></section>
+    {{else}}
+    {{if .Metrics}}<section class="metrics" aria-label="Queue overview">{{range .Metrics}}<div class="metric"><span>{{.Name}}</span><strong>{{.Value}}</strong></div>{{end}}</section>{{end}}
+    {{if .Filter}}
+    <form method="get" class="filters">
+      <div class="search"><label for="q">{{if or (eq .Kind "workers") (eq .Kind "schedulers")}}Exact instance ID{{else}}Name or ID{{end}}</label><input id="q" name="q" type="search" value="{{.Query}}" placeholder="Search {{.Title}}" maxlength="192"></div>
+      {{if or (eq .Kind "tasks") (eq .Kind "workflows")}}<div><label for="state">State</label><select id="state" name="state"><option value="">All states</option>{{range .States}}<option {{if eq . $.State}}selected{{end}}>{{.}}</option>{{end}}</select></div>{{end}}
+      {{if eq .Kind "tasks"}}<div><label for="queue">Queue</label><select id="queue" name="queue"><option value="">All queues</option>{{range .Queues}}<option {{if eq . $.Queue}}selected{{end}}>{{.}}</option>{{end}}</select></div>{{end}}
+      <button type="submit">Filter</button><a class="reset" href="{{.Base}}{{.Kind}}">Reset</a>
+    </form>{{end}}
+    {{if .EventFilter}}<form method="get" class="filters"><div><label for="scope">Event scope</label><select id="scope" name="scope">{{range .Scopes}}<option value="{{.}}" {{if eq . $.Scope}}selected{{end}}>{{if .}}{{.}}{{else}}Unscoped{{end}}</option>{{end}}</select></div><button type="submit">Show events</button><a class="reset" href="{{.Base}}events">Reset</a></form>{{end}}
+    {{if .Facts}}<section class="panel" aria-labelledby="details-heading"><h2 id="details-heading">Details</h2><dl>{{range .Facts}}<div><dt>{{.Name}}</dt><dd>{{if .Link}}<a href="{{.Link}}">{{.Value}}</a>{{else}}{{.Value}}{{end}}</dd></div>{{end}}</dl></section>{{end}}
+    {{if .Columns}}
+    <section class="panel records" aria-label="{{.Title}} records">
+      <div class="table-wrap" tabindex="0" role="region" aria-label="Scrollable records"><table><caption>{{if .Detail}}Related activity{{else}}{{.Title}} records{{end}}</caption><thead><tr>{{range .Columns}}<th scope="col">{{.}}</th>{{end}}</tr></thead><tbody>
+      {{range .Rows}}<tr>{{range .Cells}}<td>{{if .Link}}<a href="{{.Link}}">{{.Text}}</a>{{else if .Badge}}<span class="badge {{.Badge}}">{{if .Text}}{{.Text}}{{else}}—{{end}}</span>{{else}}{{.Text}}{{end}}</td>{{end}}</tr>{{end}}
+      </tbody></table></div>
+      {{if not .Rows}}<div class="empty"><h2>No visible records on this page</h2><p>{{if .Next}}More inventory is available. Continue to the next page or change your filters.{{else}}Check your filters, configured monitoring sources, and retention. An empty view does not prove that no work has run.{{end}}</p></div>{{end}}
+      <div class="pagination"><span>{{len .Rows}} visible {{if .Detail}}references{{else}}records{{end}}</span><div>{{if not .Detail}}<a href="{{.Base}}{{.Kind}}">First page</a>{{end}}{{if .Next}}<a class="button" href="{{.Next}}">Next page →</a>{{end}}</div></div>
+    </section>{{end}}
+    {{if .Detail}}<a class="back" href="{{.Base}}{{.Kind}}">← Back to list</a>{{end}}
+    {{if eq .Kind "overview"}}<section class="guide-grid"><a href="{{.Base}}tasks"><h2>Follow a task</h2><p>Find a task by ID or name. Inspect its state, timing, retries, and related workflow.</p><span>Open tasks →</span></a><a href="{{.Base}}beat"><h2>Check periodic work</h2><p>See what is scheduled next, then inspect Beat instances and committed task records.</p><span>Open schedules →</span></a></section>{{end}}
+    {{end}}
+    <footer>Gogo Async <span>•</span> Metadata only <span>•</span> All times UTC</footer>
+  </main>
+</div>
+</body>
+</html>

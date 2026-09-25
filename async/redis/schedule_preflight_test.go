@@ -59,6 +59,8 @@ func TestRealRedisOccurrencePreflightsAllIntents(t *testing.T) {
 	p = leased[0]
 	keys := schedules.periodicKeys(connector.Partition(p.ID))
 	keys = append(keys, schedules.intentBackend().keys(p.ID)...)
+	inventory, _ := connection.PartitionIndex("schedule", connector.Partition(p.ID), "dashboard-v1")
+	keys = append(keys, inventory)
 	before := resultKeySnapshot(t, connection, keys)
 	good := async.Intent{ID: async.StableID(p.ID, "good"), SourceID: p.ID, Kind: "publish", Envelope: &e}
 	bad := async.Intent{ID: async.StableID(p.ID, "bad"), Kind: "publish", Envelope: &e}
@@ -89,8 +91,11 @@ func TestRealRedisScheduleMutationPreflightsAllKeyTypes(t *testing.T) {
 	for _, family := range []string{"delayed", "periodic"} {
 		for _, operation := range []string{"write", "lease", "commit"} {
 			keyCount := 2
-			if family == "periodic" && operation == "commit" {
-				keyCount = 4
+			if family == "periodic" && operation != "lease" {
+				keyCount = 3
+				if operation == "commit" {
+					keyCount = 5
+				}
 			}
 			for index := 0; index < keyCount; index++ {
 				t.Run(family+"/"+operation+"/"+strconv.Itoa(index), func(t *testing.T) {
@@ -118,6 +123,10 @@ func TestRealRedisScheduleMutationPreflightsAllKeyTypes(t *testing.T) {
 								t.Fatal("fixture did not claim selected periodic schedule")
 							}
 							keys = append(keys, schedules.intentBackend().keys(p.ID)...)
+						}
+						if operation != "lease" {
+							inventory, _ := connection.PartitionIndex("schedule", connector.Partition(p.ID), "dashboard-v1")
+							keys = append(keys, inventory)
 						}
 					} else {
 						if err := schedules.Schedule(ctx, e); err != nil {
