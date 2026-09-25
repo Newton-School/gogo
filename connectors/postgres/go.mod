@@ -3,7 +3,7 @@ module github.com/Newton-School/gogo/connectors/postgres
 go 1.26.8
 
 require (
-	github.com/Newton-School/gogo v1.0.0-alpha.1
+	github.com/Newton-School/gogo v1.0.0-alpha.2
 	github.com/jackc/pgx/v5 v5.10.0
 )
 

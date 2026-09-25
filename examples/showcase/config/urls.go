@@ -80,7 +80,7 @@ func (c *Connections) Handler(_ *app.Registry, settings conf.Values) (http.Handl
 	if err != nil {
 		return nil, err
 	}
-	document, err := api.OpenAPI(context.Background(), router, api.OpenAPIOptions{Title: "Gogo showcase public catalog", Version: "1.0.0-alpha.1"})
+	document, err := api.OpenAPI(context.Background(), router, api.OpenAPIOptions{Title: "Gogo showcase public catalog", Version: "1.0.0-alpha.2"})
 	if err != nil {
 		return nil, err
 	}

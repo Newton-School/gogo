@@ -12,9 +12,9 @@ use (
 )
 
 // Development-only versions. Release modules contain no local replacements.
-replace github.com/Newton-School/gogo v1.0.0-alpha.1 => .
-replace github.com/Newton-School/gogo/async v1.0.0-alpha.1 => ./async
-replace github.com/Newton-School/gogo/admin v1.0.0-alpha.1 => ./admin
-replace github.com/Newton-School/gogo/connectors/redis v1.0.0-alpha.1 => ./connectors/redis
-replace github.com/Newton-School/gogo/connectors/postgres v1.0.0-alpha.1 => ./connectors/postgres
-replace github.com/Newton-School/gogo/async/redis v1.0.0-alpha.1 => ./async/redis
+replace github.com/Newton-School/gogo v1.0.0-alpha.2 => .
+replace github.com/Newton-School/gogo/async v1.0.0-alpha.2 => ./async
+replace github.com/Newton-School/gogo/admin v1.0.0-alpha.2 => ./admin
+replace github.com/Newton-School/gogo/connectors/redis v1.0.0-alpha.2 => ./connectors/redis
+replace github.com/Newton-School/gogo/connectors/postgres v1.0.0-alpha.2 => ./connectors/postgres
+replace github.com/Newton-School/gogo/async/redis v1.0.0-alpha.2 => ./async/redis

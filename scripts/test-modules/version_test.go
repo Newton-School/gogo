@@ -12,7 +12,7 @@ import (
 
 func TestReleaseModulePins(t *testing.T) {
 	repo := filepath.Join("..", "..")
-	for _, module := range append(append([]string{}, modules...), "tests/integration") {
+	for _, module := range append(append([]string{}, modules...), "tests/integration", "examples/showcase") {
 		data, err := os.ReadFile(filepath.Join(repo, module, "go.mod"))
 		if err != nil {
 			t.Fatal(err)
