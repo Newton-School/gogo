@@ -181,8 +181,9 @@ test('curated API examples render before declarations without losing anchors', (
   const entries = JSON.parse(read('code-examples.json'));
   for (const entry of Object.values(entries)) {
     for (const key of entry.symbols) {
-      const dot = key.indexOf('.');
-      const page = 'api-' + key.slice(0, dot).replaceAll('/', '-');
+      const dot = key.startsWith('..') ? 1 : key.indexOf('.');
+      const directory = key.slice(0, dot);
+      const page = directory === '.' ? 'api-gogo' : 'api-' + directory.replaceAll('/', '-');
       const anchor = key.slice(dot + 1).toLowerCase().replaceAll('.', '-');
       const source = read(`.generated/content/${page}.md`);
       const start = source.indexOf(`{#${page}-${anchor}}`);

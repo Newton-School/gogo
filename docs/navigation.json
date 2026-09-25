@@ -95,6 +95,10 @@
     "description": "Generate code, run checks, manage migrations, and register your own commands."
   },
   {
+    "id": "runscript", "title": "Runscript", "section": "Fundamentals", "new": true,
+    "file": "docs/guides/runscript.md", "description": "Compile trusted Go scripts, load project resources, and run bounded maintenance processes."
+  },
+  {
     "id": "models",
     "title": "Models",
     "section": "Data",

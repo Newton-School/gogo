@@ -1,4 +1,10 @@
 {
+  "script-entry": {
+    "file": "docs/examples/runscript_test.go",
+    "intro": "Call from a script's main function. Use your config.Project() to include apps and connections; return errors so cleanup runs.",
+    "symbols": ["..Script"],
+    "options": {}
+  },
   "account-long-ids": {
     "file": "docs/examples/account_models_test.go",
     "intro": "Choose before migration; use identity.Schemas(), identity.Migrations() and AccountsConfig.Models together.",

@@ -17,6 +17,7 @@ These docs describe **v1.0.0-alpha.1** and source-backed examples. This is not s
 | Async | Repeated delivery is possible; no exactly-once external effects or Python/Celery wire compatibility |
 | Scheduler | Per-schedule fencing; no completed database-wide leader lifecycle |
 | Operations | No bundled Async dashboard or universal production deployment/restore certification |
+| Go scripts | [Runscript](runscript.md) is source-checkout functionality, not in the published alpha; requires source/toolchain, with no interactive shell, live-process evaluation or hostile-code sandbox |
 | Connectors | PostgreSQL and Redis first; other backends need actual implementations |
 | Files | Explicit local provider/service/downloads; no direct cloud upload ecosystem |
 | Runtime modes | Command separation exists; environment-driven named modes remain proposed |

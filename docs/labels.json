@@ -1,7 +1,7 @@
 {
   "index": "Introduction", "installation": "Installation", "quickstart": "Quickstart",
   "running": "Running", "tutorial-api": "API tutorial", "docker": "Docker", "showcase": "Example",
-  "structure": "Projects", "configuration": "Configuration", "settings": "Environment variables", "commands": "Commands",
+  "structure": "Projects", "configuration": "Configuration", "settings": "Environment variables", "commands": "Commands", "runscript": "Runscript",
   "models": "Schemas", "model-fields": "Fields", "relations": "Relations", "queries": "Queries", "transactions": "Transactions",
   "migrations": "Migrations", "fixtures": "Fixtures", "routing": "Routing", "views": "Views", "pagination": "Pagination",
   "api": "Serializers", "api-writes": "Mutations", "forms": "Forms", "templates": "Templates", "template-vocabulary": "Tags and filters",

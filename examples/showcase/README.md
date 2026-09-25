@@ -10,6 +10,25 @@ This is an alpha showcase, not a statement of Django/Celery feature parity. The 
 
 Use the [coverage map](COVERAGE.md) to navigate features and their evidence levels.
 
+## Run Go scripts
+
+With the native development setup and this source checkout, run from this directory:
+
+```sh
+go run manage.go runscript scripts/inspect/main.go -- demo
+go run manage.go runscript scripts/catalog-report/main.go
+```
+
+`inspect` prints model registration counts and forwarded arguments without opening
+connections. `catalog-report` selects PostgreSQL only and prints the product count
+from an already-migrated database. Both use the built-in `runscript` command and
+`gogo.Script` helper; no optional package is needed. They do not start HTTP or workers.
+
+Scripts need the Go compiler, source and locally cached dependencies. The normal
+binary-only Docker web image cannot run them; use the native setup or a separate
+source-equipped operations image. Read the [script guide](../../docs/guides/runscript.md)
+for timeout/output limits, resource selection and production safety boundaries.
+
 ## Account IDs and existing databases
 
 Fresh User/Group tables now use integer IDs starting at `1`. The single

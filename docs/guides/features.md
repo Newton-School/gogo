@@ -12,6 +12,7 @@ Start with [installation](installation.md) â†’ [first project](quickstart.md) â†
 | App registration, dependencies, startup, shutdown | [Projects and applications](structure.md) |
 | Typed settings, dotenv precedence, secrets, defaults, required resources | [Configuration](configuration.md), [all settings](settings.md) |
 | Built-in CLI commands, custom commands, check registry | [Management commands](commands.md) |
+| Trusted compiler-backed Go scripts and project resource bootstrap | [Runscript](runscript.md) |
 | Development reload, compiled binary, server/worker roles | [Run and build](running.md) |
 | Independent modules and versions | [Introduction](index.md), [compatibility](compatibility.md) |
 
