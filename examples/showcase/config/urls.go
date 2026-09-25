@@ -89,6 +89,11 @@ func (c *Connections) Handler(_ *app.Registry, settings conf.Values) (http.Handl
 		return nil, err
 	}
 	mux := http.NewServeMux()
+	dashboard, err := c.Dashboard()
+	if err != nil {
+		return nil, err
+	}
+	mux.Handle("/async/", dashboard)
 	mux.HandleFunc("/", catalog.Index)
 	mux.HandleFunc("/assets/showcase.css", catalog.Styles)
 	mux.HandleFunc("/fields/", catalog.Fields)

@@ -20,6 +20,7 @@ import (
 
 	"example.com/gogo-showcase/apps/catalog"
 	"example.com/gogo-showcase/apps/fieldlab"
+	"github.com/Newton-School/gogo/async"
 	"github.com/Newton-School/gogo/connectors/postgres"
 	redistest "github.com/Newton-School/gogo/connectors/redis/testing"
 	"github.com/Newton-School/gogo/core/app"
@@ -154,6 +155,9 @@ func TestNativeShowcaseJourney(t *testing.T) {
 	if status, _ := read("/admin/"); status != 302 && status != 303 {
 		t.Fatalf("anonymous Admin status %d", status)
 	}
+	if status, _ := read("/async/"); status != 303 {
+		t.Fatalf("anonymous dashboard status %d", status)
+	}
 	status, login := read("/admin/login/")
 	if status != 200 {
 		t.Fatalf("login GET status %d", status)
@@ -251,6 +255,49 @@ func TestNativeShowcaseJourney(t *testing.T) {
 			}
 		})
 	}
+	t.Run("dashboard_and_beat", func(t *testing.T) {
+		if err := call("demoasync", "schedule"); err != nil {
+			t.Fatal(err)
+		}
+		r, err := connections.taskRuntime()
+		if err != nil {
+			t.Fatal(err)
+		}
+		pages, err := r.schedules.List(ctx, 10)
+		if err != nil || len(pages) != 1 {
+			t.Fatal(pages, err)
+		}
+		p := pages[0]
+		expected := p.Revision
+		p.Revision++
+		p.NextDue = time.Now().UTC().Add(-time.Second)
+		if err := r.schedules.UpsertSchedule(ctx, p, expected); err != nil {
+			t.Fatal(err)
+		}
+		if err := call("beat", "--once"); err != nil {
+			t.Fatal(err)
+		}
+		if err := call("worker", "--once"); err != nil {
+			t.Fatal(err)
+		}
+		pages, err = r.schedules.List(ctx, 10)
+		if err != nil || len(pages) != 1 || pages[0].LastTaskID == "" {
+			t.Fatal(pages, err)
+		}
+		record, err := r.results.Lookup(ctx, pages[0].LastTaskID)
+		if err != nil || record.State != async.Succeeded {
+			t.Fatal(record.State, err)
+		}
+		for _, path := range []string{"/async/", "/async/tasks", "/async/tasks/" + record.Envelope.ID, "/async/workers", "/async/queues", "/async/beat", "/async/beat/" + p.ID, "/async/schedulers", "/async/workflows", "/async/events", "/async/style.css"} {
+			status, body := read(path)
+			if status != 200 {
+				t.Fatalf("dashboard %s: %d %s", path, status, body)
+			}
+			if strings.Contains(body, password) {
+				t.Fatal("credential in dashboard")
+			}
+		}
+	})
 }
 
 func verifyConfiguredQueryDeadline(t *testing.T, ctx context.Context, connections *Connections, registry *app.Registry, environment map[string]string) {

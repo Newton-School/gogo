@@ -52,6 +52,7 @@ func TestComposeResourceBudgets(t *testing.T) {
 		"redis":      {0.25, 128 << 20, 64, false},
 		"web":        {0.50, 256 << 20, 128, true},
 		"worker":     {0.50, 256 << 20, 128, true},
+		"beat":       {0.50, 256 << 20, 128, true},
 		"setup":      {0.50, 256 << 20, 128, true},
 		"initialize": {0.50, 256 << 20, 128, true},
 	}

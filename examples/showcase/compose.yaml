@@ -144,6 +144,20 @@ services:
     command: [worker]
     restart: unless-stopped
 
+  beat:
+    <<: *app
+    network_mode: service:postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
+        restart: true
+      redis:
+        condition: service_healthy
+      initialize:
+        condition: service_completed_successfully
+    command: [beat]
+    restart: unless-stopped
+
 # Compose down preserves all three volumes. Removing them is a destructive reset.
 volumes:
   credentials:
