@@ -1,7 +1,7 @@
 # Showcase map
 
 The checkout sample uses public module imports resolved to local framework
-modules by `go.work`, including unreleased Redis changes. Its demonstrations are not a
+modules by `go.work`, with alpha.2 dependency pins for independent use. Its demonstrations are not a
 certification that the entire approved framework architecture is implemented.
 
 ## Application tree

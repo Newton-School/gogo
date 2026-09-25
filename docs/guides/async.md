@@ -5,9 +5,9 @@ Async runs typed work independently of an HTTP request. Producers submit tasks; 
 ## Install
 
 ```sh
-go get github.com/Newton-School/gogo/async@v1.0.0-alpha.1
-go get github.com/Newton-School/gogo/connectors/redis@v1.0.0-alpha.1
-go get github.com/Newton-School/gogo/async/redis@v1.0.0-alpha.1
+go get github.com/Newton-School/gogo/async@v1.0.0-alpha.2
+go get github.com/Newton-School/gogo/connectors/redis@v1.0.0-alpha.2
+go get github.com/Newton-School/gogo/async/redis@v1.0.0-alpha.2
 ```
 
 ## Declare typed tasks

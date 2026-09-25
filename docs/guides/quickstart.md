@@ -17,7 +17,7 @@ Create client projects outside the framework checkout. Its `go.work` is for fram
 ## 1. Install and create
 
 ```sh
-go install github.com/Newton-School/gogo/cmd/gogo@v1.0.0-alpha.1
+go install github.com/Newton-School/gogo/cmd/gogo@v1.0.0-alpha.2
 gogo startproject storefront --module example.com/storefront
 cd storefront
 go mod tidy

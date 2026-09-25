@@ -5,12 +5,12 @@ Read [task declarations](async.md) first. A task definition is not a running que
 ## Install the three optional modules
 
 ```sh
-go get github.com/Newton-School/gogo/async@v1.0.0-alpha.1
-go get github.com/Newton-School/gogo/connectors/redis@v1.0.0-alpha.1
-go get github.com/Newton-School/gogo/async/redis@v1.0.0-alpha.1
+go get github.com/Newton-School/gogo/async@v1.0.0-alpha.2
+go get github.com/Newton-School/gogo/connectors/redis@v1.0.0-alpha.2
+go get github.com/Newton-School/gogo/async/redis@v1.0.0-alpha.2
 ```
 
-Set `GOGO_REDIS_URL` in the client, including a dedicated database such as `/1`. Select the `redis` resource for the commands that use it. The URL-only behavior below is an unreleased checkout change; the tags above still use the old contract. Run the checkout showcase for this version and read [the Redis upgrade notes](connectors.md#redis-databases) before updating an existing client. Development Redis must be loopback; use [the showcase's Docker topology](showcase.md) or run Redis locally. Production roles require authenticated TLS and the documented persistence policy.
+Set `GOGO_REDIS_URL` in the client, including a dedicated database such as `/1`. Select the `redis` resource for the commands that use it. Read [the Redis upgrade notes](connectors.md#redis-databases) before updating an alpha.1 client. Development Redis must be loopback; use [the showcase's Docker topology](showcase.md) or run Redis locally. Production roles require authenticated TLS and the documented persistence policy.
 
 ## Open role-specific connections
 

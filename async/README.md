@@ -3,8 +3,8 @@
 Typed Go tasks, leased workers, durable chains/groups/chords, retry intents and periodic scheduling. Install the Redis adapter separately:
 
 ```sh
-go get github.com/Newton-School/gogo/async@v1.0.0-alpha.1
-go get github.com/Newton-School/gogo/async/redis@v1.0.0-alpha.1
+go get github.com/Newton-School/gogo/async@v1.0.0-alpha.2
+go get github.com/Newton-School/gogo/async/redis@v1.0.0-alpha.2
 ```
 
 Register tasks before freezing the registry. Producers call `Task.Delay` or `Client.ApplyCanvas`. Workers run `Worker.Run`; run `IntentRelay` alongside workers and `Beat` for periodic schedules. `DelayedDispatcher` processes scheduled work, and the Redis `Reconciler` combines reclaim, relay, delayed dispatch and bounded result cleanup. Backend roles can use separate Redis servers.
@@ -175,7 +175,7 @@ For periodic enumeration, set `async/redis.Reconciler.Workflows` to `&async.Work
 
 Workflow snapshots and initial dispatch batches are capped at 2 MiB each, with a 4 MiB working budget and reserved recovery headroom below the adapter's 8 MiB logical atomic-document limit. Adapter encoding overhead is reserved separately. Aggregate results or expanded inputs that exceed the working budget produce a durable `WORKFLOW_SIZE` outcome after accepted children settle. Undispatched dependents fail without execution; already-running children retain their real outcomes. Large copied aggregate payloads are discarded from the failed graph, not from the individual task results.
 
-Redis adapters store payload JSON as opaque bytes, separate from mutable lease metadata; Lua never decodes task arguments or result values. Fencing and revision identities use exact decimal strings. The current pre-release schedule/intent storage format is versioned and rejects older unversioned documents as unavailable. Existing test data from an earlier development build requires explicit migration or an isolated new namespace; the adapter never silently rewrites or deletes it.
+Redis adapters store payload JSON as opaque bytes, separate from mutable lease metadata; Lua never decodes task arguments or result values. Fencing and revision identities use exact decimal strings. The current pre-release schedule/intent storage format is versioned and rejects older unversioned documents as unavailable. Existing test data from an earlier development build requires explicit migration or an isolated Redis database; the adapter never silently rewrites or deletes it.
 
 `async/redis.Results.Cleanup` is a trusted maintenance operation over one fixed task partition. Its sorted task inventory returns at most the requested 1–1000 IDs, not an approximate Redis scan count. Retain `Cursor{Partition, AfterID}` between calls; concurrent insertions before the cursor appear on the next pass. Active tasks, workflow pins and undelivered intents retain their records; ordinary payload expiry preserves the replay tombstone. Each record uses its own revision CAS, so an error may accompany an already-applied partial report, with the input cursor retained for idempotent retry. Corrupt/missing authoritative state fails visibly rather than being deleted or guessed complete. Task transitions and cleanup preflight their key types and complete intent metadata before writes. The versioned sorted inventory is not compatible with the older development SET index or nonzero `Cursor.Position`: stop old writers and explicitly migrate their inventory before resuming cleanup. Mixed-version writers and automatic namespace scanning/backfill are not supported. The composed Redis reconciler returns on errors; its caller owns retry/escalation and cursor persistence.
 

@@ -9,8 +9,8 @@ The [PostgreSQL configuration](options-connectors-postgres-config.md) and [Redis
 In your client project:
 
 ```sh
-go get github.com/Newton-School/gogo/connectors/postgres@v1.0.0-alpha.1
-go get github.com/Newton-School/gogo/connectors/redis@v1.0.0-alpha.1
+go get github.com/Newton-School/gogo/connectors/postgres@v1.0.0-alpha.2
+go get github.com/Newton-School/gogo/connectors/redis@v1.0.0-alpha.2
 ```
 
 `startproject` already includes PostgreSQL. Install Redis only if a selected service needs it. Use `async/redis` from the optional Async module for durable task infrastructure, not the Core Redis connector alone.
@@ -67,7 +67,7 @@ This wiring fragment uses `redis` from `github.com/Newton-School/gogo/connectors
 
 ### Upgrade from prefixed keys
 
-This is an **unreleased, breaking checkout change** after `v1.0.0-alpha.1`. The published alpha still requires its namespace setting; installing that tag does not install this behavior. The checkout showcase uses the checkout modules so its URL-only configuration works before the next release.
+This is a **breaking change in v1.0.0-alpha.2**. The earlier `v1.0.0-alpha.1` requires its namespace setting; upgrade all selected modules and runtime roles together before using URL-only configuration.
 
 Remove `GOGO_REDIS_NAMESPACE`, `redis.Config.Namespace` and calls to `Connection.Namespace()` when upgrading. Existing application-prefixed keys are neither read nor renamed/deleted automatically. Before switching an existing deployment, stop new task submissions, drain workers and resolve retained delayed/periodic/workflow state under the old version; then stop all old processes and deploy all roles together. Do not mix old and new workers. Plan for cold caches and fresh sessions; invalidate client session cookies when resetting session storage. Migrate durable state only with an application-specific, verified migration if draining is not possible. Do not blindly strip prefixes: queues and coordination records contain cross-key references. Old quarantine cursors are invalid after the change; start a new listing. Keep the old data until the cutover is verified. Selecting another database likewise does not move data.
 

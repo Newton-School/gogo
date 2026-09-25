@@ -18,12 +18,12 @@ tools only; no Gogo server, PostgreSQL, Redis, or framework `.env` is needed.
 
 ## Alpha release
 
-The rebuilt framework is published as **[v1.0.0-alpha.1](https://github.com/Newton-School/gogo/releases/tag/v1.0.0-alpha.1)**. This is a preview, not stable
-1.0 or complete Django/Celery parity. See the [release and migration notes](releases/v1.0.0-alpha.1.md)
+The rebuilt framework is published as **[v1.0.0-alpha.2](https://github.com/Newton-School/gogo/releases/tag/v1.0.0-alpha.2)**. This is a preview, not stable
+1.0 or complete Django/Celery parity. See the [release and migration notes](releases/v1.0.0-alpha.2.md)
 for all six module versions and compatibility boundaries.
 
 ```sh
-go install github.com/Newton-School/gogo/cmd/gogo@v1.0.0-alpha.1
+go install github.com/Newton-School/gogo/cmd/gogo@v1.0.0-alpha.2
 gogo startproject storefront --module example.com/storefront
 cd storefront
 go mod tidy
@@ -39,11 +39,12 @@ secrets have no built-in credential defaults. Pin this prerelease explicitly;
 Start with [examples/showcase](examples/showcase/README.md): a client using public
 imports and this checkout's modules through `go.work` (also inside Docker).
 It connects PostgreSQL models and migrations, authenticated Admin, a scoped
-public API, forms, Redis cache/sessions and a separate Async worker.
+public API, forms, Redis cache/sessions, separate Async worker and Beat processes,
+and an authenticated task dashboard.
 
-The checkout removes Redis application namespaces: select a dedicated database
+Alpha.2 removes Redis application namespaces: select a dedicated database
 with `GOGO_REDIS_URL`, such as `redis://127.0.0.1:6379/1`. This breaking change is
-not yet part of the published alpha. Existing prefixed Redis state is not
+part of this release. Existing prefixed Redis state is not
 automatically migrated or deleted; read the [upgrade notes](docs/guides/connectors.md#upgrade-from-prefixed-keys).
 
 Its [coverage map](examples/showcase/COVERAGE.md) groups 40 model kinds, 29 form

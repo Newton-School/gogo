@@ -1,6 +1,6 @@
 # Dashboard
 
-Inspect background work with server-rendered HTML, ordinary links, and GET filters. No JavaScript, frontend build, extra public package, or new environment variable is required. This is **source-checkout functionality**, not part of the previously published `v1.0.0-alpha.1`.
+Inspect background work with server-rendered HTML, ordinary links, and GET filters. No JavaScript, frontend build, extra public package, or new environment variable is required. The dashboard is included in `v1.0.0-alpha.2`.
 
 ## Preview without services
 
@@ -135,7 +135,9 @@ Only GET and HEAD are accepted. Responses use `no-store`, restrictive CSP, no-re
 
 Redis discovery uses partitioned indexes, not `KEYS` or whole-database scans. Each request reads at most 128 inventory pages and 200 candidate records. Empty filtered pages may still have **Next page**. Inventory order is not chronological or a point-in-time snapshot; concurrent writes/expiry can change later pages. Exact task/workflow/schedule IDs and exact worker/Beat instance IDs can be looked up directly.
 
-Task/workflow inventory follows existing record retention. Schedule discovery begins after the schedule's next save or committed tick following upgrade; existing disabled schedules remain reachable by exact ID until saved again. Worker indexes populate on the next heartbeat. Worker and Beat observations remain discoverable for 24 hours; expired heartbeats are **lost**, not proof the process died. `Beat.Monitor` writes a 30-second observation after a tick with a one-second best-effort budget; failures do not change task/schedule outcomes. Long ticks can appear lost until they finish. `Beat.OnMonitorError` can report sanitized observation failures.
+Task metadata is eligible for explicit cleanup seven days after completion or a later replay-protection deadline by default; active, pinned and pending-intent records remain protected. Payload visibility normally expires after 24 hours separately. These are not automatic Redis expiry guarantees: the showcase does not run task cleanup automatically, and workflow records currently have no automatic age-based cleanup. Configure maintenance and storage monitoring before sustained use.
+
+Schedules retain their current records, not a complete occurrence history. Schedule discovery begins after the schedule's next save or committed tick following upgrade; existing disabled schedules remain reachable by exact ID until saved again. Worker indexes populate on the next heartbeat. Worker and Beat observations remain discoverable for 24 hours; expired heartbeats are **lost**, not proof the process died. `Beat.Monitor` writes a 30-second observation after a tick with a one-second best-effort budget; failures do not change task/schedule outcomes. Long ticks can appear lost until they finish. `Beat.OnMonitorError` can report sanitized observation failures.
 
 An unavailable backend is not shown as zero work. Missing task records may be undispatched or no longer retained. A schedule's last committed task proves an intent was committed—not that publication or execution completed. Events are optional and lossy, not an audit trail. Workflow rows report retained workflow completion metadata, not a separately refreshed child-result snapshot.
 

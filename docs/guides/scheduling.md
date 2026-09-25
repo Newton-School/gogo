@@ -56,7 +56,7 @@ Control APIs include scoped result/status inspection, revocation, worker/queue i
 
 Configure worker presence and controls explicitly for remote heartbeats and exact-instance graceful shutdown. An accepted shutdown reply does not prove that a process exited or that all task effects stopped. Preserve unknown requests for reconciliation rather than retargeting a newly restarted instance.
 
-Events are optional, redacted and lossy. They can be duplicated, trimmed or missed; result state remains authoritative. The source checkout includes a [read-only HTML dashboard](async-dashboard.md); it is not included in the previously published alpha tag.
+Events are optional, redacted and lossy. They can be duplicated, trimmed or missed; result state remains authoritative. Alpha.2 includes a [read-only HTML dashboard](async-dashboard.md).
 
 ## Retention and maintenance
 

@@ -1,6 +1,6 @@
 # Gogo showcase
 
-A sample application using public Gogo imports and the local framework modules through the repository's `go.work`. This checkout includes the unreleased URL-only Redis change; the published **v1.0.0-alpha.1** still requires its old namespace contract. Keep the full checkout and leave workspace mode enabled. To evaluate the published alpha independently, use its matching tagged sample instead. No published tag is modified by these checkout changes.
+A sample application using public Gogo imports, pinned to **v1.0.0-alpha.2**. Keep the full matching release checkout and leave workspace mode enabled for the default native/Docker workflows. The repository's `go.work` selects checked-out framework sources. To verify the published modules independently, use `GOWORK=off go mod tidy` followed by `GOWORK=off go test ./...` and run management commands with `GOWORK=off` too. This release includes URL-only Redis configuration, integer account IDs, Go scripts and the Async dashboard.
 
 Upgrading an existing sample does not migrate or delete old prefixed Redis data. Read the [Redis cutover notes](../../docs/guides/connectors.md#upgrade-from-prefixed-keys) before changing versions. Expect fresh sessions and cold caches, and drain or explicitly migrate durable work first.
 

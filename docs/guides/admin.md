@@ -9,7 +9,7 @@ Use the complete [ModelAdmin options](options-admin-modeladmin.md) and [site con
 Follow [Set up a working Admin](admin-wiring.md) for the full schema/account/session/router integration. This page is the option reference; it is not a replacement for that setup. Then use [Customize your Admin](admin-customization.md) to change one working model at a time.
 
 ```sh
-go get github.com/Newton-School/gogo/admin@v1.0.0-alpha.1
+go get github.com/Newton-School/gogo/admin@v1.0.0-alpha.2
 ```
 
 Create `admin.NewSite` with a store, global permission policy, purpose-bound signer and CSRF configuration. Wire account/session authentication and the desired login/logout/password routes separately. Register models before constructing/freezing the site's handler and mount it at its configured prefix.

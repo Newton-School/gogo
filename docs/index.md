@@ -4,7 +4,7 @@ Gogo is a Go backend framework for applications that need a consistent structure
 
 Keep Go's types, interfaces, `context.Context`, standard HTTP handlers, and concurrency. Organize the application around one `manage.go` entrypoint and small, explicitly registered apps.
 
-> These docs follow the checkout after **v1.0.0-alpha.1**, not a stable 1.0 or a promise of complete Django/Celery parity. The URL-only Redis change is unreleased: the published alpha still requires namespaces. See [Redis compatibility and upgrades](connectors.md#redis-databases). Supported APIs, explicit integration requirements, and known limits are documented separately.
+> These docs describe **v1.0.0-alpha.2**, not a stable 1.0 or a promise of complete Django/Celery parity. This release includes URL-only Redis configuration, integer account IDs, the Django-style Admin, Go scripts and the Async dashboard. Existing applications must review [Redis upgrades](connectors.md#redis-databases) and [account-ID compatibility](auth.md#existing-uuid-databases).
 
 ## Documentation
 
@@ -55,15 +55,15 @@ Sidebar folders only expand and collapse; pages are always leaf entries. Open a 
 | `github.com/Newton-School/gogo/connectors/redis` | Redis connections, caching and sessions |
 | `github.com/Newton-School/gogo/async/redis` | Redis-backed Async broker, results and coordination |
 
-For the published alpha, pin every module to `v1.0.0-alpha.1`. For example, from an existing Go client:
+For the published alpha, pin every module to `v1.0.0-alpha.2`. For example, from an existing Go client:
 
 ```sh
-go get github.com/Newton-School/gogo@v1.0.0-alpha.1
+go get github.com/Newton-School/gogo@v1.0.0-alpha.2
 ```
 
 For a new client, follow [installation](installation.md) and use the project generator instead of wiring an empty directory by hand. Installing a package does not mount routes, create database tables, open connections or start workers. Your project's configuration does that explicitly.
 
-Use the complete checkout and its showcase to try the unreleased Redis configuration. Installing the published tag does not include checkout changes.
+Use the matching release checkout for the complete showcase. Its default workspace mode uses the checked-out sources; an independent client resolves the explicitly pinned module versions.
 
 ## Examples
 

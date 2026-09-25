@@ -1,6 +1,6 @@
 # Alpha limits and upgrading
 
-These docs describe **v1.0.0-alpha.1** and source-backed examples. This is not stable 1.0, full Django parity, full Celery parity or certification for arbitrary production workloads.
+These docs describe **v1.0.0-alpha.2** and source-backed examples. This is not stable 1.0, full Django parity, full Celery parity or certification for arbitrary production workloads.
 
 ## Known boundaries
 
@@ -16,8 +16,8 @@ These docs describe **v1.0.0-alpha.1** and source-backed examples. This is not s
 | Fixtures | JSON/JSONL scalar exports and non-auto-key insert-only imports; no relation/natural-key/upsert/asset transfer |
 | Async | Repeated delivery is possible; no exactly-once external effects or Python/Celery wire compatibility |
 | Scheduler | Per-schedule fencing; no completed database-wide leader lifecycle |
-| Operations | [Read-only Async dashboard](async-dashboard.md) in the source checkout, not the published alpha; no complete Flower parity or universal production deployment/restore certification |
-| Go scripts | [Runscript](runscript.md) is source-checkout functionality, not in the published alpha; requires source/toolchain, with no interactive shell, live-process evaluation or hostile-code sandbox |
+| Operations | [Read-only Async dashboard](async-dashboard.md); no complete Flower parity or universal production deployment/restore certification. Workflow-record cleanup and an automatically wired showcase maintenance runner remain pending |
+| Go scripts | [Runscript](runscript.md) requires source/toolchain, with no interactive shell, live-process evaluation or hostile-code sandbox |
 | Connectors | PostgreSQL and Redis first; other backends need actual implementations |
 | Files | Explicit local provider/service/downloads; no direct cloud upload ecosystem |
 | Runtime modes | Command separation exists; environment-driven named modes remain proposed |
@@ -27,13 +27,22 @@ Constructor presence, schema validation, compile-only wiring, unit tests, real-p
 
 ## Version pinning
 
-All six public module dependency versions use `v1.0.0-alpha.1`. Git tags for submodules have directory prefixes, but `go get` still receives the plain version:
+All six public module dependency versions use `v1.0.0-alpha.2`. Git tags for submodules have directory prefixes, but `go get` still receives the plain version:
 
 ```sh
-go get github.com/Newton-School/gogo/admin@v1.0.0-alpha.1
+go get github.com/Newton-School/gogo/admin@v1.0.0-alpha.2
 ```
 
-Do not use `@admin/v1.0.0-alpha.1` as the module version. Avoid `@latest` when you intend this alpha: the earlier stable line is not the same implementation.
+Do not use `@admin/v1.0.0-alpha.2` as the module version. Avoid `@latest` when you intend this alpha: the earlier stable line is not the same implementation.
+
+## Upgrading from alpha.1
+
+Update all selected Gogo modules together to `v1.0.0-alpha.2`. The release contains breaking Redis configuration/key changes and changes the default User/Group ID type:
+
+- Follow the [Redis cutover procedure](connectors.md#upgrade-from-prefixed-keys). Old prefixed data is not moved or deleted automatically, and old/new workers must not share a deployment during cutover.
+- Existing UUID accounts must explicitly select `auth.NewAccountModels(models.UUID)` throughout registration, migrations and account services. See [existing UUID databases](auth.md#existing-uuid-databases). Do not reset migration history or expect automatic primary-key conversion.
+- Custom Admin templates and CSS need review against the new Django-style presentation. Backend routes and authorization contracts remain explicit.
+- The dashboard and `runscript` are now released, but must still be mounted/configured or invoked explicitly. Installing modules starts no background processes.
 
 ## Migrating from v0.x
 
@@ -43,6 +52,6 @@ Create a separate client, port code/configuration explicitly, and rehearse any d
 
 ## Documentation scope
 
-The public framework source matched the alpha tag when these docs were authored. The standalone showcase and documentation were added after that immutable release commit. Source links identify the checkout used to build the site; newly generated documentation is not a new module release.
+Use the `v1.0.0-alpha.2` checkout for documentation matching this release. The standalone showcase and documentation are included in the repository release; they are not runtime dependencies of the public framework modules. Later source changes do not modify an already published module version.
 
 Review the boundaries above and the [Redis upgrade instructions](connectors.md#upgrade-from-prefixed-keys) before adopting or upgrading the alpha. Planned features are not implemented capabilities; rely on the documented behavior and its verification results.

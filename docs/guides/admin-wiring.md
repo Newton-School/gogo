@@ -17,10 +17,10 @@ The last command displays private bootstrap credentials; do not share its output
 ## Install in your client
 
 ```sh
-go get github.com/Newton-School/gogo/admin@v1.0.0-alpha.1
+go get github.com/Newton-School/gogo/admin@v1.0.0-alpha.2
 ```
 
-For Redis sessions, also install the matching `connectors/redis` module. Add a private `GOGO_SECRET_KEY` (at least 32 bytes) and `GOGO_REDIS_URL` to your client settings in addition to PostgreSQL. The URL selects a dedicated Redis database, for example `/1`. The URL-only behavior shown in this checkout is not yet published in `v1.0.0-alpha.1`; use the checkout showcase or follow [the Redis upgrade notes](connectors.md#redis-databases). Match keys in `.env.example` without copying secrets. A new environment variable alone does not open its service.
+For Redis sessions, also install the matching `connectors/redis` module. Add a private `GOGO_SECRET_KEY` (at least 32 bytes) and `GOGO_REDIS_URL` to your client settings in addition to PostgreSQL. The URL selects a dedicated Redis database, for example `/1`. When upgrading from alpha.1, follow [the Redis upgrade notes](connectors.md#redis-databases). Match keys in `.env.example` without copying secrets. A new environment variable alone does not open its service.
 
 ## Understand each file's job
 

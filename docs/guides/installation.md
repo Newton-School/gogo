@@ -23,12 +23,12 @@ The Docker command is only needed for the Docker paths. Run `go env GOBIN GOPATH
 ## Install the project generator
 
 ```sh
-go install github.com/Newton-School/gogo/cmd/gogo@v1.0.0-alpha.1
+go install github.com/Newton-School/gogo/cmd/gogo@v1.0.0-alpha.2
 gogo version
 gogo help
 ```
 
-Expected version: `1.0.0-alpha.1`. Pin this version: `@latest` can select the incompatible older stable product. The first install needs access to the Go module proxy or your configured dependency mirror.
+Expected version: `1.0.0-alpha.2`. Pin this version: `@latest` can select the incompatible older stable product. The first install needs access to the Go module proxy or your configured dependency mirror.
 
 The generator is a development tool. A built application does not need the `gogo` command or Go installed on its server.
 

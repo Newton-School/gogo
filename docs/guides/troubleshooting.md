@@ -7,7 +7,7 @@ Start with the exact command, selected resource and safe error category. Do not 
 | Symptom | Check |
 | --- | --- |
 | `gogo` is not found | Ensure the directory used by `go install` is on PATH |
-| Wrong API after installation | Pin `v1.0.0-alpha.1`; the older stable line can be selected by `@latest` |
+| Wrong API after installation | Pin `v1.0.0-alpha.2`; the older stable line can be selected by `@latest` |
 | Missing required setting | Set it in your client project's environment; confirm which resource the command selects |
 | Unknown `GOGO_*` key | Fix the spelling or explicitly declare the custom setting in the project schema |
 | Unexpected config under standalone `gogo` | Run `go run manage.go ...` inside the configured application |

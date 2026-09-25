@@ -92,7 +92,7 @@ test('the home URL opens technical documentation instead of a marketing page', (
   const html = read('build/docs/index/index.html');
   assert.match(html, /theme-doc-sidebar/);
   assert.match(html, /\/docs\/quickstart\//);
-  assert.match(html, /1.0.0-alpha.1/);
+  assert.match(html, /1.0.0-alpha.2/);
   assert.match(html, /not a stable 1.0/);
   assert.doesNotMatch(html, /From your first route/);
 });

@@ -1,4 +1,4 @@
-# Third-party notices — v1.0.0-alpha.1
+# Third-party notices — v1.0.0-alpha.2
 
 Gogo retains its MIT license in `LICENSE`. The five nested public modules carry
 the same license so their source archives remain self-contained. Dependencies
@@ -29,6 +29,10 @@ or commit. A particular application includes only its selected packages.
 | `golang.org/x/text` | `v0.41.0` | BSD-3-Clause | [Copyright 2009 The Go Authors](https://github.com/golang/text/blob/v0.41.0/LICENSE) |
 
 ## Distribution scope
+
+The Admin module separately vendors Django presentation assets and their bundled
+JavaScript dependencies. Their versions, licenses and retained upstream notices
+are listed in `admin/THIRD_PARTY_NOTICES.md` and stored beside the assets.
 
 - Dependencies are fetched as Go modules, not vendored into Gogo. Their module
   archives contain the original license files and any package-specific notices.
