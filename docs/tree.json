@@ -131,6 +131,7 @@
   ],
   "asyncSidebar": [
     "async-wiring",
+    "async-dashboard",
     {"guide": "async", "items": ["detail-core-tasks-readme"]},
     {"id": "async-workers", "label": "Workers", "items": ["options-async-worker", "api-async-management"]},
     "workflows",

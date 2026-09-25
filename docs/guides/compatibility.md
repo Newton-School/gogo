@@ -16,7 +16,7 @@ These docs describe **v1.0.0-alpha.1** and source-backed examples. This is not s
 | Fixtures | JSON/JSONL scalar exports and non-auto-key insert-only imports; no relation/natural-key/upsert/asset transfer |
 | Async | Repeated delivery is possible; no exactly-once external effects or Python/Celery wire compatibility |
 | Scheduler | Per-schedule fencing; no completed database-wide leader lifecycle |
-| Operations | No bundled Async dashboard or universal production deployment/restore certification |
+| Operations | [Read-only Async dashboard](async-dashboard.md) in the source checkout, not the published alpha; no complete Flower parity or universal production deployment/restore certification |
 | Go scripts | [Runscript](runscript.md) is source-checkout functionality, not in the published alpha; requires source/toolchain, with no interactive shell, live-process evaluation or hostile-code sandbox |
 | Connectors | PostgreSQL and Redis first; other backends need actual implementations |
 | Files | Explicit local provider/service/downloads; no direct cloud upload ecosystem |

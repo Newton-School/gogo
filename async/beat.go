@@ -374,9 +374,9 @@ func (b *Beat) Tick(ctx context.Context) (result error) {
 	}
 	return nil
 }
-func (b *Beat) Run(ctx context.Context) (result error) {
+func (b *Beat) Run(ctx context.Context) error {
 	defer func() {
-		if ctx.Err() != nil {
+		if ctx != nil && ctx.Err() != nil {
 			b.observe(ctx, "offline")
 		}
 	}()

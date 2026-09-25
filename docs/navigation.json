@@ -1,5 +1,9 @@
 [
   {
+    "id": "async-dashboard", "title": "Dashboard", "section": "Async", "new": true,
+    "file": "docs/guides/async-dashboard.md", "description": "Inspect tasks, workers, queues, periodic schedules, workflows and events in a read-only HTML dashboard."
+  },
+  {
     "id": "installation", "title": "Install and prepare", "section": "Start here",
     "file": "docs/guides/installation.md", "description": "Install the CLI, prepare a private local database, and choose a native or Docker path."
   },

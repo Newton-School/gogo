@@ -199,6 +199,9 @@ func (beatMonitorFailure) ObserveBeat(context.Context, string, string, time.Dura
 	panic("SECRET_MONITOR")
 }
 func TestDashboardBeatTelemetryDoesNotChangeTick(t *testing.T) {
+	if err := (&async.Beat{}).Run(nil); err != async.ErrInvalid {
+		t.Fatal("invalid context changed", err)
+	}
 	c, _, _, m := dashboardFixture(t, nil)
 	beat := &async.Beat{Client: c.Client, Store: m, ID: "beat", Monitor: beatMonitorFailure{}}
 	if err := beat.Tick(context.Background()); err != nil {
@@ -211,5 +214,44 @@ func TestDashboardBeatTelemetryDoesNotChangeTick(t *testing.T) {
 	p, err := m.ReadDashboardBeat(context.Background(), "beat")
 	if err != nil || p.Status != "online" {
 		t.Fatal(p, err)
+	}
+}
+
+func TestDashboardEventsAndEnumerationGrants(t *testing.T) {
+	denied := false
+	c, _, _, m := dashboardFixture(t, func(_ context.Context, action, scope, id string) error {
+		if action == "inspect_dashboard" && denied {
+			return async.ErrDenied
+		}
+		return nil
+	})
+	cat := &dashboardFaultCatalog{DashboardCatalog: m}
+	c.Catalog = cat
+	denied = true
+	w := dashboardRequest(t, c, "GET", "/async/tasks")
+	if w.Code != 403 || cat.calls != 0 {
+		t.Fatal("enumerated before grant", w.Code, cat.calls)
+	}
+	denied = false
+	c.EventScopes = []string{"billing"}
+	c.Events = eventReaderFunc(func(_ context.Context, scope, after string, limit int) (async.EventPage, error) {
+		if scope != "billing" || after != "" || limit != 25 {
+			t.Fatal(scope, after, limit)
+		}
+		return async.EventPage{Entries: []async.EventEntry{{Cursor: "1-0", Event: async.Event{Kind: "task_queued", Task: "mail.send", TaskID: async.StableID("test", "event"), State: async.Queued, Scope: scope, At: time.Now()}}}, NextCursor: "1-0"}, nil
+	})
+	w = dashboardRequest(t, c, "GET", "/async/events")
+	if w.Code != 200 || !strings.Contains(w.Body.String(), "task_queued") || !strings.Contains(w.Body.String(), "Next page") {
+		t.Fatal(w.Code, w.Body.String())
+	}
+	w = dashboardRequest(t, c, "GET", "/async/events?scope=other")
+	if w.Code != 400 {
+		t.Fatal(w.Code)
+	}
+	c.Authorize = func(r *http.Request) error { <-r.Context().Done(); return r.Context().Err() }
+	c.Timeout = time.Millisecond
+	w = dashboardRequest(t, c, "GET", "/async/tasks")
+	if w.Code != 503 {
+		t.Fatal("deadline", w.Code)
 	}
 }

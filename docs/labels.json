@@ -1,4 +1,5 @@
 {
+  "async-dashboard": "Dashboard",
   "index": "Introduction", "installation": "Installation", "quickstart": "Quickstart",
   "running": "Running", "tutorial-api": "API tutorial", "docker": "Docker", "showcase": "Example",
   "structure": "Projects", "configuration": "Configuration", "settings": "Environment variables", "commands": "Commands", "runscript": "Runscript",

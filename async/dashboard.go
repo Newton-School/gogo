@@ -341,7 +341,7 @@ func (d *Dashboard) load(r *http.Request, p *dashboardPage, path string) error {
 	seen := map[string]bool{}
 	reads := 0
 	for calls := 0; calls < 128; calls++ {
-		limit := d.config.PageSize - len(p.Rows)
+		limit := min(d.config.PageSize-len(p.Rows), 200-reads)
 		if limit < 1 {
 			break
 		}

@@ -192,7 +192,7 @@ func (b *Beats) ObserveBeat(ctx context.Context, id, status string, ttl time.Dur
 }
 
 func (b *Beats) Lookup(ctx context.Context, id string) (async.BeatObservation, error) {
-	if ctx == nil || b == nil || b.Connection == nil || !async.ValidWorkerID(id) {
+	if ctx == nil || b == nil || b.Connection == nil || b.Connection.Role() == connector.CacheRole || !async.ValidWorkerID(id) {
 		return async.BeatObservation{}, async.ErrInvalid
 	}
 	values, err := b.Connection.Client().HMGet(ctx, b.Connection.PartitionKey("beat", id, "presence"), "status", "observed", "expires").Result()

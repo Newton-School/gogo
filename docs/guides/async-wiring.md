@@ -35,7 +35,7 @@ Append `connections.AsyncCommands()` to `Project.Commands` in `config/settings.g
 | Delayed dispatcher | Make ETA/countdown tasks runnable when due |
 | Client | Producer admission and result access |
 
-The example does **not** register a Beat factory. Add one deliberately when adopting periodic schedules. A result connection used by schedules is not a running scheduler.
+The checkout showcase also registers a Beat factory and observation ports for the [dashboard](async-dashboard.md). Run `go run manage.go beat` separately for periodic work; Compose starts it automatically. Install the demonstration schedule explicitly with `demoasync schedule`. A result connection alone is not a running scheduler.
 
 ## Run two processes
 

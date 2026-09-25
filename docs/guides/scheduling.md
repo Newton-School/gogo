@@ -13,7 +13,7 @@ Accepting a task is only the first step. Durable operation also needs delay/retr
 | `Outbox` | Couple database business commits to eventual task publication |
 | Redis `Reconciler` | Compose bounded reclaim, relay, delayed work and cleanup |
 
-Wire only the components your application needs, but do not omit the relay that your configured retry/workflow path depends on. Configure `beat` through its management factory; the showcase does not register a periodic Beat process by default.
+Wire only the components your application needs, but do not omit the relay that your configured retry/workflow path depends on. Configure `beat` through its management factory; the checkout showcase registers one and Compose runs it separately.
 
 ## Retry behavior
 
@@ -56,7 +56,7 @@ Control APIs include scoped result/status inspection, revocation, worker/queue i
 
 Configure worker presence and controls explicitly for remote heartbeats and exact-instance graceful shutdown. An accepted shutdown reply does not prove that a process exited or that all task effects stopped. Preserve unknown requests for reconciliation rather than retargeting a newly restarted instance.
 
-Events are optional, redacted and lossy. They can be duplicated, trimmed or missed; result state remains authoritative. There is no bundled Async monitoring dashboard in this release.
+Events are optional, redacted and lossy. They can be duplicated, trimmed or missed; result state remains authoritative. The source checkout includes a [read-only HTML dashboard](async-dashboard.md); it is not included in the previously published alpha tag.
 
 ## Retention and maintenance
 

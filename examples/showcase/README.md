@@ -85,16 +85,28 @@ of resetting the password. You can change the password inside Admin; `credential
 shows only the original bootstrap password, not a subsequently changed password.
 Credentials are never printed by ordinary startup or application logs.
 
-The worker is already running. Try its commands without a local Go toolchain:
+The worker and Beat are already running. Try commands without a local Go toolchain:
 
 ```sh
 docker compose run --rm --no-deps web demoasync task
 docker compose run --rm --no-deps web demoasync group
 docker compose run --rm --no-deps web demoasync chain
 docker compose run --rm --no-deps web demoasync chord
+docker compose run --rm --no-deps web demoasync schedule
 docker compose ps
-docker compose logs --tail=50 web worker initialize
+docker compose logs --tail=50 web worker beat initialize
 ```
+
+Open [Async dashboard](http://127.0.0.1:8000/async/) and use the existing Admin
+login. Only active staff superusers can inspect tasks, workers, queues, schedules,
+Beat instances, workflows and events. It is read-only HTML/CSS, with no JavaScript
+or new configuration variables. `demoasync schedule` installs one schedule once;
+repeating it returns a conflict rather than overwriting it.
+
+For a fixture-only UI preview without PostgreSQL or Redis, run
+`go run ./recipes/dashboard` and open [the local preview](http://127.0.0.1:5555/async/).
+The preview is labeled Demo data, binds only to loopback, and has no live
+application data. Never use its permissive fixture policy in production.
 
 Stop the whole stack with `docker compose down`. PostgreSQL data, Redis data and
 generated credentials remain in project-scoped named volumes; the next `up`
@@ -118,10 +130,11 @@ Every container has a hard CPU quota, memory limit and process/thread limit in
 | Redis | 0.25 | 128 MiB | 64 |
 | Web | 0.50 | 256 MiB | 128 |
 | Worker | 0.50 | 256 MiB | 128 |
+| Beat | 0.50 | 256 MiB | 128 |
 | Setup (one-shot) | 0.50 | 256 MiB | 128 |
 | Initialize (one-shot) | 0.50 | 256 MiB | 128 |
 
-The four long-running containers total **2 CPU cores and 1,152 MiB RAM** at
+The five long-running containers total **2.5 CPU cores and 1,408 MiB RAM** at
 their limits. Setup finishes before PostgreSQL starts, and initialization finishes
 before web/worker start. Additional `docker compose run` commands each inherit the
 web limit and add to that total while running. Application `/tmp` mounts are capped

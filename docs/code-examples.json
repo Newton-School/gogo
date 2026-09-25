@@ -1,4 +1,12 @@
 {
+  "dashboard-policy": {
+    "file": "docs/examples/dashboard_test.go", "intro": "Keep the inventory operator-only; scope and object policies can be stricter.",
+    "symbols": [], "options": {}
+  },
+  "dashboard-mount": {
+    "file": "docs/examples/dashboard_test.go", "intro": "Use the initialized client and catalog; wrap the mux with verified identity middleware.",
+    "symbols": ["async.NewDashboard", "async.DashboardConfig", "async.Dashboard.ServeHTTP"], "options": {}
+  },
   "script-entry": {
     "file": "docs/examples/runscript_test.go",
     "intro": "Call from a script's main function. Use your config.Project() to include apps and connections; return errors so cleanup runs.",
