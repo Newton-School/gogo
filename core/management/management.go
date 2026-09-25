@@ -448,6 +448,7 @@ func builtins(project *Project) []Command {
 		}},
 	}...)
 	commands = append(commands, runServerCommands()...)
+	commands = append(commands, runScriptCommand())
 	return commands
 }
 func split(value string) []string {
