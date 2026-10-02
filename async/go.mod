@@ -3,7 +3,7 @@ module github.com/Newton-School/gogo/async
 go 1.26.8
 
 require (
-	github.com/Newton-School/gogo v1.0.0-alpha.2
+	github.com/Newton-School/gogo v1.0.0-alpha.3
 	golang.org/x/sys v0.47.0
 )
 
