@@ -155,6 +155,14 @@ func testConsumer(ctx context.Context, temp, proxy string) error {
 	if err := command(consumer, "run", "manage.go", "startapp", "catalog"); err != nil {
 		return err
 	}
+	if err := command(consumer, "run", "manage.go", "startservice", "sessions"); err != nil {
+		return fmt.Errorf("generated independent service: %w", err)
+	}
+	for _, args := range [][]string{{"run", "./services/sessions", "check"}, {"run", "./services/sessions", "runserver", "--help"}, {"build", "-o", filepath.Join(temp, "sessions"), "./services/sessions"}} {
+		if err := command(consumer, args...); err != nil {
+			return fmt.Errorf("generated service %v: %w", args, err)
+		}
+	}
 	if err := command(consumer, "run", "manage.go", "generate", "--check"); err != nil {
 		return fmt.Errorf("fresh app descriptor consistency: %w", err)
 	}

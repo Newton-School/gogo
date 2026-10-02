@@ -7,11 +7,13 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 
 	"github.com/Newton-School/gogo/core/conf"
 	"github.com/Newton-School/gogo/internal/codegen"
@@ -292,7 +294,18 @@ func runReload(ctx context.Context, i Invocation, options RunServerOptions, entr
 
 func buildReloadCandidate(ctx context.Context, watch *reloadWatcher, i Invocation, entry *runServerEntry, tool, output string) (result reloadCandidate) {
 	result.name = output
-	err := checkReloadEnvironment(ctx, watch)
+	target, err := reloadMainPackage(i.Project.MainPackage)
+	if err != nil {
+		result.err = err
+		return
+	}
+	if target != "manage.go" && target != "." {
+		if err = watch.regularDirectory(strings.TrimPrefix(target, "./")); err != nil {
+			result.err = err
+			return
+		}
+	}
+	err = checkReloadEnvironment(ctx, watch)
 	if err != nil {
 		result.err = err
 		return
@@ -312,7 +325,7 @@ func buildReloadCandidate(ctx context.Context, watch *reloadWatcher, i Invocatio
 		result.err = err
 		return
 	}
-	command := exec.Command(tool, "build", "-trimpath", "-o", output, "manage.go")
+	command := exec.Command(tool, "build", "-trimpath", "-o", output, target)
 	command.Dir, command.Env = i.Project.Root, slices.Clone(entry.environment)
 	command.Stdout, command.Stderr = i.Stdout, i.Stderr
 	process, err := startReloadProcess(command)
@@ -335,6 +348,32 @@ func buildReloadCandidate(ctx context.Context, watch *reloadWatcher, i Invocatio
 		result.settings, result.err = validateReloadCandidate(ctx, output, i, entry)
 	}
 	return
+}
+
+// Accept exactly one local package, never flags, patterns, files or imports.
+// Filesystem validation additionally rejects symlinked service directories.
+func reloadMainPackage(name string) (string, error) {
+	if name == "" {
+		return "manage.go", nil
+	}
+	if name == "." {
+		return name, nil
+	}
+	rel := strings.TrimPrefix(name, "./")
+	if !strings.HasPrefix(name, "./") || !reloadRelative(rel) || strings.Contains(rel, "...") || strings.HasSuffix(rel, ".go") {
+		return "", errors.New("MainPackage must name one project-relative Go package")
+	}
+	for _, part := range strings.Split(rel, "/") {
+		if strings.HasPrefix(part, ".") || strings.HasPrefix(part, "-") || path.Clean(part) != part {
+			return "", errors.New("invalid MainPackage directory")
+		}
+		for _, r := range part {
+			if !unicode.IsLetter(r) && !unicode.IsDigit(r) && r != '_' && r != '-' {
+				return "", errors.New("invalid MainPackage directory")
+			}
+		}
+	}
+	return name, nil
 }
 
 func checkReloadEnvironment(ctx context.Context, watch *reloadWatcher) error {

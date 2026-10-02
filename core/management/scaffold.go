@@ -9,6 +9,17 @@ import (
 
 func scaffoldCommands() []Command {
 	return []Command{
+		{Name: "startservice", Help: "Create an independently runnable service in services/", Validate: func(args []string) error {
+			if len(args) != 1 {
+				return errors.New("one service name required")
+			}
+			return nil
+		}, Configure: fixed(func(ctx context.Context, i *Invocation, args []string) error {
+			if err := ctx.Err(); err != nil {
+				return err
+			}
+			return codegen.StartService(i.Project.Root, args[0])
+		})},
 		{Name: "generate", Help: "Generate typed model references and registrations", Validate: noArgs, Configure: func(flags *flag.FlagSet) Runner {
 			check := flags.Bool("check", false, "verify descriptors without writing source")
 			return func(ctx context.Context, invocation *Invocation, _ []string) error {

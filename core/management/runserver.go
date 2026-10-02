@@ -49,6 +49,9 @@ func serverFailure(err error) error {
 // captureRunServerProject runs before registration or context callbacks. Only
 // plain declarations are copied; callback handles retain their explicit owner.
 func captureRunServerProject(p Project) (Project, *runServerEntry, error) {
+	if _, err := reloadMainPackage(p.MainPackage); err != nil {
+		return Project{}, nil, serverFailure(err)
+	}
 	if len(p.Schema) > 1024 || len(p.Apps) > 1024 || len(p.Environment) > 4096 || len(p.RuntimeResources) > 128 {
 		return Project{}, nil, serverFailure(errors.New("server configuration exceeds limits"))
 	}

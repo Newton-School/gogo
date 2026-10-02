@@ -43,7 +43,11 @@ type Command struct {
 	Validate      func([]string) error
 }
 type Project struct {
-	Name, Root       string
+	Name, Root string
+	// MainPackage selects the project-relative Go package rebuilt by runserver
+	// --reload (for example "./services/billing"). Empty preserves manage.go.
+	// It does not select apps, open resources, or affect production binaries.
+	MainPackage      string
 	Schema           conf.Schema
 	Environment      map[string]string
 	Apps             []app.Config

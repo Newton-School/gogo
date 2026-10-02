@@ -200,7 +200,7 @@ func Routes(registry *app.Registry)[]urls.Route{
 `,
 		".env": env, ".env.example": env,
 		".gitignore":    "# Local configuration and credentials\n.env\n.env.*\n!.env.example\n\n# Build and test output\n/bin/\n/dist/\n/coverage/\n*.test\ncoverage.out\n\n# Editors and operating system\n.DS_Store\n.idea/\n.vscode/\n",
-		"apps/.gitkeep": "", "templates/.gitkeep": "", "static/.gitkeep": "", "tests/integration/.gitkeep": "",
+		"apps/.gitkeep": "", "services/.gitkeep": "", "templates/.gitkeep": "", "static/.gitkeep": "", "tests/integration/.gitkeep": "",
 	}
 	return writeTree(target, files)
 }
