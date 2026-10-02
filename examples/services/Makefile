@@ -1,8 +1,8 @@
 .DEFAULT_GOAL := help
 .PHONY: help build test migrate seed api reports worker report
 
-# Workspace mode uses the matching framework sources in the contributor checkout.
-export GOWORK := $(abspath ../../go.work)
+# Use matching checkout sources when available; allow standalone module installs.
+export GOWORK ?= $(if $(wildcard ../../go.work),$(abspath ../../go.work),off)
 
 help:
 	@printf '%s\n' 'Independent services example' '' 'Commands:'
