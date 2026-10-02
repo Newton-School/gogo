@@ -55,7 +55,7 @@ docs-check: docs-install
 	npm --prefix docs run check
 
 # Contributor workspace checks; public modules are independently tested below.
-MODULE_PACKAGES := ./... ./admin/... ./async/... ./connectors/postgres/... ./connectors/redis/... ./async/redis/... ./tests/integration/...
+MODULE_PACKAGES := ./... ./admin/... ./async/... ./connectors/postgres/... ./connectors/redis/... ./async/redis/... ./examples/services/... ./tests/integration/...
 
 test: test-js
 	go test -race $(MODULE_PACKAGES)

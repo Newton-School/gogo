@@ -1,0 +1,19 @@
+# Only public framework sources and this example belong in the build context.
+**
+!go.mod
+!go.sum
+!gogo.go
+!LICENSE
+!core/**
+!internal/**
+!async/**
+!connectors/**
+!examples/services/**
+
+# Never send credentials, local binaries or workspace overrides to the builder.
+**/.env
+**/.env.*
+**/bin/**
+**/go.work
+**/go.work.sum
+**/.git/**

@@ -1,0 +1,11 @@
+# Local configuration and credentials
+.env
+.env.*
+!.env.example
+
+# Build output
+/bin/
+
+# Local tooling
+go.work
+go.work.sum

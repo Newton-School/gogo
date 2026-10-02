@@ -8,6 +8,7 @@ use (
 	./connectors/postgres
 	./connectors/redis
 	./examples/showcase
+	./examples/services
 	./tests/integration
 )
 

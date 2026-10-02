@@ -1,0 +1,103 @@
+name: gogo-services
+
+x-app: &app
+  init: true
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  tmpfs: [/tmp:size=32m]
+  stop_grace_period: 40s
+  network_mode: service:postgres
+
+x-database: &database
+  GOGO_DATABASE_URL: postgres://gogo:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD to a random hex value in .env}@127.0.0.1:5432/gogo_services?sslmode=disable
+
+x-http: &http
+  <<: *database
+  GOGO_HTTP_ADDR: 0.0.0.0:8000
+  GOGO_ALLOWED_HOSTS: localhost,127.0.0.1
+
+services:
+  # Local development only. Loopback-bound database/Redis share this network
+  # namespace; only the two HTTP ports are published to the host.
+  postgres:
+    image: postgres:18-alpine@sha256:d3e1620b530c944afa6e887d22eb899824da68e19c52024bf98f5220c88a65b2
+    environment:
+      POSTGRES_USER: gogo
+      POSTGRES_DB: gogo_services
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256
+    command: [postgres, -c, listen_addresses=127.0.0.1]
+    ports: ["127.0.0.1:8000:8000", "127.0.0.1:8001:8001"]
+    volumes: [postgres-data:/var/lib/postgresql]
+    healthcheck:
+      test: [CMD, pg_isready, -h, 127.0.0.1, -U, gogo, -d, gogo_services]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+
+  redis:
+    image: redis:8-alpine@sha256:becdda6c7f4b3fb42e42fd7f120bbf5c54c4caaaf16f26da24e4563d2c1f0576
+    network_mode: service:postgres
+    depends_on:
+      postgres: {condition: service_healthy}
+    command: [redis-server, --bind, 127.0.0.1, --appendonly, "yes", --maxmemory-policy, noeviction]
+    volumes: [redis-data:/data]
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+
+  migrate:
+    <<: *app
+    build: {context: ../.., dockerfile: examples/services/Dockerfile, args: {SERVICE: manage}}
+    environment: *database
+    command: [migrate]
+    depends_on:
+      postgres: {condition: service_healthy}
+
+  seed:
+    <<: *app
+    build: {context: ../.., dockerfile: examples/services/Dockerfile, args: {SERVICE: manage}}
+    environment: *database
+    command: [seed]
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+
+  api:
+    <<: *app
+    build: {context: ../.., dockerfile: examples/services/Dockerfile, args: {SERVICE: api}}
+    environment: *http
+    depends_on:
+      seed: {condition: service_completed_successfully}
+    healthcheck:
+      test: [CMD, wget, -q, -O, /dev/null, "http://127.0.0.1:8000/health/ready/"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+
+  reports:
+    <<: *app
+    build: {context: ../.., dockerfile: examples/services/Dockerfile, args: {SERVICE: reports}}
+    environment:
+      <<: *http
+      GOGO_HTTP_ADDR: 0.0.0.0:8001
+      GOGO_REDIS_URL: redis://127.0.0.1:6379/0
+    depends_on:
+      api: {condition: service_healthy}
+      redis: {condition: service_healthy}
+
+  worker:
+    <<: *app
+    build: {context: ../.., dockerfile: examples/services/Dockerfile, args: {SERVICE: worker}}
+    environment:
+      GOGO_REDIS_URL: redis://127.0.0.1:6379/0
+    command: [worker]
+    depends_on:
+      redis: {condition: service_healthy}
+
+# Preserve data on ordinary docker compose down. Delete volumes only deliberately.
+volumes:
+  postgres-data:
+  redis-data:
