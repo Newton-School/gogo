@@ -24,6 +24,8 @@ func TestGeneratedServiceBuildAndReloadStayIndependent(t *testing.T) {
 	}
 	binary := filepath.Join(t.TempDir(), "sessions")
 	h.run(h.root, goBinary, "build", "-o", binary, "./services/sessions")
+	h.run(h.root, binary, "build")
+	binary = filepath.Join(h.root, "bin/sessions")
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)

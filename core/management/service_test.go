@@ -9,6 +9,7 @@ import (
 )
 
 func TestServiceScaffoldingCommand(t *testing.T) {
+	isolateCommandEnvironment(t)
 	dir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module example.com/backend\ngo 1.26.8\n"), 0600); err != nil {
 		t.Fatal(err)

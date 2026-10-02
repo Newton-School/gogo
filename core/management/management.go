@@ -44,8 +44,8 @@ type Command struct {
 }
 type Project struct {
 	Name, Root string
-	// MainPackage selects the project-relative Go package rebuilt by runserver
-	// --reload (for example "./services/billing"). Empty preserves manage.go.
+	// MainPackage selects the project-relative Go package compiled by build and
+	// runserver --reload (for example "./services/billing"). Empty preserves manage.go.
 	// It does not select apps, open resources, or affect production binaries.
 	MainPackage      string
 	Schema           conf.Schema
@@ -420,10 +420,18 @@ func builtins(project *Project) []Command {
 				return err
 			}
 		}},
-		{Name: "build", Help: "Validate runtime configuration and compile manage", Resources: []string{"runtime"}, Validate: noArgs, Configure: func(f *flag.FlagSet) Runner {
-			output := f.String("o", "bin/manage", "output path")
+		{Name: "build", Help: "Validate runtime configuration and compile this entrypoint", Resources: []string{"runtime"}, Validate: noArgs, Configure: func(f *flag.FlagSet) Runner {
+			defaultOutput := "bin/manage"
+			if target, err := reloadMainPackage(project.MainPackage); err == nil && target != "manage.go" && target != "." {
+				defaultOutput = filepath.Join("bin", filepath.Base(target))
+			}
+			output := f.String("o", defaultOutput, "output path")
 			return func(ctx context.Context, i *Invocation, _ []string) error {
-				cmd := exec.CommandContext(ctx, "go", "build", "-trimpath", "-o", *output, "manage.go")
+				target, err := reloadMainPackage(i.Project.MainPackage)
+				if err != nil {
+					return err
+				}
+				cmd := exec.CommandContext(ctx, "go", "build", "-trimpath", "-o", *output, target)
 				cmd.Dir = i.Project.Root
 				cmd.Stdin = i.Stdin
 				cmd.Stdout = i.Stdout
