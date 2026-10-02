@@ -1,6 +1,6 @@
 # Independent services
 
-This source-checkout example uses the new `MainPackage` support, which is not in the published alpha.2 tag. Run it inside this repository's Go workspace. It has one `go.mod`, shared domain apps, and three separate executables under `services/`; there is no `cmd/` or mode environment variable.
+This example pins `v1.0.0-alpha.3` and uses its `MainPackage` support. Inside this repository, Go's workspace uses the matching checked-out framework sources. For an independent copy, run `GOWORK=off go mod tidy` first and use `GOWORK=off` for the commands below. It has one `go.mod`, shared domain apps, and three separate executables under `services/`; there is no `cmd/` or mode environment variable.
 
 | Executable | Command | Dependencies |
 | --- | --- | --- |

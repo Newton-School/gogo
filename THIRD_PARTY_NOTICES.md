@@ -1,4 +1,4 @@
-# Third-party notices — v1.0.0-alpha.2
+# Third-party notices — v1.0.0-alpha.3
 
 Gogo retains its MIT license in `LICENSE`. The five nested public modules carry
 the same license so their source archives remain self-contained. Dependencies

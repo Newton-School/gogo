@@ -1,6 +1,6 @@
 # Dashboard
 
-Inspect background work with server-rendered HTML, ordinary links, and GET filters. No JavaScript, frontend build, extra public package, or new environment variable is required. The dashboard is included in `v1.0.0-alpha.2`.
+Inspect background work with server-rendered HTML, ordinary links, and GET filters. No JavaScript, frontend build, extra public package, or new environment variable is required. The dashboard is available since `v1.0.0-alpha.2`.
 
 ## Preview without services
 

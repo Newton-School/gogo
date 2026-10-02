@@ -47,7 +47,7 @@ go build -o bin/reports ./services/reports
 go build -o bin/worker ./services/worker
 ```
 
-Deploy these independently, with only the environment values each command needs. Shared models and migrations stay in `apps/`; run the complete migration graph through the root management project. The service scaffolding and selected-package reload support are source-checkout features, not part of the published alpha.2 tag.
+Deploy these independently, with only the environment values each command needs. Shared models and migrations stay in `apps/`; run the complete migration graph through the root management project. Service scaffolding and selected-package reload are available starting in alpha.3.
 
 ## Environment versus process role
 

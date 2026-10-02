@@ -2,7 +2,7 @@
 
 Run a trusted Go file using your application's source and dependencies. `runscript` is a built-in management command; `gogo.Script` is a helper in the existing root import. No extra module, interpreter, package installation, or environment variable is required.
 
-This feature is included in `v1.0.0-alpha.2`. Upgrade older clients before using these examples.
+This feature is available since `v1.0.0-alpha.2`. Upgrade older clients before using these examples.
 
 ## Run a file
 

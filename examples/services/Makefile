@@ -1,7 +1,7 @@
 .DEFAULT_GOAL := help
 .PHONY: help build test migrate seed api reports worker report
 
-# This example exercises unreleased source in the contributor checkout.
+# Workspace mode uses the matching framework sources in the contributor checkout.
 export GOWORK := $(abspath ../../go.work)
 
 help:

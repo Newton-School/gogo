@@ -90,4 +90,4 @@ go build -o bin/sessions ./services/sessions
 ./bin/sessions serve --addr=127.0.0.1:8001
 ```
 
-The source-checkout service generator creates an isolated project factory with no implicit database, Redis, Admin or worker. See [Services](project-services.md) for the complete structure and version availability. You can also run one binary with separate web/worker/scheduler commands after registering those factories. No `GOGO_MODES` registry is needed; see [Deployment](deployment.md).
+The service generator creates an isolated project factory with no implicit database, Redis, Admin or worker. See [Services](project-services.md) for the complete structure and version availability. You can also run one binary with separate web/worker/scheduler commands after registering those factories. No `GOGO_MODES` registry is needed; see [Deployment](deployment.md).

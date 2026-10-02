@@ -19,7 +19,7 @@ from code_examples import extract as extract_example, block as example_block, lo
 ROOT = Path(__file__).resolve().parents[1]
 DOCS = ROOT / "docs"
 OUTPUT = DOCS / ".generated"
-VERSION = "v1.0.0-alpha.2"
+VERSION = "v1.0.0-alpha.3"
 LINK = re.compile(r"\[([^\]]+)\]\(([^)\s]+)\)")
 
 

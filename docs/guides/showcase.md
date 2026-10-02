@@ -1,6 +1,6 @@
 # Run the showcase
 
-The showcase is the quickest way to explore Gogo: one local application with PostgreSQL models, migrations, Admin, public APIs, forms, field inventories, Redis cache/sessions, Async worker/Beat processes and a task dashboard. Use the `v1.0.0-alpha.2` checkout for a release-matched sample. Default workspace mode builds against that checkout's framework sources; the sample's module dependencies also pin alpha.2.
+The showcase is the quickest way to explore Gogo: one local application with PostgreSQL models, migrations, Admin, public APIs, forms, field inventories, Redis cache/sessions, Async worker/Beat processes and a task dashboard. Use the `v1.0.0-alpha.3` checkout for a release-matched sample. Default workspace mode builds against that checkout's framework sources; the sample's module dependencies also pin alpha.3.
 
 ## Start locally
 

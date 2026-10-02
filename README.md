@@ -18,12 +18,12 @@ tools only; no Gogo server, PostgreSQL, Redis, or framework `.env` is needed.
 
 ## Alpha release
 
-The rebuilt framework is published as **[v1.0.0-alpha.2](https://github.com/Newton-School/gogo/releases/tag/v1.0.0-alpha.2)**. This is a preview, not stable
-1.0 or complete Django/Celery parity. See the [release and migration notes](releases/v1.0.0-alpha.2.md)
+The rebuilt framework is published as **[v1.0.0-alpha.3](https://github.com/Newton-School/gogo/releases/tag/v1.0.0-alpha.3)**. This is a preview, not stable
+1.0 or complete Django/Celery parity. See the [release and migration notes](releases/v1.0.0-alpha.3.md)
 for all six module versions and compatibility boundaries.
 
 ```sh
-go install github.com/Newton-School/gogo/cmd/gogo@v1.0.0-alpha.2
+go install github.com/Newton-School/gogo/cmd/gogo@v1.0.0-alpha.3
 gogo startproject storefront --module example.com/storefront
 cd storefront
 go mod tidy
@@ -42,15 +42,24 @@ It connects PostgreSQL models and migrations, authenticated Admin, a scoped
 public API, forms, Redis cache/sessions, separate Async worker and Beat processes,
 and an authenticated task dashboard.
 
-Alpha.2 removes Redis application namespaces: select a dedicated database
-with `GOGO_REDIS_URL`, such as `redis://127.0.0.1:6379/1`. This breaking change is
-part of this release. Existing prefixed Redis state is not
+Since alpha.2, Redis has no application namespace: select a dedicated database
+with `GOGO_REDIS_URL`, such as `redis://127.0.0.1:6379/1`. When upgrading from alpha.1,
+existing prefixed Redis state is not
 automatically migrated or deleted; read the [upgrade notes](docs/guides/connectors.md#upgrade-from-prefixed-keys).
 
 Its [coverage map](examples/showcase/COVERAGE.md) groups 40 model kinds, 29 form
 kinds, 21 widget configurations, 23 API serializer field constructors and
 additional executable recipes by feature. It labels descriptor-only support,
 compile-only examples and remaining gaps explicitly.
+
+## Independent services
+
+Alpha.3 adds `startservice` and service-specific build/reload targets. Keep
+independently deployed binaries under `services/` in the same Go module, sharing
+domain apps and selecting only the dependencies each service needs. See the
+[Services guide](docs/guides/project-services.md) and
+[runnable services example](examples/services/README.md) for shared PostgreSQL
+data, service-to-service HTTP calls and Redis-backed background tasks.
 
 ## Contributor checks
 

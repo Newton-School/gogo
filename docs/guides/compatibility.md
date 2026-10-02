@@ -1,6 +1,6 @@
 # Alpha limits and upgrading
 
-These docs describe **v1.0.0-alpha.2** and source-backed examples. This is not stable 1.0, full Django parity, full Celery parity or certification for arbitrary production workloads.
+These docs describe **v1.0.0-alpha.3** and source-backed examples. This is not stable 1.0, full Django parity, full Celery parity or certification for arbitrary production workloads.
 
 ## Known boundaries
 
@@ -20,24 +20,30 @@ These docs describe **v1.0.0-alpha.2** and source-backed examples. This is not s
 | Go scripts | [Runscript](runscript.md) requires source/toolchain, with no interactive shell, live-process evaluation or hostile-code sandbox |
 | Connectors | PostgreSQL and Redis first; other backends need actual implementations |
 | Files | Explicit local provider/service/downloads; no direct cloud upload ecosystem |
-| Runtime modes | Command separation exists; environment-driven named modes remain proposed |
+| Independent services | Separate binaries under `services/`, explicit project factories and command separation; no global mode registry or automatic service discovery |
 | Telemetry | Explicit instrumentation; no automatic full-stack coverage |
 
 Constructor presence, schema validation, compile-only wiring, unit tests, real-provider integration and browser verification are different evidence levels. Consult the showcase coverage map and the feature's technical guide when choosing a capability.
 
 ## Version pinning
 
-All six public module dependency versions use `v1.0.0-alpha.2`. Git tags for submodules have directory prefixes, but `go get` still receives the plain version:
+All six public module dependency versions use `v1.0.0-alpha.3`. Git tags for submodules have directory prefixes, but `go get` still receives the plain version:
 
 ```sh
-go get github.com/Newton-School/gogo/admin@v1.0.0-alpha.2
+go get github.com/Newton-School/gogo/admin@v1.0.0-alpha.3
 ```
 
-Do not use `@admin/v1.0.0-alpha.2` as the module version. Avoid `@latest` when you intend this alpha: the earlier stable line is not the same implementation.
+Do not use `@admin/v1.0.0-alpha.3` as the module version. Avoid `@latest` when you intend this alpha: the earlier stable line is not the same implementation.
+
+## Upgrading from alpha.2
+
+Update all selected Gogo modules and the CLI to `v1.0.0-alpha.3`. Service scaffolding and selected-package builds/reload are additive; this release introduces no database migrations or Redis key changes.
+
+Existing projects can keep `MainPackage` empty to preserve the `manage.go` entrypoint. Use `startservice NAME` to create an isolated executable, then explicitly register the apps, routes and resources it needs. Installing or scaffolding a service starts no process. See [Services](project-services.md).
 
 ## Upgrading from alpha.1
 
-Update all selected Gogo modules together to `v1.0.0-alpha.2`. The release contains breaking Redis configuration/key changes and changes the default User/Group ID type:
+Update all selected Gogo modules together to `v1.0.0-alpha.3`. The breaking Redis configuration/key changes and default User/Group ID changes introduced in alpha.2 still apply when upgrading from alpha.1:
 
 - Follow the [Redis cutover procedure](connectors.md#upgrade-from-prefixed-keys). Old prefixed data is not moved or deleted automatically, and old/new workers must not share a deployment during cutover.
 - Existing UUID accounts must explicitly select `auth.NewAccountModels(models.UUID)` throughout registration, migrations and account services. See [existing UUID databases](auth.md#existing-uuid-databases). Do not reset migration history or expect automatic primary-key conversion.
@@ -52,6 +58,6 @@ Create a separate client, port code/configuration explicitly, and rehearse any d
 
 ## Documentation scope
 
-Use the `v1.0.0-alpha.2` checkout for documentation matching this release. The standalone showcase and documentation are included in the repository release; they are not runtime dependencies of the public framework modules. Later source changes do not modify an already published module version.
+Use the `v1.0.0-alpha.3` checkout for documentation matching this release. The standalone showcase, independent-services example and documentation are included in the repository release; they are not runtime dependencies of the public framework modules. Later source changes do not modify an already published module version.
 
 Review the boundaries above and the [Redis upgrade instructions](connectors.md#upgrade-from-prefixed-keys) before adopting or upgrading the alpha. Planned features are not implemented capabilities; rely on the documented behavior and its verification results.

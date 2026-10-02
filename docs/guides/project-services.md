@@ -2,7 +2,7 @@
 
 Keep independently deployable Go applications in `services/`. Share domain code through `apps/`; each service chooses its own routes, apps, resources and commands. One repository and one `go.mod` can produce many binaries.
 
-`startservice` and `Project.MainPackage` are available in the source checkout, not the published alpha.2 tag. To try them before the next release, build the CLI and use the framework source through your development workspace or local module replacement.
+`startservice` and `Project.MainPackage` are included in `v1.0.0-alpha.3`. Upgrade your CLI and all selected Gogo modules together before using these examples; no local module replacements are needed.
 
 ## Create
 

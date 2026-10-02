@@ -1,6 +1,6 @@
 {
   "name": "gogo-documentation",
-  "version": "1.0.0-alpha.2",
+  "version": "1.0.0-alpha.3",
   "private": true,
   "scripts": {
     "generate": "python3 generate.py",
