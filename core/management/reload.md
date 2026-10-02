@@ -17,7 +17,7 @@ the running child. Reload currently supports Linux and macOS only.
 
 1. Watch content changes, coalesce edits and check generated descriptors without
    writing source. Run `generate` explicitly to repair stale descriptors.
-2. Build `manage.go` with `go build -trimpath` into a private temporary directory.
+2. Build `Project.MainPackage` (or `manage.go` when empty) with `go build -trimpath` into a private temporary directory.
    Compiler diagnostics go to the invocation's terminal, not an HTTP error page.
 3. Run that exact candidate's existing `check` and `diffsettings` commands. Its
    fresh schema, defaults and code-defined environment own validation. Capture
@@ -48,6 +48,13 @@ Declare settings before calling management; registration hooks cannot supply or
 rewrite them afterward. Check registrations themselves remain available normally.
 
 ## Source selection
+
+Independent service entrypoints set `MainPackage: "./services/sessions"` and
+run `go run ./services/sessions runserver --reload` from the project root. The
+target must name one project-relative package, not a filename, pattern, import,
+absolute path or traversal. `"."` selects the root package. Symlinked target
+directories are rejected. An empty value preserves existing `manage.go` builds.
+The selected entrypoint is fixed for this supervisor; restart to change it.
 
 Default selection includes Go files, Go module/workspace files, the root `.env`
 and files below template directories. Repeat `--watch` for additional embedded

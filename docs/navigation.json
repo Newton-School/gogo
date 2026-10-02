@@ -1,5 +1,9 @@
 [
   {
+    "id": "project-services", "title": "Services", "section": "Fundamentals", "new": true,
+    "file": "docs/guides/project-services.md", "description": "Scaffold, build, reload and deploy independent services from one Go codebase."
+  },
+  {
     "id": "async-dashboard", "title": "Dashboard", "section": "Async", "new": true,
     "file": "docs/guides/async-dashboard.md", "description": "Inspect tasks, workers, queues, periodic schedules, workflows and events in a read-only HTML dashboard."
   },

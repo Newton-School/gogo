@@ -27,6 +27,7 @@ storefront/
 │   ├── migrations/           migration source and registry
 │   ├── templates/            app templates
 │   └── static/               app assets
+├── services/                 independent executables (startservice NAME)
 ├── templates/                project templates
 ├── static/                   project assets
 └── tests/integration/        application integration tests
@@ -81,4 +82,12 @@ Failed startup must not be treated as readiness. Application shutdown owns resou
 
 ## Separate deployments, shared code
 
-Run the same compiled application with different commands for web, worker and scheduler processes. Gogo does not currently provide a built-in `GOGO_MODES` registry. A custom router or a specialized background process belongs in explicit project wiring; see [Deployment](deployment.md).
+Use `services/` for independently built applications sharing the same module and domain apps:
+
+```sh
+go run manage.go startservice sessions
+go build -o bin/sessions ./services/sessions
+./bin/sessions serve --addr=127.0.0.1:8001
+```
+
+The source-checkout service generator creates an isolated project factory with no implicit database, Redis, Admin or worker. See [Services](project-services.md) for the complete structure and version availability. You can also run one binary with separate web/worker/scheduler commands after registering those factories. No `GOGO_MODES` registry is needed; see [Deployment](deployment.md).

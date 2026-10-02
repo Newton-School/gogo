@@ -9,6 +9,7 @@ Start with [installation](installation.md) â†’ [first project](quickstart.md) â†
 | Feature | What to use / where to learn it |
 | --- | --- |
 | Project generator, central `manage.go`, app scaffold | [Project tutorial](quickstart.md), [folder structure](structure.md) |
+| Independent service scaffolds, binaries, resources and reload targets | [Services](project-services.md) |
 | App registration, dependencies, startup, shutdown | [Projects and applications](structure.md) |
 | Typed settings, dotenv precedence, secrets, defaults, required resources | [Configuration](configuration.md), [all settings](settings.md) |
 | Built-in CLI commands, custom commands, check registry | [Management commands](commands.md) |

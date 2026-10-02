@@ -10,9 +10,10 @@ Use the standalone `gogo` executable to bootstrap a project. Once the project ex
 | `diffsettings` | Inspect resolved settings with secrets redacted | Project schema |
 | `startproject NAME --module PATH` | Create a project pinned to the framework version | Core |
 | `startapp LABEL` | Create and register an app | Existing generated project |
+| `startservice NAME` | Create an independent executable under `services/` | Client `go.mod`; source-checkout feature, see [Services](project-services.md) |
 | `generate`, `generate --check` | Write or verify generated model descriptors | App model source |
 | `check` | Run configured project checks | Relevant configuration must validate |
-| `build` | Run the framework's project build path | Generated project and required configuration |
+| `build` | Compile `Project.MainPackage`, or `manage.go` when empty | Project source and required runtime configuration; `-o` overrides output |
 | `test`, `test --race` | Run project Go tests | Existing Go client |
 | `runscript scripts/file.go -- ARGUMENTS` | Compile and run a trusted Go script | Project source, installed toolchain, cached dependencies; see [Runscript](runscript.md) |
 | `runserver`, `serve` | Run the explicitly configured HTTP handler | Project Handler and runtime resources |

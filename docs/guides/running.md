@@ -62,6 +62,15 @@ The queue name must be allowed by your worker factory. Put these commands in dif
 
 ## Framework checkout versus client project
 
+For independently compiled routers or workers, put entrypoints in `services/`:
+
+```sh
+go build -o bin/sessions ./services/sessions
+./bin/sessions serve --addr=127.0.0.1:8001
+```
+
+See [Services](project-services.md) for scaffolding, reload, resource selection and the complete example.
+
 `make build` in the Gogo repository compiles framework workspace packages. It does not create your application server. Build the project containing **your** `manage.go` instead. Clients inside the contributor checkout need `GOWORK=off` to avoid the framework workspace; creating them outside it is simpler.
 
 Next: [build a database-backed API](tutorial-api.md) or [run your app with Docker](docker.md).

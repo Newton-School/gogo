@@ -37,11 +37,23 @@ Setting `GOGO_ENV=production` tightens configuration requirements; it does not i
 
 The worker and Beat commands exist only when their factories are registered. Keep migration execution separate from serving or consuming work. The showcase's web/worker containers demonstrate command separation, not a complete production deployment recipe.
 
-## Runtime modes are not built in yet
+## Independent service binaries
+
+For different routers, resources and dependency graphs, use [Services](project-services.md):
+
+```sh
+go build -o bin/api ./services/api
+go build -o bin/reports ./services/reports
+go build -o bin/worker ./services/worker
+```
+
+Deploy these independently, with only the environment values each command needs. Shared models and migrations stay in `apps/`; run the complete migration graph through the root management project. The service scaffolding and selected-package reload support are source-checkout features, not part of the published alpha.2 tag.
+
+## Environment versus process role
 
 There is currently no built-in `GOGO_MODE`, `GOGO_MODES` or custom-mode registry. `GOGO_ENV` selects development/test/production behavior; it does not select a worker or router.
 
-Applications can implement their own declared setting and select a handler/command explicitly. A first-class mode registry with per-mode routes, resource selection and lifecycle remains proposed work, not an API documented as shipped.
+The executable selects the service; `serve`, `worker` or `beat` selects a registered process role. No global mode registry is needed for this structure.
 
 ## Production checklist
 

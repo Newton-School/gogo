@@ -18,6 +18,7 @@
       "label": "Project",
       "items": [
         "structure",
+        "project-services",
         {"guide": "configuration", "items": ["settings"]},
         {"guide": "commands", "items": ["runscript"]}
       ]
